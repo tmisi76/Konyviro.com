@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FolderOpen, FileText, PenLine } from "lucide-react";
+import { FolderOpen, FileText, Flame } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useProjects } from "@/hooks/useProjects";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useWritingStats } from "@/hooks/useWritingStats";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
@@ -17,6 +18,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { PullToRefresh } from "@/components/mobile/PullToRefresh";
 import { InstallPWAPrompt } from "@/components/mobile/InstallPWAPrompt";
+import { WritingStatsPanel } from "@/components/stats/WritingStatsPanel";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +33,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isOnline, pendingChanges, saveLastProject } = useOfflineSync();
+  const { streak, getTodayWords, goals } = useWritingStats();
 
   // Pull to refresh
   const handleRefresh = async () => {
@@ -56,9 +59,10 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const totalProjects = projects.length;
     const totalWords = projects.reduce((sum, p) => sum + (p.word_count || 0), 0);
-    const weeklyWriting = Math.round(totalWords * 0.1);
-    return { totalProjects, totalWords, weeklyWriting };
-  }, [projects]);
+    const todayWords = getTodayWords();
+    const currentStreak = streak?.current_streak || 0;
+    return { totalProjects, totalWords, todayWords, currentStreak };
+  }, [projects, getTodayWords, streak]);
 
   // Sidebar project list
   const sidebarProjects = useMemo(() => {
@@ -159,16 +163,16 @@ export default function Dashboard() {
                   icon={FolderOpen}
                 />
                 <StatsCard
-                  title="Összes szó"
-                  value={stats.totalWords.toLocaleString("hu-HU")}
+                  title="Mai írás"
+                  value={stats.todayWords.toLocaleString("hu-HU")}
+                  subtitle={`/ ${goals?.daily_word_goal || 500} cél`}
                   icon={FileText}
                 />
                 <StatsCard
-                  title="Heti írás"
-                  value={stats.weeklyWriting.toLocaleString("hu-HU")}
-                  subtitle="szó"
-                  icon={PenLine}
-                  trend={stats.weeklyWriting > 0 ? { value: 12, isPositive: true } : undefined}
+                  title="Sorozat"
+                  value={stats.currentStreak}
+                  subtitle="nap"
+                  icon={Flame}
                 />
               </div>
 
@@ -269,17 +273,22 @@ export default function Dashboard() {
               icon={FolderOpen}
             />
             <StatsCard
-              title="Összes szó"
-              value={stats.totalWords.toLocaleString("hu-HU")}
+              title="Mai írás"
+              value={stats.todayWords.toLocaleString("hu-HU")}
+              subtitle={`/ ${goals?.daily_word_goal || 500} cél`}
               icon={FileText}
             />
             <StatsCard
-              title="Heti írás"
-              value={stats.weeklyWriting.toLocaleString("hu-HU")}
-              subtitle="szó"
-              icon={PenLine}
-              trend={stats.weeklyWriting > 0 ? { value: 12, isPositive: true } : undefined}
+              title="Sorozat"
+              value={stats.currentStreak}
+              subtitle="nap"
+              icon={Flame}
             />
+          </div>
+
+          {/* Writing Stats Panel */}
+          <div className="mb-8">
+            <WritingStatsPanel />
           </div>
 
           {/* Projects section */}
