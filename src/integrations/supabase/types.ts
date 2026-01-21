@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          adult_content_verified: boolean
+          adult_verified_at: string | null
           created_at: string
           full_name: string | null
           id: string
@@ -23,6 +25,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          adult_content_verified?: boolean
+          adult_verified_at?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
@@ -30,6 +34,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          adult_content_verified?: boolean
+          adult_verified_at?: string | null
           created_at?: string
           full_name?: string | null
           id?: string

@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { AdultBadge } from "@/components/ui/adult-badge";
 
 export interface Project {
   id: string;
@@ -66,6 +67,7 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
     100
   );
   const genre = genreConfig[project.genre];
+  const isAdultContent = project.genre === "erotikus";
 
   return (
     <div
@@ -78,14 +80,17 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
     >
       {/* Header with genre badge and menu */}
       <div className="mb-3 flex items-start justify-between">
-        <span
-          className={cn(
-            "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-            genre.className
-          )}
-        >
-          {genre.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
+              genre.className
+            )}
+          >
+            {genre.label}
+          </span>
+          {isAdultContent && <AdultBadge />}
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
