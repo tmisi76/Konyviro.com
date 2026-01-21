@@ -11,10 +11,13 @@ import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
 import { OutlineView } from "@/components/editor/OutlineView";
 import { CharacterList } from "@/components/characters/CharacterList";
 import { ResearchView } from "@/components/research/ResearchView";
+import { CitationPanel } from "@/components/research/CitationPanel";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
+import { useSources, useCitations } from "@/hooks/useResearch";
 import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
+import type { Source } from "@/types/research";
 
 type ViewMode = "editor" | "outline" | "characters" | "research";
 
@@ -28,6 +31,7 @@ export default function ProjectEditor() {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
+  const [showCitationPanel, setShowCitationPanel] = useState(false);
 
   const { project, isLoading: projectLoading } = useProjectDetails(projectId || "");
   const {
@@ -49,10 +53,35 @@ export default function ProjectEditor() {
     reorderBlocks,
   } = useEditorData(projectId || "");
 
+  // Research hooks for Szakkönyv projects
+  const { sources } = useSources(projectId || "");
+  const { citations, createCitation } = useCitations(activeChapterId);
+
   // Check if project supports characters (fiction or erotic)
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
   // Check if project supports research (non-fiction)
   const supportsResearch = project?.genre === "szakkonyv";
+
+  // Handle citation insertion
+  const handleInsertCitation = useCallback(async (source: Source, pageRef?: string) => {
+    if (!activeChapterId) return;
+    
+    const citation = await createCitation(source.id, selectedBlockId || undefined, pageRef);
+    if (citation) {
+      // Insert citation marker into the text
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const marker = document.createTextNode(`[${citation.citation_number}]`);
+        range.insertNode(marker);
+        range.setStartAfter(marker);
+        range.setEndAfter(marker);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      toast.success(`Hivatkozás beszúrva [${citation.citation_number}]`);
+    }
+  }, [activeChapterId, selectedBlockId, createCitation]);
 
   const handleCreateBlockAfter = useCallback(async (afterBlockId: string, type: BlockType = "paragraph") => {
     const afterBlock = blocks.find((b) => b.id === afterBlockId);
@@ -267,6 +296,8 @@ export default function ProjectEditor() {
                     onDragStart={() => setDraggedBlockId(block.id)}
                     onDragEnd={() => setDraggedBlockId(null)}
                     isDragging={draggedBlockId === block.id}
+                    showResearchTools={supportsResearch}
+                    onInsertCitation={() => setShowCitationPanel(true)}
                   />
                 </div>
               ))}
@@ -306,6 +337,16 @@ export default function ProjectEditor() {
           isCollapsed={aiPanelCollapsed}
           onToggleCollapse={() => setAiPanelCollapsed(!aiPanelCollapsed)}
           projectGenre={project?.genre}
+        />
+      )}
+
+      {/* Citation Panel for research projects */}
+      {supportsResearch && (
+        <CitationPanel
+          isOpen={showCitationPanel}
+          onClose={() => setShowCitationPanel(false)}
+          sources={sources}
+          onSelectSource={handleInsertCitation}
         />
       )}
     </div>

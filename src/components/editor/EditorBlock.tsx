@@ -15,6 +15,8 @@ interface EditorBlockProps {
   onDragStart: () => void;
   onDragEnd: () => void;
   isDragging: boolean;
+  showResearchTools?: boolean;
+  onInsertCitation?: () => void;
 }
 
 export function EditorBlock({
@@ -27,6 +29,8 @@ export function EditorBlock({
   onDragStart,
   onDragEnd,
   isDragging,
+  showResearchTools = false,
+  onInsertCitation,
 }: EditorBlockProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -258,6 +262,8 @@ export function EditorBlock({
         <FloatingToolbar
           position={toolbarPosition}
           onClose={() => setShowToolbar(false)}
+          showResearchTools={showResearchTools}
+          onInsertCitation={onInsertCitation}
         />
       )}
     </div>
