@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,6 +15,10 @@ import {
   BookOpen,
   Users,
   Mic,
+  Copy,
+  Check,
+  X,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,87 +29,270 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
+import { toast } from "sonner";
 
 interface AIAssistantPanelProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  projectId: string;
   projectGenre?: string;
+  projectDescription?: string;
+  projectTone?: string;
+  currentChapterId?: string;
   currentChapterTitle?: string;
+  currentChapterContent?: string;
   characterCount?: number;
+  charactersContext?: string;
+  sourcesContext?: string;
+  selectedText?: string;
+  onInsertText?: (text: string) => void;
 }
 
 type QuickAction = {
-  id: string;
+  id: AIAction;
   label: string;
   icon: React.ReactNode;
   description: string;
+  requiresSelection?: boolean;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
   { id: "continue", label: "Folytatás", icon: <Play className="h-4 w-4" />, description: "Folytatás a kurzortól" },
-  { id: "rewrite", label: "Átírás", icon: <RefreshCw className="h-4 w-4" />, description: "Kijelölt szöveg átírása" },
-  { id: "shorten", label: "Rövidítés", icon: <Minimize2 className="h-4 w-4" />, description: "Szöveg rövidítése" },
-  { id: "expand", label: "Bővítés", icon: <Maximize2 className="h-4 w-4" />, description: "Szöveg kibővítése" },
+  { id: "rewrite", label: "Átírás", icon: <RefreshCw className="h-4 w-4" />, description: "Kijelölt szöveg átírása", requiresSelection: true },
+  { id: "shorten", label: "Rövidítés", icon: <Minimize2 className="h-4 w-4" />, description: "Szöveg rövidítése", requiresSelection: true },
+  { id: "expand", label: "Bővítés", icon: <Maximize2 className="h-4 w-4" />, description: "Szöveg kibővítése", requiresSelection: true },
   { id: "dialogue", label: "Dialógus", icon: <MessageSquare className="h-4 w-4" />, description: "Párbeszéd generálása" },
   { id: "description", label: "Leírás", icon: <FileText className="h-4 w-4" />, description: "Leírás generálása" },
 ];
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  isStreaming?: boolean;
+}
+
 export function AIAssistantPanel({
   isCollapsed,
   onToggleCollapse,
-  projectGenre,
+  projectId,
+  projectGenre = "fiction",
+  projectDescription,
+  projectTone,
+  currentChapterId,
   currentChapterTitle = "Bevezető",
+  currentChapterContent,
   characterCount = 0,
+  charactersContext,
+  sourcesContext,
+  selectedText,
+  onInsertText,
 }: AIAssistantPanelProps) {
   const [prompt, setPrompt] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Generation settings
   const [creativity, setCreativity] = useState([50]);
   const [length, setLength] = useState<"short" | "medium" | "long">("medium");
   const [useProjectStyle, setUseProjectStyle] = useState(true);
 
-  const handleQuickAction = (actionId: string) => {
+  const settings: AISettings = {
+    creativity: creativity[0],
+    length,
+    useProjectStyle,
+  };
+
+  const { isGenerating, generatedText, generate, cancel, reset } = useAIGeneration({
+    projectId,
+    chapterId: currentChapterId,
+    genre: projectGenre,
+  });
+
+  // Update streaming message
+  useEffect(() => {
+    if (isGenerating && generatedText) {
+      setMessages((prev) => {
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg?.role === "assistant" && lastMsg.isStreaming) {
+          return prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, content: generatedText } : m
+          );
+        }
+        return prev;
+      });
+    }
+  }, [generatedText, isGenerating]);
+
+  // Finalize streaming message
+  useEffect(() => {
+    if (!isGenerating && generatedText) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.isStreaming ? { ...m, isStreaming: false } : m
+        )
+      );
+    }
+  }, [isGenerating, generatedText]);
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const buildContext = (): AIContext => {
+    const context: AIContext = {};
+    
+    if (projectDescription) context.bookDescription = projectDescription;
+    if (projectTone && useProjectStyle) context.tone = projectTone;
+    
+    // Include last ~2000 characters of chapter content
+    if (currentChapterContent) {
+      const maxChars = 2000;
+      context.chapterContent = currentChapterContent.length > maxChars
+        ? currentChapterContent.slice(-maxChars)
+        : currentChapterContent;
+    }
+    
+    // For fiction, include character context
+    if ((projectGenre === "fiction" || projectGenre === "erotikus") && charactersContext) {
+      context.characters = charactersContext;
+    }
+    
+    // For non-fiction, include sources
+    if (projectGenre === "szakkonyv" && sourcesContext) {
+      context.sources = sourcesContext;
+    }
+    
+    return context;
+  };
+
+  const buildPrompt = (action: AIAction): string => {
+    switch (action) {
+      case "continue":
+        return "Folytasd a szöveget természetesen, megtartva a stílust.";
+      case "rewrite":
+        return selectedText 
+          ? `Írd át ezt a szöveget jobban, megtartva az értelmét:\n\n"${selectedText}"`
+          : "Nincs kijelölt szöveg az átíráshoz.";
+      case "shorten":
+        return selectedText
+          ? `Tömörítsd ezt a szöveget, megtartva a lényeget:\n\n"${selectedText}"`
+          : "Nincs kijelölt szöveg a rövidítéshez.";
+      case "expand":
+        return selectedText
+          ? `Bővítsd ki ezt a szöveget részletesebb leírásokkal:\n\n"${selectedText}"`
+          : "Nincs kijelölt szöveg a bővítéshez.";
+      case "dialogue":
+        return "Írj természetes párbeszédet a karakterek között a jelenlegi kontextus alapján.";
+      case "description":
+        return "Írj részletes, érzékletes leírást a jelenlegi jelenetről.";
+      default:
+        return prompt;
+    }
+  };
+
+  const handleQuickAction = async (actionId: AIAction) => {
     const action = QUICK_ACTIONS.find((a) => a.id === actionId);
     if (!action) return;
 
-    setMessages((prev) => [...prev, { role: "user", content: `[${action.label}] ${action.description}` }]);
-    setIsLoading(true);
+    // Check if action requires selection
+    if (action.requiresSelection && !selectedText) {
+      toast.error("Jelölj ki szöveget a szerkesztőben ehhez a művelethez!");
+      return;
+    }
 
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: `A "${action.label}" funkció hamarosan elérhető lesz! Itt fogom végrehajtani a kért műveletet.`,
-        },
-      ]);
-      setIsLoading(false);
-    }, 1000);
+    const actionPrompt = buildPrompt(actionId);
+    const context = buildContext();
+
+    // Add user message
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: `[${action.label}] ${action.description}` },
+    ]);
+
+    // Add streaming placeholder
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "", isStreaming: true },
+    ]);
+
+    reset();
+    await generate(actionId, actionPrompt, context, settings);
   };
 
   const handleSubmit = async () => {
-    if (!prompt.trim() || isLoading) return;
+    if (!prompt.trim() || isGenerating) return;
 
     const userMessage = prompt.trim();
     setPrompt("");
+    
+    // Add user message
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
-    setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "AI asszisztens hamarosan elérhető! Itt tudok majd segíteni a könyvírásban, karakterfejlesztésben, és történetszálak kidolgozásában.",
-        },
-      ]);
-      setIsLoading(false);
-    }, 1000);
+    // Add streaming placeholder
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "", isStreaming: true },
+    ]);
+
+    const context = buildContext();
+    reset();
+    await generate("chat", userMessage, context, settings);
+  };
+
+  const handleInsert = () => {
+    if (generatedText && onInsertText) {
+      onInsertText(generatedText);
+      toast.success("Szöveg beillesztve!");
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!generatedText) return;
+    await navigator.clipboard.writeText(generatedText);
+    setCopied(true);
+    toast.success("Másolva!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleRegenerate = async () => {
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUserMessage) return;
+
+    // Check if it was a quick action
+    const actionMatch = lastUserMessage.content.match(/^\[([^\]]+)\]/);
+    if (actionMatch) {
+      const actionLabel = actionMatch[1];
+      const action = QUICK_ACTIONS.find((a) => a.label === actionLabel);
+      if (action) {
+        // Remove last assistant message
+        setMessages((prev) => prev.filter((_, i) => i !== prev.length - 1));
+        // Re-add streaming placeholder
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "", isStreaming: true },
+        ]);
+        const context = buildContext();
+        reset();
+        await generate(action.id, buildPrompt(action.id), context, settings);
+        return;
+      }
+    }
+
+    // Regular chat regeneration
+    const originalPrompt = lastUserMessage.content;
+    setMessages((prev) => prev.filter((_, i) => i !== prev.length - 1));
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "", isStreaming: true },
+    ]);
+    const context = buildContext();
+    reset();
+    await generate("chat", originalPrompt, context, settings);
   };
 
   const getCreativityLabel = (value: number) => {
@@ -113,6 +300,11 @@ export function AIAssistantPanel({
     if (value <= 50) return "Kiegyensúlyozott";
     if (value <= 75) return "Kreatív";
     return "Nagyon kreatív";
+  };
+
+  const getModelBadge = () => {
+    // Using Gemini Flash via Lovable AI Gateway
+    return "Gemini Flash";
   };
 
   return (
@@ -143,7 +335,7 @@ export function AIAssistantPanel({
               <span className="text-sm font-medium text-foreground">AI Asszisztens</span>
             </div>
             <Badge variant="secondary" className="text-xs">
-              Claude Sonnet 4.5
+              {getModelBadge()}
             </Badge>
           </div>
         ) : (
@@ -163,8 +355,15 @@ export function AIAssistantPanel({
                   variant="outline"
                   size="sm"
                   onClick={() => handleQuickAction(action.id)}
-                  className="flex h-auto flex-col gap-1 py-2 text-xs"
-                  title={action.description}
+                  disabled={isGenerating}
+                  className={cn(
+                    "flex h-auto flex-col gap-1 py-2 text-xs",
+                    action.requiresSelection && !selectedText && "opacity-50"
+                  )}
+                  title={action.requiresSelection && !selectedText 
+                    ? "Jelölj ki szöveget a használathoz"
+                    : action.description
+                  }
                 >
                   {action.icon}
                   <span>{action.label}</span>
@@ -185,6 +384,11 @@ export function AIAssistantPanel({
                 <div className="flex items-center gap-1 rounded bg-background px-2 py-1 text-xs">
                   <Users className="h-3 w-3 text-secondary" />
                   <span>{characterCount} karakter</span>
+                </div>
+              )}
+              {selectedText && (
+                <div className="flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-xs text-primary">
+                  <span>Kijelölés: {selectedText.length} kar.</span>
                 </div>
               )}
             </div>
@@ -264,36 +468,90 @@ export function AIAssistantPanel({
           </Collapsible>
 
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {messages.length === 0 ? (
-              <div className="text-center py-6">
-                <Sparkles className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  Használd a gyors műveleteket, vagy kérdezz bármit!
-                </p>
-              </div>
-            ) : (
-              messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "rounded-lg p-3 text-sm",
-                    msg.role === "user"
-                      ? "bg-primary/10 text-foreground ml-4"
-                      : "bg-muted text-foreground mr-4"
-                  )}
-                >
-                  {msg.content}
+          <ScrollArea className="flex-1">
+            <div className="p-3 space-y-3">
+              {messages.length === 0 ? (
+                <div className="text-center py-6">
+                  <Sparkles className="mx-auto h-8 w-8 text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    Használd a gyors műveleteket, vagy kérdezz bármit!
+                  </p>
                 </div>
-              ))
-            )}
-            {isLoading && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Gondolkodom...</span>
-              </div>
-            )}
-          </div>
+              ) : (
+                <>
+                  {messages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "rounded-lg p-3 text-sm",
+                        msg.role === "user"
+                          ? "bg-primary/10 text-foreground ml-4"
+                          : "bg-muted text-foreground mr-4"
+                      )}
+                    >
+                      {msg.content || (msg.isStreaming && (
+                        <span className="animate-pulse">▊</span>
+                      ))}
+                    </div>
+                  ))}
+                  
+                  {/* Action buttons for last assistant message */}
+                  {!isGenerating && generatedText && messages[messages.length - 1]?.role === "assistant" && (
+                    <div className="flex flex-wrap gap-2 ml-4">
+                      {onInsertText && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={handleInsert}
+                          className="h-7 text-xs gap-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Beillesztés
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCopy}
+                        className="h-7 text-xs gap-1"
+                      >
+                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {copied ? "Másolva" : "Másolás"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleRegenerate}
+                        className="h-7 text-xs gap-1"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Új generálás
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {isGenerating && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Generálás...</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={cancel}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <X className="h-3 w-3" />
+                    Mégse
+                  </Button>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          </ScrollArea>
 
           {/* Input */}
           <div className="border-t border-border p-3">
@@ -309,6 +567,7 @@ export function AIAssistantPanel({
                 }}
                 placeholder="Kérdezz vagy kérj segítséget..."
                 className="min-h-[80px] resize-none pr-20"
+                disabled={isGenerating}
               />
               <div className="absolute bottom-2 right-2 flex gap-1">
                 <Button
@@ -323,7 +582,7 @@ export function AIAssistantPanel({
                 <Button
                   size="icon"
                   onClick={handleSubmit}
-                  disabled={!prompt.trim() || isLoading}
+                  disabled={!prompt.trim() || isGenerating}
                   className="h-8 w-8 bg-secondary text-secondary-foreground hover:bg-secondary/90"
                 >
                   <Send className="h-4 w-4" />

@@ -336,7 +336,22 @@ export default function ProjectEditor() {
         <AIAssistantPanel
           isCollapsed={aiPanelCollapsed}
           onToggleCollapse={() => setAiPanelCollapsed(!aiPanelCollapsed)}
+          projectId={projectId}
           projectGenre={project?.genre}
+          projectDescription={project?.description || undefined}
+          projectTone={project?.tone || undefined}
+          currentChapterId={activeChapterId || undefined}
+          currentChapterTitle={chapters.find((c) => c.id === activeChapterId)?.title}
+          currentChapterContent={blocks.map((b) => b.content).join("\n")}
+          onInsertText={(text) => {
+            // Insert at the end of the last block or create new block
+            if (blocks.length > 0) {
+              const lastBlock = blocks[blocks.length - 1];
+              updateBlock(lastBlock.id, { content: lastBlock.content + text });
+            } else {
+              createBlock("paragraph", text, 0);
+            }
+          }}
         />
       )}
 

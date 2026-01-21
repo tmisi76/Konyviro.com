@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_generations: {
+        Row: {
+          action_type: string
+          chapter_id: string | null
+          completion_tokens: number
+          created_at: string
+          id: string
+          model: string
+          project_id: string | null
+          prompt_tokens: number
+          total_tokens: number
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          chapter_id?: string | null
+          completion_tokens?: number
+          created_at?: string
+          id?: string
+          model: string
+          project_id?: string | null
+          prompt_tokens?: number
+          total_tokens?: number
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          chapter_id?: string | null
+          completion_tokens?: number
+          created_at?: string
+          id?: string
+          model?: string
+          project_id?: string | null
+          prompt_tokens?: number
+          total_tokens?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_generations_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_generations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blocks: {
         Row: {
           chapter_id: string
