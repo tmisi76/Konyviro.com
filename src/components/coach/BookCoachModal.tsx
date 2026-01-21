@@ -139,7 +139,11 @@ export function BookCoachModal({ open, onOpenChange, genre, onComplete }: BookCo
                   )}
                 >
                   <p className="text-sm whitespace-pre-wrap">
-                    {message.content}
+                    {/* Strip JSON blocks from display */}
+                    {message.content
+                      .replace(/```json[\s\S]*?```/g, "")
+                      .replace(/\{[\s\S]*"complete"\s*:\s*true[\s\S]*\}/g, "")
+                      .trim()}
                     {message.isStreaming && (
                       <span className="inline-block w-1.5 h-4 ml-1 bg-current animate-pulse" />
                     )}

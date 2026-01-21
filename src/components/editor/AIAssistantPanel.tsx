@@ -19,6 +19,7 @@ import {
   Check,
   X,
   Plus,
+  Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ type QuickAction = {
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
+  { id: "write_chapter", label: "Fejezet", icon: <Wand2 className="h-4 w-4" />, description: "Teljes fejezet megírása" },
   { id: "continue", label: "Folytatás", icon: <Play className="h-4 w-4" />, description: "Folytatás a kurzortól" },
   { id: "rewrite", label: "Átírás", icon: <RefreshCw className="h-4 w-4" />, description: "Kijelölt szöveg átírása", requiresSelection: true },
   { id: "shorten", label: "Rövidítés", icon: <Minimize2 className="h-4 w-4" />, description: "Szöveg rövidítése", requiresSelection: true },
@@ -172,6 +174,12 @@ export function AIAssistantPanel({
 
   const buildPrompt = (action: AIAction): string => {
     switch (action) {
+      case "write_chapter":
+        return `Írd meg a "${currentChapterTitle}" című fejezetet teljes terjedelmében.
+${projectDescription ? `A könyv témája: ${projectDescription}.` : ""}
+Műfaj: ${projectGenre}.
+${projectTone ? `Hangnem: ${projectTone}.` : ""}
+Írj legalább 500 szavas, jól strukturált fejezetet bekezdésekkel.`;
       case "continue":
         return "Folytasd a szöveget természetesen, megtartva a stílust.";
       case "rewrite":
@@ -348,16 +356,17 @@ export function AIAssistantPanel({
           {/* Quick Actions */}
           <div className="border-b border-border p-3">
             <p className="mb-2 text-xs font-medium text-muted-foreground">Gyors műveletek</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {QUICK_ACTIONS.map((action) => (
                 <Button
                   key={action.id}
-                  variant="outline"
+                  variant={action.id === "write_chapter" ? "default" : "outline"}
                   size="sm"
                   onClick={() => handleQuickAction(action.id)}
                   disabled={isGenerating}
                   className={cn(
                     "flex h-auto flex-col gap-1 py-2 text-xs",
+                    action.id === "write_chapter" && "bg-secondary text-secondary-foreground hover:bg-secondary/90 col-span-2",
                     action.requiresSelection && !selectedText && "opacity-50"
                   )}
                   title={action.requiresSelection && !selectedText 

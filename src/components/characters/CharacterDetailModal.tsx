@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -59,9 +59,19 @@ export function CharacterDetailModal({
   onDelete,
 }: CharacterDetailModalProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Local state for textarea fields to prevent comma input issues
+  const [motivationsText, setMotivationsText] = useState((character.motivations || []).join(", "));
+  const [fearsText, setFearsText] = useState((character.fears || []).join(", "));
 
-  const handleArrayFieldChange = (
-    field: "motivations" | "fears" | "positive_traits" | "negative_traits",
+  // Update local state when character changes
+  useEffect(() => {
+    setMotivationsText((character.motivations || []).join(", "));
+    setFearsText((character.fears || []).join(", "));
+  }, [character.id, character.motivations, character.fears]);
+
+  const handleArrayFieldBlur = (
+    field: "motivations" | "fears",
     value: string
   ) => {
     const items = value
@@ -364,16 +374,18 @@ export function CharacterDetailModal({
             <div className="space-y-2">
               <label className="text-sm font-medium">Motivációk</label>
               <Textarea
-                value={(character.motivations || []).join(", ")}
-                onChange={(e) => handleArrayFieldChange("motivations", e.target.value)}
+                value={motivationsText}
+                onChange={(e) => setMotivationsText(e.target.value)}
+                onBlur={() => handleArrayFieldBlur("motivations", motivationsText)}
                 placeholder="Vesszővel elválasztva (pl. Család, Karrier, Bosszú)"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Félelmek</label>
               <Textarea
-                value={(character.fears || []).join(", ")}
-                onChange={(e) => handleArrayFieldChange("fears", e.target.value)}
+                value={fearsText}
+                onChange={(e) => setFearsText(e.target.value)}
+                onBlur={() => handleArrayFieldBlur("fears", fearsText)}
                 placeholder="Vesszővel elválasztva"
               />
             </div>

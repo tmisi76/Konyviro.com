@@ -347,7 +347,25 @@ export default function ProjectEditor() {
             // Insert at the end of the last block or create new block
             if (blocks.length > 0) {
               const lastBlock = blocks[blocks.length - 1];
-              updateBlock(lastBlock.id, { content: lastBlock.content + text });
+              const newContent = lastBlock.content ? lastBlock.content + "\n\n" + text : text;
+              updateBlock(lastBlock.id, { content: newContent });
+              
+              // Sync the DOM directly since contentEditable doesn't react to state
+              setTimeout(() => {
+                const blockElements = document.querySelectorAll('[contenteditable="true"]');
+                const lastElement = blockElements[blockElements.length - 1] as HTMLElement;
+                if (lastElement) {
+                  lastElement.innerText = newContent;
+                  // Move cursor to end
+                  const range = document.createRange();
+                  const sel = window.getSelection();
+                  range.selectNodeContents(lastElement);
+                  range.collapse(false);
+                  sel?.removeAllRanges();
+                  sel?.addRange(range);
+                  lastElement.focus();
+                }
+              }, 0);
             } else {
               createBlock("paragraph", text, 0);
             }
