@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,11 +14,13 @@ import { ResearchView } from "@/components/research/ResearchView";
 import { CitationPanel } from "@/components/research/CitationPanel";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
+import { useCharacters } from "@/hooks/useCharacters";
 import { useSources, useCitations } from "@/hooks/useResearch";
 import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
 import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
+import { ROLE_LABELS } from "@/types/character";
 
 type ViewMode = "editor" | "outline" | "characters" | "research";
 
@@ -60,6 +62,27 @@ export default function ProjectEditor() {
   const { sources } = useSources(projectId || "");
   const { citations, createCitation } = useCitations(activeChapterId);
 
+  // Character hooks for fiction/erotic projects
+  const { characters } = useCharacters(projectId || "");
+
+  // Build character context for AI
+  const charactersContext = useMemo(() => {
+    if (!characters || characters.length === 0) return undefined;
+    
+    return characters.map(c => {
+      const parts = [`**${c.name}** (${ROLE_LABELS[c.role] || c.role})`];
+      if (c.occupation) parts.push(`foglalkozás: ${c.occupation}`);
+      if (c.gender) parts.push(`nem: ${c.gender}`);
+      if (c.age) parts.push(`kor: ${c.age} éves`);
+      if (c.appearance_description) parts.push(`kinézet: ${c.appearance_description}`);
+      if (c.backstory) parts.push(`háttér: ${c.backstory.slice(0, 300)}`);
+      if (c.positive_traits?.length) parts.push(`pozitív: ${c.positive_traits.join(', ')}`);
+      if (c.negative_traits?.length) parts.push(`negatív: ${c.negative_traits.join(', ')}`);
+      if (c.speech_style) parts.push(`beszédstílus: ${c.speech_style}`);
+      return parts.join(' | ');
+    }).join('\n\n');
+  }, [characters]);
+
   // Check if project supports characters (fiction or erotic)
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
   // Check if project supports research (non-fiction)
@@ -86,6 +109,7 @@ export default function ProjectEditor() {
       bookDescription: project?.description || undefined,
       tone: project?.tone || undefined,
       chapterContent: blocks.map((b) => b.content).join("\n").slice(-2000),
+      characters: charactersContext,
     };
 
     const settings: AISettings = {
@@ -431,6 +455,8 @@ export default function ProjectEditor() {
           currentChapterId={activeChapterId || undefined}
           currentChapterTitle={chapters.find((c) => c.id === activeChapterId)?.title}
           currentChapterContent={blocks.map((b) => b.content).join("\n")}
+          characterCount={characters.length}
+          charactersContext={charactersContext}
           onInsertText={(text) => {
             // Insert at the end of the last block or create new block
             if (blocks.length > 0) {
