@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { FolderOpen, FileText, PenLine } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebarState } from "@/hooks/useSidebarState";
@@ -54,12 +55,14 @@ export default function Dashboard() {
     setIsCreateModalOpen(true);
   };
 
+  const navigate = useNavigate();
+
   const handleProjectSelect = (id: string) => {
-    toast.info(`Projekt megnyitása hamarosan elérhető!`);
+    navigate(`/project/${id}`);
   };
 
   const handleProjectOpen = (id: string) => {
-    toast.info(`Projekt megnyitása hamarosan elérhető!`);
+    navigate(`/project/${id}`);
   };
 
   const handleProjectDelete = async (id: string) => {
