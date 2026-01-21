@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { FolderOpen, FileText, PenLine } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebarState } from "@/hooks/useSidebarState";
@@ -9,6 +9,7 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
+import { SuccessModal } from "@/components/subscription/SuccessModal";
 import { toast } from "sonner";
 
 export default function Dashboard() {
@@ -16,6 +17,20 @@ export default function Dashboard() {
   const { isCollapsed, toggle } = useSidebarState();
   const { projects, isLoading, refetch, deleteProject } = useProjects();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // Handle subscription success
+  useEffect(() => {
+    const subscription = searchParams.get("subscription");
+    if (subscription === "success") {
+      setIsSuccessModalOpen(true);
+      // Remove the query param from URL
+      searchParams.delete("subscription");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Író";
 
@@ -55,7 +70,6 @@ export default function Dashboard() {
     setIsCreateModalOpen(true);
   };
 
-  const navigate = useNavigate();
 
   const handleProjectSelect = (id: string) => {
     navigate(`/project/${id}`);
@@ -171,6 +185,12 @@ export default function Dashboard() {
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
         onSuccess={handleProjectCreated}
+      />
+
+      {/* Subscription Success Modal */}
+      <SuccessModal
+        open={isSuccessModalOpen}
+        onOpenChange={setIsSuccessModalOpen}
       />
     </div>
   );
