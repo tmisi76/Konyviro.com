@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import ProjectEditor from "./pages/ProjectEditor";
+import ProjectExport from "./pages/ProjectExport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <ProjectEditor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/project/:id/export"
+              element={
+                <ProtectedRoute>
+                  <ProjectExport />
                 </ProtectedRoute>
               }
             />
