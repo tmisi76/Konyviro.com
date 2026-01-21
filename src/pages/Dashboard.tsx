@@ -19,15 +19,22 @@ import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { PullToRefresh } from "@/components/mobile/PullToRefresh";
 import { InstallPWAPrompt } from "@/components/mobile/InstallPWAPrompt";
 import { WritingStatsPanel } from "@/components/stats/WritingStatsPanel";
+import { ContentSkeleton } from "@/components/ui/content-skeleton";
+import { OnboardingTour } from "@/components/ui/onboarding-tour";
+import { ConfirmationModal } from "@/components/ui/confirmation-modal";
+import { RetryError } from "@/components/ui/retry-error";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { isCollapsed, toggle } = useSidebarState();
-  const { projects, isLoading, refetch, deleteProject } = useProjects();
+  const { projects, isLoading, error, refetch, deleteProject } = useProjects();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileTab, setMobileTab] = useState<"home" | "projects" | "settings">("home");
   const navigate = useNavigate();
@@ -100,12 +107,22 @@ export default function Dashboard() {
     navigate(`/project/${id}`);
   };
 
-  const handleProjectDelete = async (id: string) => {
-    const success = await deleteProject(id);
+  const handleProjectDeleteRequest = (id: string) => {
+    setProjectToDelete(id);
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!projectToDelete) return;
+    setIsDeleting(true);
+    const success = await deleteProject(projectToDelete);
+    setIsDeleting(false);
+    setDeleteModalOpen(false);
+    setProjectToDelete(null);
     if (success) {
-      toast.success("Projekt törölve");
+      toast.success("Projekt sikeresen törölve");
     } else {
-      toast.error("Hiba történt a törlés során");
+      toast.error("Hiba történt a törlés során. Próbáld újra!");
     }
   };
 
@@ -200,7 +217,7 @@ export default function Dashboard() {
                         key={project.id}
                         project={project}
                         onOpen={handleProjectOpen}
-                        onDelete={handleProjectDelete}
+                        onDelete={handleProjectDeleteRequest}
                       />
                     ))}
                   </div>
@@ -315,7 +332,7 @@ export default function Dashboard() {
                     key={project.id}
                     project={project}
                     onOpen={handleProjectOpen}
-                    onDelete={handleProjectDelete}
+                    onDelete={handleProjectDeleteRequest}
                   />
                 ))}
               </div>
@@ -339,6 +356,20 @@ export default function Dashboard() {
         open={isSuccessModalOpen}
         onOpenChange={setIsSuccessModalOpen}
       />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        open={deleteModalOpen}
+        onOpenChange={setDeleteModalOpen}
+        onConfirm={handleConfirmDelete}
+        type="delete"
+        title="Projekt törlése"
+        description="Biztosan törlöd ezt a projektet? Az összes fejezet, karakter és tartalom véglegesen törlődik. Ez a művelet nem visszavonható."
+        isLoading={isDeleting}
+      />
+
+      {/* Onboarding Tour */}
+      <OnboardingTour />
     </div>
   );
 }
