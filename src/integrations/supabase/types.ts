@@ -38,6 +38,63 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          complexity: number | null
+          created_at: string
+          description: string | null
+          genre: string
+          id: string
+          status: string
+          style_action: boolean | null
+          style_descriptive: boolean | null
+          style_dialogue: boolean | null
+          target_audience: string | null
+          target_word_count: number
+          title: string
+          tone: string | null
+          updated_at: string
+          user_id: string
+          word_count: number
+        }
+        Insert: {
+          complexity?: number | null
+          created_at?: string
+          description?: string | null
+          genre: string
+          id?: string
+          status?: string
+          style_action?: boolean | null
+          style_descriptive?: boolean | null
+          style_dialogue?: boolean | null
+          target_audience?: string | null
+          target_word_count?: number
+          title: string
+          tone?: string | null
+          updated_at?: string
+          user_id: string
+          word_count?: number
+        }
+        Update: {
+          complexity?: number | null
+          created_at?: string
+          description?: string | null
+          genre?: string
+          id?: string
+          status?: string
+          style_action?: boolean | null
+          style_descriptive?: boolean | null
+          style_dialogue?: boolean | null
+          target_audience?: string | null
+          target_word_count?: number
+          title?: string
+          tone?: string | null
+          updated_at?: string
+          user_id?: string
+          word_count?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
