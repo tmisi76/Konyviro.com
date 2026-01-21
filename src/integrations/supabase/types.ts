@@ -102,6 +102,137 @@ export type Database = {
           },
         ]
       }
+      character_relationships: {
+        Row: {
+          character_id: string
+          created_at: string
+          description: string | null
+          id: string
+          related_character_id: string
+          relationship_type: string
+        }
+        Insert: {
+          character_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          related_character_id: string
+          relationship_type: string
+        }
+        Update: {
+          character_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          related_character_id?: string
+          relationship_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "character_relationships_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "characters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "character_relationships_related_character_id_fkey"
+            columns: ["related_character_id"]
+            isOneToOne: false
+            referencedRelation: "characters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      characters: {
+        Row: {
+          age: number | null
+          appearance_description: string | null
+          avatar_url: string | null
+          backstory: string | null
+          body_type: string | null
+          created_at: string
+          distinguishing_features: string | null
+          eye_color: string | null
+          fears: string[] | null
+          gender: string | null
+          hair_color: string | null
+          height: string | null
+          id: string
+          key_events: Json | null
+          motivations: string[] | null
+          name: string
+          negative_traits: string[] | null
+          nickname: string | null
+          occupation: string | null
+          positive_traits: string[] | null
+          project_id: string
+          role: string
+          speech_style: string | null
+          updated_at: string
+        }
+        Insert: {
+          age?: number | null
+          appearance_description?: string | null
+          avatar_url?: string | null
+          backstory?: string | null
+          body_type?: string | null
+          created_at?: string
+          distinguishing_features?: string | null
+          eye_color?: string | null
+          fears?: string[] | null
+          gender?: string | null
+          hair_color?: string | null
+          height?: string | null
+          id?: string
+          key_events?: Json | null
+          motivations?: string[] | null
+          name: string
+          negative_traits?: string[] | null
+          nickname?: string | null
+          occupation?: string | null
+          positive_traits?: string[] | null
+          project_id: string
+          role?: string
+          speech_style?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age?: number | null
+          appearance_description?: string | null
+          avatar_url?: string | null
+          backstory?: string | null
+          body_type?: string | null
+          created_at?: string
+          distinguishing_features?: string | null
+          eye_color?: string | null
+          fears?: string[] | null
+          gender?: string | null
+          hair_color?: string | null
+          height?: string | null
+          id?: string
+          key_events?: Json | null
+          motivations?: string[] | null
+          name?: string
+          negative_traits?: string[] | null
+          nickname?: string | null
+          occupation?: string | null
+          positive_traits?: string[] | null
+          project_id?: string
+          role?: string
+          speech_style?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "characters_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           adult_content_verified: boolean

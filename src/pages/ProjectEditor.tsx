@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Check, Loader2, Cloud, BookOpen, Edit3 } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
@@ -9,12 +9,13 @@ import { ChapterSidebar } from "@/components/editor/ChapterSidebar";
 import { EditorBlock } from "@/components/editor/EditorBlock";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
 import { OutlineView } from "@/components/editor/OutlineView";
+import { CharacterList } from "@/components/characters/CharacterList";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 
-type ViewMode = "editor" | "outline";
+type ViewMode = "editor" | "outline" | "characters";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -46,6 +47,9 @@ export default function ProjectEditor() {
     deleteBlock,
     reorderBlocks,
   } = useEditorData(projectId || "");
+
+  // Check if project supports characters (fiction or erotic)
+  const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
 
   const handleCreateBlockAfter = useCallback(async (afterBlockId: string, type: BlockType = "paragraph") => {
     const afterBlock = blocks.find((b) => b.id === afterBlockId);
@@ -100,7 +104,7 @@ export default function ProjectEditor() {
 
     setIsGeneratingOutline(true);
     
-    // Simulate AI generation (will be connected to Lovable AI later)
+    // Simulate AI generation
     await new Promise((resolve) => setTimeout(resolve, 2000));
     
     const genre = project?.genre as ProjectGenre;
@@ -201,6 +205,12 @@ export default function ProjectEditor() {
                 <BookOpen className="h-4 w-4" />
                 Vázlat
               </TabsTrigger>
+              {supportsCharacters && (
+                <TabsTrigger value="characters" className="gap-2">
+                  <Users className="h-4 w-4" />
+                  Karakterek
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
 
@@ -263,7 +273,7 @@ export default function ProjectEditor() {
               />
             </div>
           </div>
-        ) : (
+        ) : viewMode === "outline" ? (
           <OutlineView
             chapters={chapters}
             projectGenre={project?.genre as ProjectGenre}
@@ -274,6 +284,8 @@ export default function ProjectEditor() {
             onGenerateOutline={handleGenerateOutline}
             isGenerating={isGeneratingOutline}
           />
+        ) : (
+          <CharacterList projectId={projectId} />
         )}
       </main>
 
