@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ import { CitationPanel } from "@/components/research/CitationPanel";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useSources, useCitations } from "@/hooks/useResearch";
+import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
 import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
@@ -32,6 +33,8 @@ export default function ProjectEditor() {
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
   const [showCitationPanel, setShowCitationPanel] = useState(false);
+  const [isInlineGenerating, setIsInlineGenerating] = useState(false);
+  const [inlineGeneratingBlockId, setInlineGeneratingBlockId] = useState<string | null>(null);
 
   const { project, isLoading: projectLoading } = useProjectDetails(projectId || "");
   const {
@@ -61,6 +64,90 @@ export default function ProjectEditor() {
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
   // Check if project supports research (non-fiction)
   const supportsResearch = project?.genre === "szakkonyv";
+
+  // AI generation for inline actions
+  const { generate: aiGenerate, reset: aiReset } = useAIGeneration({
+    projectId: projectId || "",
+    chapterId: activeChapterId || undefined,
+    genre: project?.genre,
+  });
+
+  // Handle inline AI action from FloatingToolbar
+  const handleInlineAIAction = useCallback(async (action: AIAction, selectedText: string, blockId: string) => {
+    if (!selectedText.trim()) {
+      toast.error("Válassz ki szöveget a művelethez");
+      return;
+    }
+
+    setIsInlineGenerating(true);
+    setInlineGeneratingBlockId(blockId);
+
+    const context: AIContext = {
+      bookDescription: project?.description || undefined,
+      tone: project?.tone || undefined,
+      chapterContent: blocks.map((b) => b.content).join("\n").slice(-2000),
+    };
+
+    const settings: AISettings = {
+      creativity: 50,
+      length: "medium",
+      useProjectStyle: true,
+    };
+
+    // Build action-specific prompt
+    let prompt = "";
+    switch (action) {
+      case "rewrite":
+        prompt = `Írd át ezt a szöveget jobban, megtartva az értelmét. Csak az átírt szöveget add vissza, semmi mást:\n\n"${selectedText}"`;
+        break;
+      case "expand":
+        prompt = `Bővítsd ki ezt a szöveget részletesebb leírásokkal. Csak a bővített szöveget add vissza, semmi mást:\n\n"${selectedText}"`;
+        break;
+      case "shorten":
+        prompt = `Tömörítsd ezt a szöveget, megtartva a lényeget. Csak a tömörített szöveget add vissza, semmi mást:\n\n"${selectedText}"`;
+        break;
+      default:
+        prompt = selectedText;
+    }
+
+    try {
+      aiReset();
+      const result = await aiGenerate(action, prompt, context, settings);
+      
+      if (result) {
+        // Find the block and replace the selected text
+        const block = blocks.find((b) => b.id === blockId);
+        if (block) {
+          const newContent = block.content.replace(selectedText, result);
+          updateBlock(blockId, { content: newContent });
+          
+          // Sync DOM
+          setTimeout(() => {
+            const blockElements = document.querySelectorAll('[contenteditable="true"]');
+            for (const el of blockElements) {
+              const htmlEl = el as HTMLElement;
+              const parentDiv = htmlEl.closest('[class*="group relative"]');
+              if (parentDiv) {
+                // Find by checking content match
+                if (block.content === htmlEl.innerText || htmlEl.innerText.includes(selectedText)) {
+                  htmlEl.innerText = newContent;
+                  break;
+                }
+              }
+            }
+          }, 0);
+          
+          toast.success(`${action === "rewrite" ? "Átírva" : action === "expand" ? "Bővítve" : "Rövidítve"}!`);
+        }
+      }
+    } catch (error) {
+      console.error("Inline AI action error:", error);
+      toast.error("Hiba történt az AI művelet során");
+    } finally {
+      setIsInlineGenerating(false);
+      setInlineGeneratingBlockId(null);
+    }
+  }, [project, blocks, updateBlock, aiGenerate, aiReset]);
 
   // Handle citation insertion
   const handleInsertCitation = useCallback(async (source: Source, pageRef?: string) => {
@@ -298,6 +385,7 @@ export default function ProjectEditor() {
                     isDragging={draggedBlockId === block.id}
                     showResearchTools={supportsResearch}
                     onInsertCitation={() => setShowCitationPanel(true)}
+                    onAIAction={handleInlineAIAction}
                   />
                 </div>
               ))}

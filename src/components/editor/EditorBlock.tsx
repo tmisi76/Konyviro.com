@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, KeyboardEvent } from "react";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Block, BlockType } from "@/types/editor";
+import type { AIAction } from "@/hooks/useAIGeneration";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { FloatingToolbar } from "./FloatingToolbar";
 
@@ -17,6 +18,7 @@ interface EditorBlockProps {
   isDragging: boolean;
   showResearchTools?: boolean;
   onInsertCitation?: () => void;
+  onAIAction?: (action: AIAction, selectedText: string, blockId: string) => void;
 }
 
 export function EditorBlock({
@@ -31,6 +33,7 @@ export function EditorBlock({
   isDragging,
   showResearchTools = false,
   onInsertCitation,
+  onAIAction,
 }: EditorBlockProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -264,6 +267,7 @@ export function EditorBlock({
           onClose={() => setShowToolbar(false)}
           showResearchTools={showResearchTools}
           onInsertCitation={onInsertCitation}
+          onAIAction={onAIAction ? (action, text) => onAIAction(action, text, block.id) : undefined}
         />
       )}
     </div>

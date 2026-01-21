@@ -96,11 +96,11 @@ ${context?.sources ? `Releváns források:\n${context.sources}` : ""}`;
       ? settings.creativity / 100 
       : 0.7;
     
-    const maxTokensMap: Record<string, number> = {
-      short: 250,
-      medium: 500,
-      long: 1000,
-    };
+  const maxTokensMap: Record<string, number> = {
+    short: 500,      // ~250-350 szó
+    medium: 2000,    // ~1000-1400 szó
+    long: 6000,      // ~3000-4200 szó
+  };
     const maxTokens = maxTokensMap[settings?.length] || 500;
 
     // Build messages array
