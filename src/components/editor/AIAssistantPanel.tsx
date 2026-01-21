@@ -447,19 +447,19 @@ ${projectTone ? `Hangnem: ${projectTone}.` : ""}
                   <div className="flex items-center space-x-1">
                     <RadioGroupItem value="short" id="short" />
                     <Label htmlFor="short" className="text-xs cursor-pointer">
-                      Rövid
+                      Rövid (~300 szó)
                     </Label>
                   </div>
                   <div className="flex items-center space-x-1">
                     <RadioGroupItem value="medium" id="medium" />
                     <Label htmlFor="medium" className="text-xs cursor-pointer">
-                      Közepes
+                      Közepes (~1200 szó)
                     </Label>
                   </div>
                   <div className="flex items-center space-x-1">
                     <RadioGroupItem value="long" id="long" />
                     <Label htmlFor="long" className="text-xs cursor-pointer">
-                      Hosszú
+                      Hosszú (~3500 szó)
                     </Label>
                   </div>
                 </RadioGroup>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Underline, Link, Highlighter, BookMarked, Search, Loader2 } from "lucide-react";
+import { Bold, Italic, Underline, Link, Highlighter, BookMarked, Search, Loader2, RefreshCw, Expand, Shrink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -9,19 +9,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { AIAction } from "@/hooks/useAIGeneration";
 
 interface FloatingToolbarProps {
   position: { x: number; y: number };
   onClose: () => void;
   onInsertCitation?: () => void;
   showResearchTools?: boolean;
+  onAIAction?: (action: AIAction, selectedText: string) => void;
 }
 
 export function FloatingToolbar({ 
   position, 
   onClose, 
   onInsertCitation,
-  showResearchTools = false 
+  showResearchTools = false,
+  onAIAction,
 }: FloatingToolbarProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [isFactChecking, setIsFactChecking] = useState(false);
@@ -78,12 +81,33 @@ export function FloatingToolbar({
     }
   };
 
-  const buttons = [
+  const handleAIAction = (action: AIAction) => {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+    
+    if (!selectedText) {
+      toast.error("Válassz ki szöveget a művelethez");
+      return;
+    }
+
+    if (onAIAction) {
+      onAIAction(action, selectedText);
+      onClose();
+    }
+  };
+
+  const formatButtons = [
     { icon: Bold, command: "bold", label: "Félkövér" },
     { icon: Italic, command: "italic", label: "Dőlt" },
     { icon: Underline, command: "underline", label: "Aláhúzott" },
     { icon: Highlighter, command: "backColor", value: "#fef08a", label: "Kiemelés" },
     { icon: Link, command: "createLink", label: "Link" },
+  ];
+
+  const aiButtons: { icon: typeof RefreshCw; action: AIAction; label: string }[] = [
+    { icon: RefreshCw, action: "rewrite", label: "Újraírás" },
+    { icon: Expand, action: "expand", label: "Bővítés" },
+    { icon: Shrink, action: "shorten", label: "Rövidítés" },
   ];
 
   const handleClick = (command: string, value?: string) => {
@@ -106,7 +130,8 @@ export function FloatingToolbar({
           transform: "translate(-50%, -100%)",
         }}
       >
-        {buttons.map(({ icon: Icon, command, value, label }) => (
+        {/* Format buttons */}
+        {formatButtons.map(({ icon: Icon, command, value, label }) => (
           <button
             key={command}
             onClick={() => handleClick(command, value)}
@@ -118,6 +143,27 @@ export function FloatingToolbar({
             <Icon className="h-4 w-4" />
           </button>
         ))}
+
+        {/* AI tools separator and buttons */}
+        {onAIAction && (
+          <>
+            <div className="mx-1 h-6 w-px bg-border" />
+            
+            {aiButtons.map(({ icon: Icon, action, label }) => (
+              <button
+                key={action}
+                onClick={() => handleAIAction(action)}
+                className={cn(
+                  "flex h-8 items-center gap-1 rounded px-2 text-sm text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                )}
+                title={label}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span className="text-xs hidden sm:inline">{label}</span>
+              </button>
+            ))}
+          </>
+        )}
 
         {/* Research tools separator and buttons */}
         {showResearchTools && (
