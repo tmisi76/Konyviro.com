@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { StepGenre } from "./steps/StepGenre";
+import { StepStoryIdea } from "./steps/StepStoryIdea";
 import { StepDetails } from "./steps/StepDetails";
 import { StepStyle } from "./steps/StepStyle";
 import { StepSummary } from "./steps/StepSummary";
@@ -10,6 +11,7 @@ import { useCreateProject } from "@/hooks/useCreateProject";
 import { useAdultVerification } from "@/hooks/useAdultVerification";
 import { BookCoachModal } from "@/components/coach/BookCoachModal";
 import { CoachSummary } from "@/hooks/useBookCoach";
+import type { GeneratedStory } from "@/types/story";
 
 export interface ProjectFormData {
   genre: "szakkönyv" | "fiction" | "erotikus" | null;
@@ -22,6 +24,9 @@ export interface ProjectFormData {
   styleDescriptive: boolean;
   styleDialogue: boolean;
   styleAction: boolean;
+  // New story generation fields
+  storyIdea: string;
+  generatedStory: GeneratedStory | null;
 }
 
 const initialFormData: ProjectFormData = {
@@ -35,14 +40,28 @@ const initialFormData: ProjectFormData = {
   styleDescriptive: false,
   styleDialogue: false,
   styleAction: false,
+  storyIdea: "",
+  generatedStory: null,
 };
 
-const steps = [
-  { id: 1, title: "Műfaj" },
-  { id: 2, title: "Alapadatok" },
-  { id: 3, title: "Stílus" },
-  { id: 4, title: "Összefoglaló" },
-];
+// Steps differ based on genre - fiction/erotikus has story generation step
+const getSteps = (genre: ProjectFormData["genre"]) => {
+  if (genre === "fiction" || genre === "erotikus") {
+    return [
+      { id: 1, title: "Műfaj" },
+      { id: 2, title: "Sztori" },
+      { id: 3, title: "Alapadatok" },
+      { id: 4, title: "Stílus" },
+      { id: 5, title: "Összefoglaló" },
+    ];
+  }
+  return [
+    { id: 1, title: "Műfaj" },
+    { id: 2, title: "Alapadatok" },
+    { id: 3, title: "Stílus" },
+    { id: 4, title: "Összefoglaló" },
+  ];
+};
 
 interface CreateProjectModalProps {
   open: boolean;
@@ -60,6 +79,10 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
   const { createProject, isLoading } = useCreateProject();
   const { isVerified, verifyAdultContent } = useAdultVerification();
 
+  const hasStoryStep = formData.genre === "fiction" || formData.genre === "erotikus";
+  const steps = getSteps(formData.genre);
+  const totalSteps = steps.length;
+
   const handleOpenCoach = () => {
     if (formData.genre) {
       setShowCoach(true);
@@ -67,7 +90,6 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
   };
 
   const handleCoachComplete = (summary: CoachSummary) => {
-    // Populate form data from coach summary
     const updates: Partial<ProjectFormData> = {};
     
     if (summary.summary.topic) {
@@ -97,12 +119,10 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
       }
     }
     
-    // Store outline in description for now
     if (summary.summary.suggestedOutline && summary.summary.suggestedOutline.length > 0) {
       updates.description = summary.summary.suggestedOutline.join("\n");
     }
 
-    // For fiction/erotikus, use protagonist info
     if (summary.summary.protagonist) {
       updates.description = `Főszereplő: ${summary.summary.protagonist}\n${updates.description || ""}`;
     }
@@ -113,10 +133,17 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
     updateFormData(updates);
     setShowCoach(false);
     
-    // Move to next step
     if (currentStep === 1) {
       setCurrentStep(2);
     }
+  };
+
+  const handleStoryGenerated = (story: GeneratedStory) => {
+    updateFormData({
+      generatedStory: story,
+      title: story.title,
+      description: story.synopsis,
+    });
   };
 
   const updateFormData = (updates: Partial<ProjectFormData>) => {
@@ -147,7 +174,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
   };
 
   const handleNext = () => {
-    if (currentStep < 4) {
+    if (currentStep < totalSteps) {
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -177,17 +204,145 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
   };
 
   const canProceed = () => {
-    switch (currentStep) {
-      case 1:
-        return formData.genre !== null;
-      case 2:
-        return formData.title.trim().length > 0 && formData.targetAudience !== null;
-      case 3:
-        return formData.tone !== null;
-      case 4:
-        return true;
-      default:
-        return false;
+    if (hasStoryStep) {
+      switch (currentStep) {
+        case 1:
+          return formData.genre !== null;
+        case 2:
+          return formData.generatedStory !== null;
+        case 3:
+          return formData.title.trim().length > 0 && formData.targetAudience !== null;
+        case 4:
+          return formData.tone !== null;
+        case 5:
+          return true;
+        default:
+          return false;
+      }
+    } else {
+      switch (currentStep) {
+        case 1:
+          return formData.genre !== null;
+        case 2:
+          return formData.title.trim().length > 0 && formData.targetAudience !== null;
+        case 3:
+          return formData.tone !== null;
+        case 4:
+          return true;
+        default:
+          return false;
+      }
+    }
+  };
+
+  // Render step content based on current step and genre
+  const renderStepContent = () => {
+    if (hasStoryStep) {
+      // Fiction/Erotikus flow: Genre -> Story -> Details -> Style -> Summary
+      switch (currentStep) {
+        case 1:
+          return (
+            <StepGenre
+              selected={formData.genre}
+              onSelect={handleGenreSelect}
+              onNext={handleNext}
+              canProceed={canProceed()}
+              isAdultVerified={isVerified}
+              onOpenCoach={handleOpenCoach}
+            />
+          );
+        case 2:
+          return (
+            <StepStoryIdea
+              storyIdea={formData.storyIdea}
+              onStoryIdeaChange={(idea) => updateFormData({ storyIdea: idea })}
+              generatedStory={formData.generatedStory}
+              onStoryGenerated={handleStoryGenerated}
+              genre={formData.genre || "fiction"}
+              tone={formData.tone || undefined}
+              targetAudience={formData.targetAudience || undefined}
+              onNext={handleNext}
+              onBack={handleBack}
+            />
+          );
+        case 3:
+          return (
+            <StepDetails
+              formData={formData}
+              updateFormData={updateFormData}
+              onNext={handleNext}
+              onBack={handleBack}
+              canProceed={canProceed()}
+            />
+          );
+        case 4:
+          return (
+            <StepStyle
+              formData={formData}
+              updateFormData={updateFormData}
+              onNext={handleNext}
+              onBack={handleBack}
+              canProceed={canProceed()}
+            />
+          );
+        case 5:
+          return (
+            <StepSummary
+              formData={formData}
+              onBack={handleBack}
+              onCreate={handleCreate}
+              isLoading={isLoading}
+            />
+          );
+        default:
+          return null;
+      }
+    } else {
+      // Szakkönyv flow: Genre -> Details -> Style -> Summary
+      switch (currentStep) {
+        case 1:
+          return (
+            <StepGenre
+              selected={formData.genre}
+              onSelect={handleGenreSelect}
+              onNext={handleNext}
+              canProceed={canProceed()}
+              isAdultVerified={isVerified}
+              onOpenCoach={handleOpenCoach}
+            />
+          );
+        case 2:
+          return (
+            <StepDetails
+              formData={formData}
+              updateFormData={updateFormData}
+              onNext={handleNext}
+              onBack={handleBack}
+              canProceed={canProceed()}
+            />
+          );
+        case 3:
+          return (
+            <StepStyle
+              formData={formData}
+              updateFormData={updateFormData}
+              onNext={handleNext}
+              onBack={handleBack}
+              canProceed={canProceed()}
+            />
+          );
+        case 4:
+          return (
+            <StepSummary
+              formData={formData}
+              onBack={handleBack}
+              onCreate={handleCreate}
+              isLoading={isLoading}
+            />
+          );
+        default:
+          return null;
+      }
     }
   };
 
@@ -237,49 +392,9 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
             </div>
           </div>
 
-          {/* Step content with animation */}
-          <div className="relative min-h-[400px] overflow-hidden">
-            <div
-              className="flex transition-transform duration-300 ease-in-out"
-              style={{ transform: `translateX(-${(currentStep - 1) * 100}%)` }}
-            >
-              <div className="w-full shrink-0 p-6">
-                <StepGenre
-                  selected={formData.genre}
-                  onSelect={handleGenreSelect}
-                  onNext={handleNext}
-                  canProceed={canProceed()}
-                  isAdultVerified={isVerified}
-                  onOpenCoach={handleOpenCoach}
-                />
-              </div>
-              <div className="w-full shrink-0 p-6">
-                <StepDetails
-                  formData={formData}
-                  updateFormData={updateFormData}
-                  onNext={handleNext}
-                  onBack={handleBack}
-                  canProceed={canProceed()}
-                />
-              </div>
-              <div className="w-full shrink-0 p-6">
-                <StepStyle
-                  formData={formData}
-                  updateFormData={updateFormData}
-                  onNext={handleNext}
-                  onBack={handleBack}
-                  canProceed={canProceed()}
-                />
-              </div>
-              <div className="w-full shrink-0 p-6">
-                <StepSummary
-                  formData={formData}
-                  onBack={handleBack}
-                  onCreate={handleCreate}
-                  isLoading={isLoading}
-                />
-              </div>
-            </div>
+          {/* Step content */}
+          <div className="min-h-[400px] p-6">
+            {renderStepContent()}
           </div>
         </DialogContent>
       </Dialog>

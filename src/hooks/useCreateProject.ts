@@ -22,7 +22,18 @@ export function useCreateProject() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.from("projects").insert({
+      // Build story structure from generated story
+      const storyStructure = formData.generatedStory ? {
+        protagonist: formData.generatedStory.protagonist,
+        antagonist: formData.generatedStory.antagonist,
+        setting: formData.generatedStory.setting,
+        themes: formData.generatedStory.themes,
+        plotPoints: formData.generatedStory.plotPoints,
+        chapters: formData.generatedStory.chapters,
+      } : null;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertData: any = {
         user_id: user.id,
         title: formData.title.trim(),
         description: formData.description.trim() || null,
@@ -34,7 +45,12 @@ export function useCreateProject() {
         style_descriptive: formData.styleDescriptive,
         style_dialogue: formData.styleDialogue,
         style_action: formData.styleAction,
-      });
+        story_idea: formData.storyIdea?.trim() || null,
+        generated_story: formData.generatedStory?.synopsis || null,
+        story_structure: storyStructure,
+      };
+
+      const { error } = await supabase.from("projects").insert(insertData);
 
       if (error) {
         console.error("Error creating project:", error);

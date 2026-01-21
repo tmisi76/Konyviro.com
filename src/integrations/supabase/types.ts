@@ -428,9 +428,12 @@ export type Database = {
           complexity: number | null
           created_at: string
           description: string | null
+          generated_story: string | null
           genre: string
           id: string
           status: string
+          story_idea: string | null
+          story_structure: Json | null
           style_action: boolean | null
           style_descriptive: boolean | null
           style_dialogue: boolean | null
@@ -446,9 +449,12 @@ export type Database = {
           complexity?: number | null
           created_at?: string
           description?: string | null
+          generated_story?: string | null
           genre: string
           id?: string
           status?: string
+          story_idea?: string | null
+          story_structure?: Json | null
           style_action?: boolean | null
           style_descriptive?: boolean | null
           style_dialogue?: boolean | null
@@ -464,9 +470,12 @@ export type Database = {
           complexity?: number | null
           created_at?: string
           description?: string | null
+          generated_story?: string | null
           genre?: string
           id?: string
           status?: string
+          story_idea?: string | null
+          story_structure?: Json | null
           style_action?: boolean | null
           style_descriptive?: boolean | null
           style_dialogue?: boolean | null
