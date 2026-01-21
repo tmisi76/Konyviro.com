@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, Link as LinkIcon, X } from "lucide-react";
 import {
   Dialog,
@@ -18,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Source, SourceType } from "@/types/research";
 import { SOURCE_TYPE_LABELS } from "@/types/research";
 
@@ -39,37 +41,67 @@ export function AddSourceModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   
-  const [url, setUrl] = useState(editingSource?.url || "");
-  const [title, setTitle] = useState(editingSource?.title || "");
-  const [author, setAuthor] = useState(editingSource?.author || "");
-  const [publisher, setPublisher] = useState(editingSource?.publisher || "");
-  const [year, setYear] = useState(editingSource?.year?.toString() || "");
-  const [sourceType, setSourceType] = useState<SourceType>(
-    editingSource?.source_type || initialType
-  );
-  const [notes, setNotes] = useState(editingSource?.notes || "");
-  const [tags, setTags] = useState<string[]>(editingSource?.tags || []);
+  const [url, setUrl] = useState("");
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [publisher, setPublisher] = useState("");
+  const [year, setYear] = useState("");
+  const [sourceType, setSourceType] = useState<SourceType>(initialType);
+  const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+
+  // Reset form when editing source changes
+  useEffect(() => {
+    if (editingSource) {
+      setUrl(editingSource.url || "");
+      setTitle(editingSource.title);
+      setAuthor(editingSource.author || "");
+      setPublisher(editingSource.publisher || "");
+      setYear(editingSource.year?.toString() || "");
+      setSourceType(editingSource.source_type);
+      setNotes(editingSource.notes || "");
+      setTags(editingSource.tags || []);
+    } else {
+      setUrl("");
+      setTitle("");
+      setAuthor("");
+      setPublisher("");
+      setYear("");
+      setSourceType(initialType);
+      setNotes("");
+      setTags([]);
+    }
+  }, [editingSource, initialType, isOpen]);
 
   const handleFetchMetadata = async () => {
     if (!url) return;
     
     setIsFetchingMetadata(true);
     
-    // Simulate fetching metadata - in real implementation would use an edge function
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Extract domain for basic info
     try {
-      const urlObj = new URL(url.startsWith("http") ? url : `https://${url}`);
-      if (!title) {
-        setTitle(urlObj.hostname.replace("www.", ""));
+      const { data, error } = await supabase.functions.invoke('fetch-url-metadata', {
+        body: { url }
+      });
+
+      if (error) throw error;
+      
+      if (data?.success && data.metadata) {
+        const meta = data.metadata;
+        if (meta.title && !title) setTitle(meta.title);
+        if (meta.author && !author) setAuthor(meta.author);
+        if (meta.publisher && !publisher) setPublisher(meta.publisher);
+        if (meta.year && !year) setYear(meta.year.toString());
+        toast.success("Metaadatok betöltve");
+      } else {
+        throw new Error(data?.error || "Nem sikerült betölteni");
       }
-    } catch {
-      // Invalid URL
+    } catch (error) {
+      console.error("Fetch metadata error:", error);
+      toast.error("Nem sikerült betölteni a metaadatokat");
+    } finally {
+      setIsFetchingMetadata(false);
     }
-    
-    setIsFetchingMetadata(false);
   };
 
   const handleAddTag = () => {
