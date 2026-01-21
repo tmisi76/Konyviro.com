@@ -536,6 +536,93 @@ export type Database = {
           },
         ]
       }
+      user_achievements: {
+        Row: {
+          achievement_id: string
+          id: string
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          achievement_id: string
+          id?: string
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          achievement_id?: string
+          id?: string
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_goals: {
+        Row: {
+          created_at: string
+          daily_word_goal: number
+          id: string
+          leaderboard_opt_in: boolean
+          reminder_enabled: boolean
+          reminder_time: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_word_goal?: number
+          id?: string
+          leaderboard_opt_in?: boolean
+          reminder_enabled?: boolean
+          reminder_time?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_word_goal?: number
+          id?: string
+          leaderboard_opt_in?: boolean
+          reminder_enabled?: boolean
+          reminder_time?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_streaks: {
+        Row: {
+          created_at: string
+          current_streak: number
+          id: string
+          last_writing_date: string | null
+          longest_streak: number
+          streak_recovery_used_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_writing_date?: string | null
+          longest_streak?: number
+          streak_recovery_used_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_writing_date?: string | null
+          longest_streak?: number
+          streak_recovery_used_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_usage: {
         Row: {
           created_at: string
@@ -565,6 +652,47 @@ export type Database = {
           words_generated?: number
         }
         Relationships: []
+      }
+      writing_sessions: {
+        Row: {
+          ai_words_generated: number
+          created_at: string
+          duration_seconds: number
+          id: string
+          project_id: string | null
+          session_date: string
+          user_id: string
+          words_written: number
+        }
+        Insert: {
+          ai_words_generated?: number
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          project_id?: string | null
+          session_date?: string
+          user_id: string
+          words_written?: number
+        }
+        Update: {
+          ai_words_generated?: number
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          project_id?: string | null
+          session_date?: string
+          user_id?: string
+          words_written?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writing_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
