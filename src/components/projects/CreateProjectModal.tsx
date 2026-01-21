@@ -5,7 +5,9 @@ import { StepGenre } from "./steps/StepGenre";
 import { StepDetails } from "./steps/StepDetails";
 import { StepStyle } from "./steps/StepStyle";
 import { StepSummary } from "./steps/StepSummary";
+import { AgeVerificationModal } from "./AgeVerificationModal";
 import { useCreateProject } from "@/hooks/useCreateProject";
+import { useAdultVerification } from "@/hooks/useAdultVerification";
 
 export interface ProjectFormData {
   genre: "szakkönyv" | "fiction" | "erotikus" | null;
@@ -49,10 +51,37 @@ interface CreateProjectModalProps {
 export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProjectModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<ProjectFormData>(initialFormData);
+  const [showAgeVerification, setShowAgeVerification] = useState(false);
+  const [pendingGenre, setPendingGenre] = useState<ProjectFormData["genre"]>(null);
+  
   const { createProject, isLoading } = useCreateProject();
+  const { isVerified, verifyAdultContent } = useAdultVerification();
 
   const updateFormData = (updates: Partial<ProjectFormData>) => {
     setFormData((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleGenreSelect = (genre: ProjectFormData["genre"]) => {
+    if (genre === "erotikus" && !isVerified) {
+      setPendingGenre(genre);
+      setShowAgeVerification(true);
+    } else {
+      updateFormData({ genre });
+    }
+  };
+
+  const handleAgeVerificationConfirm = async () => {
+    const success = await verifyAdultContent();
+    if (success && pendingGenre) {
+      updateFormData({ genre: pendingGenre });
+      setShowAgeVerification(false);
+      setPendingGenre(null);
+    }
+  };
+
+  const handleAgeVerificationCancel = () => {
+    setShowAgeVerification(false);
+    setPendingGenre(null);
   };
 
   const handleNext = () => {
@@ -101,93 +130,104 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl overflow-hidden p-0">
-        {/* Progress indicator */}
-        <div className="border-b border-border bg-muted/30 px-6 py-4">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div className="flex items-center gap-2">
-                  <div
-                    className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
-                      currentStep === step.id
-                        ? "bg-secondary text-secondary-foreground"
-                        : currentStep > step.id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {currentStep > step.id ? "✓" : step.id}
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-2xl overflow-hidden p-0">
+          {/* Progress indicator */}
+          <div className="border-b border-border bg-muted/30 px-6 py-4">
+            <div className="flex items-center justify-between">
+              {steps.map((step, index) => (
+                <div key={step.id} className="flex items-center">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
+                        currentStep === step.id
+                          ? "bg-secondary text-secondary-foreground"
+                          : currentStep > step.id
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {currentStep > step.id ? "✓" : step.id}
+                    </div>
+                    <span
+                      className={cn(
+                        "hidden text-sm font-medium sm:block",
+                        currentStep === step.id
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {step.title}
+                    </span>
                   </div>
-                  <span
-                    className={cn(
-                      "hidden text-sm font-medium sm:block",
-                      currentStep === step.id
-                        ? "text-foreground"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {step.title}
-                  </span>
+                  {index < steps.length - 1 && (
+                    <div
+                      className={cn(
+                        "mx-3 h-0.5 w-8 transition-colors sm:w-12",
+                        currentStep > step.id ? "bg-primary" : "bg-border"
+                      )}
+                    />
+                  )}
                 </div>
-                {index < steps.length - 1 && (
-                  <div
-                    className={cn(
-                      "mx-3 h-0.5 w-8 transition-colors sm:w-12",
-                      currentStep > step.id ? "bg-primary" : "bg-border"
-                    )}
-                  />
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Step content with animation */}
-        <div className="relative min-h-[400px] overflow-hidden">
-          <div
-            className="flex transition-transform duration-300 ease-in-out"
-            style={{ transform: `translateX(-${(currentStep - 1) * 100}%)` }}
-          >
-            <div className="w-full shrink-0 p-6">
-              <StepGenre
-                selected={formData.genre}
-                onSelect={(genre) => updateFormData({ genre })}
-                onNext={handleNext}
-                canProceed={canProceed()}
-              />
-            </div>
-            <div className="w-full shrink-0 p-6">
-              <StepDetails
-                formData={formData}
-                updateFormData={updateFormData}
-                onNext={handleNext}
-                onBack={handleBack}
-                canProceed={canProceed()}
-              />
-            </div>
-            <div className="w-full shrink-0 p-6">
-              <StepStyle
-                formData={formData}
-                updateFormData={updateFormData}
-                onNext={handleNext}
-                onBack={handleBack}
-                canProceed={canProceed()}
-              />
-            </div>
-            <div className="w-full shrink-0 p-6">
-              <StepSummary
-                formData={formData}
-                onBack={handleBack}
-                onCreate={handleCreate}
-                isLoading={isLoading}
-              />
+          {/* Step content with animation */}
+          <div className="relative min-h-[400px] overflow-hidden">
+            <div
+              className="flex transition-transform duration-300 ease-in-out"
+              style={{ transform: `translateX(-${(currentStep - 1) * 100}%)` }}
+            >
+              <div className="w-full shrink-0 p-6">
+                <StepGenre
+                  selected={formData.genre}
+                  onSelect={handleGenreSelect}
+                  onNext={handleNext}
+                  canProceed={canProceed()}
+                  isAdultVerified={isVerified}
+                />
+              </div>
+              <div className="w-full shrink-0 p-6">
+                <StepDetails
+                  formData={formData}
+                  updateFormData={updateFormData}
+                  onNext={handleNext}
+                  onBack={handleBack}
+                  canProceed={canProceed()}
+                />
+              </div>
+              <div className="w-full shrink-0 p-6">
+                <StepStyle
+                  formData={formData}
+                  updateFormData={updateFormData}
+                  onNext={handleNext}
+                  onBack={handleBack}
+                  canProceed={canProceed()}
+                />
+              </div>
+              <div className="w-full shrink-0 p-6">
+                <StepSummary
+                  formData={formData}
+                  onBack={handleBack}
+                  onCreate={handleCreate}
+                  isLoading={isLoading}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {/* Age Verification Modal */}
+      <AgeVerificationModal
+        open={showAgeVerification}
+        onOpenChange={setShowAgeVerification}
+        onConfirm={handleAgeVerificationConfirm}
+        onCancel={handleAgeVerificationCancel}
+      />
+    </>
   );
 }
