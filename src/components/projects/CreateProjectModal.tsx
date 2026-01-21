@@ -8,6 +8,8 @@ import { StepSummary } from "./steps/StepSummary";
 import { AgeVerificationModal } from "./AgeVerificationModal";
 import { useCreateProject } from "@/hooks/useCreateProject";
 import { useAdultVerification } from "@/hooks/useAdultVerification";
+import { BookCoachModal } from "@/components/coach/BookCoachModal";
+import { CoachSummary } from "@/hooks/useBookCoach";
 
 export interface ProjectFormData {
   genre: "szakkönyv" | "fiction" | "erotikus" | null;
@@ -53,9 +55,69 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
   const [formData, setFormData] = useState<ProjectFormData>(initialFormData);
   const [showAgeVerification, setShowAgeVerification] = useState(false);
   const [pendingGenre, setPendingGenre] = useState<ProjectFormData["genre"]>(null);
+  const [showCoach, setShowCoach] = useState(false);
   
   const { createProject, isLoading } = useCreateProject();
   const { isVerified, verifyAdultContent } = useAdultVerification();
+
+  const handleOpenCoach = () => {
+    if (formData.genre) {
+      setShowCoach(true);
+    }
+  };
+
+  const handleCoachComplete = (summary: CoachSummary) => {
+    // Populate form data from coach summary
+    const updates: Partial<ProjectFormData> = {};
+    
+    if (summary.summary.topic) {
+      updates.title = summary.summary.topic;
+    }
+    if (summary.summary.audience) {
+      if (summary.summary.audience.toLowerCase().includes("kezdő")) {
+        updates.targetAudience = "beginner";
+      } else if (summary.summary.audience.toLowerCase().includes("haladó")) {
+        updates.targetAudience = "intermediate";
+      } else if (summary.summary.audience.toLowerCase().includes("szakértő")) {
+        updates.targetAudience = "expert";
+      } else {
+        updates.targetAudience = "general";
+      }
+    }
+    if (summary.summary.toneRecommendation) {
+      const tone = summary.summary.toneRecommendation.toLowerCase();
+      if (tone.includes("formális")) {
+        updates.tone = "formal";
+      } else if (tone.includes("direkt")) {
+        updates.tone = "direct";
+      } else if (tone.includes("barátságos")) {
+        updates.tone = "friendly";
+      } else if (tone.includes("provokatív")) {
+        updates.tone = "provocative";
+      }
+    }
+    
+    // Store outline in description for now
+    if (summary.summary.suggestedOutline && summary.summary.suggestedOutline.length > 0) {
+      updates.description = summary.summary.suggestedOutline.join("\n");
+    }
+
+    // For fiction/erotikus, use protagonist info
+    if (summary.summary.protagonist) {
+      updates.description = `Főszereplő: ${summary.summary.protagonist}\n${updates.description || ""}`;
+    }
+    if (summary.summary.setting) {
+      updates.description = `${updates.description || ""}\nHelyszín: ${summary.summary.setting}`;
+    }
+
+    updateFormData(updates);
+    setShowCoach(false);
+    
+    // Move to next step
+    if (currentStep === 1) {
+      setCurrentStep(2);
+    }
+  };
 
   const updateFormData = (updates: Partial<ProjectFormData>) => {
     setFormData((prev) => ({ ...prev, ...updates }));
@@ -188,6 +250,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
                   onNext={handleNext}
                   canProceed={canProceed()}
                   isAdultVerified={isVerified}
+                  onOpenCoach={handleOpenCoach}
                 />
               </div>
               <div className="w-full shrink-0 p-6">
@@ -228,6 +291,16 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
         onConfirm={handleAgeVerificationConfirm}
         onCancel={handleAgeVerificationCancel}
       />
+
+      {/* Book Coach Modal */}
+      {formData.genre && (
+        <BookCoachModal
+          open={showCoach}
+          onOpenChange={setShowCoach}
+          genre={formData.genre}
+          onComplete={handleCoachComplete}
+        />
+      )}
     </>
   );
 }

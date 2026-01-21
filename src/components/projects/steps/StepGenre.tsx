@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
+import { Sparkles } from "lucide-react";
 import type { ProjectFormData } from "../CreateProjectModal";
 
 interface GenreOption {
@@ -39,9 +40,10 @@ interface StepGenreProps {
   onNext: () => void;
   canProceed: boolean;
   isAdultVerified?: boolean;
+  onOpenCoach?: () => void;
 }
 
-export function StepGenre({ selected, onSelect, onNext, canProceed, isAdultVerified }: StepGenreProps) {
+export function StepGenre({ selected, onSelect, onNext, canProceed, isAdultVerified, onOpenCoach }: StepGenreProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="mb-6">
@@ -110,7 +112,19 @@ export function StepGenre({ selected, onSelect, onNext, canProceed, isAdultVerif
         })}
       </div>
 
-      <div className="mt-auto flex justify-end">
+      <div className="mt-auto flex items-center justify-between">
+        {selected && onOpenCoach ? (
+          <Button
+            variant="outline"
+            onClick={onOpenCoach}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Könyv Coach
+          </Button>
+        ) : (
+          <div />
+        )}
         <Button
           onClick={onNext}
           disabled={!canProceed}
