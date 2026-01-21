@@ -10,6 +10,8 @@ interface PricingCardProps {
   features: string[];
   isPopular?: boolean;
   discountBadge?: string;
+  onSelect: () => void;
+  isLoading?: boolean;
 }
 
 export function PricingCard({
@@ -20,6 +22,8 @@ export function PricingCard({
   features,
   isPopular = false,
   discountBadge = "-50%",
+  onSelect,
+  isLoading = false,
 }: PricingCardProps) {
   return (
     <div
@@ -85,8 +89,10 @@ export function PricingCard({
             : "bg-muted text-foreground hover:bg-muted/80"
         )}
         size="lg"
+        onClick={onSelect}
+        disabled={isLoading}
       >
-        Lefoglalom
+        {isLoading ? "Feldolgozás..." : "Lefoglalom"}
       </Button>
     </div>
   );

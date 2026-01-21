@@ -339,13 +339,47 @@ export type Database = {
           },
         ]
       }
+      founder_spots: {
+        Row: {
+          created_at: string
+          id: string
+          spots_taken: number
+          total_spots: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          spots_taken?: number
+          total_spots?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          spots_taken?: number
+          total_spots?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           adult_content_verified: boolean
           adult_verified_at: string | null
           created_at: string
+          founder_discount_applied: boolean
           full_name: string | null
           id: string
+          is_founder: boolean
+          monthly_word_limit: number
+          project_limit: number
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_end_date: string | null
+          subscription_start_date: string | null
+          subscription_status: string
+          subscription_tier: string
           updated_at: string
           user_id: string
         }
@@ -353,8 +387,18 @@ export type Database = {
           adult_content_verified?: boolean
           adult_verified_at?: string | null
           created_at?: string
+          founder_discount_applied?: boolean
           full_name?: string | null
           id?: string
+          is_founder?: boolean
+          monthly_word_limit?: number
+          project_limit?: number
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string
+          subscription_tier?: string
           updated_at?: string
           user_id: string
         }
@@ -362,8 +406,18 @@ export type Database = {
           adult_content_verified?: boolean
           adult_verified_at?: string | null
           created_at?: string
+          founder_discount_applied?: boolean
           full_name?: string | null
           id?: string
+          is_founder?: boolean
+          monthly_word_limit?: number
+          project_limit?: number
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string
+          subscription_tier?: string
           updated_at?: string
           user_id?: string
         }
@@ -481,6 +535,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_usage: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          projects_created: number
+          updated_at: string
+          user_id: string
+          words_generated: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          projects_created?: number
+          updated_at?: string
+          user_id: string
+          words_generated?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          projects_created?: number
+          updated_at?: string
+          user_id?: string
+          words_generated?: number
+        }
+        Relationships: []
       }
     }
     Views: {
