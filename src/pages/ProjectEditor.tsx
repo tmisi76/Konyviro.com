@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
@@ -10,12 +10,13 @@ import { EditorBlock } from "@/components/editor/EditorBlock";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
 import { OutlineView } from "@/components/editor/OutlineView";
 import { CharacterList } from "@/components/characters/CharacterList";
+import { ResearchView } from "@/components/research/ResearchView";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 
-type ViewMode = "editor" | "outline" | "characters";
+type ViewMode = "editor" | "outline" | "characters" | "research";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -50,6 +51,8 @@ export default function ProjectEditor() {
 
   // Check if project supports characters (fiction or erotic)
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
+  // Check if project supports research (non-fiction)
+  const supportsResearch = project?.genre === "szakkonyv";
 
   const handleCreateBlockAfter = useCallback(async (afterBlockId: string, type: BlockType = "paragraph") => {
     const afterBlock = blocks.find((b) => b.id === afterBlockId);
@@ -211,6 +214,12 @@ export default function ProjectEditor() {
                   Karakterek
                 </TabsTrigger>
               )}
+              {supportsResearch && (
+                <TabsTrigger value="research" className="gap-2">
+                  <FlaskConical className="h-4 w-4" />
+                  Kutatás
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
 
@@ -284,9 +293,11 @@ export default function ProjectEditor() {
             onGenerateOutline={handleGenerateOutline}
             isGenerating={isGeneratingOutline}
           />
-        ) : (
+        ) : viewMode === "characters" ? (
           <CharacterList projectId={projectId} />
-        )}
+        ) : viewMode === "research" ? (
+          <ResearchView projectId={projectId} />
+        ) : null}
       </main>
 
       {/* AI Assistant Panel - only in editor mode */}

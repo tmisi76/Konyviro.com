@@ -233,6 +233,58 @@ export type Database = {
           },
         ]
       }
+      citations: {
+        Row: {
+          block_id: string | null
+          chapter_id: string
+          citation_number: number
+          created_at: string
+          id: string
+          page_reference: string | null
+          source_id: string
+        }
+        Insert: {
+          block_id?: string | null
+          chapter_id: string
+          citation_number: number
+          created_at?: string
+          id?: string
+          page_reference?: string | null
+          source_id: string
+        }
+        Update: {
+          block_id?: string | null
+          chapter_id?: string
+          citation_number?: number
+          created_at?: string
+          id?: string
+          page_reference?: string | null
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "citations_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citations_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           adult_content_verified: boolean
@@ -319,6 +371,62 @@ export type Database = {
           word_count?: number
         }
         Relationships: []
+      }
+      sources: {
+        Row: {
+          author: string | null
+          created_at: string
+          id: string
+          is_starred: boolean
+          notes: string | null
+          project_id: string
+          publisher: string | null
+          source_type: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+          url: string | null
+          year: number | null
+        }
+        Insert: {
+          author?: string | null
+          created_at?: string
+          id?: string
+          is_starred?: boolean
+          notes?: string | null
+          project_id: string
+          publisher?: string | null
+          source_type?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Update: {
+          author?: string | null
+          created_at?: string
+          id?: string
+          is_starred?: boolean
+          notes?: string | null
+          project_id?: string
+          publisher?: string | null
+          source_type?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sources_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
