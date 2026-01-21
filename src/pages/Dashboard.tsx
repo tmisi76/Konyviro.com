@@ -89,7 +89,7 @@ export default function Dashboard() {
   };
 
   const handleSettings = () => {
-    toast.info("Beállítások hamarosan elérhetőek!");
+    navigate("/settings?tab=subscription");
   };
 
   const handleProjectCreated = () => {
