@@ -28,7 +28,7 @@ export default function ProjectEditor() {
   
   const [viewMode, setViewMode] = useState<ViewMode>("editor");
   const [chapterSidebarCollapsed, setChapterSidebarCollapsed] = useState(false);
-  const [aiPanelCollapsed, setAiPanelCollapsed] = useState(true);
+  const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
