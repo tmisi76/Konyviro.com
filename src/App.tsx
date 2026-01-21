@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Pricing from "./pages/Pricing";
 import Settings from "./pages/Settings";
+import Install from "./pages/Install";
 import ProjectEditor from "./pages/ProjectEditor";
 import ProjectExport from "./pages/ProjectExport";
 import NotFound from "./pages/NotFound";
@@ -59,6 +60,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route path="/install" element={<Install />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -145,4 +145,87 @@
   .elevation-4 {
     box-shadow: var(--shadow-xl);
   }
+
+  /* Mobile touch target utilities */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Safe area padding utilities */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* Horizontal scroll container */
+  .scroll-x-snap {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scroll-x-snap > * {
+    scroll-snap-align: start;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Keyboard avoiding input */
+  .keyboard-avoiding {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transition: transform 0.3s ease;
+  }
+}
+
+/* Mobile-first responsive utilities */
+@layer components {
+  /* Mobile bottom nav spacing */
+  .has-bottom-nav {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Pull to refresh indicator */
+  .pull-indicator {
+    @apply flex items-center justify-center py-4 text-primary;
+  }
+
+  /* Horizontal scroll stats container */
+  .stats-scroll {
+    @apply flex gap-4 overflow-x-auto scroll-x-snap scrollbar-hide px-4 -mx-4;
+  }
+  .stats-scroll > * {
+    @apply shrink-0 w-[280px];
+  }
+
+  /* Mobile card stack */
+  .mobile-card-stack {
+    @apply flex flex-col gap-4;
+  }
+
+  /* Chapter pill tabs */
+  .chapter-pills {
+    @apply flex gap-2 overflow-x-auto scrollbar-hide py-2;
+  }
+  .chapter-pill {
+    @apply shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors;
+    @apply bg-muted text-muted-foreground;
+  }
+  .chapter-pill.active {
+    @apply bg-primary text-primary-foreground;
+  }
 }

@@ -1,13 +1,84 @@
 import { useState } from "react";
-import { ArrowLeft, Settings, CreditCard, User } from "lucide-react";
+import { ArrowLeft, Settings, CreditCard, User, ChevronDown } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { SubscriptionSettings } from "@/components/settings/SubscriptionSettings";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const [searchParams] = useSearchParams();
   const defaultTab = searchParams.get("tab") || "subscription";
+  const isMobile = useIsMobile();
 
+  // Mobile accordion layout
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-background pb-safe">
+        {/* Header */}
+        <header className="sticky top-0 z-10 border-b bg-card/95 backdrop-blur-md">
+          <div className="flex items-center gap-4 px-4 py-4">
+            <Link
+              to="/dashboard"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground transition-colors touch-target"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-primary" />
+              <h1 className="text-lg font-bold text-foreground">Beállítások</h1>
+            </div>
+          </div>
+        </header>
+
+        {/* Accordion Content */}
+        <main className="px-4 py-6">
+          <Accordion type="single" collapsible defaultValue={defaultTab} className="space-y-3">
+            <AccordionItem value="subscription" className="rounded-xl border bg-card shadow-sm overflow-hidden">
+              <AccordionTrigger className="px-4 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                    <CreditCard className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground">Előfizetés</p>
+                    <p className="text-xs text-muted-foreground">Csomag és fizetés kezelése</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-4">
+                <SubscriptionSettings />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="profile" className="rounded-xl border bg-card shadow-sm overflow-hidden">
+              <AccordionTrigger className="px-4 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/10">
+                    <User className="h-5 w-5 text-secondary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground">Profil</p>
+                    <p className="text-xs text-muted-foreground">Személyes adatok</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-4">
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground">
+                    A profil beállítások hamarosan elérhetőek lesznek.
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </main>
+      </div>
+    );
+  }
+
+  // Desktop tab layout
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -47,7 +118,7 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="profile">
-              <div className="rounded-xl border bg-card p-6 shadow-material-1">
+              <div className="rounded-xl border bg-card p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-foreground">Profil beállítások</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
                   A profil beállítások hamarosan elérhetőek lesznek.
