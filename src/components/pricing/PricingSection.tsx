@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Shield, Clock } from "lucide-react";
 import { PricingCard } from "./PricingCard";
-import { ProgressBar } from "./ProgressBar";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useCheckout } from "@/hooks/useCheckout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,15 +51,15 @@ export function PricingSection() {
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-background via-muted/30 to-background" />
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Founder badge */}
-        {programOpen && billingPeriod === "yearly" && (
-          <div className="mb-6 flex justify-center">
+        {/* Founder badge - always takes space, invisible when monthly */}
+        {programOpen && (
+          <div className={`mb-6 flex justify-center ${billingPeriod !== "yearly" ? "invisible" : ""}`}>
             <span className="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-4 py-2 text-sm font-semibold text-secondary shadow-material-1 animate-pulse-subtle">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-secondary opacity-75"></span>
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-secondary"></span>
               </span>
-              Alapító Akció - 50% kedvezmény
+              Alapító Akció - 50% kedvezmény az 1 éves csomag díjából
             </span>
           </div>
         )}
@@ -102,12 +101,6 @@ export function PricingSection() {
           </Label>
         </div>
 
-        {/* Progress bar - only show for yearly */}
-        {programOpen && billingPeriod === "yearly" && (
-          <div className="mt-8">
-            <ProgressBar current={spotsReserved} total={totalSpots} />
-          </div>
-        )}
 
         {/* Pricing cards */}
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
@@ -156,15 +149,6 @@ export function PricingSection() {
           </div>
         </div>
 
-        {/* Urgency indicator - only show for yearly */}
-        {programOpen && billingPeriod === "yearly" && (
-          <div className="mt-8 text-center">
-            <p className="inline-flex items-center gap-2 rounded-lg bg-warning/10 px-4 py-2 text-sm font-medium text-warning-foreground">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-warning"></span>
-              Csak <span className="font-bold">{totalSpots - spotsReserved}</span> alapító hely maradt!
-            </p>
-          </div>
-        )}
       </div>
     </section>
   );
