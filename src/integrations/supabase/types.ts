@@ -59,26 +59,38 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          key_points: string[] | null
           project_id: string
           sort_order: number
+          status: string
+          summary: string | null
           title: string
           updated_at: string
+          word_count: number
         }
         Insert: {
           created_at?: string
           id?: string
+          key_points?: string[] | null
           project_id: string
           sort_order?: number
+          status?: string
+          summary?: string | null
           title?: string
           updated_at?: string
+          word_count?: number
         }
         Update: {
           created_at?: string
           id?: string
+          key_points?: string[] | null
           project_id?: string
           sort_order?: number
+          status?: string
+          summary?: string | null
           title?: string
           updated_at?: string
+          word_count?: number
         }
         Relationships: [
           {

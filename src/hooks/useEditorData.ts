@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Block, BlockType, Chapter } from "@/types/editor";
-import type { TablesInsert } from "@/integrations/supabase/types";
+import type { Block, BlockType, Chapter, ChapterStatus } from "@/types/editor";
 import { toast } from "sonner";
 
 export function useEditorData(projectId: string) {
@@ -28,12 +27,18 @@ export function useEditorData(projectId: string) {
       return;
     }
 
-    setChapters(data || []);
+    const typedChapters: Chapter[] = (data || []).map((c) => ({
+      ...c,
+      status: (c.status || "draft") as ChapterStatus,
+      key_points: (c.key_points || []) as string[],
+    }));
+
+    setChapters(typedChapters);
     
     // Auto-select first chapter or create one if none exist
-    if (data && data.length > 0 && !activeChapterId) {
-      setActiveChapterId(data[0].id);
-    } else if (!data || data.length === 0) {
+    if (typedChapters.length > 0 && !activeChapterId) {
+      setActiveChapterId(typedChapters[0].id);
+    } else if (typedChapters.length === 0) {
       await createChapter();
     }
   }, [projectId, activeChapterId]);
@@ -77,6 +82,9 @@ export function useEditorData(projectId: string) {
         project_id: projectId,
         title,
         sort_order: sortOrder,
+        status: "draft",
+        key_points: [],
+        word_count: 0,
       })
       .select()
       .single();
@@ -87,9 +95,15 @@ export function useEditorData(projectId: string) {
       return null;
     }
 
-    setChapters((prev) => [...prev, data]);
+    const typedChapter: Chapter = {
+      ...data,
+      status: data.status as ChapterStatus,
+      key_points: (data.key_points || []) as string[],
+    };
+
+    setChapters((prev) => [...prev, typedChapter]);
     setActiveChapterId(data.id);
-    return data;
+    return typedChapter;
   };
 
   // Update chapter
@@ -131,6 +145,59 @@ export function useEditorData(projectId: string) {
     if (activeChapterId === chapterId) {
       const remaining = chapters.filter((c) => c.id !== chapterId);
       setActiveChapterId(remaining[0]?.id || null);
+    }
+  };
+
+  // Duplicate chapter
+  const duplicateChapter = async (chapterId: string) => {
+    const chapter = chapters.find((c) => c.id === chapterId);
+    if (!chapter) return;
+
+    const newChapter = await createChapter(`${chapter.title} (másolat)`);
+    if (!newChapter) return;
+
+    // Copy blocks from original chapter
+    const { data: originalBlocks } = await supabase
+      .from("blocks")
+      .select("*")
+      .eq("chapter_id", chapterId)
+      .order("sort_order", { ascending: true });
+
+    if (originalBlocks && originalBlocks.length > 0) {
+      const newBlocks = originalBlocks.map((block) => ({
+        chapter_id: newChapter.id,
+        type: block.type,
+        content: block.content,
+        metadata: block.metadata,
+        sort_order: block.sort_order,
+      }));
+
+      await supabase.from("blocks").insert(newBlocks);
+    }
+
+    // Update chapter with copied metadata
+    await updateChapter(newChapter.id, {
+      summary: chapter.summary,
+      key_points: chapter.key_points,
+    });
+
+    toast.success("Fejezet duplikálva");
+  };
+
+  // Reorder chapters
+  const reorderChapters = async (reorderedChapters: Chapter[]) => {
+    setChapters(reorderedChapters);
+
+    const updates = reorderedChapters.map((chapter, index) => ({
+      id: chapter.id,
+      sort_order: index,
+    }));
+
+    for (const update of updates) {
+      await supabase
+        .from("chapters")
+        .update({ sort_order: update.sort_order })
+        .eq("id", update.id);
     }
   };
 
@@ -228,6 +295,25 @@ export function useEditorData(projectId: string) {
       }
     }
 
+    // Update chapter word count
+    if (activeChapterId) {
+      const totalWords = blocks.reduce((sum, block) => {
+        const words = block.content.trim().split(/\s+/).filter(Boolean).length;
+        return sum + words;
+      }, 0);
+
+      await supabase
+        .from("chapters")
+        .update({ word_count: totalWords })
+        .eq("id", activeChapterId);
+
+      setChapters((prev) =>
+        prev.map((c) =>
+          c.id === activeChapterId ? { ...c, word_count: totalWords } : c
+        )
+      );
+    }
+
     setIsSaving(false);
     setLastSaved(new Date());
   };
@@ -298,6 +384,8 @@ export function useEditorData(projectId: string) {
     createChapter,
     updateChapter,
     deleteChapter,
+    duplicateChapter,
+    reorderChapters,
     createBlock,
     updateBlock,
     deleteBlock,
