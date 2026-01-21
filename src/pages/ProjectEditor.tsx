@@ -1,24 +1,31 @@
 import { useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Check, Loader2, Cloud } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Cloud, BookOpen, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChapterSidebar } from "@/components/editor/ChapterSidebar";
 import { EditorBlock } from "@/components/editor/EditorBlock";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
+import { OutlineView } from "@/components/editor/OutlineView";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
-import type { Block, BlockType } from "@/types/editor";
+import { toast } from "sonner";
+import type { Block, BlockType, ProjectGenre } from "@/types/editor";
+
+type ViewMode = "editor" | "outline";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
+  const [viewMode, setViewMode] = useState<ViewMode>("editor");
   const [chapterSidebarCollapsed, setChapterSidebarCollapsed] = useState(false);
   const [aiPanelCollapsed, setAiPanelCollapsed] = useState(true);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
+  const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
 
   const { project, isLoading: projectLoading } = useProjectDetails(projectId || "");
   const {
@@ -32,6 +39,8 @@ export default function ProjectEditor() {
     createChapter,
     updateChapter,
     deleteChapter,
+    duplicateChapter,
+    reorderChapters,
     createBlock,
     updateBlock,
     deleteBlock,
@@ -83,6 +92,37 @@ export default function ProjectEditor() {
     setDraggedBlockId(null);
   }, [blocks, draggedBlockId, reorderBlocks]);
 
+  const handleGenerateOutline = async (description: string) => {
+    if (!description) {
+      toast.error("A vázlat generáláshoz add meg a könyv leírását");
+      return;
+    }
+
+    setIsGeneratingOutline(true);
+    
+    // Simulate AI generation (will be connected to Lovable AI later)
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    
+    const genre = project?.genre as ProjectGenre;
+    const suggestedChapters = genre === "szakkonyv" 
+      ? ["Bevezetés", "Alapfogalmak", "Részletes elemzés", "Gyakorlati alkalmazás", "Összefoglalás"]
+      : genre === "fiction"
+      ? ["Prológus", "Első találkozás", "Konfliktus kibontakozása", "Tetőpont", "Megoldás", "Epilógus"]
+      : ["Bevezető hangulat", "Ismerkedés", "Feszültség építése", "Csúcspont", "Érzelmi lezárás"];
+
+    for (const title of suggestedChapters) {
+      await createChapter(title);
+    }
+
+    setIsGeneratingOutline(false);
+    toast.success("Vázlat generálva!");
+  };
+
+  const handleSelectChapterFromOutline = (chapterId: string) => {
+    setActiveChapterId(chapterId);
+    setViewMode("editor");
+  };
+
   const formatLastSaved = () => {
     if (!lastSaved) return null;
     const now = new Date();
@@ -109,17 +149,21 @@ export default function ProjectEditor() {
 
   return (
     <div className="flex h-screen w-full bg-background">
-      {/* Chapter Sidebar */}
-      <ChapterSidebar
-        chapters={chapters}
-        activeChapterId={activeChapterId}
-        onSelectChapter={setActiveChapterId}
-        onCreateChapter={createChapter}
-        onUpdateChapter={updateChapter}
-        onDeleteChapter={deleteChapter}
-        isCollapsed={chapterSidebarCollapsed}
-        onToggleCollapse={() => setChapterSidebarCollapsed(!chapterSidebarCollapsed)}
-      />
+      {/* Chapter Sidebar - only in editor mode */}
+      {viewMode === "editor" && (
+        <ChapterSidebar
+          chapters={chapters}
+          activeChapterId={activeChapterId}
+          onSelectChapter={setActiveChapterId}
+          onCreateChapter={createChapter}
+          onUpdateChapter={updateChapter}
+          onDeleteChapter={deleteChapter}
+          onDuplicateChapter={duplicateChapter}
+          onReorderChapters={reorderChapters}
+          isCollapsed={chapterSidebarCollapsed}
+          onToggleCollapse={() => setChapterSidebarCollapsed(!chapterSidebarCollapsed)}
+        />
+      )}
 
       {/* Main Editor Area */}
       <main className="flex flex-1 flex-col overflow-hidden">
@@ -138,11 +182,27 @@ export default function ProjectEditor() {
                 </h1>
                 {isAdultContent && <AdultBadge size="sm" />}
               </div>
-              <p className="text-sm text-muted-foreground">
-                {chapters.find((c) => c.id === activeChapterId)?.title}
-              </p>
+              {viewMode === "editor" && (
+                <p className="text-sm text-muted-foreground">
+                  {chapters.find((c) => c.id === activeChapterId)?.title}
+                </p>
+              )}
             </div>
           </div>
+
+          {/* View mode toggle */}
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+            <TabsList>
+              <TabsTrigger value="editor" className="gap-2">
+                <Edit3 className="h-4 w-4" />
+                Szerkesztő
+              </TabsTrigger>
+              <TabsTrigger value="outline" className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                Vázlat
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {isSaving ? (
@@ -159,57 +219,72 @@ export default function ProjectEditor() {
           </div>
         </header>
 
-        {/* Editor Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[700px] px-16 py-8">
-            {blocks.map((block) => (
-              <div
-                key={block.id}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.classList.add("border-t-2", "border-primary");
-                }}
-                onDragLeave={(e) => {
-                  e.currentTarget.classList.remove("border-t-2", "border-primary");
-                }}
-                onDrop={(e) => {
-                  e.currentTarget.classList.remove("border-t-2", "border-primary");
-                  handleDrop(block.id);
-                }}
-              >
-                <EditorBlock
-                  block={block}
-                  isSelected={selectedBlockId === block.id}
-                  onSelect={() => setSelectedBlockId(block.id)}
-                  onUpdate={(updates) => updateBlock(block.id, updates)}
-                  onDelete={() => handleDeleteBlock(block.id)}
-                  onCreateAfter={(type) => handleCreateBlockAfter(block.id, type)}
-                  onDragStart={() => setDraggedBlockId(block.id)}
-                  onDragEnd={() => setDraggedBlockId(null)}
-                  isDragging={draggedBlockId === block.id}
-                />
-              </div>
-            ))}
+        {/* Content based on view mode */}
+        {viewMode === "editor" ? (
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-[700px] px-16 py-8">
+              {blocks.map((block) => (
+                <div
+                  key={block.id}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.add("border-t-2", "border-primary");
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.classList.remove("border-t-2", "border-primary");
+                  }}
+                  onDrop={(e) => {
+                    e.currentTarget.classList.remove("border-t-2", "border-primary");
+                    handleDrop(block.id);
+                  }}
+                >
+                  <EditorBlock
+                    block={block}
+                    isSelected={selectedBlockId === block.id}
+                    onSelect={() => setSelectedBlockId(block.id)}
+                    onUpdate={(updates) => updateBlock(block.id, updates)}
+                    onDelete={() => handleDeleteBlock(block.id)}
+                    onCreateAfter={(type) => handleCreateBlockAfter(block.id, type)}
+                    onDragStart={() => setDraggedBlockId(block.id)}
+                    onDragEnd={() => setDraggedBlockId(null)}
+                    isDragging={draggedBlockId === block.id}
+                  />
+                </div>
+              ))}
 
-            {/* Empty area click to add block */}
-            <div
-              className="h-32 cursor-text"
-              onClick={() => {
-                if (blocks.length === 0) {
-                  createBlock("paragraph", "", 0);
-                }
-              }}
-            />
+              {/* Empty area click to add block */}
+              <div
+                className="h-32 cursor-text"
+                onClick={() => {
+                  if (blocks.length === 0) {
+                    createBlock("paragraph", "", 0);
+                  }
+                }}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <OutlineView
+            chapters={chapters}
+            projectGenre={project?.genre as ProjectGenre}
+            projectDescription={project?.description}
+            onUpdateChapter={updateChapter}
+            onSelectChapter={handleSelectChapterFromOutline}
+            onCreateChapter={createChapter}
+            onGenerateOutline={handleGenerateOutline}
+            isGenerating={isGeneratingOutline}
+          />
+        )}
       </main>
 
-      {/* AI Assistant Panel */}
-      <AIAssistantPanel
-        isCollapsed={aiPanelCollapsed}
-        onToggleCollapse={() => setAiPanelCollapsed(!aiPanelCollapsed)}
-        projectGenre={project?.genre}
-      />
+      {/* AI Assistant Panel - only in editor mode */}
+      {viewMode === "editor" && (
+        <AIAssistantPanel
+          isCollapsed={aiPanelCollapsed}
+          onToggleCollapse={() => setAiPanelCollapsed(!aiPanelCollapsed)}
+          projectGenre={project?.genre}
+        />
+      )}
     </div>
   );
 }

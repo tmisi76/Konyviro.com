@@ -10,6 +10,8 @@ export type BlockType =
   | 'divider' 
   | 'image';
 
+export type ChapterStatus = 'draft' | 'in_progress' | 'done';
+
 export interface Block {
   id: string;
   chapter_id: string;
@@ -29,6 +31,10 @@ export interface Chapter {
   id: string;
   project_id: string;
   title: string;
+  status: ChapterStatus;
+  summary: string | null;
+  key_points: string[];
+  word_count: number;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -54,3 +60,43 @@ export const BLOCK_TYPE_OPTIONS: BlockTypeOption[] = [
   { type: 'divider', label: 'Elválasztó', icon: '—', description: 'Vízszintes vonal' },
   { type: 'image', label: 'Kép', icon: '🖼', description: 'Kép beszúrása' },
 ];
+
+export type ProjectGenre = 'szakkonyv' | 'fiction' | 'erotikus';
+
+export interface ChapterTemplate {
+  title: string;
+  description: string;
+}
+
+export const CHAPTER_TEMPLATES: Record<ProjectGenre, ChapterTemplate[]> = {
+  szakkonyv: [
+    { title: 'Bevezetés', description: 'A téma és célok ismertetése' },
+    { title: 'Fő tartalom', description: 'A szakmai anyag kifejtése' },
+    { title: 'Összefoglaló', description: 'Kulcspontok összefoglalása' },
+    { title: 'Gyakorlatok', description: 'Alkalmazási feladatok' },
+  ],
+  fiction: [
+    { title: 'Jelenet', description: 'Esemény, helyszín bemutatása' },
+    { title: 'Dialógus', description: 'Karakterek párbeszéde' },
+    { title: 'Leírás', description: 'Részletes környezetrajz' },
+    { title: 'Cselekmény fordulat', description: 'Váratlan esemény' },
+  ],
+  erotikus: [
+    { title: 'Hangulat építés', description: 'Atmoszféra teremtése' },
+    { title: 'Közeledés', description: 'Karakterek közti dinamika' },
+    { title: 'Kulminálás', description: 'Érzelmi és fizikai csúcspont' },
+    { title: 'Lezárás', description: 'Következmények, reflexió' },
+  ],
+};
+
+export const STATUS_LABELS: Record<ChapterStatus, string> = {
+  draft: 'Piszkozat',
+  in_progress: 'Folyamatban',
+  done: 'Kész',
+};
+
+export const STATUS_COLORS: Record<ChapterStatus, string> = {
+  draft: 'bg-muted-foreground',
+  in_progress: 'bg-warning',
+  done: 'bg-success',
+};
