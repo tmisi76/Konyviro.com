@@ -47,7 +47,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     yearlyPrice: "29.940 Ft/év",
     yearlyOriginalPrice: "59.880 Ft/év",
     monthlyEquivalent: "(havi 2.495 Ft)",
-    monthlyPriceId: "price_hobby_monthly", // TODO: Replace with actual Stripe Price ID
+    monthlyPriceId: "price_1Ss8bGBqXALGTPIrOVHTHBPA",
     yearlyPriceId: "price_1Ss3QZBqXALGTPIr0z2uRD0a",
     features: [
       "1 aktív projekt",
@@ -67,7 +67,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     yearlyPrice: "89.940 Ft/év",
     yearlyOriginalPrice: "179.880 Ft/év",
     monthlyEquivalent: "(havi 7.495 Ft)",
-    monthlyPriceId: "price_writer_monthly", // TODO: Replace with actual Stripe Price ID
+    monthlyPriceId: "price_1Ss8bHBqXALGTPIrEmUEe1Gw",
     yearlyPriceId: "price_1Ss3QbBqXALGTPIrjbB9lSCI",
     features: [
       "5 aktív projekt",
