@@ -2,7 +2,46 @@ import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useAuth } from "@/contexts/AuthContext";
 
+// Helper to count words in text
+const countWords = (text: string): number => {
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+};
+
+// Helper to update user usage in database
+const updateUserUsage = async (userId: string, wordsGenerated: number) => {
+  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+  
+  // Try to update existing record first
+  const { data: existing } = await supabase
+    .from("user_usage")
+    .select("id, words_generated")
+    .eq("user_id", userId)
+    .eq("month", currentMonth)
+    .single();
+
+  if (existing) {
+    // Update existing record
+    await supabase
+      .from("user_usage")
+      .update({ 
+        words_generated: existing.words_generated + wordsGenerated,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id);
+  } else {
+    // Create new record for this month
+    await supabase
+      .from("user_usage")
+      .insert({
+        user_id: userId,
+        month: currentMonth,
+        words_generated: wordsGenerated,
+        projects_created: 0
+      });
+  }
+};
 export type AIAction = "continue" | "rewrite" | "shorten" | "expand" | "dialogue" | "description" | "chat" | "write_chapter";
 
 export interface AISettings {
@@ -33,7 +72,8 @@ export function useAIGeneration({ projectId, chapterId, genre }: UseAIGeneration
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { canGenerateWords, getRemainingWords, subscription } = useSubscription();
+  const { canGenerateWords, getRemainingWords, subscription, refetch } = useSubscription();
+  const { user } = useAuth();
 
   const generate = useCallback(async (
     action: AIAction,
@@ -146,6 +186,16 @@ export function useAIGeneration({ projectId, chapterId, genre }: UseAIGeneration
               setGeneratedText(fullText);
             }
           } catch { /* ignore */ }
+        }
+      }
+
+      // Count and track word usage after successful generation
+      if (fullText && user) {
+        const wordCount = countWords(fullText);
+        if (wordCount > 0) {
+          updateUserUsage(user.id, wordCount)
+            .then(() => refetch()) // Refresh subscription data to show updated usage
+            .catch(err => console.error("Failed to update usage:", err));
         }
       }
 

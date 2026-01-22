@@ -3,7 +3,43 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { GeneratedStory } from "@/types/story";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useAuth } from "@/contexts/AuthContext";
 
+// Helper to count words in text
+const countWords = (text: string): number => {
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+};
+
+// Helper to update user usage in database
+const updateUserUsage = async (userId: string, wordsGenerated: number) => {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  
+  const { data: existing } = await supabase
+    .from("user_usage")
+    .select("id, words_generated")
+    .eq("user_id", userId)
+    .eq("month", currentMonth)
+    .single();
+
+  if (existing) {
+    await supabase
+      .from("user_usage")
+      .update({ 
+        words_generated: existing.words_generated + wordsGenerated,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id);
+  } else {
+    await supabase
+      .from("user_usage")
+      .insert({
+        user_id: userId,
+        month: currentMonth,
+        words_generated: wordsGenerated,
+        projects_created: 0
+      });
+  }
+};
 const GENERATE_STORY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-story`;
 
 interface UseStoryGenerationOptions {
@@ -17,7 +53,8 @@ export function useStoryGeneration(options: UseStoryGenerationOptions = {}) {
   const [generatedStory, setGeneratedStory] = useState<GeneratedStory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
-  const { canGenerateWords, getRemainingWords } = useSubscription();
+  const { canGenerateWords, getRemainingWords, refetch } = useSubscription();
+  const { user } = useAuth();
 
   const generate = useCallback(async (storyIdea: string, estimatedWords: number = 1000): Promise<GeneratedStory | null> => {
     if (!storyIdea.trim()) {
@@ -61,6 +98,31 @@ export function useStoryGeneration(options: UseStoryGenerationOptions = {}) {
 
       const storyData: GeneratedStory = await response.json();
       setGeneratedStory(storyData);
+      
+      // Count and track word usage from the generated story
+      if (user && storyData) {
+        // Count words from all story fields
+        const allText = [
+          storyData.title,
+          storyData.logline,
+          storyData.synopsis,
+          storyData.protagonist?.name,
+          storyData.protagonist?.description,
+          storyData.antagonist?.name,
+          storyData.antagonist?.description,
+          storyData.setting,
+          ...(storyData.plotPoints || []),
+          ...(storyData.chapters?.map(ch => `${ch.title} ${ch.summary}`) || [])
+        ].filter(Boolean).join(" ");
+        
+        const wordCount = countWords(allText);
+        if (wordCount > 0) {
+          updateUserUsage(user.id, wordCount)
+            .then(() => refetch())
+            .catch(err => console.error("Failed to update usage:", err));
+        }
+      }
+      
       toast.success("Sztori sikeresen generálva!");
       return storyData;
     } catch (err) {
