@@ -98,6 +98,8 @@ export function useBookWizard() {
     updateData("selectedStoryIdea", idea);
     // Töröljük a korábbi koncepciót, hogy új generálódjon
     updateData("detailedConcept", "");
+    // Töröljük a korábbi fejezet struktúrát is
+    updateData("chapterOutline", []);
   }, [updateData]);
 
   const setDetailedConcept = useCallback((concept: string) => {
