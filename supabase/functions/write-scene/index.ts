@@ -11,6 +11,38 @@ const PROMPTS: Record<string, string> = {
   szakkonyv: "Te egy szakkönyv szerző vagy. Írj világos magyar szöveget.",
 };
 
+// Build style profile prompt section
+const buildStylePrompt = (styleProfile: Record<string, unknown> | null): string => {
+  if (!styleProfile || !styleProfile.style_summary) return "";
+  
+  const parts: string[] = ["\n\n--- FELHASZNÁLÓ ÍRÓI STÍLUSA ---"];
+  parts.push(`Stílus összefoglaló: ${styleProfile.style_summary}`);
+  
+  if (styleProfile.avg_sentence_length) {
+    parts.push(`Átlagos mondathossz: ${styleProfile.avg_sentence_length} szó`);
+  }
+  if (styleProfile.vocabulary_complexity) {
+    const complexity = Number(styleProfile.vocabulary_complexity);
+    const level = complexity < 30 ? "egyszerű" : complexity < 60 ? "közepes" : "összetett";
+    parts.push(`Szókincs komplexitás: ${level}`);
+  }
+  if (styleProfile.dialogue_ratio) {
+    parts.push(`Párbeszéd arány: ${Math.round(Number(styleProfile.dialogue_ratio) * 100)}%`);
+  }
+  if (styleProfile.common_phrases && Array.isArray(styleProfile.common_phrases) && styleProfile.common_phrases.length > 0) {
+    parts.push(`Jellemző kifejezések: ${styleProfile.common_phrases.slice(0, 10).join(", ")}`);
+  }
+  if (styleProfile.tone_analysis && typeof styleProfile.tone_analysis === "object") {
+    const tone = styleProfile.tone_analysis as Record<string, unknown>;
+    if (tone.primary) parts.push(`Hangnem: ${tone.primary}`);
+  }
+  
+  parts.push("FONTOS: A fenti stílus jegyeket utánozd a generált szövegben!");
+  parts.push("--- STÍLUS VÉGE ---");
+  
+  return parts.join("\n");
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -21,14 +53,33 @@ serve(async (req) => {
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    
+    // Fetch user style profile for the project owner
+    let stylePrompt = "";
+    const { data: project } = await supabase.from("projects").select("user_id").eq("id", projectId).single();
+    if (project?.user_id) {
+      const { data: styleProfile } = await supabase
+        .from("user_style_profiles")
+        .select("*")
+        .eq("user_id", project.user_id)
+        .single();
+      
+      if (styleProfile?.style_summary) {
+        stylePrompt = buildStylePrompt(styleProfile);
+      }
+    }
+
     const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"\nPOV: ${sceneOutline.pov}\nHelyszín: ${sceneOutline.location}\nMi történik: ${sceneOutline.description}\nKulcsesemények: ${sceneOutline.key_events?.join(", ")}\nCélhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${characters}` : ""}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
+
+    const systemPrompt = (PROMPTS[genre] || PROMPTS.fiction) + stylePrompt;
 
     let content = "";
     for (let i = 0; i < 3; i++) {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-5-20250514", max_tokens: Math.min(sceneOutline.target_words * 2, 8000), system: PROMPTS[genre] || PROMPTS.fiction, messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ model: "claude-sonnet-4-5-20250514", max_tokens: Math.min(sceneOutline.target_words * 2, 8000), system: systemPrompt, messages: [{ role: "user", content: prompt }] }),
       });
       if (res.ok) { const d = await res.json(); content = d.content?.[0]?.text || ""; break; }
       if (res.status === 429) { await sleep(5000 * (i + 1)); continue; }
@@ -38,9 +89,7 @@ serve(async (req) => {
     if (!content) throw new Error("Generálás sikertelen");
     const wordCount = countWords(content);
 
-    // Update usage
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: project } = await supabase.from("projects").select("user_id").eq("id", projectId).single();
+    // Update usage - project already fetched above
     if (project?.user_id && wordCount > 0) {
       const month = new Date().toISOString().slice(0, 7);
       const { data: profile } = await supabase.from("profiles").select("monthly_word_limit, extra_words_balance").eq("user_id", project.user_id).single();

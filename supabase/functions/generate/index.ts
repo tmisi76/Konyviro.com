@@ -22,6 +22,38 @@ const ACTION_PROMPTS: Record<string, string> = {
   chat: "Válaszolj a kérdésre.",
 };
 
+// Build style profile prompt section
+const buildStylePrompt = (styleProfile: Record<string, unknown> | null): string => {
+  if (!styleProfile || !styleProfile.style_summary) return "";
+  
+  const parts: string[] = ["\n\n--- FELHASZNÁLÓ ÍRÓI STÍLUSA ---"];
+  parts.push(`Stílus összefoglaló: ${styleProfile.style_summary}`);
+  
+  if (styleProfile.avg_sentence_length) {
+    parts.push(`Átlagos mondathossz: ${styleProfile.avg_sentence_length} szó`);
+  }
+  if (styleProfile.vocabulary_complexity) {
+    const complexity = Number(styleProfile.vocabulary_complexity);
+    const level = complexity < 30 ? "egyszerű" : complexity < 60 ? "közepes" : "összetett";
+    parts.push(`Szókincs komplexitás: ${level}`);
+  }
+  if (styleProfile.dialogue_ratio) {
+    parts.push(`Párbeszéd arány: ${Math.round(Number(styleProfile.dialogue_ratio) * 100)}%`);
+  }
+  if (styleProfile.common_phrases && Array.isArray(styleProfile.common_phrases) && styleProfile.common_phrases.length > 0) {
+    parts.push(`Jellemző kifejezések: ${styleProfile.common_phrases.slice(0, 10).join(", ")}`);
+  }
+  if (styleProfile.tone_analysis && typeof styleProfile.tone_analysis === "object") {
+    const tone = styleProfile.tone_analysis as Record<string, unknown>;
+    if (tone.primary) parts.push(`Hangnem: ${tone.primary}`);
+  }
+  
+  parts.push("FONTOS: A fenti stílus jegyeket utánozd a generált szövegben!");
+  parts.push("--- STÍLUS VÉGE ---");
+  
+  return parts.join("\n");
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -39,7 +71,27 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "AI service not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const systemPrompt = `${SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction}\n\n${ACTION_PROMPTS[action] || ACTION_PROMPTS.chat}${context?.bookDescription ? `\n\nKönyv: ${context.bookDescription}` : ""}${context?.characters ? `\n\nKarakterek: ${context.characters}` : ""}`;
+    // Fetch user style profile if useProjectStyle is enabled
+    let stylePrompt = "";
+    const authHeader = req.headers.get("Authorization");
+    if (settings?.useProjectStyle && authHeader) {
+      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      
+      if (user) {
+        const { data: styleProfile } = await supabase
+          .from("user_style_profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+        
+        if (styleProfile) {
+          stylePrompt = buildStylePrompt(styleProfile);
+        }
+      }
+    }
+
+    const systemPrompt = `${SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction}\n\n${ACTION_PROMPTS[action] || ACTION_PROMPTS.chat}${context?.bookDescription ? `\n\nKönyv: ${context.bookDescription}` : ""}${context?.characters ? `\n\nKarakterek: ${context.characters}` : ""}${stylePrompt}`;
     
     const maxTokensMap: Record<string, number> = { short: 500, medium: 2000, long: 6000 };
     const maxTokens = maxTokensMap[settings?.length] || 500;
@@ -106,13 +158,12 @@ serve(async (req) => {
       }
     });
 
-    // Track usage
-    const authHeader = req.headers.get("Authorization");
+    // Track usage (reuse authHeader from style profile fetch)
     if (authHeader && projectId) {
-      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      const supabaseForTracking = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: { user } } = await supabaseForTracking.auth.getUser(authHeader.replace("Bearer ", ""));
       if (user) {
-        supabase.from("ai_generations").insert({ user_id: user.id, project_id: projectId, chapter_id: chapterId, action_type: action, prompt_tokens: 100, completion_tokens: maxTokens, total_tokens: maxTokens + 100, model: "claude-sonnet-4-5-20250514" }).then(() => {});
+        supabaseForTracking.from("ai_generations").insert({ user_id: user.id, project_id: projectId, chapter_id: chapterId, action_type: action, prompt_tokens: 100, completion_tokens: maxTokens, total_tokens: maxTokens + 100, model: "claude-sonnet-4-5-20250514" }).then(() => {});
       }
     }
 
