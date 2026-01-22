@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const Step4StoryIdeas = lazy(() => import("./steps/Step4StoryIdeas").then(m => ({ default: m.Step4StoryIdeas })));
 const Step5StoryDetail = lazy(() => import("./steps/Step5StoryDetail").then(m => ({ default: m.Step5StoryDetail })));
 const Step6ChapterOutline = lazy(() => import("./steps/Step6ChapterOutline").then(m => ({ default: m.Step6ChapterOutline })));
+const Step7AutoWrite = lazy(() => import("./steps/Step7AutoWrite").then(m => ({ default: m.Step7AutoWrite })));
 
 function StepLoader() {
   return (
@@ -167,10 +168,39 @@ export function BookCreationWizard() {
             />
           </Suspense>
         );
+      case 7:
+        return (
+          <Suspense fallback={<StepLoader />}>
+            <Step7AutoWrite
+              projectId={data.projectId!}
+              genre={data.genre!}
+              onComplete={() => navigate(`/project/${data.projectId}`)}
+            />
+          </Suspense>
+        );
       default:
         return null;
     }
   };
+
+  // Hide header in step 7 for full-screen experience
+  if (currentStep === 7) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {renderStep()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

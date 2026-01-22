@@ -243,19 +243,24 @@ export function useBookWizard() {
   }, []);
 
   const startWriting = useCallback(async () => {
-    if (!data.projectId) {
-      const projectId = await saveProject();
-      if (!projectId) return;
+    let projectIdToUse = data.projectId;
+    
+    if (!projectIdToUse) {
+      const savedProjectId = await saveProject();
+      if (!savedProjectId) return;
+      projectIdToUse = savedProjectId;
     }
     
     // Update writing status
     await supabase
       .from("projects")
       .update({ writing_status: "in_progress", wizard_step: 7 })
-      .eq("id", data.projectId);
+      .eq("id", projectIdToUse);
 
-    navigate(`/project/${data.projectId}?autowrite=true`);
-  }, [data.projectId, saveProject, navigate]);
+    // Navigate to step 7 within the wizard
+    setData(prev => ({ ...prev, projectId: projectIdToUse }));
+    setCurrentStep(7);
+  }, [data.projectId, saveProject]);
 
   return {
     currentStep,
