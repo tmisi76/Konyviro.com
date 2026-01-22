@@ -738,7 +738,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_words_generated: {
+        Args: { p_user_id: string; p_word_count: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -319,6 +319,17 @@ Cél szószám: ~${scene.target_words || 1000} szó`;
       .update({ word_count: totalWords })
       .eq("id", projectId);
 
+    // Update user_usage - increment words_generated for billing
+    try {
+      await supabase.rpc('increment_words_generated', {
+        p_user_id: project.user_id,
+        p_word_count: wordCount
+      });
+      console.log(`Updated user_usage: +${wordCount} words for user ${project.user_id}`);
+    } catch (usageError) {
+      console.error('Failed to update word usage:', usageError);
+    }
+
     // Schedule next scene processing (with delay to avoid rate limits)
     // We use a simple approach: return success and let the client poll or use a cron job
     
