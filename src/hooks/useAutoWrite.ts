@@ -470,8 +470,8 @@ export function useAutoWrite({
           // Notify parent
           onChapterUpdated?.(chapter.id);
 
-          // Longer delay to avoid rate limiting (3 seconds between scenes)
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Longer delay to avoid rate limiting (8 seconds between scenes)
+          await new Promise(resolve => setTimeout(resolve, 8000));
         }
 
         allPreviousContent += "\n\n" + chapterContent;
