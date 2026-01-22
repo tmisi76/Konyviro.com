@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UseBackgroundWritePollerOptions {
@@ -6,6 +6,12 @@ interface UseBackgroundWritePollerOptions {
   writingStatus: string | null;
   enabled?: boolean;
   onUpdate?: () => void;
+}
+
+interface SceneProgress {
+  total: number;
+  completed: number;
+  currentChapter?: string;
 }
 
 /**
@@ -20,21 +26,78 @@ export function useBackgroundWritePoller({
   onUpdate,
 }: UseBackgroundWritePollerOptions) {
   const isProcessingRef = useRef(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
+  const [sceneProgress, setSceneProgress] = useState<SceneProgress>({ total: 0, completed: 0 });
+
+  const fetchProgress = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      const { data: chapters } = await supabase
+        .from("chapters")
+        .select("title, scene_outline")
+        .eq("project_id", projectId)
+        .order("sort_order");
+
+      if (chapters) {
+        let total = 0;
+        let completed = 0;
+        let currentChapter: string | undefined;
+
+        for (const ch of chapters) {
+          const scenes = (ch.scene_outline as any[]) || [];
+          total += scenes.length;
+          const chapterCompleted = scenes.filter(
+            (s) => s?.status === "done" || s?.status === "completed"
+          ).length;
+          completed += chapterCompleted;
+
+          // Find current chapter (has pending or writing scenes)
+          if (!currentChapter && chapterCompleted < scenes.length && scenes.length > 0) {
+            currentChapter = ch.title;
+          }
+        }
+
+        setSceneProgress({ total, completed, currentChapter });
+      }
+    } catch (error) {
+      console.error("Error fetching scene progress:", error);
+    }
+  }, [projectId]);
 
   const processNextScene = useCallback(async () => {
     if (!projectId || isProcessingRef.current) return;
 
     isProcessingRef.current = true;
     try {
+      console.log("Processing next scene for project:", projectId);
+      
       const { data, error } = await supabase.functions.invoke("process-next-scene", {
         body: { projectId },
       });
 
       if (error) {
         console.error("Error processing next scene:", error);
+        retryCountRef.current++;
+        
+        // Retry with exponential backoff (max 5 retries)
+        if (retryCountRef.current <= 5) {
+          const delay = Math.min(10000 * Math.pow(2, retryCountRef.current - 1), 60000);
+          console.log(`Retrying in ${delay}ms (attempt ${retryCountRef.current})`);
+          timeoutRef.current = setTimeout(() => {
+            isProcessingRef.current = false;
+            processNextScene();
+          }, delay);
+        }
         return;
       }
+
+      // Reset retry count on success
+      retryCountRef.current = 0;
+
+      // Fetch updated progress
+      await fetchProgress();
 
       // Call update callback
       onUpdate?.();
@@ -48,13 +111,30 @@ export function useBackgroundWritePoller({
         }, 10000);
       } else if (data?.status === "completed" || data?.status === "stopped") {
         // Writing is done
+        console.log("Background writing completed");
+        isProcessingRef.current = false;
+      } else if (data?.status === "failed") {
+        console.error("Background writing failed:", data?.error);
+        isProcessingRef.current = false;
+      } else {
+        // Unknown status, stop processing
+        console.log("Unknown status, stopping:", data?.status);
         isProcessingRef.current = false;
       }
     } catch (error) {
       console.error("Error in processNextScene:", error);
       isProcessingRef.current = false;
+      
+      // Retry on network errors
+      retryCountRef.current++;
+      if (retryCountRef.current <= 5) {
+        const delay = Math.min(10000 * Math.pow(2, retryCountRef.current - 1), 60000);
+        timeoutRef.current = setTimeout(() => {
+          processNextScene();
+        }, delay);
+      }
     }
-  }, [projectId, onUpdate]);
+  }, [projectId, onUpdate, fetchProgress]);
 
   useEffect(() => {
     // Only start polling if we're in background_writing status and enabled
@@ -62,21 +142,32 @@ export function useBackgroundWritePoller({
       return;
     }
 
-    // Start the processing chain with a small delay
+    console.log("Starting background write poller for project:", projectId);
+
+    // Fetch initial progress
+    fetchProgress();
+
+    // Start the processing chain immediately
     const initialTimeout = setTimeout(() => {
       processNextScene();
-    }, 2000);
+    }, 1000);
+
+    // Also set up a periodic progress fetch (in case we miss updates)
+    const progressInterval = setInterval(fetchProgress, 5000);
 
     return () => {
       clearTimeout(initialTimeout);
+      clearInterval(progressInterval);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       isProcessingRef.current = false;
+      retryCountRef.current = 0;
     };
-  }, [enabled, writingStatus, projectId, processNextScene]);
+  }, [enabled, writingStatus, projectId, processNextScene, fetchProgress]);
 
   return {
     isProcessing: isProcessingRef.current,
+    sceneProgress,
   };
 }

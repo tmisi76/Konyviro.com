@@ -74,6 +74,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
   const [isHovered, setIsHovered] = useState(false);
   const [liveWordCount, setLiveWordCount] = useState(project.wordCount);
   const [liveStatus, setLiveStatus] = useState(project.writingStatus);
+  const [sceneProgress, setSceneProgress] = useState({ total: 0, completed: 0, currentChapter: "" });
   
   const isBackgroundWriting = liveStatus === "background_writing";
   const isCompleted = liveStatus === "completed";
@@ -83,6 +84,9 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
     Math.round((liveWordCount / project.targetWordCount) * 100),
     100
   );
+  const scenePercent = sceneProgress.total > 0 
+    ? Math.round((sceneProgress.completed / sceneProgress.total) * 100) 
+    : 0;
   const genre = genreConfig[project.genre] || genreConfig["egyéb"];
   const isAdultContent = project.genre === "erotikus";
 
@@ -90,18 +94,51 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
   useEffect(() => {
     if (!isBackgroundWriting) return;
 
-    const interval = setInterval(async () => {
-      const { data } = await supabase
+    const fetchProgress = async () => {
+      // Fetch project status
+      const { data: projectData } = await supabase
         .from("projects")
         .select("word_count, writing_status")
         .eq("id", project.id)
         .single();
 
-      if (data) {
-        setLiveWordCount(data.word_count);
-        setLiveStatus(data.writing_status);
+      if (projectData) {
+        setLiveWordCount(projectData.word_count);
+        setLiveStatus(projectData.writing_status);
       }
-    }, 5000);
+
+      // Fetch scene progress
+      const { data: chapters } = await supabase
+        .from("chapters")
+        .select("title, scene_outline")
+        .eq("project_id", project.id)
+        .order("sort_order");
+
+      if (chapters) {
+        let total = 0;
+        let completed = 0;
+        let currentChapter = "";
+
+        for (const ch of chapters) {
+          const scenes = (ch.scene_outline as any[]) || [];
+          total += scenes.length;
+          const chapterCompleted = scenes.filter(
+            (s) => s?.status === "done" || s?.status === "completed"
+          ).length;
+          completed += chapterCompleted;
+
+          // Find current chapter (has pending or writing scenes)
+          if (!currentChapter && chapterCompleted < scenes.length && scenes.length > 0) {
+            currentChapter = ch.title;
+          }
+        }
+
+        setSceneProgress({ total, completed, currentChapter });
+      }
+    };
+
+    fetchProgress();
+    const interval = setInterval(fetchProgress, 5000);
 
     return () => clearInterval(interval);
   }, [isBackgroundWriting, project.id]);
@@ -187,11 +224,21 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
         {project.title}
       </h3>
 
-      {/* Background writing indicator */}
+      {/* Background writing indicator with scene progress */}
       {isBackgroundWriting && (
-        <div className="mb-3 flex items-center gap-2 text-sm text-primary">
-          <Cloud className="h-4 w-4" />
-          <span>Háttérben íródik...</span>
+        <div className="mb-3 space-y-1">
+          <div className="flex items-center gap-2 text-sm text-primary">
+            <Cloud className="h-4 w-4" />
+            <span>Háttérben íródik...</span>
+          </div>
+          {sceneProgress.total > 0 && (
+            <div className="text-xs text-muted-foreground">
+              {sceneProgress.completed}/{sceneProgress.total} jelenet kész ({scenePercent}%)
+              {sceneProgress.currentChapter && (
+                <span className="block truncate">📝 {sceneProgress.currentChapter}</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 

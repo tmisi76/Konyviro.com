@@ -280,25 +280,8 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
       }
     }
 
-    // Schedule next scene processing after 8 seconds delay
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
-    // Fire and forget - schedule next scene
-    setTimeout(async () => {
-      try {
-        await fetch(`${supabaseUrl}/functions/v1/process-next-scene`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ projectId }),
-        });
-      } catch (e) {
-        console.error("Error scheduling next scene:", e);
-      }
-    }, 8000);
+    // The client-side poller will handle triggering the next scene
+    // No setTimeout needed - client polls and calls process-next-scene
 
     return new Response(
       JSON.stringify({ 

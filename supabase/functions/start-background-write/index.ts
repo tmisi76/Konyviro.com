@@ -135,25 +135,13 @@ serve(async (req) => {
       }
     }
 
-    // Start the first scene processing
-    const processResponse = await fetch(`${supabaseUrl}/functions/v1/process-next-scene`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({ projectId }),
-    });
-
-    if (!processResponse.ok) {
-      const errorData = await processResponse.json();
-      throw new Error(errorData.error || "Nem sikerült elindítani az írást");
-    }
+    // The client-side poller on the Dashboard will start the scene processing
+    // No need to call process-next-scene here - the poller handles it
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "Háttérben való írás elindítva",
+        message: "Háttérben való írás előkészítve - a Dashboard nyitásával indul az írás",
         projectId,
         outlinesGenerated: chaptersNeedingOutline.length,
       }),
