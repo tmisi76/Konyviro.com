@@ -14,9 +14,10 @@ import {
 interface WizardProgressProps {
   currentStep: number;
   completedSteps?: number[];
+  totalSteps?: number;
 }
 
-const STEPS = [
+const FICTION_STEPS = [
   { id: 1, label: "Műfaj", icon: BookOpen },
   { id: 2, label: "Kategória", icon: Tags },
   { id: 3, label: "Adatok", icon: FileText },
@@ -26,7 +27,21 @@ const STEPS = [
   { id: 7, label: "Írás", icon: PenTool },
 ];
 
-export function WizardProgress({ currentStep, completedSteps = [] }: WizardProgressProps) {
+const NONFICTION_STEPS = [
+  { id: 1, label: "Műfaj", icon: BookOpen },
+  { id: 2, label: "Kategória", icon: Tags },
+  { id: 3, label: "Szerző", icon: FileText },
+  { id: 4, label: "Adatok", icon: FileText },
+  { id: 5, label: "Ötletek", icon: Lightbulb },
+  { id: 6, label: "Koncepció", icon: Edit },
+  { id: 7, label: "Fejezetek", icon: List },
+  { id: 8, label: "Írás", icon: PenTool },
+];
+
+export function WizardProgress({ currentStep, completedSteps = [], totalSteps = 7 }: WizardProgressProps) {
+  // Choose steps based on totalSteps
+  const STEPS = totalSteps === 8 ? NONFICTION_STEPS : FICTION_STEPS;
+  
   return (
     <div className="w-full py-6 px-4">
       <div className="flex items-center justify-between max-w-4xl mx-auto">

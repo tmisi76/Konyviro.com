@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { StoryIdea, Genre, Subcategory, Tone, BookLength } from "@/types/wizard";
+import type { StoryIdea, Genre, Subcategory, Tone, BookLength, AuthorProfile } from "@/types/wizard";
 
 interface Step4StoryIdeasProps {
   genre: Genre;
@@ -18,6 +18,7 @@ interface Step4StoryIdeasProps {
   existingIdeas: StoryIdea[];
   onIdeasGenerated: (ideas: StoryIdea[]) => void;
   onSelect: (idea: StoryIdea) => void;
+  authorProfile?: AuthorProfile | null;
 }
 
 export function Step4StoryIdeas({
@@ -30,6 +31,7 @@ export function Step4StoryIdeas({
   existingIdeas,
   onIdeasGenerated,
   onSelect,
+  authorProfile,
 }: Step4StoryIdeasProps) {
   const [ideas, setIdeas] = useState<StoryIdea[]>(existingIdeas);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -60,6 +62,7 @@ export function Step4StoryIdeas({
           length,
           targetAudience,
           additionalInstructions,
+          authorProfile: authorProfile || undefined,
         },
       });
 
@@ -92,7 +95,7 @@ export function Step4StoryIdeas({
         className="text-center mb-8"
       >
         <h1 className="text-3xl md:text-4xl font-bold mb-4">
-          Válassz egy sztori ötletet
+          {genre === "szakkonyv" ? "Válassz egy könyv ötletet" : "Válassz egy sztori ötletet"}
         </h1>
         <p className="text-muted-foreground text-lg">
           Az AI 3 egyedi ötletet generált a beállításaid alapján

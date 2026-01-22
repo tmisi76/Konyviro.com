@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { genre, subcategory, tone, length, targetAudience, additionalInstructions } = await req.json();
+    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, authorProfile } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -21,11 +21,15 @@ serve(async (req) => {
     }
 
     const isFiction = genre === "fiction";
-    const systemPrompt = "Te egy kreatív könyvíró asszisztens vagy. Mindig érvényes JSON-t adj vissza.";
     
-    const prompt = `Generálj 3 egyedi ${isFiction ? "sztori" : "könyv"} ötletet a következő paraméterek alapján:
+    const systemPrompt = isFiction 
+      ? "Te egy kreatív könyvíró asszisztens vagy. Mindig érvényes JSON-t adj vissza."
+      : `Te egy bestseller szakértői könyveket író ghostwriter vagy${authorProfile?.authorName ? ` ${authorProfile.authorName} nevében` : ""}. NE használj kitalált szereplőket vagy fiktív karaktereket. A szerző első személyben beszél. Mindig érvényes JSON-t adj vissza.`;
+    
+    const prompt = isFiction 
+      ? `Generálj 3 egyedi sztori ötletet a következő paraméterek alapján:
 
-Műfaj: ${isFiction ? "Fiction" : "Szakkönyv"}
+Műfaj: Fiction
 Alkategória: ${subcategory}
 Hangnem: ${tone}
 Hossz: ${length === "short" ? "rövid (~30k szó)" : length === "medium" ? "közepes (~60k szó)" : "hosszú (~100k szó)"}
@@ -42,6 +46,35 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
       "mainElements": ["Elem 1", "Elem 2", "Elem 3"],
       "uniqueSellingPoint": "Mi teszi ezt az ötletet egyedivé és izgalmassá",
       "mood": "A könyv hangulata 2-3 szóban"
+    }
+  ]
+}`
+      : `Generálj 3 egyedi SZAKKÖNYV ötletet a következő paraméterek alapján:
+
+Téma: ${subcategory}
+Hangnem: ${tone}
+Hossz: ${length === "short" ? "rövid (~30k szó)" : length === "medium" ? "közepes (~60k szó)" : "hosszú (~100k szó)"}
+${targetAudience ? `Célközönség: ${targetAudience}` : ""}
+${authorProfile?.authorBackground ? `Szerző háttere: ${authorProfile.authorBackground}` : ""}
+${authorProfile?.mainPromise ? `Fő ígéret: ${authorProfile.mainPromise}` : ""}
+${additionalInstructions ? `Extra instrukciók: ${additionalInstructions}` : ""}
+
+FONTOS SZABÁLYOK:
+- NE használj kitalált karaktereket vagy fiktív szereplőket
+- A könyv a szerző valós tapasztalatain alapul
+- Fókuszálj: gyakorlati tanácsok, esettanulmányok, módszerek, lépésről-lépésre útmutatók
+- Az olvasó konkrét eredményt ér el a könyv végére
+
+VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
+{
+  "ideas": [
+    {
+      "id": "idea-1",
+      "title": "Könyv címe",
+      "synopsis": "3-4 mondatos leírás arról, mit tanul meg az olvasó",
+      "mainElements": ["Kulcstéma 1", "Kulcstéma 2", "Kulcstéma 3"],
+      "uniqueSellingPoint": "Mi teszi ezt a könyvet egyedivé a piacon",
+      "mood": "A könyv stílusa 2-3 szóban"
     }
   ]
 }`;
