@@ -9,21 +9,32 @@ interface UseAutoWriteOptions {
   genre: string;
   storyStructure?: Record<string, unknown>;
   charactersContext?: string;
+  bookTopic?: string;
+  targetAudience?: string;
   onBlockCreated?: (chapterId: string, block: Block) => void;
   onChapterUpdated?: (chapterId: string) => void;
 }
 
+// URLs for fiction (scenes)
 const OUTLINE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-detailed-outline`;
 const WRITE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/write-scene`;
+
+// URLs for non-fiction (sections)
+const SECTION_OUTLINE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-section-outline`;
+const WRITE_SECTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/write-section`;
 
 export function useAutoWrite({
   projectId,
   genre,
   storyStructure,
   charactersContext,
+  bookTopic,
+  targetAudience,
   onBlockCreated,
   onChapterUpdated,
 }: UseAutoWriteOptions) {
+  // Determine if this is a non-fiction project
+  const isNonFiction = genre === "szakkonyv";
   const [chapters, setChapters] = useState<ChapterWithScenes[]>([]);
   const [progress, setProgress] = useState<AutoWriteProgress>({
     totalScenes: 0,
@@ -82,40 +93,56 @@ export function useAutoWrite({
     fetchChapters();
   }, [fetchChapters]);
 
-  // Generate outline for a single chapter
+  // Generate outline for a single chapter (genre-aware)
   const generateOutlineForChapter = useCallback(async (
     chapter: ChapterWithScenes,
     previousChaptersSummary?: string,
     nextChapterTitle?: string
   ) => {
     const { data: { session } } = await supabase.auth.getSession();
+    
+    // Choose URL based on genre
+    const url = isNonFiction ? SECTION_OUTLINE_URL : OUTLINE_URL;
 
-    const response = await fetch(OUTLINE_URL, {
+    const body = isNonFiction 
+      ? {
+          projectId,
+          chapterId: chapter.id,
+          chapterTitle: chapter.title,
+          bookTopic: bookTopic || storyStructure?.mainTopic,
+          targetAudience,
+          learningObjectives: storyStructure?.learningObjectives,
+          previousChaptersSummary,
+          nextChapterTitle,
+        }
+      : {
+          projectId,
+          chapterId: chapter.id,
+          chapterTitle: chapter.title,
+          storyStructure,
+          characters: charactersContext,
+          genre,
+          previousChaptersSummary,
+          nextChapterTitle,
+        };
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({
-        projectId,
-        chapterId: chapter.id,
-        chapterTitle: chapter.title,
-        storyStructure,
-        characters: charactersContext,
-        genre,
-        previousChaptersSummary,
-        nextChapterTitle,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || "Outline generálási hiba");
+      throw new Error(error.error || (isNonFiction ? "Szekció vázlat generálási hiba" : "Jelenet vázlat generálási hiba"));
     }
 
     const data = await response.json();
     return data.sceneOutline as SceneOutline[];
-  }, [projectId, storyStructure, charactersContext, genre]);
+  }, [projectId, storyStructure, charactersContext, genre, isNonFiction, bookTopic, targetAudience]);
 
   // Generate outlines for all chapters
   const generateAllOutlines = useCallback(async () => {
@@ -161,7 +188,7 @@ export function useAutoWrite({
     }
   }, [chapters, generateOutlineForChapter, fetchChapters]);
 
-  // Write a single scene
+  // Write a single scene/section (genre-aware)
   const writeScene = useCallback(async (
     chapter: ChapterWithScenes,
     sceneIndex: number,
@@ -172,29 +199,45 @@ export function useAutoWrite({
 
     abortControllerRef.current = new AbortController();
 
-    const response = await fetch(WRITE_URL, {
+    // Choose URL and body based on genre
+    const url = isNonFiction ? WRITE_SECTION_URL : WRITE_URL;
+
+    const body = isNonFiction
+      ? {
+          projectId,
+          chapterId: chapter.id,
+          sectionNumber: scene.scene_number,
+          sectionOutline: scene,
+          previousContent: previousContent.slice(-3000),
+          bookTopic: bookTopic || storyStructure?.mainTopic,
+          targetAudience,
+          chapterTitle: chapter.title,
+        }
+      : {
+          projectId,
+          chapterId: chapter.id,
+          sceneNumber: scene.scene_number,
+          sceneOutline: scene,
+          previousContent: previousContent.slice(-3000),
+          characters: charactersContext,
+          storyStructure,
+          genre,
+          chapterTitle: chapter.title,
+        };
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({
-        projectId,
-        chapterId: chapter.id,
-        sceneNumber: scene.scene_number,
-        sceneOutline: scene,
-        previousContent: previousContent.slice(-3000),
-        characters: charactersContext,
-        storyStructure,
-        genre,
-        chapterTitle: chapter.title,
-      }),
+      body: JSON.stringify(body),
       signal: abortControllerRef.current.signal,
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || "Jelenet írási hiba");
+      throw new Error(error.error || (isNonFiction ? "Szekció írási hiba" : "Jelenet írási hiba"));
     }
 
     if (!response.body) {
@@ -239,7 +282,7 @@ export function useAutoWrite({
     }
 
     return fullText;
-  }, [projectId, charactersContext, storyStructure, genre]);
+  }, [projectId, charactersContext, storyStructure, genre, isNonFiction, bookTopic, targetAudience]);
 
   // Save scene content as blocks
   const saveSceneAsBlocks = useCallback(async (

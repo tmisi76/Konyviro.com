@@ -89,8 +89,8 @@ export default function ProjectEditor() {
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
   // Check if project supports research (non-fiction)
   const supportsResearch = project?.genre === "szakkonyv";
-  // Check if project supports auto-write (fiction or erotic)
-  const supportsAutoWrite = project?.genre === "fiction" || project?.genre === "erotikus";
+  // Check if project supports auto-write (all genres)
+  const supportsAutoWrite = true;
 
   // Auto-write hook for fiction/erotic projects
   const {
@@ -475,6 +475,7 @@ export default function ProjectEditor() {
           <AutoWritePanel
             chapters={autoWriteChapters}
             progress={autoWriteProgress}
+            genre={project?.genre}
             onStart={startAutoWrite}
             onPause={pauseAutoWrite}
             onResume={resumeAutoWrite}

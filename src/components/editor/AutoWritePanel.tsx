@@ -11,6 +11,7 @@ import type { AutoWriteProgress, ChapterWithScenes, SceneOutline } from "@/types
 interface AutoWritePanelProps {
   chapters: ChapterWithScenes[];
   progress: AutoWriteProgress;
+  genre?: string;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -33,9 +34,20 @@ const SCENE_STATUS_COLORS: Record<SceneOutline["status"], string> = {
   done: "bg-success text-success-foreground",
 };
 
+// Section type labels for non-fiction
+const SECTION_LABELS: Record<string, string> = {
+  intro: "Bevezető",
+  concept: "Fogalom",
+  example: "Példa",
+  exercise: "Gyakorlat",
+  summary: "Összefoglaló",
+  case_study: "Esettanulmány",
+};
+
 export function AutoWritePanel({
   chapters,
   progress,
+  genre = "fiction",
   onStart,
   onPause,
   onResume,
@@ -43,6 +55,12 @@ export function AutoWritePanel({
   onGenerateOutlines,
 }: AutoWritePanelProps) {
   const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
+  
+  // Determine if this is a non-fiction project
+  const isNonFiction = genre === "szakkonyv";
+  
+  // Dynamic terminology
+  const itemLabelPlural = isNonFiction ? "szekció" : "jelenet";
 
   const toggleChapter = (chapterId: string) => {
     setExpandedChapters(prev =>
@@ -52,7 +70,6 @@ export function AutoWritePanel({
     );
   };
 
-  const hasOutlines = chapters.some(c => c.scene_outline.length > 0);
   const allOutlinesComplete = chapters.every(c => c.scene_outline.length > 0);
   const progressPercent = progress.totalScenes > 0 
     ? Math.round((progress.completedScenes / progress.totalScenes) * 100) 
@@ -69,7 +86,9 @@ export function AutoWritePanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold">Automatikus Könyvírás</h2>
+            <h2 className="font-semibold">
+              {isNonFiction ? "Automatikus Szakkönyvírás" : "Automatikus Könyvírás"}
+            </h2>
           </div>
           <Badge variant={progress.status === "error" ? "destructive" : "secondary"}>
             {STATUS_LABELS[progress.status]}
@@ -88,7 +107,7 @@ export function AutoWritePanel({
                   className="flex-1"
                 >
                   <FileText className="h-4 w-4 mr-2" />
-                  Vázlat Generálás
+                  {isNonFiction ? "Szekció Vázlat" : "Jelenet Vázlat"}
                 </Button>
               )}
               <Button 
@@ -173,7 +192,7 @@ export function AutoWritePanel({
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>{progressPercent}%</span>
-              <span>{progress.completedScenes} / {progress.totalScenes} jelenet</span>
+              <span>{progress.completedScenes} / {progress.totalScenes} {itemLabelPlural}</span>
             </div>
             <Progress value={progressPercent} className="h-2" />
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -232,7 +251,7 @@ export function AutoWritePanel({
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                        <span>{chapter.scene_outline.length} jelenet</span>
+                        <span>{chapter.scene_outline.length} {itemLabelPlural}</span>
                         <span>•</span>
                         <span>{chapter.word_count.toLocaleString()} szó</span>
                       </div>
@@ -268,7 +287,10 @@ export function AutoWritePanel({
                           <div className="min-w-0">
                             <p className="font-medium truncate">{scene.title}</p>
                             <p className="text-xs text-muted-foreground truncate">
-                              {scene.pov} • {scene.location}
+                              {isNonFiction 
+                                ? `${SECTION_LABELS[scene.pov] || scene.pov} • ${scene.target_words} szó`
+                                : `${scene.pov} • ${scene.location}`
+                              }
                             </p>
                           </div>
                         </div>
@@ -284,7 +306,12 @@ export function AutoWritePanel({
 
       {/* Footer info */}
       <div className="p-4 border-t text-xs text-muted-foreground">
-        <p>Az automatikus írás jelenetről jelenetre halad, minden fejezeten végigmenve.</p>
+        <p>
+          {isNonFiction 
+            ? "Az automatikus írás szekcióról szekcióra halad, minden fejezeten végigmenve."
+            : "Az automatikus írás jelenetről jelenetre halad, minden fejezeten végigmenve."
+          }
+        </p>
         <p className="mt-1">A generált szöveget a szerkesztőben finomhangolhatod.</p>
       </div>
     </div>

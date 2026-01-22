@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.write-scene]
 verify_jwt = false
+
+[functions.generate-section-outline]
+verify_jwt = false
+
+[functions.write-section]
+verify_jwt = false
