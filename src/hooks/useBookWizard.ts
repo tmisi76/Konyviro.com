@@ -319,7 +319,7 @@ export function useBookWizard() {
     setCurrentStep(8);
   }, [data.projectId, saveProject]);
 
-  const startBackgroundWriting = useCallback(async () => {
+  const startSemiAutomatic = useCallback(async () => {
     let projectIdToUse = data.projectId;
     
     if (!projectIdToUse) {
@@ -330,18 +330,18 @@ export function useBookWizard() {
       projectIdToUse = savedProjectId;
     }
     
-    // Reset wizard and navigate to dashboard IMMEDIATELY
-    // This provides instant feedback to the user
+    // Update project status to draft (wizard completed, manual editing mode)
+    await supabase
+      .from("projects")
+      .update({ 
+        writing_status: "draft",
+        wizard_step: 7  // Mark wizard as completed
+      })
+      .eq("id", projectIdToUse);
+
+    // Reset wizard and navigate to editor
     reset();
-    navigate("/dashboard");
-    
-    // Then trigger the background write (fire and forget)
-    // The dashboard poller will handle the actual writing
-    supabase.functions.invoke("start-background-write", {
-      body: { projectId: projectIdToUse },
-    }).catch((error) => {
-      console.error("Failed to start background writing:", error);
-    });
+    navigate(`/project/${projectIdToUse}`);
   }, [data.projectId, saveProject, reset, navigate]);
 
   return {
@@ -366,6 +366,6 @@ export function useBookWizard() {
     saveChapterOutline,
     reset,
     startWriting,
-    startBackgroundWriting,
+    startSemiAutomatic,
   };
 }

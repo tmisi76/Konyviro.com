@@ -30,7 +30,7 @@ interface Step6ChapterOutlineProps {
   onOutlineChange: (outline: ChapterOutlineItem[]) => void;
   onSave: () => Promise<boolean>;
   onStartWriting: () => void;
-  onStartBackgroundWriting?: () => Promise<void>;
+  onStartSemiAutomatic?: () => Promise<void>;
   isSaving: boolean;
   isDirty: boolean;
 }
@@ -44,7 +44,7 @@ export function Step6ChapterOutline({
   onOutlineChange,
   onSave,
   onStartWriting,
-  onStartBackgroundWriting,
+  onStartSemiAutomatic,
   isSaving,
   isDirty,
 }: Step6ChapterOutlineProps) {
@@ -180,21 +180,19 @@ export function Step6ChapterOutline({
   };
 
   const handleModeSelect = async (mode: WritingMode) => {
-    if (mode === "live") {
+    if (mode === "automatic") {
       setShowModeDialog(false);
       onStartWriting();
-    } else if (mode === "background" && onStartBackgroundWriting) {
-      // Close dialog IMMEDIATELY for instant feedback
+    } else if (mode === "semiAutomatic" && onStartSemiAutomatic) {
       setShowModeDialog(false);
-      toast.info("Háttérben való írás elindítva! A Dashboard-on követheted a progress-t.", {
-        duration: 5000,
-      });
+      setIsStartingBackground(true);
       
       try {
-        await onStartBackgroundWriting();
+        await onStartSemiAutomatic();
       } catch (error) {
-        console.error("Failed to start background writing:", error);
-        toast.error("Hiba történt a háttérben való írás indításakor");
+        console.error("Failed to start semi-automatic mode:", error);
+        toast.error("Hiba történt a szerkesztő megnyitásakor");
+        setIsStartingBackground(false);
       }
     }
   };

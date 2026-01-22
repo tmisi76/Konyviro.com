@@ -57,7 +57,7 @@ export function BookCreationWizard() {
     saveChapterOutline,
     reset,
     startWriting,
-    startBackgroundWriting,
+    startSemiAutomatic,
   } = useBookWizard();
 
   // Check if this is a non-fiction book (szakkönyv)
@@ -219,7 +219,7 @@ export function BookCreationWizard() {
               onOutlineChange={setChapterOutline}
               onSave={handleSaveOutline}
               onStartWriting={startWriting}
-              onStartBackgroundWriting={startBackgroundWriting}
+              onStartSemiAutomatic={startSemiAutomatic}
               isSaving={isSaving}
               isDirty={isDirty}
             />
