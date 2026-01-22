@@ -738,6 +738,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      increment_projects_created: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
       increment_words_generated: {
         Args: { p_user_id: string; p_word_count: number }
         Returns: undefined
