@@ -112,22 +112,41 @@ serve(async (req) => {
       logStep("No active subscription found");
     }
 
-    // Get recent invoices
-    const invoices = await stripe.invoices.list({
-      customer: customerId,
-      limit: 10,
-    });
+    // Get recent invoices (may fail with restricted keys lacking invoice permissions)
+    let invoiceData: Array<{
+      id: string;
+      date: string;
+      description: string;
+      amount: number;
+      currency: string;
+      status: string | null;
+      invoice_pdf: string | null;
+      hosted_invoice_url: string | null;
+    }> = [];
+    
+    try {
+      const invoices = await stripe.invoices.list({
+        customer: customerId,
+        limit: 10,
+      });
 
-    const invoiceData = invoices.data.map((inv: Stripe.Invoice) => ({
-      id: inv.id,
-      date: new Date(inv.created * 1000).toISOString(),
-      description: inv.lines.data[0]?.description || "Előfizetés",
-      amount: inv.amount_paid,
-      currency: inv.currency,
-      status: inv.status,
-      invoice_pdf: inv.invoice_pdf,
-      hosted_invoice_url: inv.hosted_invoice_url,
-    }));
+      invoiceData = invoices.data.map((inv: Stripe.Invoice) => ({
+        id: inv.id,
+        date: new Date(inv.created * 1000).toISOString(),
+        description: inv.lines.data[0]?.description || "Előfizetés",
+        amount: inv.amount_paid,
+        currency: inv.currency,
+        status: inv.status,
+        invoice_pdf: inv.invoice_pdf,
+        hosted_invoice_url: inv.hosted_invoice_url,
+      }));
+      logStep("Invoices fetched", { count: invoiceData.length });
+    } catch (invoiceError) {
+      // Restricted API keys may lack invoice read permissions - continue without invoices
+      logStep("Could not fetch invoices (permission issue)", { 
+        error: invoiceError instanceof Error ? invoiceError.message : String(invoiceError) 
+      });
+    }
 
     return new Response(JSON.stringify({
       subscribed: hasActiveSub,
