@@ -60,6 +60,48 @@ export function useProjects() {
     }
   };
 
+  const archiveProject = async (projectId: string): Promise<boolean> => {
+    try {
+      const { error: archiveError } = await supabase
+        .from("projects")
+        .update({ status: "archived" })
+        .eq("id", projectId);
+
+      if (archiveError) {
+        throw archiveError;
+      }
+
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, status: "archived" } : p))
+      );
+      return true;
+    } catch (err) {
+      console.error("Error archiving project:", err);
+      return false;
+    }
+  };
+
+  const unarchiveProject = async (projectId: string): Promise<boolean> => {
+    try {
+      const { error: unarchiveError } = await supabase
+        .from("projects")
+        .update({ status: "active" })
+        .eq("id", projectId);
+
+      if (unarchiveError) {
+        throw unarchiveError;
+      }
+
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, status: "active" } : p))
+      );
+      return true;
+    } catch (err) {
+      console.error("Error unarchiving project:", err);
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
   }, [user]);
@@ -70,5 +112,7 @@ export function useProjects() {
     error,
     refetch: fetchProjects,
     deleteProject,
+    archiveProject,
+    unarchiveProject,
   };
 }
