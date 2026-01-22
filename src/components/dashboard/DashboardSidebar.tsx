@@ -207,6 +207,10 @@ export function DashboardSidebar({
           <Settings className="h-4 w-4 shrink-0" />
           {!isCollapsed && "Beállítások"}
         </button>
+        
+        {/* Separator */}
+        <div className={cn("my-2 h-px bg-sidebar-border", isCollapsed ? "w-8" : "w-full")} />
+        
         <button
           onClick={signOut}
           className={cn(
