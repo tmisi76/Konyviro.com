@@ -61,14 +61,14 @@ export function StepGenre({ selected, onSelect, onNext, canProceed, isAdultVerif
             <button
               key={genre.id}
               onClick={() => onSelect(genre.id)}
-              className={cn(
-                "flex items-center gap-4 rounded-xl border-2 p-5 text-left transition-all duration-200",
-                selected === genre.id
-                  ? "border-secondary bg-secondary/10 shadow-md"
-                  : isMuted
-                  ? "border-border bg-muted/30 opacity-60 hover:opacity-100"
-                  : "border-border bg-card hover:border-primary/50 hover:shadow-sm"
-              )}
+            className={cn(
+              "flex items-center gap-4 rounded-xl border-2 p-5 text-left transition-all duration-200",
+              selected === genre.id
+                ? "border-primary bg-primary/10 shadow-md ring-1 ring-primary/20"
+                : isMuted
+                ? "border-border bg-muted/30 opacity-60 hover:opacity-100"
+                : "border-border bg-card hover:border-primary/50 hover:shadow-sm"
+            )}
             >
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-muted text-3xl">
                 {genre.icon}
@@ -78,7 +78,7 @@ export function StepGenre({ selected, onSelect, onNext, canProceed, isAdultVerif
                   <h3
                     className={cn(
                       "text-lg font-semibold",
-                      selected === genre.id ? "text-secondary" : "text-foreground"
+                      selected === genre.id ? "text-primary" : "text-foreground"
                     )}
                   >
                     {genre.title}
@@ -91,7 +91,7 @@ export function StepGenre({ selected, onSelect, onNext, canProceed, isAdultVerif
                 className={cn(
                   "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                   selected === genre.id
-                    ? "border-secondary bg-secondary text-secondary-foreground"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "border-border"
                 )}
               >
