@@ -117,6 +117,7 @@ export interface UserSubscription {
   endDate: string | null;
   monthlyWordLimit: number;
   projectLimit: number;
+  extraWordsBalance: number;
 }
 
 export interface FounderSpots {

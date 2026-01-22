@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Zap, FolderOpen, Calendar, ArrowUpRight, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Zap, FolderOpen, Calendar, ArrowUpRight, TrendingUp, Coins, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, addMonths, startOfMonth } from "date-fns";
 import { hu } from "date-fns/locale";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
 
 const TIER_NAMES: Record<string, string> = {
   free: "Ingyenes",
@@ -20,6 +21,7 @@ const TIER_NAMES: Record<string, string> = {
 export function UsagePanel() {
   const navigate = useNavigate();
   const { subscription, usage, isLoading } = useSubscription();
+  const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
 
   // Calculate next reset date (first day of next month)
   const nextResetDate = useMemo(() => {
@@ -143,6 +145,24 @@ export function UsagePanel() {
         )}
       </div>
 
+      {/* Extra Credits */}
+      {(subscription?.extraWordsBalance ?? 0) > 0 && (
+        <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Coins className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">Extra kredit</span>
+            </div>
+            <span className="text-lg font-bold text-primary">
+              {subscription.extraWordsBalance.toLocaleString("hu-HU")} szó
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Soha nem jár le, havi keret után használható
+          </p>
+        </div>
+      )}
+
       {/* Project Usage */}
       <div className="mb-4 rounded-lg bg-muted/50 p-4">
         <div className="mb-2 flex items-center justify-between">
@@ -191,16 +211,35 @@ export function UsagePanel() {
       </div>
 
       {/* Action buttons */}
-      {(wordUsage.percent >= 75 || projectUsage.percent >= 75) && (
-        <Button 
-          onClick={() => navigate("/pricing")} 
-          className="w-full gap-2"
-          size="sm"
-        >
-          <ArrowUpRight className="h-4 w-4" />
-          Csomag váltás
-        </Button>
-      )}
+      <div className="space-y-2">
+        {wordUsage.percent >= 75 && !isUnlimited && (
+          <Button 
+            onClick={() => setShowBuyCreditModal(true)} 
+            variant="outline"
+            className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+            size="sm"
+          >
+            <Plus className="h-4 w-4" />
+            Extra kredit vásárlás
+          </Button>
+        )}
+        
+        {(wordUsage.percent >= 75 || projectUsage.percent >= 75) && (
+          <Button 
+            onClick={() => navigate("/pricing")} 
+            className="w-full gap-2"
+            size="sm"
+          >
+            <ArrowUpRight className="h-4 w-4" />
+            Csomag váltás
+          </Button>
+        )}
+      </div>
+
+      <BuyCreditModal 
+        open={showBuyCreditModal} 
+        onOpenChange={setShowBuyCreditModal} 
+      />
     </div>
   );
 }
