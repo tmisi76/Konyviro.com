@@ -12,6 +12,7 @@ export interface SubscriptionData {
   cardBrand: string | null;
   cardExpMonth: number | null;
   cardExpYear: number | null;
+  billingInterval: "month" | "year" | null;
   invoices: Invoice[];
 }
 
@@ -36,6 +37,7 @@ const defaultSubscription: SubscriptionData = {
   cardBrand: null,
   cardExpMonth: null,
   cardExpYear: null,
+  billingInterval: null,
   invoices: [],
 };
 
@@ -68,6 +70,7 @@ export function useStripeSubscription() {
         cardBrand: data.card_brand,
         cardExpMonth: data.card_exp_month,
         cardExpYear: data.card_exp_year,
+        billingInterval: data.billing_interval || null,
         invoices: data.invoices || [],
       });
     } catch (err) {
