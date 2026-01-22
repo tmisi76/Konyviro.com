@@ -293,6 +293,8 @@ export default function Dashboard() {
         onNewProject={handleNewProject}
         onProjectSelect={handleProjectSelect}
         onSettings={handleSettings}
+        onArchiveProject={(id) => toast.info("Archiválás funkció hamarosan elérhető")}
+        onDeleteProject={handleProjectDeleteRequest}
       />
 
       {/* Main content */}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -28,6 +28,7 @@ interface ProjectCardProps {
   project: Project;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
+  onArchive?: (id: string) => void;
 }
 
 const genreConfig: Record<Project["genre"], { label: string; className: string }> = {
@@ -65,7 +66,7 @@ function formatRelativeTime(date: Date): string {
   return `${Math.floor(diffInDays / 30)} hónapja`;
 }
 
-export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [liveWordCount, setLiveWordCount] = useState(project.wordCount);
   const [liveStatus, setLiveStatus] = useState(project.writingStatus);
@@ -150,16 +151,22 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+              className="h-8 w-8"
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => onOpen(project.id)}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Megnyitás
+              <Pencil className="mr-2 h-4 w-4" />
+              Szerkesztés
             </DropdownMenuItem>
+            {onArchive && (
+              <DropdownMenuItem onClick={() => onArchive(project.id)}>
+                <Archive className="mr-2 h-4 w-4" />
+                Archiválás
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={() => onDelete(project.id)}
               className="text-destructive focus:text-destructive"

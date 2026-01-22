@@ -7,11 +7,20 @@ import {
   CheckCircle2, 
   Settings, 
   LogOut,
-  User
+  MoreHorizontal,
+  Pencil,
+  Archive,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Project {
   id: string;
@@ -26,6 +35,8 @@ interface DashboardSidebarProps {
   onNewProject: () => void;
   onProjectSelect: (id: string) => void;
   onSettings: () => void;
+  onArchiveProject?: (id: string) => void;
+  onDeleteProject?: (id: string) => void;
 }
 
 export function DashboardSidebar({
@@ -35,6 +46,8 @@ export function DashboardSidebar({
   onNewProject,
   onProjectSelect,
   onSettings,
+  onArchiveProject,
+  onDeleteProject,
 }: DashboardSidebarProps) {
   const { user, signOut } = useAuth();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -112,6 +125,8 @@ export function DashboardSidebar({
           onToggle={() => toggleGroup("active")}
           onProjectSelect={onProjectSelect}
           isCollapsed={isCollapsed}
+          onArchiveProject={onArchiveProject}
+          onDeleteProject={onDeleteProject}
         />
 
         {/* Completed projects */}
@@ -123,6 +138,8 @@ export function DashboardSidebar({
           onToggle={() => toggleGroup("completed")}
           onProjectSelect={onProjectSelect}
           isCollapsed={isCollapsed}
+          onArchiveProject={onArchiveProject}
+          onDeleteProject={onDeleteProject}
         />
       </div>
 
@@ -161,6 +178,8 @@ interface ProjectGroupProps {
   onToggle: () => void;
   onProjectSelect: (id: string) => void;
   isCollapsed: boolean;
+  onArchiveProject?: (id: string) => void;
+  onDeleteProject?: (id: string) => void;
 }
 
 function ProjectGroup({
@@ -171,6 +190,8 @@ function ProjectGroup({
   onToggle,
   onProjectSelect,
   isCollapsed,
+  onArchiveProject,
+  onDeleteProject,
 }: ProjectGroupProps) {
   if (isCollapsed) {
     return (
@@ -211,13 +232,48 @@ function ProjectGroup({
             <p className="px-3 py-2 text-xs text-muted-foreground">Nincs projekt</p>
           ) : (
             projects.map((project) => (
-              <button
+              <div
                 key={project.id}
-                onClick={() => onProjectSelect(project.id)}
-                className="flex w-full items-center gap-2 rounded px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
+                className="group/item flex w-full items-center justify-between rounded px-3 py-1.5 text-sm text-sidebar-foreground hover:bg-sidebar-accent"
               >
-                <span className="truncate">{project.title}</span>
-              </button>
+                <button
+                  onClick={() => onProjectSelect(project.id)}
+                  className="flex-1 truncate text-left"
+                >
+                  {project.title}
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="ml-2 opacity-0 group-hover/item:opacity-100 transition-opacity p-1 rounded hover:bg-muted"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem onClick={() => onProjectSelect(project.id)}>
+                      <Pencil className="mr-2 h-3.5 w-3.5" />
+                      Szerkesztés
+                    </DropdownMenuItem>
+                    {onArchiveProject && (
+                      <DropdownMenuItem onClick={() => onArchiveProject(project.id)}>
+                        <Archive className="mr-2 h-3.5 w-3.5" />
+                        Archiválás
+                      </DropdownMenuItem>
+                    )}
+                    {onDeleteProject && (
+                      <DropdownMenuItem
+                        onClick={() => onDeleteProject(project.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                        Törlés
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ))
           )}
         </div>
