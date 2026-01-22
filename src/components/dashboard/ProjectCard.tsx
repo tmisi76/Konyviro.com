@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MoreVertical, ExternalLink, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Project {
   id: string;
@@ -17,6 +19,9 @@ export interface Project {
   wordCount: number;
   targetWordCount: number;
   lastEditedAt: Date;
+  writingStatus?: string | null;
+  writingMode?: string | null;
+  backgroundError?: string | null;
 }
 
 interface ProjectCardProps {
@@ -62,17 +67,45 @@ function formatRelativeTime(date: Date): string {
 
 export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [liveWordCount, setLiveWordCount] = useState(project.wordCount);
+  const [liveStatus, setLiveStatus] = useState(project.writingStatus);
+  
+  const isBackgroundWriting = liveStatus === "background_writing";
+  const isCompleted = liveStatus === "completed";
+  const hasFailed = liveStatus === "failed";
+  
   const progress = Math.min(
-    Math.round((project.wordCount / project.targetWordCount) * 100),
+    Math.round((liveWordCount / project.targetWordCount) * 100),
     100
   );
   const genre = genreConfig[project.genre];
   const isAdultContent = project.genre === "erotikus";
 
+  // Poll for updates while background writing is in progress
+  useEffect(() => {
+    if (!isBackgroundWriting) return;
+
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("projects")
+        .select("word_count, writing_status")
+        .eq("id", project.id)
+        .single();
+
+      if (data) {
+        setLiveWordCount(data.word_count);
+        setLiveStatus(data.writing_status);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isBackgroundWriting, project.id]);
+
   return (
     <div
       className={cn(
-        "group relative rounded-xl border border-border bg-card p-5 transition-all duration-200",
+        "group relative rounded-xl border bg-card p-5 transition-all duration-200",
+        isBackgroundWriting ? "border-primary/50" : "border-border",
         isHovered ? "shadow-md" : "shadow-sm"
       )}
       onMouseEnter={() => setIsHovered(true)}
@@ -80,7 +113,7 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
     >
       {/* Header with genre badge and menu */}
       <div className="mb-3 flex items-start justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span
             className={cn(
               "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
@@ -90,6 +123,26 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
             {genre.label}
           </span>
           {isAdultContent && <AdultBadge />}
+          
+          {/* Background writing status badge */}
+          {isBackgroundWriting && (
+            <Badge variant="secondary" className="gap-1 animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Íródik...
+            </Badge>
+          )}
+          {isCompleted && project.writingMode === "background" && (
+            <Badge variant="default" className="gap-1 bg-green-600">
+              <CheckCircle className="h-3 w-3" />
+              Kész
+            </Badge>
+          )}
+          {hasFailed && (
+            <Badge variant="destructive" className="gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Hiba
+            </Badge>
+          )}
         </div>
 
         <DropdownMenu>
@@ -123,9 +176,17 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
         {project.title}
       </h3>
 
+      {/* Background writing indicator */}
+      {isBackgroundWriting && (
+        <div className="mb-3 flex items-center gap-2 text-sm text-primary">
+          <Cloud className="h-4 w-4" />
+          <span>Háttérben íródik...</span>
+        </div>
+      )}
+
       {/* Word count */}
       <p className="mb-4 text-sm text-muted-foreground">
-        {project.wordCount.toLocaleString("hu-HU")} /{" "}
+        {liveWordCount.toLocaleString("hu-HU")} /{" "}
         {project.targetWordCount.toLocaleString("hu-HU")} szó
       </p>
 
@@ -137,11 +198,21 @@ export function ProjectCard({ project, onOpen, onDelete }: ProjectCardProps) {
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-300"
+            className={cn(
+              "h-full rounded-full transition-all duration-300",
+              isBackgroundWriting ? "bg-primary animate-pulse" : "bg-primary"
+            )}
             style={{ width: `${progress}%` }}
           />
         </div>
       </div>
+
+      {/* Error message if failed */}
+      {hasFailed && project.backgroundError && (
+        <p className="mb-3 text-xs text-destructive">
+          {project.backgroundError}
+        </p>
+      )}
 
       {/* Last edited */}
       <p className="text-xs text-muted-foreground">

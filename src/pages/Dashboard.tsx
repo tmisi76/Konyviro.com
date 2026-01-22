@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useWritingStats } from "@/hooks/useWritingStats";
+import { useBackgroundWritePoller } from "@/hooks/useBackgroundWritePoller";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
@@ -42,7 +43,18 @@ export default function Dashboard() {
   const { isOnline, pendingChanges, saveLastProject } = useOfflineSync();
   const { streak, getTodayWords, goals } = useWritingStats();
 
-  // Pull to refresh
+  // Find projects that are in background_writing status
+  const backgroundWritingProject = useMemo(() => {
+    return projects.find(p => p.writing_status === "background_writing");
+  }, [projects]);
+
+  // Poll for background writing progress
+  useBackgroundWritePoller({
+    projectId: backgroundWritingProject?.id || null,
+    writingStatus: backgroundWritingProject?.writing_status || null,
+    enabled: !!backgroundWritingProject,
+    onUpdate: refetch,
+  });
   const handleRefresh = async () => {
     await refetch();
   };
@@ -89,6 +101,9 @@ export default function Dashboard() {
       wordCount: p.word_count || 0,
       targetWordCount: p.target_word_count || 50000,
       lastEditedAt: new Date(p.updated_at),
+      writingStatus: p.writing_status,
+      writingMode: p.writing_mode,
+      backgroundError: p.background_error,
     }));
   }, [projects]);
 
