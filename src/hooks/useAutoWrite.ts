@@ -195,6 +195,10 @@ export function useAutoWrite({
     previousContent: string
   ): Promise<string> => {
     const scene = chapter.scene_outline[sceneIndex];
+    
+    if (!scene) {
+      throw new Error(`Jelenet ${sceneIndex + 1} nem található a fejezetben`);
+    }
     const { data: { session } } = await supabase.auth.getSession();
 
     abortControllerRef.current = new AbortController();
@@ -393,7 +397,12 @@ export function useAutoWrite({
 
           const scene = chapter.scene_outline[sceneIndex];
           
-          // Skip completed scenes
+          // Skip if scene is null/undefined or already completed
+          if (!scene) {
+            console.warn(`Scene ${sceneIndex} is null/undefined in chapter ${chapter.id}`);
+            continue;
+          }
+          
           if (scene.status === "done") {
             completedCount++;
             continue;
@@ -491,9 +500,14 @@ export function useAutoWrite({
     setProgress(prev => ({ ...prev, status: "paused" }));
   }, []);
 
-  const resume = useCallback(() => {
-    startAutoWrite();
-  }, [startAutoWrite]);
+const resume = useCallback(async () => {
+    // Frissítsük a chapters adatokat az újraindítás előtt
+    await fetchChapters();
+    // Kis késleltetés, hogy a state frissülhessen
+    setTimeout(() => {
+      startAutoWrite();
+    }, 100);
+  }, [fetchChapters, startAutoWrite]);
 
   const reset = useCallback(() => {
     isPausedRef.current = true;
