@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
@@ -9,12 +9,14 @@ import { ChapterSidebar } from "@/components/editor/ChapterSidebar";
 import { EditorBlock } from "@/components/editor/EditorBlock";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
 import { OutlineView } from "@/components/editor/OutlineView";
+import { AutoWritePanel } from "@/components/editor/AutoWritePanel";
 import { CharacterList } from "@/components/characters/CharacterList";
 import { ResearchView } from "@/components/research/ResearchView";
 import { CitationPanel } from "@/components/research/CitationPanel";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useCharacters } from "@/hooks/useCharacters";
+import { useAutoWrite } from "@/hooks/useAutoWrite";
 import { useSources, useCitations } from "@/hooks/useResearch";
 import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
 import { toast } from "sonner";
@@ -22,7 +24,7 @@ import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
 import { ROLE_LABELS } from "@/types/character";
 
-type ViewMode = "editor" | "outline" | "characters" | "research";
+type ViewMode = "editor" | "outline" | "characters" | "research" | "autowrite";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -87,6 +89,29 @@ export default function ProjectEditor() {
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
   // Check if project supports research (non-fiction)
   const supportsResearch = project?.genre === "szakkonyv";
+  // Check if project supports auto-write (fiction or erotic)
+  const supportsAutoWrite = project?.genre === "fiction" || project?.genre === "erotikus";
+
+  // Auto-write hook for fiction/erotic projects
+  const {
+    chapters: autoWriteChapters,
+    progress: autoWriteProgress,
+    startAutoWrite,
+    generateAllOutlines,
+    pause: pauseAutoWrite,
+    resume: resumeAutoWrite,
+    reset: resetAutoWrite,
+    fetchChapters: refetchAutoWriteChapters,
+  } = useAutoWrite({
+    projectId: projectId || "",
+    genre: project?.genre || "fiction",
+    storyStructure: project?.story_structure as Record<string, unknown> | undefined,
+    charactersContext,
+    onChapterUpdated: () => {
+      // Refresh editor data when auto-write updates a chapter
+      // This will be called after each scene is written
+    },
+  });
 
   // AI generation for inline actions
   const { generate: aiGenerate, reset: aiReset } = useAIGeneration({
@@ -360,6 +385,12 @@ export default function ProjectEditor() {
                   Kutatás
                 </TabsTrigger>
               )}
+              {supportsAutoWrite && (
+                <TabsTrigger value="autowrite" className="gap-2">
+                  <Wand2 className="h-4 w-4" />
+                  Auto Írás
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
 
@@ -440,6 +471,16 @@ export default function ProjectEditor() {
           <CharacterList projectId={projectId} />
         ) : viewMode === "research" ? (
           <ResearchView projectId={projectId} />
+        ) : viewMode === "autowrite" ? (
+          <AutoWritePanel
+            chapters={autoWriteChapters}
+            progress={autoWriteProgress}
+            onStart={startAutoWrite}
+            onPause={pauseAutoWrite}
+            onResume={resumeAutoWrite}
+            onReset={resetAutoWrite}
+            onGenerateOutlines={generateAllOutlines}
+          />
         ) : null}
       </main>
 
