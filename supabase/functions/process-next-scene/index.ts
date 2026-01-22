@@ -319,13 +319,66 @@ Cél szószám: ~${scene.target_words || 1000} szó`;
       .update({ word_count: totalWords })
       .eq("id", projectId);
 
-    // Update user_usage - increment words_generated for billing
+    // Update user_usage - increment words_generated for billing with extra credit fallback
     try {
-      await supabase.rpc('increment_words_generated', {
-        p_user_id: project.user_id,
-        p_word_count: wordCount
-      });
-      console.log(`Updated user_usage: +${wordCount} words for user ${project.user_id}`);
+      // Get current month usage and limits
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("monthly_word_limit, extra_words_balance")
+        .eq("user_id", project.user_id)
+        .single();
+      
+      const { data: usageData } = await supabase
+        .from("user_usage")
+        .select("words_generated")
+        .eq("user_id", project.user_id)
+        .eq("month", currentMonth)
+        .single();
+      
+      const monthlyLimit = profile?.monthly_word_limit || 5000;
+      const currentUsage = usageData?.words_generated || 0;
+      const extraBalance = profile?.extra_words_balance || 0;
+      const remainingMonthly = Math.max(0, monthlyLimit - currentUsage);
+      
+      if (monthlyLimit === -1) {
+        // Unlimited plan - just track usage
+        await supabase.rpc('increment_words_generated', {
+          p_user_id: project.user_id,
+          p_word_count: wordCount
+        });
+      } else if (wordCount <= remainingMonthly) {
+        // Fits within monthly limit
+        await supabase.rpc('increment_words_generated', {
+          p_user_id: project.user_id,
+          p_word_count: wordCount
+        });
+      } else {
+        // Need to use extra credits
+        const fromMonthly = remainingMonthly;
+        const fromExtra = wordCount - remainingMonthly;
+        
+        // Track what we used from monthly
+        if (fromMonthly > 0) {
+          await supabase.rpc('increment_words_generated', {
+            p_user_id: project.user_id,
+            p_word_count: fromMonthly
+          });
+        }
+        
+        // Use extra credits for the rest
+        if (fromExtra > 0 && extraBalance > 0) {
+          const toDeduct = Math.min(fromExtra, extraBalance);
+          await supabase.rpc('use_extra_credits', {
+            p_user_id: project.user_id,
+            p_word_count: toDeduct
+          });
+          console.log(`Used ${toDeduct} extra credits for user ${project.user_id}`);
+        }
+      }
+      
+      console.log(`Word usage tracked: ${wordCount} words for user ${project.user_id}`);
     } catch (usageError) {
       console.error('Failed to update word usage:', usageError);
     }
