@@ -44,12 +44,7 @@ const TIER_NAMES: Record<string, string> = {
   pro: "Pro",
 };
 
-const TIER_LIMITS: Record<string, { projects: number; words: number }> = {
-  free: { projects: 1, words: 5000 },
-  hobby: { projects: 1, words: 50000 },
-  writer: { projects: 5, words: 200000 },
-  pro: { projects: -1, words: -1 }, // -1 means unlimited
-};
+// Limits now come from database, no hardcoded values needed
 
 const CARD_BRANDS: Record<string, string> = {
   visa: "Visa",
@@ -66,17 +61,29 @@ export function SubscriptionSettings() {
     refresh,
     openCustomerPortal,
   } = useStripeSubscription();
-  const { subscription: usageData, usage, isLoading: usageLoading } = useSubscription();
+  const { 
+    subscription: usageData, 
+    usage, 
+    isLoading: usageLoading,
+    activeProjectCount,
+    getNextResetDate,
+  } = useSubscription();
   const [isCancelOpen, setIsCancelOpen] = useState(false);
   const [isDangerOpen, setIsDangerOpen] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
 
   const isLoading = stripeLoading || usageLoading;
-  const tier = stripeData.tier;
+  
+  // Use database as primary source for tier and limits (synced via Stripe webhook)
+  const tier = usageData?.tier || stripeData.tier || "free";
   const tierName = TIER_NAMES[tier] || "Ingyenes";
-  const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
   const isFounder = usageData?.isFounder || false;
+  
+  // Limits from database (profiles table)
+  const projectLimit = usageData?.projectLimit === -1 ? Infinity : (usageData?.projectLimit || 1);
+  const wordLimit = usageData?.monthlyWordLimit === -1 ? Infinity : (usageData?.monthlyWordLimit || 1000);
+  const extraCredits = usageData?.extraWordsBalance || 0;
 
   // Calculate days remaining
   const daysRemaining = stripeData.subscriptionEnd
@@ -84,18 +91,13 @@ export function SubscriptionSettings() {
     : 0;
 
   // Calculate usage percentages - use actual active project count
-  const { activeProjectCount } = useSubscription();
   const projectsUsed = activeProjectCount;
   const wordsUsed = usage?.wordsGenerated || 0;
-  const projectLimit = limits.projects === -1 ? Infinity : limits.projects;
-  const wordLimit = limits.words === -1 ? Infinity : limits.words;
   const projectPercentage = projectLimit === Infinity ? 0 : (projectsUsed / projectLimit) * 100;
   const wordPercentage = wordLimit === Infinity ? 0 : (wordsUsed / wordLimit) * 100;
 
-  // Next reset date (1st of next month)
-  const nextReset = new Date();
-  nextReset.setMonth(nextReset.getMonth() + 1);
-  nextReset.setDate(1);
+  // Next reset date from subscription hook (considers subscription start date)
+  const nextReset = getNextResetDate();
 
   const handleOpenPortal = async () => {
     setIsPortalLoading(true);
@@ -142,7 +144,9 @@ export function SubscriptionSettings() {
                   </Badge>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground">Éves előfizetés</p>
+              <p className="text-sm text-muted-foreground">
+                {stripeData.billingInterval === "month" ? "Havi" : "Éves"} előfizetés
+              </p>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={handleRefresh}>
@@ -195,7 +199,7 @@ export function SubscriptionSettings() {
                 <span className="text-foreground">Projektek</span>
               </div>
               <span className="text-muted-foreground">
-                {projectsUsed} / {limits.projects === -1 ? "∞" : limits.projects}
+                {projectsUsed} / {projectLimit === Infinity ? "∞" : projectLimit}
               </span>
             </div>
             <Progress value={projectPercentage} className="h-2" />
@@ -209,11 +213,21 @@ export function SubscriptionSettings() {
               </div>
               <span className="text-muted-foreground">
                 {wordsUsed.toLocaleString("hu-HU")} /{" "}
-                {limits.words === -1 ? "∞" : limits.words.toLocaleString("hu-HU")}
+                {wordLimit === Infinity ? "∞" : wordLimit.toLocaleString("hu-HU")}
               </span>
             </div>
             <Progress value={wordPercentage} className="h-2" />
           </div>
+
+          {/* Extra credits display */}
+          {extraCredits > 0 && (
+            <div className="flex items-center justify-between rounded-lg bg-primary/5 p-3 text-sm">
+              <span className="text-muted-foreground">Extra kredit egyenleg</span>
+              <span className="font-medium text-primary">
+                +{extraCredits.toLocaleString("hu-HU")} szó
+              </span>
+            </div>
+          )}
 
           <p className="text-xs text-muted-foreground">
             Következő reset: {format(nextReset, "yyyy. MMM d.", { locale: hu })}

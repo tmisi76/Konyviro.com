@@ -93,6 +93,7 @@ serve(async (req) => {
     let cardBrand = null;
     let cardExpMonth = null;
     let cardExpYear = null;
+    let billingInterval: string | null = null;
 
     if (hasActiveSub) {
       const subscription = subscriptions.data[0];
@@ -100,9 +101,14 @@ serve(async (req) => {
       subscriptionStart = new Date(subscription.current_period_start * 1000).toISOString();
       cancelAtPeriodEnd = subscription.cancel_at_period_end;
       
-      const priceId = subscription.items.data[0].price.id;
+      const price = subscription.items.data[0].price;
+      const priceId = price.id;
       tier = PRICE_TO_TIER[priceId] || "hobby";
-      logStep("Active subscription found", { subscriptionId: subscription.id, tier, endDate: subscriptionEnd });
+      
+      // Get billing interval from price
+      billingInterval = price.recurring?.interval || "year";
+      
+      logStep("Active subscription found", { subscriptionId: subscription.id, tier, billingInterval, endDate: subscriptionEnd });
 
       // Get payment method details
       const paymentMethod = subscription.default_payment_method;
@@ -162,6 +168,7 @@ serve(async (req) => {
       card_brand: cardBrand,
       card_exp_month: cardExpMonth,
       card_exp_year: cardExpYear,
+      billing_interval: billingInterval,
       invoices: invoiceData,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
