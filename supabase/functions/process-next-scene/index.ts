@@ -48,7 +48,7 @@ serve(async (req) => {
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     let sceneText = "";
     for (let i = 0; i < 5; i++) {
-      const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: Math.min((scene.target_words || 1000) * 2, 8000), system: PROMPTS[genre], messages: [{ role: "user", content: prompt }] }) });
+      const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: "claude-sonnet-4-5-20250514", max_tokens: Math.min((scene.target_words || 1000) * 2, 8000), system: PROMPTS[genre], messages: [{ role: "user", content: prompt }] }) });
       if (res.ok) { const d = await res.json(); sceneText = d.content?.[0]?.text || ""; break; }
       if (res.status === 429) { await sleep(30000 * (i + 1)); continue; }
       throw new Error(`API: ${res.status}`);

@@ -28,7 +28,7 @@ serve(async (req) => {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: Math.min(sceneOutline.target_words * 2, 8000), system: PROMPTS[genre] || PROMPTS.fiction, messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ model: "claude-sonnet-4-5-20250514", max_tokens: Math.min(sceneOutline.target_words * 2, 8000), system: PROMPTS[genre] || PROMPTS.fiction, messages: [{ role: "user", content: prompt }] }),
       });
       if (res.ok) { const d = await res.json(); content = d.content?.[0]?.text || ""; break; }
       if (res.status === 429) { await sleep(5000 * (i + 1)); continue; }

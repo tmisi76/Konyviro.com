@@ -11,39 +11,6 @@ const countWords = (text: string): number => {
   return text.trim().split(/\s+/).filter(word => word.length > 0).length;
 };
 
-// Parse SSE stream and extract text content
-const parseSSEStream = async (response: Response): Promise<string> => {
-  const reader = response.body?.getReader();
-  if (!reader) return "";
-  
-  const decoder = new TextDecoder();
-  let fullText = "";
-  
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split("\n");
-    
-    for (const line of lines) {
-      if (line.startsWith("data: ") && line !== "data: [DONE]") {
-        try {
-          const json = JSON.parse(line.slice(6));
-          const content = json.choices?.[0]?.delta?.content;
-          if (content) {
-            fullText += content;
-          }
-        } catch {
-          // Skip invalid JSON
-        }
-      }
-    }
-  }
-  
-  return fullText;
-};
-
 // Section type specific prompts
 const SECTION_PROMPTS: Record<string, string> = {
   intro: `Ez egy BEVEZETŐ szekció. Szabályok:
@@ -124,8 +91,8 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(
         JSON.stringify({ error: "AI service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -167,21 +134,18 @@ ${previousContent}
     userPrompt += `
 Most írd meg ezt a szekciót! A válasz CSAK a szekció szövege legyen, semmi más megjegyzés vagy formázás.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.7,
+        model: "claude-sonnet-4-5-20250514",
         max_tokens: Math.min(sectionOutline.target_words * 2, 6000),
-        stream: true,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userPrompt }],
       }),
     });
 
@@ -206,8 +170,8 @@ Most írd meg ezt a szekciót! A válasz CSAK a szekció szövege legyen, semmi 
       );
     }
 
-    // Parse the stream to get full text for word counting
-    const sectionContent = await parseSSEStream(response);
+    const data = await response.json();
+    const sectionContent = data.content?.[0]?.text || "";
     const wordCount = countWords(sectionContent);
     
     // Update user_usage for billing with extra credit fallback
