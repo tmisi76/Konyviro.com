@@ -5,36 +5,6 @@ import type { SceneOutline, AutoWriteProgress, ChapterWithScenes } from "@/types
 import type { Block } from "@/types/editor";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Helper to update user usage in database
-const updateUserUsage = async (userId: string, wordsGenerated: number) => {
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  
-  const { data: existing } = await supabase
-    .from("user_usage")
-    .select("id, words_generated")
-    .eq("user_id", userId)
-    .eq("month", currentMonth)
-    .single();
-
-  if (existing) {
-    await supabase
-      .from("user_usage")
-      .update({ 
-        words_generated: existing.words_generated + wordsGenerated,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", existing.id);
-  } else {
-    await supabase
-      .from("user_usage")
-      .insert({
-        user_id: userId,
-        month: currentMonth,
-        words_generated: wordsGenerated,
-        projects_created: 0
-      });
-  }
-};
 interface UseAutoWriteOptions {
   projectId: string;
   genre: string;
@@ -295,46 +265,12 @@ export function useAutoWrite({
       throw new Error(error.error || (isNonFiction ? "Szekció írási hiba" : "Jelenet írási hiba"));
     }
 
-    if (!response.body) {
-      throw new Error("No response body");
-    }
-
-    // Stream the response
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let textBuffer = "";
-    let fullText = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      textBuffer += decoder.decode(value, { stream: true });
-
-      let newlineIndex: number;
-      while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-        let line = textBuffer.slice(0, newlineIndex);
-        textBuffer = textBuffer.slice(newlineIndex + 1);
-
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (line.startsWith(":") || line.trim() === "") continue;
-        if (!line.startsWith("data: ")) continue;
-
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]") break;
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-          if (content) {
-            fullText += content;
-          }
-        } catch {
-          textBuffer = line + "\n" + textBuffer;
-          break;
-        }
-      }
-    }
+    // Parse JSON response (no longer streaming)
+    const data = await response.json();
+    const fullText = data.content || "";
+    
+    // Word count is now tracked server-side, no need to track here
+    console.log(`Scene written: ${data.wordCount || 0} words (tracked server-side)`);
 
     return fullText;
   }, [projectId, charactersContext, storyStructure, genre, isNonFiction, bookTopic, targetAudience]);
@@ -483,7 +419,7 @@ export function useAutoWrite({
           await saveSceneAsBlocks(chapter.id, sceneText, nextSortOrder);
           nextSortOrder += sceneText.split(/\n\n+/).filter(p => p.trim()).length;
 
-          // Update chapter word count
+          // Update chapter word count (word usage is now tracked server-side)
           const wordCount = sceneText.split(/\s+/).filter(w => w.length > 0).length;
           await supabase
             .from("chapters")
@@ -491,12 +427,6 @@ export function useAutoWrite({
               word_count: chapter.word_count + wordCount,
             })
             .eq("id", chapter.id);
-
-          // Track word usage for the user
-          if (user && wordCount > 0) {
-            updateUserUsage(user.id, wordCount)
-              .catch(err => console.error("Failed to update usage:", err));
-          }
 
           // Update scene status to done
           await updateSceneStatus(chapter.id, sceneIndex, "done");
