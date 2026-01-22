@@ -142,7 +142,7 @@ Most írd meg ezt a szekciót! A válasz CSAK a szekció szövege legyen, semmi 
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: Math.min(sectionOutline.target_words * 2, 6000),
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],

@@ -26,7 +26,7 @@ serve(async (req) => {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: "claude-sonnet-4-5-20250514", max_tokens: 2000, system: GENRE_PROMPTS[genre] || GENRE_PROMPTS.fiction, messages: anthropicMessages, stream: true }),
+      body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: 2000, system: GENRE_PROMPTS[genre] || GENRE_PROMPTS.fiction, messages: anthropicMessages, stream: true }),
     });
 
     if (!response.ok) return new Response(JSON.stringify({ error: response.status === 429 ? "Túl sok kérés" : "AI hiba" }), { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

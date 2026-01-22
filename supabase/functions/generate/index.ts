@@ -111,7 +111,7 @@ serve(async (req) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: maxTokens,
         system: systemPrompt,
         messages,
@@ -163,7 +163,7 @@ serve(async (req) => {
       const supabaseForTracking = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: { user } } = await supabaseForTracking.auth.getUser(authHeader.replace("Bearer ", ""));
       if (user) {
-        supabaseForTracking.from("ai_generations").insert({ user_id: user.id, project_id: projectId, chapter_id: chapterId, action_type: action, prompt_tokens: 100, completion_tokens: maxTokens, total_tokens: maxTokens + 100, model: "claude-sonnet-4-5-20250514" }).then(() => {});
+        supabaseForTracking.from("ai_generations").insert({ user_id: user.id, project_id: projectId, chapter_id: chapterId, action_type: action, prompt_tokens: 100, completion_tokens: maxTokens, total_tokens: maxTokens + 100, model: "claude-sonnet-4-5-20250929" }).then(() => {});
       }
     }
 
