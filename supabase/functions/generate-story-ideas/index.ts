@@ -13,11 +13,10 @@ serve(async (req) => {
   try {
     const { genre, subcategory, tone, length, targetAudience, additionalInstructions } = await req.json();
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI service not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -43,54 +42,44 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
       "mainElements": ["Elem 1", "Elem 2", "Elem 3"],
       "uniqueSellingPoint": "Mi teszi ezt az ötletet egyedivé és izgalmassá",
       "mood": "A könyv hangulata 2-3 szóban"
-    },
-    ...
+    }
   ]
-}
+}`;
 
-Az ötletek legyenek:
-- Egyediek és kreatívak
-- A műfajhoz és alkategóriához illeszkedők
-- Potenciálisan bestseller minőségűek
-- Egymástól jelentősen különbözők`;
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
         max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: prompt }],
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`AI service error: ${response.status}`);
+      if (response.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (response.status === 402) return new Response(JSON.stringify({ error: "Nincs kredit" }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      throw new Error(`AI error: ${response.status}`);
     }
 
     const aiData = await response.json();
-    let content = aiData.content?.[0]?.text || "";
+    let content = aiData.choices?.[0]?.message?.content || "";
     
-    // Clean JSON from markdown
     if (content.startsWith("```json")) content = content.slice(7);
     if (content.startsWith("```")) content = content.slice(3);
     if (content.endsWith("```")) content = content.slice(0, -3);
     
     const ideas = JSON.parse(content.trim());
 
-    return new Response(JSON.stringify(ideas), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify(ideas), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

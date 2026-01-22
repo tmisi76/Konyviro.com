@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const logStep = (step: string, details?: unknown) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[ANALYZE-STYLE] ${step}${detailsStr}`);
 };
 
@@ -25,17 +25,25 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY is not set");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("AI nincs konfigurálva");
+    }
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader) {
+      throw new Error("No authorization header provided");
+    }
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError) {
+      throw new Error(`Authentication error: ${userError.message}`);
+    }
     const user = userData.user;
-    if (!user) throw new Error("User not authenticated");
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
     logStep("User authenticated", { userId: user.id });
 
     // Get user's writing samples
@@ -64,7 +72,7 @@ serve(async (req) => {
 
     logStep("Prepared text for analysis", { wordCount: totalWords });
 
-    // Analyze with Anthropic
+    // Analyze with Lovable AI
     const analysisPrompt = `Elemezd az alábbi magyar nyelvű szövegmintákat és készíts részletes stílusprofilt. A válaszodat JSON formátumban add meg.
 
 Elemzendő szöveg:
@@ -87,34 +95,35 @@ Válaszolj pontosan ebben a JSON formátumban:
 
 Csak a JSON-t add vissza, semmi mást!`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban." },
+          { role: "user", content: analysisPrompt },
+        ],
         max_tokens: 1500,
-        messages: [{ role: "user", content: analysisPrompt }],
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      logStep("Anthropic API error", { status: response.status, error: errorData });
+      logStep("AI gateway error", { status: response.status, error: errorData });
       throw new Error("AI elemzési hiba");
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.content[0]?.text || "";
+    const content = aiResponse.choices?.[0]?.message?.content || "";
     logStep("AI response received", { length: content.length });
 
     // Parse the JSON response
     let analysis;
     try {
-      // Clean up the response - remove markdown code blocks if present
       let cleanJson = content.trim();
       if (cleanJson.startsWith("```json")) {
         cleanJson = cleanJson.slice(7);
@@ -153,7 +162,7 @@ Csak a JSON-t add vissza, semmi mást!`;
 
     logStep("Style profile saved");
 
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: true,
       analysis,
       samplesAnalyzed: samples.length,

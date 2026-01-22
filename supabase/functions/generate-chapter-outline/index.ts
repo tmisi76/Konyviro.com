@@ -13,85 +13,36 @@ serve(async (req) => {
   try {
     const { genre, length, concept } = await req.json();
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI service not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const chapterCount = length === "short" ? 10 : length === "medium" ? 18 : 28;
     const wordsPerChapter = length === "short" ? 3000 : length === "medium" ? 3500 : 4000;
 
     const systemPrompt = "Te egy professzionális könyvszerkesztő vagy. Mindig érvényes JSON-t adj vissza.";
+    const prompt = `A következő könyv koncepció alapján készíts egy részletes fejezet struktúrát:\n\n${concept}\n\nKészíts pontosan ${chapterCount} fejezetet.\n\nVÁLASZOLJ JSON FORMÁTUMBAN:\n{"chapters": [{"id": "ch-1", "number": 1, "title": "Cím", "description": "Leírás", "keyPoints": ["..."], "estimatedWords": ${wordsPerChapter}}]}`;
 
-    const prompt = `A következő könyv koncepció alapján készíts egy részletes fejezet struktúrát:
-
-${concept}
-
-Készíts pontosan ${chapterCount} fejezetet. Minden fejezethez add meg:
-- Kreatív, figyelemfelkeltő cím
-- 2-3 mondatos leírás a fejezet tartalmáról
-- 3-5 kulcspont/esemény ami történik
-- Becsült szóhossz (~${wordsPerChapter} szó/fejezet)
-
-VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
-{
-  "chapters": [
-    {
-      "id": "ch-1",
-      "number": 1,
-      "title": "Fejezet címe",
-      "description": "2-3 mondatos leírás",
-      "keyPoints": ["Pont 1", "Pont 2", "Pont 3"],
-      "estimatedWords": ${wordsPerChapter}
-    },
-    ...
-  ]
-}
-
-A fejezetek:
-- Logikus sorrendben kövessék egymást
-- Építsék fel a feszültséget/tartalmat
-- Legyenek a címek kreatívak és utalók`;
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }], max_tokens: 4000 }),
     });
 
     if (!response.ok) {
-      throw new Error(`AI service error: ${response.status}`);
+      if (response.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      throw new Error(`AI error: ${response.status}`);
     }
 
     const aiData = await response.json();
-    let content = aiData.content?.[0]?.text || "";
-    
+    let content = aiData.choices?.[0]?.message?.content || "";
     if (content.startsWith("```json")) content = content.slice(7);
     if (content.startsWith("```")) content = content.slice(3);
     if (content.endsWith("```")) content = content.slice(0, -3);
     
-    const chapters = JSON.parse(content.trim());
-
-    return new Response(JSON.stringify(chapters), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify(JSON.parse(content.trim())), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
-    console.error("Error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
