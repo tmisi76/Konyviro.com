@@ -4,6 +4,7 @@ import { FolderOpen, FileText, Flame } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useProjects } from "@/hooks/useProjects";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
@@ -16,6 +17,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { UsagePanel } from "@/components/dashboard/UsagePanel";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { SuccessModal } from "@/components/subscription/SuccessModal";
+import { UpgradeModal } from "@/components/subscription/UpgradeModal";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { PullToRefresh } from "@/components/mobile/PullToRefresh";
@@ -32,8 +34,10 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { isCollapsed, toggle } = useSidebarState();
   const { projects, isLoading, error, refetch, deleteProject, archiveProject, unarchiveProject } = useProjects();
+  const { subscription, usage, isProjectLimitReached } = useSubscription();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -114,6 +118,10 @@ export default function Dashboard() {
 
   // Handlers
   const handleNewProject = () => {
+    if (isProjectLimitReached()) {
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     navigate("/create-book");
   };
 
@@ -299,13 +307,21 @@ export default function Dashboard() {
           onSuccess={handleProjectCreated}
         />
 
-        {/* Subscription Success Modal */}
-        <SuccessModal
-          open={isSuccessModalOpen}
-          onOpenChange={setIsSuccessModalOpen}
-        />
-      </div>
-    );
+      {/* Subscription Success Modal */}
+      <SuccessModal
+        open={isSuccessModalOpen}
+        onOpenChange={setIsSuccessModalOpen}
+      />
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={isUpgradeModalOpen}
+        onOpenChange={setIsUpgradeModalOpen}
+        limitType="projects"
+        currentLimit={subscription?.projectLimit || 1}
+      />
+    </div>
+  );
   }
 
   // Desktop layout
@@ -325,6 +341,7 @@ export default function Dashboard() {
         onArchiveProject={handleArchiveProject}
         onUnarchiveProject={handleUnarchiveProject}
         onDeleteProject={handleProjectDeleteRequest}
+        projectLimitReached={isProjectLimitReached()}
       />
 
       {/* Main content */}
@@ -417,6 +434,14 @@ export default function Dashboard() {
       <SuccessModal
         open={isSuccessModalOpen}
         onOpenChange={setIsSuccessModalOpen}
+      />
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={isUpgradeModalOpen}
+        onOpenChange={setIsUpgradeModalOpen}
+        limitType="projects"
+        currentLimit={subscription?.projectLimit || 1}
       />
 
       {/* Delete Confirmation Modal */}

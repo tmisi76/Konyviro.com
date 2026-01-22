@@ -11,9 +11,11 @@ import {
   Pencil,
   Archive,
   ArchiveRestore,
-  Trash2
+  Trash2,
+  Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -22,6 +24,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Project {
   id: string;
@@ -39,6 +47,7 @@ interface DashboardSidebarProps {
   onArchiveProject?: (id: string) => void;
   onUnarchiveProject?: (id: string) => void;
   onDeleteProject?: (id: string) => void;
+  projectLimitReached?: boolean;
 }
 
 export function DashboardSidebar({
@@ -51,6 +60,7 @@ export function DashboardSidebar({
   onArchiveProject,
   onUnarchiveProject,
   onDeleteProject,
+  projectLimitReached = false,
 }: DashboardSidebarProps) {
   const { user, signOut } = useAuth();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -107,16 +117,34 @@ export function DashboardSidebar({
 
       {/* New project button */}
       <div className={cn("p-4", isCollapsed && "flex justify-center")}>
-        <Button
-          onClick={onNewProject}
-          className={cn(
-            "w-full bg-secondary text-secondary-foreground hover:bg-secondary/90",
-            isCollapsed && "w-10 p-0"
-          )}
-        >
-          <Plus className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-          {!isCollapsed && "Új projekt"}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="w-full">
+                <Button
+                  onClick={onNewProject}
+                  className={cn(
+                    "w-full bg-secondary text-secondary-foreground hover:bg-secondary/90",
+                    isCollapsed && "w-10 p-0",
+                    projectLimitReached && "opacity-75"
+                  )}
+                >
+                  {projectLimitReached ? (
+                    <Lock className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                  ) : (
+                    <Plus className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                  )}
+                  {!isCollapsed && (projectLimitReached ? "Limit elérve" : "Új projekt")}
+                </Button>
+              </div>
+            </TooltipTrigger>
+            {projectLimitReached && (
+              <TooltipContent side="right">
+                <p>Elérted a projekt limitet. Frissíts a csomagodra!</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Projects list */}
