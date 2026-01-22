@@ -48,6 +48,7 @@ export function useAutoWrite({
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const isPausedRef = useRef(false);
+  const isRunningRef = useRef(false);
 
   // Fetch chapters with scene outlines
   const fetchChapters = useCallback(async () => {
@@ -359,6 +360,10 @@ export function useAutoWrite({
 
   // Main auto-write function
   const startAutoWrite = useCallback(async () => {
+    // Prevent accidental parallel runs (double-click retry / resume while already running).
+    if (isRunningRef.current) return;
+    isRunningRef.current = true;
+
     setProgress(prev => ({ ...prev, status: "writing" }));
     isPausedRef.current = false;
 
@@ -498,6 +503,8 @@ export function useAutoWrite({
         error: error instanceof Error ? error.message : "Ismeretlen hiba"
       }));
       toast.error(error instanceof Error ? error.message : "Hiba az automatikus írás közben");
+    } finally {
+      isRunningRef.current = false;
     }
   }, [
     chapters, 
