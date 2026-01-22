@@ -20,7 +20,7 @@ const TIER_NAMES: Record<string, string> = {
 
 export function UsagePanel() {
   const navigate = useNavigate();
-  const { subscription, usage, isLoading } = useSubscription();
+  const { subscription, usage, activeProjectCount, isLoading } = useSubscription();
   const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
 
   // Calculate next reset date based on subscription start date
@@ -52,13 +52,13 @@ export function UsagePanel() {
   }, [subscription, usage]);
 
   const projectUsage = useMemo(() => {
-    if (!subscription || !usage) return { percent: 0, remaining: 0, total: 0, used: 0 };
+    if (!subscription) return { percent: 0, remaining: 0, total: 0, used: 0 };
     const total = subscription.projectLimit === -1 ? Infinity : subscription.projectLimit;
-    const used = usage.projectsCreated;
+    const used = activeProjectCount; // Use actual active project count
     const remaining = total === Infinity ? Infinity : Math.max(0, total - used);
     const percent = total === Infinity ? 0 : Math.min(100, Math.round((used / total) * 100));
     return { percent, remaining, total, used };
-  }, [subscription, usage]);
+  }, [subscription, activeProjectCount]);
 
   // Determine status colors based on usage
   const getStatusColor = (percent: number) => {

@@ -81,8 +81,9 @@ export function SubscriptionSettings() {
     ? differenceInDays(new Date(stripeData.subscriptionEnd), new Date())
     : 0;
 
-  // Calculate usage percentages
-  const projectsUsed = usage?.projectsCreated || 0;
+  // Calculate usage percentages - use actual active project count
+  const { activeProjectCount } = useSubscription();
+  const projectsUsed = activeProjectCount;
   const wordsUsed = usage?.wordsGenerated || 0;
   const projectLimit = limits.projects === -1 ? Infinity : limits.projects;
   const wordLimit = limits.words === -1 ? Infinity : limits.words;
