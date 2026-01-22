@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Play, Pause, Square, RefreshCw, FileText, Sparkles, ChevronDown, ChevronRight } from "lucide-react";
+import { Play, Pause, Square, RefreshCw, FileText, Sparkles, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useSubscription } from "@/hooks/useSubscription";
+import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
 import type { AutoWriteProgress, ChapterWithScenes, SceneOutline } from "@/types/autowrite";
 
 interface AutoWritePanelProps {
@@ -55,12 +57,19 @@ export function AutoWritePanel({
   onGenerateOutlines,
 }: AutoWritePanelProps) {
   const [expandedChapters, setExpandedChapters] = useState<string[]>([]);
+  const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
+  const { getRemainingWords, canGenerateWords, isLoading: subscriptionLoading } = useSubscription();
   
   // Determine if this is a non-fiction project
   const isNonFiction = genre === "szakkonyv";
   
   // Dynamic terminology
   const itemLabelPlural = isNonFiction ? "szekció" : "jelenet";
+
+  // Credit check - estimate ~500 words per scene
+  const estimatedWordsNeeded = 500;
+  const hasCredits = canGenerateWords(estimatedWordsNeeded);
+  const remainingWords = getRemainingWords();
 
   const toggleChapter = (chapterId: string) => {
     setExpandedChapters(prev =>
@@ -95,6 +104,28 @@ export function AutoWritePanel({
           </Badge>
         </div>
 
+        {/* Credit Warning */}
+        {!hasCredits && progress.status === "idle" && !subscriptionLoading && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium text-destructive">Nincs elég kredit!</p>
+              <p className="text-muted-foreground text-xs">
+                {remainingWords === 0 
+                  ? "Elfogytak a szavaid erre a hónapra." 
+                  : `Csak ${remainingWords.toLocaleString()} szó maradt.`}
+              </p>
+            </div>
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => setShowBuyCreditModal(true)}
+            >
+              Kredit vásárlás
+            </Button>
+          </div>
+        )}
+
         {/* Controls */}
         <div className="flex gap-2">
           {progress.status === "idle" && (
@@ -105,6 +136,7 @@ export function AutoWritePanel({
                   size="sm" 
                   onClick={onGenerateOutlines}
                   className="flex-1"
+                  disabled={!hasCredits}
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   {isNonFiction ? "Szekció Vázlat" : "Jelenet Vázlat"}
@@ -114,7 +146,7 @@ export function AutoWritePanel({
                 size="sm" 
                 onClick={onStart}
                 className="flex-1"
-                disabled={chapters.length === 0}
+                disabled={chapters.length === 0 || !hasCredits}
               >
                 <Play className="h-4 w-4 mr-2" />
                 Írás Indítása
@@ -314,6 +346,11 @@ export function AutoWritePanel({
         </p>
         <p className="mt-1">A generált szöveget a szerkesztőben finomhangolhatod.</p>
       </div>
+
+      <BuyCreditModal 
+        open={showBuyCreditModal} 
+        onOpenChange={setShowBuyCreditModal} 
+      />
     </div>
   );
 }

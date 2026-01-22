@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.send-completion-email]
 verify_jwt = false
+
+[functions.create-credit-purchase]
+verify_jwt = false
+
+[functions.credit-webhook]
+verify_jwt = false

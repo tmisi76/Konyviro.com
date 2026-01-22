@@ -15,10 +15,13 @@ import {
   BookOpen,
   FileEdit,
   Download,
-  Sparkles
+  Sparkles,
+  AlertTriangle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAutoWrite } from "@/hooks/useAutoWrite";
+import { useSubscription } from "@/hooks/useSubscription";
+import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
 import type { Genre } from "@/types/wizard";
 import type { ChapterWithScenes, SceneOutline } from "@/types/autowrite";
 import confetti from "canvas-confetti";
@@ -47,8 +50,12 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
   const [streamingText, setStreamingText] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
   const [storyStructure, setStoryStructure] = useState<Record<string, unknown> | undefined>();
+  const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
+  const [creditCheckDone, setCreditCheckDone] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const hasStartedRef = useRef(false);
+
+  const { getRemainingWords, canGenerateWords, isLoading: subscriptionLoading } = useSubscription();
 
   const {
     progress,
@@ -122,16 +129,24 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
     fetchChapters();
   }, [fetchChapters]);
 
-  // Auto-start writing when component mounts
+  // Credit check - estimate ~500 words per scene
+  const estimatedWordsNeeded = 500;
+  const hasCredits = canGenerateWords(estimatedWordsNeeded);
+  const remainingWords = getRemainingWords();
+
+  // Auto-start writing when component mounts (only if has credits)
   useEffect(() => {
-    if (!hasStartedRef.current && projectId && storyStructure !== undefined) {
+    if (subscriptionLoading) return;
+    setCreditCheckDone(true);
+    
+    if (!hasStartedRef.current && projectId && storyStructure !== undefined && hasCredits) {
       hasStartedRef.current = true;
       // Small delay to let UI render first
       setTimeout(() => {
         startAutoWrite();
       }, 500);
     }
-  }, [projectId, storyStructure, startAutoWrite]);
+  }, [projectId, storyStructure, startAutoWrite, subscriptionLoading, hasCredits]);
 
   // Poll for content updates
   useEffect(() => {
@@ -338,6 +353,33 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
                 </div>
               </motion.div>
             </div>
+          ) : creditCheckDone && !hasCredits && progress.status === "idle" ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center max-w-md">
+                <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-6">
+                  <AlertTriangle className="w-10 h-10 text-destructive" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Nincs elég kredit!</h2>
+                <p className="text-muted-foreground mb-2">
+                  {remainingWords === 0 
+                    ? "Elfogytak a szavaid erre a hónapra." 
+                    : `Csak ${remainingWords.toLocaleString()} szó maradt.`}
+                </p>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Az automatikus könyvíráshoz extra kredit szükséges.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline" onClick={handleGoToEditor}>
+                    <FileEdit className="w-4 h-4 mr-2" />
+                    Manuális szerkesztés
+                  </Button>
+                  <Button onClick={() => setShowBuyCreditModal(true)}>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Kredit vásárlás
+                  </Button>
+                </div>
+              </div>
+            </div>
           ) : progress.status === "error" ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center max-w-md">
@@ -421,6 +463,11 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
           )}
         </div>
       </div>
+
+      <BuyCreditModal 
+        open={showBuyCreditModal} 
+        onOpenChange={setShowBuyCreditModal} 
+      />
     </div>
   );
 }
