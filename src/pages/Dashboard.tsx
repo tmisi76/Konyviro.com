@@ -102,6 +102,16 @@ export default function Dashboard() {
   const cardProjects = useMemo(() => {
     return projects
       .filter((p) => p.status !== "archived")
+      .sort((a, b) => {
+        // Background writing projects go to the top
+        if (a.writing_status === "background_writing" && b.writing_status !== "background_writing") return -1;
+        if (b.writing_status === "background_writing" && a.writing_status !== "background_writing") return 1;
+        // Then in_progress projects
+        if (a.writing_status === "in_progress" && b.writing_status !== "in_progress") return -1;
+        if (b.writing_status === "in_progress" && a.writing_status !== "in_progress") return 1;
+        // Keep original order (by updated_at from API)
+        return 0;
+      })
       .map((p) => ({
         id: p.id,
         title: p.title,

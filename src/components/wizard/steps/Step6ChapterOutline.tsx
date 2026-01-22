@@ -184,16 +184,17 @@ export function Step6ChapterOutline({
       setShowModeDialog(false);
       onStartWriting();
     } else if (mode === "background" && onStartBackgroundWriting) {
-      setIsStartingBackground(true);
+      // Close dialog IMMEDIATELY for instant feedback
+      setShowModeDialog(false);
+      toast.info("Háttérben való írás elindítva! A Dashboard-on követheted a progress-t.", {
+        duration: 5000,
+      });
+      
       try {
         await onStartBackgroundWriting();
-        setShowModeDialog(false);
-        toast.success("Háttérben való írás elindítva! Email értesítést kapsz, ha kész a könyv.");
       } catch (error) {
-        console.error("Error starting background write:", error);
+        console.error("Failed to start background writing:", error);
         toast.error("Hiba történt a háttérben való írás indításakor");
-      } finally {
-        setIsStartingBackground(false);
       }
     }
   };
