@@ -12,11 +12,15 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
-// Map Stripe price IDs to subscription tiers
+// Map Stripe price IDs to subscription tiers (yearly and monthly)
 const PRICE_TO_TIER: Record<string, string> = {
+  // Yearly prices
   "price_1Ss3QZBqXALGTPIr0z2uRD0a": "hobby",
   "price_1Ss3QbBqXALGTPIrjbB9lSCI": "writer",
   "price_1Ss3QcBqXALGTPIrStgzIXPu": "pro",
+  // Monthly prices
+  "price_1Ss8bGBqXALGTPIrOVHTHBPA": "hobby",
+  "price_1Ss8bHBqXALGTPIrEmUEe1Gw": "writer",
 };
 
 serve(async (req) => {
