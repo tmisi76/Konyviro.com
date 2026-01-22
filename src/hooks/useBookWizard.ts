@@ -12,6 +12,7 @@ import type {
   StoryIdea,
   ChapterOutlineItem,
   AuthorProfile,
+  FictionStyleSettings,
   INITIAL_WIZARD_DATA 
 } from "@/types/wizard";
 
@@ -35,6 +36,7 @@ export function useBookWizard() {
     chapterOutline: [],
     projectId: null,
     authorProfile: null,
+    fictionStyle: null,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -110,6 +112,19 @@ export function useBookWizard() {
     setIsDirty(true);
   }, []);
 
+  const setFictionStyle = useCallback((style: FictionStyleSettings) => {
+    setData(prev => ({
+      ...prev,
+      fictionStyle: style,
+      // Clear subsequent data when style changes
+      storyIdeas: [],
+      selectedStoryIdea: null,
+      detailedConcept: "",
+      chapterOutline: [],
+    }));
+    setIsDirty(true);
+  }, []);
+
   const setStoryIdeas = useCallback((ideas: StoryIdea[]) => {
     updateData("storyIdeas", ideas);
   }, [updateData]);
@@ -131,8 +146,11 @@ export function useBookWizard() {
     setIsDirty(true);
   }, [updateData]);
 
+  // Fiction has 8 steps, szakkonyv has 8 steps too
+  const maxSteps = 8;
+
   const nextStep = useCallback(() => {
-    setCurrentStep(prev => Math.min(prev + 1, 7));
+    setCurrentStep(prev => Math.min(prev + 1, maxSteps));
   }, []);
 
   const prevStep = useCallback(() => {
@@ -140,7 +158,7 @@ export function useBookWizard() {
   }, []);
 
   const goToStep = useCallback((step: number) => {
-    if (step >= 1 && step <= 7) {
+    if (step >= 1 && step <= maxSteps) {
       setCurrentStep(step);
     }
   }, []);
@@ -176,6 +194,7 @@ export function useBookWizard() {
         wizard_step: currentStep,
         writing_status: "draft",
         author_profile: data.authorProfile ? JSON.parse(JSON.stringify(data.authorProfile)) : null,
+        fiction_style: data.fictionStyle ? JSON.parse(JSON.stringify(data.fictionStyle)) : null,
       };
 
       if (data.projectId) {
@@ -273,6 +292,7 @@ export function useBookWizard() {
       chapterOutline: [],
       projectId: null,
       authorProfile: null,
+      fictionStyle: null,
     });
     setCurrentStep(1);
     setIsDirty(false);
@@ -291,12 +311,12 @@ export function useBookWizard() {
     // Update writing status
     await supabase
       .from("projects")
-      .update({ writing_status: "in_progress", wizard_step: 7 })
+      .update({ writing_status: "in_progress", wizard_step: 8 })
       .eq("id", projectIdToUse);
 
-    // Navigate to step 7 within the wizard
+    // Navigate to step 8 within the wizard
     setData(prev => ({ ...prev, projectId: projectIdToUse }));
-    setCurrentStep(7);
+    setCurrentStep(8);
   }, [data.projectId, saveProject]);
 
   const startBackgroundWriting = useCallback(async () => {
@@ -333,6 +353,7 @@ export function useBookWizard() {
     setSubcategory,
     setBasicInfo,
     setAuthorProfile,
+    setFictionStyle,
     setStoryIdeas,
     selectStoryIdea,
     setDetailedConcept,

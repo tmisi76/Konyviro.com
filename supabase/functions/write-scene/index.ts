@@ -8,10 +8,140 @@ const corsHeaders = {
 
 const countWords = (t: string) => t.trim().split(/\s+/).filter(w => w.length > 0).length;
 
+// Universal fiction writing rules
+const UNIVERSAL_FICTION_RULES = `
+## FŐ ÍRÓI SZABÁLYOK:
+- Mutass, ne mondj! ("Show, don't tell") - Érzéseket, gondolatokat cselekvésen és testi reakciókon keresztül mutasd be
+- Írj élethű, természetes párbeszédeket - minden szereplőnek legyen saját hangja
+- Építs feszültséget fokozatosan
+- Használj érzékletes leírásokat: szagok, hangok, textúrák, nem csak vizuális
+- A szereplők NEM tökéletesek - legyenek hibáik, belső konfliktusaik
+- Kerüld a klisés fordulatokat és a kiszámítható megoldásokat
+- Minden fejezetnek legyen "hook"-ja a végén, ami tovább viszi az olvasót
+`;
+
+// Genre-specific prompts
+const GENRE_PROMPTS: Record<string, string> = {
+  thriller: `
+## THRILLER SZABÁLYOK:
+- Minden fejezetnek emelje a tétet
+- "Ticking clock" elem: legyen időnyomás
+- Red herring-ek: hints félrevezető nyomokat
+- A főhős legyen aktív, ne csak passzívan elszenvedje az eseményeket
+- Információt adagolj óvatosan - az olvasó mindig csak egy lépéssel járjon a főhős mögött
+- Cliffhangerek a fejezetek végén
+- A végső csavar legyen fair: visszanézve legyenek a jelek, de ne legyen kiszámítható`,
+
+  krimi: `
+## KRIMI SZABÁLYOK:
+- A nyomok legyenek fair play szerint elrejtve - az olvasó is megoldhassa
+- Építs gyanút több szereplő köré
+- A detektív módszere legyen következetes és jellemző rá
+- A megoldás legyen logikus, de meglepő
+- A motiváció legyen emberi és hihető`,
+
+  horror: `
+## HORROR SZABÁLYOK:
+- A félelem a NEM LÁTOTTBÓL jön - csak sejtesd, ne mutass mindent
+- Használd a "wrongness" érzést - valami nincs rendben, de nem tudni mi
+- Építs hamis biztonságérzeteket, majd rombold le
+- A hétköznapi dolgok legyenek félelmetesek (uncanny)
+- Izoláció: a főhős legyen egyedül a bajban
+- "Slow burn": a horror fokozatosan épüljön, ne rögtön 100-on induljon
+- Az olvasó képzelete a legerősebb fegyver - hagyd dolgozni`,
+
+  erotikus: `
+## INTIM JELENETEK SZABÁLYAI:
+- Az erotikus jelenetek NE legyenek öncélúak - vigyék előre a kapcsolatot vagy a cselekményt
+- Használj változatos szókincset - kerüld az ismétlést
+- Fókuszálj az érzésekre, érzelmekre, nem csak a fizikai aktusra
+- Építs feszültséget a jelenet ELŐTT (anticipation)
+- A beleegyezés legyen egyértelmű, de ne legyen mesterkélt
+- A karakterek személyisége tükröződjön az intimitásukban is
+- Váltogasd a tempót: lassú, érzéki pillanatok + intenzív pillanatok`,
+
+  romantikus: `
+## ROMANTIKUS SZABÁLYOK:
+- Építsd a kémiát fokozatosan - ne siess a "nagy pillanattal"
+- A szerelmi szál mellett legyen egyéni fejlődési ív mindkét karakternek
+- Használj "almost but not quite" pillanatokat a feszültségépítéshez
+- A félreértések legyenek valósak, ne mesterségesek
+- Mutasd a sebezhetőséget és a bizalom kiépülését
+- A HEA (Happy Ever After) felé vezető út legyen izgalmas és kihívásokkal teli`,
+
+  fantasy: `
+## FANTASY SZABÁLYOK:
+- A mágia legyen következetes szabályokkal
+- A világépítés legyen organikus - ne info-dumpelj
+- Az idegen elemek (lények, kultúrák) legyenek belülről logikusak
+- A főhős ereje legyen kiérdemelt, ne "chosen one" cliché
+- A konfliktusok legyenek személyesek is, ne csak epikusak`,
+
+  scifi: `
+## SCI-FI SZABÁLYOK:
+- A technológia legyen következetes és belülről logikus
+- A tudományos elemek szolgálják a történetet, ne fordítva
+- Mutasd a technológia társadalmi hatásait
+- Az ember maradjon a középpontban, ne a kütyük
+- "One big lie" szabály: egy fő spekulatív elem körül építkezz`,
+
+  drama: `
+## DRÁMA SZABÁLYOK:
+- A karakterfejlődés legyen a középpontban
+- A konfliktusok legyenek belső és külső szinten is jelen
+- Kerüld a melodrámát - a fájdalom legyen valódi, ne túljátszott
+- A párbeszédek legyenek rétegzettek - amit mondanak vs. amit gondolnak
+- A katarzis legyen megérdemelt és felépített`,
+
+  kaland: `
+## KALAND SZABÁLYOK:
+- Tartsd fenn a lendületet - valami mindig történjen
+- A veszélyek legyenek valósak, legyen tétje a cselekménynek
+- A főhős legyen találékony és aktív
+- A helyszínek legyenek karakteresek és emlékezetesek
+- Az akciók legyenek vizuálisan elképzelhetők`,
+
+  tortenelmi: `
+## TÖRTÉNELMI SZABÁLYOK:
+- A korszak légköre legyen hiteles - nyelvezet, szokások, tárgyak
+- Ne modernizáld túl a karakterek gondolkodását
+- A történelmi események szolgálják a személyes történetet
+- A részletek legyenek pontosak, de ne lecke-szerűek
+- Mutasd a mindennapi életet, ne csak a nagy eseményeket`,
+};
+
+// POV labels for prompt
+const POV_LABELS: Record<string, string> = {
+  first_person: "Első személy (Én-elbeszélő)",
+  third_limited: "Harmadik személy, korlátozott nézőpont",
+  third_omniscient: "Harmadik személy, mindentudó narrátor",
+  multiple: "Váltakozó nézőpont",
+};
+
+const PACE_LABELS: Record<string, string> = {
+  slow: "Lassú - részletes leírások, atmoszféra-építés",
+  moderate: "Közepes - kiegyensúlyozott ritmus",
+  fast: "Gyors - akciódús, dinamikus",
+  variable: "Változó - feszültséghez igazodó tempó",
+};
+
+const DIALOGUE_LABELS: Record<string, string> = {
+  minimal: "Kevés párbeszéd - főleg narráció",
+  balanced: "Kiegyensúlyozott párbeszéd-narráció arány",
+  heavy: "Sok párbeszéd - párbeszéd-központú",
+};
+
+const DESCRIPTION_LABELS: Record<string, string> = {
+  sparse: "Minimális leírás - akció fókusz",
+  moderate: "Közepes leírás - kulcsjelenetek részletezve",
+  rich: "Gazdag leírás - érzékletes, atmoszférikus",
+};
+
+// Base prompts
 const PROMPTS: Record<string, string> = {
-  fiction: "Te egy bestseller regényíró vagy. Írj élénk, képszerű magyar prózát.",
-  erotikus: "Te egy erotikus regényíró vagy. Írj érzéki magyar prózát.",
-  szakkonyv: "Te egy szakkönyv szerző vagy. Írj világos magyar szöveget.",
+  fiction: "Te egy tehetséges, bestsellereket író regényíró vagy. Írj élénk, képszerű magyar prózát.",
+  erotikus: "Te egy tehetséges erotikus regényíró vagy. Írj érzéki, szenvedélyes magyar prózát.",
+  szakkonyv: "Te egy szakkönyv szerző vagy. Írj világos, strukturált magyar szöveget.",
 };
 
 // Build style profile prompt section
@@ -42,13 +172,47 @@ const buildStylePrompt = (styleProfile: Record<string, unknown> | null): string 
   return parts.join("\n");
 };
 
+// Build fiction style prompt section
+const buildFictionStylePrompt = (fictionStyle: Record<string, unknown> | null, subcategory: string | null): string => {
+  if (!fictionStyle) return "";
+  
+  const parts: string[] = ["\n\n## ÍRÓI STÍLUS BEÁLLÍTÁSOK:"];
+  
+  if (fictionStyle.pov) {
+    parts.push(`- Nézőpont: ${POV_LABELS[fictionStyle.pov as string] || fictionStyle.pov}`);
+  }
+  if (fictionStyle.pace) {
+    parts.push(`- Tempó: ${PACE_LABELS[fictionStyle.pace as string] || fictionStyle.pace}`);
+  }
+  if (fictionStyle.dialogueRatio) {
+    parts.push(`- Párbeszédek: ${DIALOGUE_LABELS[fictionStyle.dialogueRatio as string] || fictionStyle.dialogueRatio}`);
+  }
+  if (fictionStyle.descriptionLevel) {
+    parts.push(`- Leírások: ${DESCRIPTION_LABELS[fictionStyle.descriptionLevel as string] || fictionStyle.descriptionLevel}`);
+  }
+  if (fictionStyle.setting) {
+    parts.push(`- Helyszín/korszak: ${fictionStyle.setting}`);
+  }
+  
+  // Add genre-specific rules
+  const genrePrompt = subcategory ? GENRE_PROMPTS[subcategory] : null;
+  if (genrePrompt) {
+    parts.push(genrePrompt);
+  }
+  
+  // Add universal fiction rules
+  parts.push(UNIVERSAL_FICTION_RULES);
+  
+  return parts.join("\n");
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { projectId, chapterId, sceneNumber, sceneOutline, previousContent, characters, storyStructure, genre, chapterTitle } = await req.json();
+    const { projectId, chapterId, sceneNumber, sceneOutline, previousContent, characters, storyStructure, genre, chapterTitle, subcategory } = await req.json();
     
     if (!projectId || !chapterId || !sceneOutline) {
       return new Response(JSON.stringify({ error: "Hiányzó mezők" }), {
@@ -70,11 +234,12 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch user style profile for the project owner
+    // Fetch user style profile and fiction style settings for the project owner
     let stylePrompt = "";
+    let fictionStylePrompt = "";
     const { data: project } = await supabase
       .from("projects")
-      .select("user_id")
+      .select("user_id, fiction_style, subcategory")
       .eq("id", projectId)
       .single();
 
@@ -90,7 +255,14 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = (PROMPTS[genre] || PROMPTS.fiction) + stylePrompt;
+    // Add fiction style if available
+    const projectSubcategory = subcategory || project?.subcategory;
+    if (project?.fiction_style) {
+      fictionStylePrompt = buildFictionStylePrompt(project.fiction_style, projectSubcategory);
+    }
+
+    const basePrompt = PROMPTS[genre] || PROMPTS.fiction;
+    const systemPrompt = basePrompt + fictionStylePrompt + stylePrompt;
 
     const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"
 POV: ${sceneOutline.pov}
