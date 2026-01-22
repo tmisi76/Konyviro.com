@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 export default function Dashboard() {
   const { user } = useAuth();
   const { isCollapsed, toggle } = useSidebarState();
-  const { projects, isLoading, error, refetch, deleteProject } = useProjects();
+  const { projects, isLoading, error, refetch, deleteProject, archiveProject, unarchiveProject } = useProjects();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -74,37 +74,41 @@ export default function Dashboard() {
 
   const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Író";
 
-  // Calculate stats
+  // Calculate stats (excluding archived projects)
   const stats = useMemo(() => {
-    const totalProjects = projects.length;
-    const totalWords = projects.reduce((sum, p) => sum + (p.word_count || 0), 0);
+    const activeProjects = projects.filter(p => p.status !== "archived");
+    const totalProjects = activeProjects.length;
+    const totalWords = activeProjects.reduce((sum, p) => sum + (p.word_count || 0), 0);
     const todayWords = getTodayWords();
     const currentStreak = streak?.current_streak || 0;
     return { totalProjects, totalWords, todayWords, currentStreak };
   }, [projects, getTodayWords, streak]);
 
-  // Sidebar project list
+  // Sidebar project list (includes all statuses for sidebar grouping)
   const sidebarProjects = useMemo(() => {
     return projects.map((p) => ({
       id: p.id,
       title: p.title,
-      status: p.status === "completed" ? "completed" : "active",
-    })) as { id: string; title: string; status: "active" | "completed" }[];
+      status: p.status as "active" | "completed" | "archived",
+    }));
   }, [projects]);
 
-  // Transform database projects to card format
+  // Transform database projects to card format (exclude archived for main view)
   const cardProjects = useMemo(() => {
-    return projects.map((p) => ({
-      id: p.id,
-      title: p.title,
-      genre: p.genre as "szakkönyv" | "fiction" | "erotikus" | "egyéb",
-      wordCount: p.word_count || 0,
-      targetWordCount: p.target_word_count || 50000,
-      lastEditedAt: new Date(p.updated_at),
-      writingStatus: p.writing_status,
-      writingMode: p.writing_mode,
-      backgroundError: p.background_error,
-    }));
+    return projects
+      .filter((p) => p.status !== "archived")
+      .map((p) => ({
+        id: p.id,
+        title: p.title,
+        genre: p.genre as "szakkönyv" | "fiction" | "erotikus" | "egyéb",
+        wordCount: p.word_count || 0,
+        targetWordCount: p.target_word_count || 50000,
+        lastEditedAt: new Date(p.updated_at),
+        writingStatus: p.writing_status,
+        writingMode: p.writing_mode,
+        backgroundError: p.background_error,
+        status: p.status,
+      }));
   }, [projects]);
 
   // Handlers
@@ -141,6 +145,24 @@ export default function Dashboard() {
     }
   };
 
+  const handleArchiveProject = async (id: string) => {
+    const success = await archiveProject(id);
+    if (success) {
+      toast.success("Projekt archiválva");
+    } else {
+      toast.error("Hiba történt az archiválás során");
+    }
+  };
+
+  const handleUnarchiveProject = async (id: string) => {
+    const success = await unarchiveProject(id);
+    if (success) {
+      toast.success("Projekt visszaállítva");
+    } else {
+      toast.error("Hiba történt a visszaállítás során");
+    }
+  };
+
   const handleSettings = () => {
     navigate("/settings?tab=subscription");
   };
@@ -156,10 +178,15 @@ export default function Dashboard() {
     }
   };
 
-  // Recent projects (sorted by last edited)
+  // Recent projects (sorted by last edited, excluding archived)
   const recentProjects = useMemo(() => {
     return [...cardProjects].slice(0, 6);
   }, [cardProjects]);
+
+  // Count non-archived projects for display
+  const nonArchivedProjectCount = useMemo(() => {
+    return projects.filter(p => p.status !== "archived").length;
+  }, [projects]);
 
   // Mobile layout
   if (isMobile) {
@@ -211,7 +238,7 @@ export default function Dashboard() {
               {/* Projects section */}
               <div>
                 <h2 className="mb-4 text-lg font-semibold text-foreground">
-                  {projects.length > 0 ? "Legutóbbi projektek" : "Projektek"}
+                  {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
                 </h2>
 
                 {isLoading ? (
@@ -223,7 +250,7 @@ export default function Dashboard() {
                       />
                     ))}
                   </div>
-                ) : projects.length === 0 ? (
+                ) : nonArchivedProjectCount === 0 ? (
                   <EmptyState onCreateProject={handleNewProject} />
                 ) : (
                   <div className="mobile-card-stack">
@@ -233,6 +260,7 @@ export default function Dashboard() {
                         project={project}
                         onOpen={handleProjectOpen}
                         onDelete={handleProjectDeleteRequest}
+                        onArchive={handleArchiveProject}
                       />
                     ))}
                   </div>
@@ -293,7 +321,8 @@ export default function Dashboard() {
         onNewProject={handleNewProject}
         onProjectSelect={handleProjectSelect}
         onSettings={handleSettings}
-        onArchiveProject={(id) => toast.info("Archiválás funkció hamarosan elérhető")}
+        onArchiveProject={handleArchiveProject}
+        onUnarchiveProject={handleUnarchiveProject}
         onDeleteProject={handleProjectDeleteRequest}
       />
 
@@ -339,7 +368,7 @@ export default function Dashboard() {
           {/* Projects section */}
           <div>
             <h2 className="mb-4 text-lg font-semibold text-foreground">
-              {projects.length > 0 ? "Legutóbbi projektek" : "Projektek"}
+              {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
             </h2>
 
             {isLoading ? (
@@ -351,7 +380,7 @@ export default function Dashboard() {
                   />
                 ))}
               </div>
-            ) : projects.length === 0 ? (
+            ) : nonArchivedProjectCount === 0 ? (
               <EmptyState onCreateProject={handleNewProject} />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -361,6 +390,7 @@ export default function Dashboard() {
                     project={project}
                     onOpen={handleProjectOpen}
                     onDelete={handleProjectDeleteRequest}
+                    onArchive={handleArchiveProject}
                   />
                 ))}
               </div>

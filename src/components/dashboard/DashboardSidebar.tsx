@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   Pencil,
   Archive,
+  ArchiveRestore,
   Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ import {
 interface Project {
   id: string;
   title: string;
-  status: "active" | "completed";
+  status: "active" | "completed" | "archived";
 }
 
 interface DashboardSidebarProps {
@@ -36,6 +37,7 @@ interface DashboardSidebarProps {
   onProjectSelect: (id: string) => void;
   onSettings: () => void;
   onArchiveProject?: (id: string) => void;
+  onUnarchiveProject?: (id: string) => void;
   onDeleteProject?: (id: string) => void;
 }
 
@@ -47,16 +49,19 @@ export function DashboardSidebar({
   onProjectSelect,
   onSettings,
   onArchiveProject,
+  onUnarchiveProject,
   onDeleteProject,
 }: DashboardSidebarProps) {
   const { user, signOut } = useAuth();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     active: true,
     completed: false,
+    archived: false,
   });
 
   const activeProjects = projects.filter((p) => p.status === "active");
   const completedProjects = projects.filter((p) => p.status === "completed");
+  const archivedProjects = projects.filter((p) => p.status === "archived");
 
   const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Író";
   const userInitial = userName.charAt(0).toUpperCase();
@@ -126,7 +131,9 @@ export function DashboardSidebar({
           onProjectSelect={onProjectSelect}
           isCollapsed={isCollapsed}
           onArchiveProject={onArchiveProject}
+          onUnarchiveProject={onUnarchiveProject}
           onDeleteProject={onDeleteProject}
+          isArchivedGroup={false}
         />
 
         {/* Completed projects */}
@@ -139,7 +146,24 @@ export function DashboardSidebar({
           onProjectSelect={onProjectSelect}
           isCollapsed={isCollapsed}
           onArchiveProject={onArchiveProject}
+          onUnarchiveProject={onUnarchiveProject}
           onDeleteProject={onDeleteProject}
+          isArchivedGroup={false}
+        />
+
+        {/* Archived projects */}
+        <ProjectGroup
+          title="Archivált"
+          icon={Archive}
+          projects={archivedProjects}
+          isExpanded={expandedGroups.archived}
+          onToggle={() => toggleGroup("archived")}
+          onProjectSelect={onProjectSelect}
+          isCollapsed={isCollapsed}
+          onArchiveProject={onArchiveProject}
+          onUnarchiveProject={onUnarchiveProject}
+          onDeleteProject={onDeleteProject}
+          isArchivedGroup={true}
         />
       </div>
 
@@ -179,7 +203,9 @@ interface ProjectGroupProps {
   onProjectSelect: (id: string) => void;
   isCollapsed: boolean;
   onArchiveProject?: (id: string) => void;
+  onUnarchiveProject?: (id: string) => void;
   onDeleteProject?: (id: string) => void;
+  isArchivedGroup: boolean;
 }
 
 function ProjectGroup({
@@ -191,7 +217,9 @@ function ProjectGroup({
   onProjectSelect,
   isCollapsed,
   onArchiveProject,
+  onUnarchiveProject,
   onDeleteProject,
+  isArchivedGroup,
 }: ProjectGroupProps) {
   if (isCollapsed) {
     return (
@@ -256,11 +284,20 @@ function ProjectGroup({
                       <Pencil className="mr-2 h-3.5 w-3.5" />
                       Szerkesztés
                     </DropdownMenuItem>
-                    {onArchiveProject && (
-                      <DropdownMenuItem onClick={() => onArchiveProject(project.id)}>
-                        <Archive className="mr-2 h-3.5 w-3.5" />
-                        Archiválás
-                      </DropdownMenuItem>
+                    {isArchivedGroup ? (
+                      onUnarchiveProject && (
+                        <DropdownMenuItem onClick={() => onUnarchiveProject(project.id)}>
+                          <ArchiveRestore className="mr-2 h-3.5 w-3.5" />
+                          Visszaállítás
+                        </DropdownMenuItem>
+                      )
+                    ) : (
+                      onArchiveProject && (
+                        <DropdownMenuItem onClick={() => onArchiveProject(project.id)}>
+                          <Archive className="mr-2 h-3.5 w-3.5" />
+                          Archiválás
+                        </DropdownMenuItem>
+                      )
                     )}
                     {onDeleteProject && (
                       <DropdownMenuItem
