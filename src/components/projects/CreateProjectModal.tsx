@@ -351,16 +351,16 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="max-w-2xl overflow-hidden p-0">
           {/* Progress indicator */}
-          <div className="border-b border-border bg-muted/30 px-6 py-4">
-            <div className="flex items-center justify-between">
+          <div className="border-b border-border bg-muted/30 px-4 py-4">
+            <div className="flex items-center">
               {steps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
-                  <div className="flex items-center gap-2">
+                <div key={step.id} className="flex flex-1 items-center last:flex-none">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <div
                       className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors",
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-colors sm:h-8 sm:w-8 sm:text-sm",
                         currentStep === step.id
-                          ? "bg-secondary text-secondary-foreground"
+                          ? "bg-primary text-primary-foreground"
                           : currentStep > step.id
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground"
@@ -370,7 +370,8 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
                     </div>
                     <span
                       className={cn(
-                        "hidden text-sm font-medium sm:block",
+                        "hidden whitespace-nowrap font-medium sm:block",
+                        steps.length > 4 ? "text-xs" : "text-sm",
                         currentStep === step.id
                           ? "text-foreground"
                           : "text-muted-foreground"
@@ -382,7 +383,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
                   {index < steps.length - 1 && (
                     <div
                       className={cn(
-                        "mx-3 h-0.5 w-8 transition-colors sm:w-12",
+                        "mx-2 h-0.5 flex-1 min-w-3 transition-colors",
                         currentStep > step.id ? "bg-primary" : "bg-border"
                       )}
                     />
