@@ -237,6 +237,17 @@ export default function Dashboard() {
         {/* Install PWA prompt */}
         <InstallPWAPrompt />
 
+        {/* Delete Confirmation Modal */}
+        <ConfirmationModal
+          open={deleteModalOpen}
+          onOpenChange={setDeleteModalOpen}
+          onConfirm={handleConfirmDelete}
+          type="delete"
+          title="Projekt törlése"
+          description="Biztosan törlöd ezt a projektet? Az összes fejezet, karakter és tartalom véglegesen törlődik. Ez a művelet nem visszavonható."
+          isLoading={isDeleting}
+        />
+
         {/* Create Project Modal */}
         <CreateProjectModal
           open={isCreateModalOpen}
