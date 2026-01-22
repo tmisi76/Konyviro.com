@@ -77,7 +77,7 @@ export function useAutoWrite({
 
     chaptersWithScenes.forEach(ch => {
       totalScenes += ch.scene_outline.length;
-      completedScenes += ch.scene_outline.filter(s => s.status === "done").length;
+      completedScenes += ch.scene_outline.filter(s => s && s.status === "done").length;
       totalWords += ch.word_count;
     });
 
@@ -443,8 +443,8 @@ export function useAutoWrite({
           // Notify parent
           onChapterUpdated?.(chapter.id);
 
-          // Small delay to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Longer delay to avoid rate limiting (3 seconds between scenes)
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
         allPreviousContent += "\n\n" + chapterContent;

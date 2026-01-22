@@ -95,7 +95,7 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
     if (data) {
       const mapped: ChapterDisplay[] = data.map((ch, index) => {
         const scenes = (ch.scene_outline as unknown as SceneOutline[]) || [];
-        const completedScenes = scenes.filter(s => s.status === "done").length;
+        const completedScenes = scenes.filter(s => s && s.status === "done").length;
         
         let status: ChapterStatus = "waiting";
         if (ch.generation_status === "completed") {
