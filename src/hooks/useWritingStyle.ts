@@ -199,9 +199,12 @@ export function useWritingStyle() {
     fetchData();
   }, [fetchData]);
 
+  const hasStyleProfile = Boolean(styleProfile.styleSummary && styleProfile.analyzedAt);
+
   return {
     samples,
     styleProfile,
+    hasStyleProfile,
     isLoading,
     isAnalyzing,
     isSaving,

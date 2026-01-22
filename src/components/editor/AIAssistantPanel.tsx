@@ -20,6 +20,7 @@ import {
   X,
   Plus,
   Wand2,
+  Feather,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
+import { useWritingStyle } from "@/hooks/useWritingStyle";
 import { toast } from "sonner";
 
 interface AIAssistantPanelProps {
@@ -107,6 +109,9 @@ export function AIAssistantPanel({
     length,
     useProjectStyle,
   };
+
+  // Style profile hook
+  const { hasStyleProfile, styleProfile } = useWritingStyle();
 
   const { isGenerating, generatedText, generate, cancel, reset } = useAIGeneration({
     projectId,
@@ -465,13 +470,28 @@ ${projectTone ? `Hangnem: ${projectTone}.` : ""}
                 </RadioGroup>
               </div>
 
-              {/* Style Override */}
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">Projekt stílus használata</Label>
-                <Switch
-                  checked={useProjectStyle}
-                  onCheckedChange={setUseProjectStyle}
-                />
+              {/* Personal Style Toggle */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Feather className="h-3.5 w-3.5 text-secondary" />
+                    <Label className="text-xs">Saját stílus használata</Label>
+                  </div>
+                  <Switch
+                    checked={useProjectStyle}
+                    onCheckedChange={setUseProjectStyle}
+                    disabled={!hasStyleProfile}
+                  />
+                </div>
+                {hasStyleProfile ? (
+                  <p className="text-xs text-muted-foreground pl-5">
+                    Stílusprofil: {styleProfile.styleSummary?.slice(0, 60)}...
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600 pl-5">
+                    Nincs stílusprofil. Hozz létre egyet a Beállítások → Saját stílus menüben.
+                  </p>
+                )}
               </div>
             </CollapsibleContent>
           </Collapsible>
