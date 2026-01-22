@@ -189,15 +189,38 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
     }
     jsonContent = jsonContent.trim();
 
+    // Fix common JSON issues from AI responses
+    // Remove trailing commas before closing brackets/braces
+    jsonContent = jsonContent.replace(/,(\s*[\]}])/g, '$1');
+    // Remove any control characters that might cause issues
+    jsonContent = jsonContent.replace(/[\x00-\x1F\x7F]/g, (char: string) => {
+      if (char === '\n' || char === '\r' || char === '\t') return char;
+      return '';
+    });
+
     let storyData;
     try {
       storyData = JSON.parse(jsonContent);
     } catch (parseError) {
       console.error("JSON parse error:", parseError, "Content:", jsonContent.substring(0, 500));
-      return new Response(
-        JSON.stringify({ error: "Nem sikerült feldolgozni a generált sztorit. Próbáld újra." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      
+      // Try to extract just the essential data if JSON is malformed
+      try {
+        // Attempt to find and parse a valid JSON object
+        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const cleanedJson = jsonMatch[0].replace(/,(\s*[\]}])/g, '$1');
+          storyData = JSON.parse(cleanedJson);
+        } else {
+          throw new Error("No JSON object found");
+        }
+      } catch (retryError) {
+        console.error("JSON retry parse error:", retryError);
+        return new Response(
+          JSON.stringify({ error: "Nem sikerült feldolgozni a generált sztorit. Próbáld újra." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Validate required fields
