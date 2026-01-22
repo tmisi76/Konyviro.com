@@ -11,6 +11,7 @@ import type {
   BookLength,
   StoryIdea,
   ChapterOutlineItem,
+  AuthorProfile,
   INITIAL_WIZARD_DATA 
 } from "@/types/wizard";
 
@@ -33,6 +34,7 @@ export function useBookWizard() {
     detailedConcept: "",
     chapterOutline: [],
     projectId: null,
+    authorProfile: null,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -87,6 +89,19 @@ export function useBookWizard() {
       ...prev,
       ...info,
       // Töröljük az ötleteket és minden utána következő adatot, hogy újrageneráljuk
+      storyIdeas: [],
+      selectedStoryIdea: null,
+      detailedConcept: "",
+      chapterOutline: [],
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const setAuthorProfile = useCallback((profile: AuthorProfile) => {
+    setData(prev => ({
+      ...prev,
+      authorProfile: profile,
+      // Clear subsequent data when author profile changes
       storyIdeas: [],
       selectedStoryIdea: null,
       detailedConcept: "",
@@ -160,6 +175,7 @@ export function useBookWizard() {
         generated_story: data.detailedConcept || null,
         wizard_step: currentStep,
         writing_status: "draft",
+        author_profile: data.authorProfile ? JSON.parse(JSON.stringify(data.authorProfile)) : null,
       };
 
       if (data.projectId) {
@@ -256,6 +272,7 @@ export function useBookWizard() {
       detailedConcept: "",
       chapterOutline: [],
       projectId: null,
+      authorProfile: null,
     });
     setCurrentStep(1);
     setIsDirty(false);
@@ -315,6 +332,7 @@ export function useBookWizard() {
     setGenre,
     setSubcategory,
     setBasicInfo,
+    setAuthorProfile,
     setStoryIdeas,
     selectStoryIdea,
     setDetailedConcept,

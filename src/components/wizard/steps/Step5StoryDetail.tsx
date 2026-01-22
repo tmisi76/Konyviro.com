@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, Check, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { StoryIdea, Genre, Subcategory, Tone } from "@/types/wizard";
+import type { StoryIdea, Genre, Subcategory, Tone, AuthorProfile } from "@/types/wizard";
 
 interface Step5StoryDetailProps {
   genre: Genre;
@@ -16,6 +16,7 @@ interface Step5StoryDetailProps {
   existingConcept: string;
   onConceptGenerated: (concept: string) => void;
   onAccept: () => void;
+  authorProfile?: AuthorProfile | null;
 }
 
 export function Step5StoryDetail({
@@ -26,6 +27,7 @@ export function Step5StoryDetail({
   existingConcept,
   onConceptGenerated,
   onAccept,
+  authorProfile,
 }: Step5StoryDetailProps) {
   const [concept, setConcept] = useState(existingConcept);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -55,6 +57,7 @@ export function Step5StoryDetail({
           genre: genre === "fiction" ? subcategory : "szakkonyv",
           tone,
           targetAudience: "general",
+          authorProfile: authorProfile || undefined,
         },
       });
 

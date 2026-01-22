@@ -2,6 +2,15 @@
 
 export type Genre = "szakkonyv" | "fiction";
 
+// Author profile for non-fiction books
+export interface AuthorProfile {
+  authorName: string;
+  formality: "tegez" | "magaz";
+  authorBackground: string;
+  personalStories: string;
+  mainPromise: string;
+}
+
 export type FictionSubcategory = 
   | "thriller" 
   | "krimi" 
@@ -65,6 +74,8 @@ export interface WizardData {
   detailedConcept: string;
   chapterOutline: ChapterOutlineItem[];
   projectId: string | null;
+  // Non-fiction specific
+  authorProfile: AuthorProfile | null;
 }
 
 export const INITIAL_WIZARD_DATA: WizardData = {
@@ -80,6 +91,7 @@ export const INITIAL_WIZARD_DATA: WizardData = {
   detailedConcept: "",
   chapterOutline: [],
   projectId: null,
+  authorProfile: null,
 };
 
 export const FICTION_SUBCATEGORIES: { id: FictionSubcategory; icon: string; title: string; isAdult?: boolean }[] = [

@@ -486,6 +486,7 @@ export type Database = {
       projects: {
         Row: {
           additional_instructions: string | null
+          author_profile: Json | null
           background_error: string | null
           background_started_at: string | null
           complexity: number | null
@@ -515,6 +516,7 @@ export type Database = {
         }
         Insert: {
           additional_instructions?: string | null
+          author_profile?: Json | null
           background_error?: string | null
           background_started_at?: string | null
           complexity?: number | null
@@ -544,6 +546,7 @@ export type Database = {
         }
         Update: {
           additional_instructions?: string | null
+          author_profile?: Json | null
           background_error?: string | null
           background_started_at?: string | null
           complexity?: number | null
