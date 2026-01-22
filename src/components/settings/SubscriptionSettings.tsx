@@ -33,6 +33,7 @@ import {
 import { useStripeSubscription } from "@/hooks/useStripeSubscription";
 import { useSubscription } from "@/hooks/useSubscription";
 import { CancelSubscriptionModal } from "./CancelSubscriptionModal";
+import { PlanComparisonModal } from "./PlanComparisonModal";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -69,6 +70,7 @@ export function SubscriptionSettings() {
   const [isCancelOpen, setIsCancelOpen] = useState(false);
   const [isDangerOpen, setIsDangerOpen] = useState(false);
   const [isPortalLoading, setIsPortalLoading] = useState(false);
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
 
   const isLoading = stripeLoading || usageLoading;
   const tier = stripeData.tier;
@@ -228,7 +230,7 @@ export function SubscriptionSettings() {
               Tekintsd meg a csomagok közti különbségeket
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate("/pricing")}>
+          <Button variant="outline" onClick={() => setIsPlanModalOpen(true)}>
             Csomagok megtekintése
           </Button>
         </div>
@@ -243,11 +245,14 @@ export function SubscriptionSettings() {
                   Az árból levonjuk a fennmaradó időszak arányos részét
                 </p>
               </div>
-              <Button onClick={() => navigate("/pricing")}>Frissítés</Button>
+              <Button onClick={() => setIsPlanModalOpen(true)}>Frissítés</Button>
             </div>
           </>
         )}
       </div>
+
+      {/* Plan Comparison Modal */}
+      <PlanComparisonModal open={isPlanModalOpen} onOpenChange={setIsPlanModalOpen} />
 
       {/* Payment Information */}
       {stripeData.subscribed && (

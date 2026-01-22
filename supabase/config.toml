@@ -53,3 +53,9 @@ verify_jwt = false
 
 [functions.send-credit-email]
 verify_jwt = false
+
+[functions.switch-subscription]
+verify_jwt = false
+
+[functions.analyze-writing-style]
+verify_jwt = false

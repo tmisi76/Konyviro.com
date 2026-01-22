@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ArrowLeft, Settings, CreditCard, User, ChevronDown } from "lucide-react";
+import { ArrowLeft, Settings, CreditCard, User, Sparkles } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { SubscriptionSettings } from "@/components/settings/SubscriptionSettings";
+import { ProfileSettings } from "@/components/settings/ProfileSettings";
+import { StyleSettings } from "@/components/settings/StyleSettings";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const [searchParams] = useSearchParams();
@@ -65,11 +66,24 @@ export default function SettingsPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4">
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground">
-                    A profil beállítások hamarosan elérhetőek lesznek.
-                  </p>
+                <ProfileSettings />
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="style" className="rounded-xl border bg-card shadow-sm overflow-hidden">
+              <AccordionTrigger className="px-4 py-4 hover:no-underline [&[data-state=open]>svg]:rotate-180">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10">
+                    <Sparkles className="h-5 w-5 text-amber-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-semibold text-foreground">Saját stílus</p>
+                    <p className="text-xs text-muted-foreground">AI stílus elemzés</p>
+                  </div>
                 </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-4">
+                <StyleSettings />
               </AccordionContent>
             </AccordionItem>
           </Accordion>
@@ -102,7 +116,7 @@ export default function SettingsPage() {
       <main className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl">
           <Tabs defaultValue={defaultTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="subscription" className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4" />
                 <span className="hidden sm:inline">Előfizetés</span>
@@ -111,6 +125,10 @@ export default function SettingsPage() {
                 <User className="h-4 w-4" />
                 <span className="hidden sm:inline">Profil</span>
               </TabsTrigger>
+              <TabsTrigger value="style" className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline">Saját stílus</span>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="subscription">
@@ -118,12 +136,11 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="profile">
-              <div className="rounded-xl border bg-card p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-foreground">Profil beállítások</h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  A profil beállítások hamarosan elérhetőek lesznek.
-                </p>
-              </div>
+              <ProfileSettings />
+            </TabsContent>
+
+            <TabsContent value="style">
+              <StyleSettings />
             </TabsContent>
           </Tabs>
         </div>

@@ -406,7 +406,10 @@ export type Database = {
         Row: {
           adult_content_verified: boolean
           adult_verified_at: string | null
+          avatar_url: string | null
+          bio: string | null
           created_at: string
+          display_name: string | null
           extra_words_balance: number
           founder_discount_applied: boolean
           full_name: string | null
@@ -414,6 +417,8 @@ export type Database = {
           is_founder: boolean
           monthly_word_limit: number
           project_limit: number
+          social_instagram: string | null
+          social_twitter: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_end_date: string | null
@@ -422,11 +427,15 @@ export type Database = {
           subscription_tier: string
           updated_at: string
           user_id: string
+          website: string | null
         }
         Insert: {
           adult_content_verified?: boolean
           adult_verified_at?: string | null
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name?: string | null
           extra_words_balance?: number
           founder_discount_applied?: boolean
           full_name?: string | null
@@ -434,6 +443,8 @@ export type Database = {
           is_founder?: boolean
           monthly_word_limit?: number
           project_limit?: number
+          social_instagram?: string | null
+          social_twitter?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_end_date?: string | null
@@ -442,11 +453,15 @@ export type Database = {
           subscription_tier?: string
           updated_at?: string
           user_id: string
+          website?: string | null
         }
         Update: {
           adult_content_verified?: boolean
           adult_verified_at?: string | null
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name?: string | null
           extra_words_balance?: number
           founder_discount_applied?: boolean
           full_name?: string | null
@@ -454,6 +469,8 @@ export type Database = {
           is_founder?: boolean
           monthly_word_limit?: number
           project_limit?: number
+          social_instagram?: string | null
+          social_twitter?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_end_date?: string | null
@@ -462,6 +479,7 @@ export type Database = {
           subscription_tier?: string
           updated_at?: string
           user_id?: string
+          website?: string | null
         }
         Relationships: []
       }
@@ -698,6 +716,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_style_profiles: {
+        Row: {
+          analyzed_at: string | null
+          avg_sentence_length: number | null
+          common_phrases: Json | null
+          created_at: string
+          dialogue_ratio: number | null
+          id: string
+          samples_analyzed: number | null
+          style_summary: string | null
+          tone_analysis: Json | null
+          updated_at: string
+          user_id: string
+          vocabulary_complexity: number | null
+        }
+        Insert: {
+          analyzed_at?: string | null
+          avg_sentence_length?: number | null
+          common_phrases?: Json | null
+          created_at?: string
+          dialogue_ratio?: number | null
+          id?: string
+          samples_analyzed?: number | null
+          style_summary?: string | null
+          tone_analysis?: Json | null
+          updated_at?: string
+          user_id: string
+          vocabulary_complexity?: number | null
+        }
+        Update: {
+          analyzed_at?: string | null
+          avg_sentence_length?: number | null
+          common_phrases?: Json | null
+          created_at?: string
+          dialogue_ratio?: number | null
+          id?: string
+          samples_analyzed?: number | null
+          style_summary?: string | null
+          tone_analysis?: Json | null
+          updated_at?: string
+          user_id?: string
+          vocabulary_complexity?: number | null
+        }
+        Relationships: []
+      }
       user_usage: {
         Row: {
           created_at: string
@@ -725,6 +788,36 @@ export type Database = {
           updated_at?: string
           user_id?: string
           words_generated?: number
+        }
+        Relationships: []
+      }
+      user_writing_samples: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+          word_count: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+          word_count?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          word_count?: number
         }
         Relationships: []
       }
