@@ -49,8 +49,25 @@ export function Step6ChapterOutline({
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ChapterOutlineItem>>({});
+  const [lastConceptHash, setLastConceptHash] = useState<string | null>(null);
 
   const hasOutline = chapters.length > 0;
+
+  // Sync with existingOutline prop when it changes (e.g., when cleared by wizard)
+  useEffect(() => {
+    setChapters(existingOutline);
+  }, [existingOutline]);
+
+  // Track concept changes - if concept changed, chapters need regeneration
+  useEffect(() => {
+    const currentHash = detailedConcept?.substring(0, 50);
+    
+    if (lastConceptHash && lastConceptHash !== currentHash && chapters.length > 0) {
+      // Koncepció megváltozott, töröljük a fejezeteket
+      setChapters([]);
+    }
+    setLastConceptHash(currentHash);
+  }, [detailedConcept]);
 
   useEffect(() => {
     onOutlineChange(chapters);
