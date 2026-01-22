@@ -35,12 +35,17 @@ export function Step4StoryIdeas({
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Generate ideas on mount if none exist
+  // Sync local state with prop changes
   useEffect(() => {
-    if (ideas.length === 0) {
+    setIdeas(existingIdeas);
+  }, [existingIdeas]);
+
+  // Generate ideas when existingIdeas becomes empty
+  useEffect(() => {
+    if (existingIdeas.length === 0 && !isGenerating) {
       generateIdeas();
     }
-  }, []);
+  }, [existingIdeas.length]);
 
   const generateIdeas = async () => {
     setIsGenerating(true);

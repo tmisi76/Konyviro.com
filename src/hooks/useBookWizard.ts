@@ -86,6 +86,11 @@ export function useBookWizard() {
     setData(prev => ({
       ...prev,
       ...info,
+      // Töröljük az ötleteket és minden utána következő adatot, hogy újrageneráljuk
+      storyIdeas: [],
+      selectedStoryIdea: null,
+      detailedConcept: "",
+      chapterOutline: [],
     }));
     setIsDirty(true);
   }, []);
