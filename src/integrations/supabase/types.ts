@@ -345,6 +345,39 @@ export type Database = {
           },
         ]
       }
+      credit_purchases: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          status: string
+          stripe_session_id: string
+          user_id: string
+          words_purchased: number
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          stripe_session_id: string
+          user_id: string
+          words_purchased: number
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          stripe_session_id?: string
+          user_id?: string
+          words_purchased?: number
+        }
+        Relationships: []
+      }
       founder_spots: {
         Row: {
           created_at: string
@@ -374,6 +407,7 @@ export type Database = {
           adult_content_verified: boolean
           adult_verified_at: string | null
           created_at: string
+          extra_words_balance: number
           founder_discount_applied: boolean
           full_name: string | null
           id: string
@@ -393,6 +427,7 @@ export type Database = {
           adult_content_verified?: boolean
           adult_verified_at?: string | null
           created_at?: string
+          extra_words_balance?: number
           founder_discount_applied?: boolean
           full_name?: string | null
           id?: string
@@ -412,6 +447,7 @@ export type Database = {
           adult_content_verified?: boolean
           adult_verified_at?: string | null
           created_at?: string
+          extra_words_balance?: number
           founder_discount_applied?: boolean
           full_name?: string | null
           id?: string
@@ -738,6 +774,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_extra_credits: {
+        Args: { p_user_id: string; p_word_count: number }
+        Returns: undefined
+      }
       increment_projects_created: {
         Args: { p_user_id: string }
         Returns: undefined
@@ -745,6 +785,10 @@ export type Database = {
       increment_words_generated: {
         Args: { p_user_id: string; p_word_count: number }
         Returns: undefined
+      }
+      use_extra_credits: {
+        Args: { p_user_id: string; p_word_count: number }
+        Returns: boolean
       }
     }
     Enums: {

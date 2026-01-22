@@ -28,7 +28,7 @@ export function useSubscription() {
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select(
-          "subscription_tier, subscription_status, is_founder, founder_discount_applied, subscription_start_date, subscription_end_date, monthly_word_limit, project_limit"
+          "subscription_tier, subscription_status, is_founder, founder_discount_applied, subscription_start_date, subscription_end_date, monthly_word_limit, project_limit, extra_words_balance"
         )
         .eq("user_id", user.id)
         .single();
@@ -44,6 +44,7 @@ export function useSubscription() {
         endDate: profile.subscription_end_date,
         monthlyWordLimit: profile.monthly_word_limit || 5000,
         projectLimit: profile.project_limit || 1,
+        extraWordsBalance: profile.extra_words_balance || 0,
       });
 
       // Fetch current month usage
@@ -99,7 +100,11 @@ export function useSubscription() {
     (wordCount: number) => {
       if (!subscription || !usage) return false;
       if (subscription.monthlyWordLimit === -1) return true; // unlimited
-      return usage.wordsGenerated + wordCount <= subscription.monthlyWordLimit;
+      
+      const remainingMonthly = subscription.monthlyWordLimit - usage.wordsGenerated;
+      const totalAvailable = remainingMonthly + subscription.extraWordsBalance;
+      
+      return wordCount <= totalAvailable;
     },
     [subscription, usage]
   );
@@ -107,7 +112,8 @@ export function useSubscription() {
   const getRemainingWords = useCallback(() => {
     if (!subscription || !usage) return 0;
     if (subscription.monthlyWordLimit === -1) return Infinity;
-    return Math.max(0, subscription.monthlyWordLimit - usage.wordsGenerated);
+    const remainingMonthly = Math.max(0, subscription.monthlyWordLimit - usage.wordsGenerated);
+    return remainingMonthly + subscription.extraWordsBalance;
   }, [subscription, usage]);
 
   const isFounderProgramOpen = useCallback(() => {
