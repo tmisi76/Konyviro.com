@@ -122,6 +122,8 @@ export default function Dashboard() {
       setIsUpgradeModalOpen(true);
       return;
     }
+    // Clear wizard state to ensure a fresh project creation
+    sessionStorage.removeItem("book-wizard-data");
     navigate("/create-book");
   };
 
