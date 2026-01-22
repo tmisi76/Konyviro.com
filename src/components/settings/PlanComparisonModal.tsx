@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { SUBSCRIPTION_PLANS, type SubscriptionTier } from "@/types/subscription";
 import { useStripeSubscription } from "@/hooks/useStripeSubscription";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useCheckout } from "@/hooks/useCheckout";
 
 interface PlanComparisonModalProps {
@@ -42,19 +43,31 @@ const PRICE_IDS = {
 const TIER_ORDER: SubscriptionTier[] = ["free", "hobby", "writer", "pro"];
 
 export function PlanComparisonModal({ open, onOpenChange }: PlanComparisonModalProps) {
-  const { subscription, refresh } = useStripeSubscription();
+  const { subscription: stripeData, refresh } = useStripeSubscription();
+  const { subscription: dbSubscription } = useSubscription();
   const { createCheckoutSession, isLoading: isCheckoutLoading } = useCheckout();
   const [isYearly, setIsYearly] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingTier, setProcessingTier] = useState<string | null>(null);
 
-  const currentTier = subscription.tier;
+  // Database is the primary source for tier (synced via Stripe webhook)
+  const currentTier = dbSubscription?.tier || stripeData.tier || "free";
+  const currentBillingInterval = stripeData.billingInterval;
   const visiblePlans = SUBSCRIPTION_PLANS.filter((p) => !p.isHidden);
 
   const getTierIndex = (tier: SubscriptionTier) => TIER_ORDER.indexOf(tier);
 
+  // Check if switching billing period for same plan
+  const isSamePlanDifferentBilling = (planId: string) => {
+    return planId === currentTier && 
+      currentBillingInterval !== null &&
+      ((isYearly && currentBillingInterval === "month") ||
+       (!isYearly && currentBillingInterval === "year"));
+  };
+
   const handlePlanSelect = async (plan: typeof SUBSCRIPTION_PLANS[0]) => {
-    if (plan.isFree || plan.id === currentTier) return;
+    const canSwitchBilling = isSamePlanDifferentBilling(plan.id);
+    if (plan.isFree || (plan.id === currentTier && !canSwitchBilling)) return;
 
     const tierIndex = getTierIndex(plan.id as SubscriptionTier);
     const currentIndex = getTierIndex(currentTier);
@@ -117,29 +130,36 @@ export function PlanComparisonModal({ open, onOpenChange }: PlanComparisonModalP
         </DialogHeader>
 
         {/* Billing Period Toggle */}
-        <div className="flex items-center justify-center gap-4 py-4">
-          <Label 
-            htmlFor="billing-period" 
-            className={cn("text-sm", !isYearly && "text-foreground font-medium")}
-          >
-            Havi
-          </Label>
-          <Switch
-            id="billing-period"
-            checked={isYearly}
-            onCheckedChange={setIsYearly}
-          />
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col items-center gap-2 py-4">
+          <div className="flex items-center gap-4">
             <Label 
               htmlFor="billing-period" 
-              className={cn("text-sm", isYearly && "text-foreground font-medium")}
+              className={cn("text-sm", !isYearly && "text-foreground font-medium")}
             >
-              Éves
+              Havi
             </Label>
-            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-              -50%
-            </Badge>
+            <Switch
+              id="billing-period"
+              checked={isYearly}
+              onCheckedChange={setIsYearly}
+            />
+            <div className="flex items-center gap-2">
+              <Label 
+                htmlFor="billing-period" 
+                className={cn("text-sm", isYearly && "text-foreground font-medium")}
+              >
+                Éves
+              </Label>
+              <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                -50%
+              </Badge>
+            </div>
           </div>
+          {currentBillingInterval && currentTier !== "free" && (
+            <p className="text-xs text-muted-foreground">
+              Jelenlegi előfizetésed: {currentBillingInterval === "month" ? "havi" : "éves"}
+            </p>
+          )}
         </div>
 
         {/* Plans Grid */}
@@ -232,9 +252,22 @@ export function PlanComparisonModal({ open, onOpenChange }: PlanComparisonModalP
                   <Button variant="outline" disabled className="w-full">
                     Ingyenes
                   </Button>
-                ) : isCurrentPlan ? (
+                ) : isCurrentPlan && !isSamePlanDifferentBilling(plan.id) ? (
                   <Button variant="outline" disabled className="w-full">
                     Jelenlegi csomag
+                  </Button>
+                ) : isSamePlanDifferentBilling(plan.id) ? (
+                  <Button
+                    onClick={() => handlePlanSelect(plan)}
+                    disabled={isProcessing || isCheckoutLoading}
+                    className="w-full"
+                  >
+                    {processingTier === plan.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArrowRight className="mr-2 h-4 w-4" />
+                    )}
+                    Váltás {isYearly ? "évesre" : "havira"}
                   </Button>
                 ) : (
                   <Button

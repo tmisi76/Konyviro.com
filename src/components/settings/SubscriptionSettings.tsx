@@ -235,33 +235,24 @@ export function SubscriptionSettings() {
         </div>
       </div>
 
-      {/* Plan Comparison */}
+      {/* Plan Change */}
       <div className="rounded-xl border bg-card p-6 shadow-material-1">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">Csomagok összehasonlítása</h3>
+            <h3 className="text-lg font-semibold text-foreground">Csomag módosítása</h3>
             <p className="text-sm text-muted-foreground">
-              Tekintsd meg a csomagok közti különbségeket
+              Tekintsd meg a csomagokat és válts, ha szeretnél
             </p>
           </div>
-          <Button variant="outline" onClick={() => setIsPlanModalOpen(true)}>
+          <Button onClick={() => setIsPlanModalOpen(true)}>
             Csomagok megtekintése
           </Button>
         </div>
-
-        {tier !== "pro" && (
-          <>
-            <Separator className="my-4" />
-            <div className="flex items-center justify-between rounded-lg bg-primary/5 p-4">
-              <div>
-                <p className="font-medium text-foreground">Válts nagyobb csomagra</p>
-                <p className="text-sm text-muted-foreground">
-                  Az árból levonjuk a fennmaradó időszak arányos részét
-                </p>
-              </div>
-              <Button onClick={() => setIsPlanModalOpen(true)}>Frissítés</Button>
-            </div>
-          </>
+        
+        {tier !== "pro" && tier !== "free" && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Frissítéskor az árból levonjuk a fennmaradó időszak arányos részét.
+          </p>
         )}
       </div>
 
