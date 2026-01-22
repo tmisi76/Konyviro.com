@@ -431,67 +431,82 @@ export type Database = {
       }
       projects: {
         Row: {
+          additional_instructions: string | null
           complexity: number | null
           created_at: string
           description: string | null
           generated_story: string | null
           genre: string
           id: string
+          selected_story_idea: Json | null
           status: string
           story_idea: string | null
           story_structure: Json | null
           style_action: boolean | null
           style_descriptive: boolean | null
           style_dialogue: boolean | null
+          subcategory: string | null
           target_audience: string | null
           target_word_count: number
           title: string
           tone: string | null
           updated_at: string
           user_id: string
+          wizard_step: number | null
           word_count: number
+          writing_status: string | null
         }
         Insert: {
+          additional_instructions?: string | null
           complexity?: number | null
           created_at?: string
           description?: string | null
           generated_story?: string | null
           genre: string
           id?: string
+          selected_story_idea?: Json | null
           status?: string
           story_idea?: string | null
           story_structure?: Json | null
           style_action?: boolean | null
           style_descriptive?: boolean | null
           style_dialogue?: boolean | null
+          subcategory?: string | null
           target_audience?: string | null
           target_word_count?: number
           title: string
           tone?: string | null
           updated_at?: string
           user_id: string
+          wizard_step?: number | null
           word_count?: number
+          writing_status?: string | null
         }
         Update: {
+          additional_instructions?: string | null
           complexity?: number | null
           created_at?: string
           description?: string | null
           generated_story?: string | null
           genre?: string
           id?: string
+          selected_story_idea?: Json | null
           status?: string
           story_idea?: string | null
           story_structure?: Json | null
           style_action?: boolean | null
           style_descriptive?: boolean | null
           style_dialogue?: boolean | null
+          subcategory?: string | null
           target_audience?: string | null
           target_word_count?: number
           title?: string
           tone?: string | null
           updated_at?: string
           user_id?: string
+          wizard_step?: number | null
           word_count?: number
+          writing_status?: string | null
         }
         Relationships: []
       }

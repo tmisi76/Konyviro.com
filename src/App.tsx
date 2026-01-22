@@ -24,6 +24,7 @@ const ProjectExport = lazy(() => import("./pages/ProjectExport"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const Install = lazy(() => import("./pages/Install"));
+const CreateBook = lazy(() => import("./pages/CreateBook"));
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,16 @@ function AppContent() {
             <ProtectedRoute>
               <Suspense fallback={<FullPageLoader message="Irányítópult betöltése..." />}>
                 <Dashboard />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/create-book"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Wizard betöltése..." />}>
+                <CreateBook />
               </Suspense>
             </ProtectedRoute>
           }
