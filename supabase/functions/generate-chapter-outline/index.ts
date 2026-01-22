@@ -13,8 +13,8 @@ serve(async (req) => {
   try {
     const { genre, length, concept } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(JSON.stringify({ error: "AI service not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -23,6 +23,8 @@ serve(async (req) => {
 
     const chapterCount = length === "short" ? 10 : length === "medium" ? 18 : 28;
     const wordsPerChapter = length === "short" ? 3000 : length === "medium" ? 3500 : 4000;
+
+    const systemPrompt = "Te egy professzionális könyvszerkesztő vagy. Mindig érvényes JSON-t adj vissza.";
 
     const prompt = `A következő könyv koncepció alapján készíts egy részletes fejezet struktúrát:
 
@@ -54,20 +56,18 @@ A fejezetek:
 - Építsék fel a feszültséget/tartalmat
 - Legyenek a címek kreatívak és utalók`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: "Te egy professzionális könyvszerkesztő vagy. Mindig érvényes JSON-t adj vissza." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.7,
+        model: "claude-sonnet-4-5-20250514",
         max_tokens: 4000,
+        system: systemPrompt,
+        messages: [{ role: "user", content: prompt }],
       }),
     });
 
@@ -76,7 +76,7 @@ A fejezetek:
     }
 
     const aiData = await response.json();
-    let content = aiData.choices?.[0]?.message?.content || "";
+    let content = aiData.content?.[0]?.text || "";
     
     if (content.startsWith("```json")) content = content.slice(7);
     if (content.startsWith("```")) content = content.slice(3);

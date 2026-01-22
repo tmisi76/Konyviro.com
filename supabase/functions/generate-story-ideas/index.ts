@@ -13,8 +13,8 @@ serve(async (req) => {
   try {
     const { genre, subcategory, tone, length, targetAudience, additionalInstructions } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(JSON.stringify({ error: "AI service not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -22,6 +22,8 @@ serve(async (req) => {
     }
 
     const isFiction = genre === "fiction";
+    const systemPrompt = "Te egy kreatív könyvíró asszisztens vagy. Mindig érvényes JSON-t adj vissza.";
+    
     const prompt = `Generálj 3 egyedi ${isFiction ? "sztori" : "könyv"} ötletet a következő paraméterek alapján:
 
 Műfaj: ${isFiction ? "Fiction" : "Szakkönyv"}
@@ -52,20 +54,18 @@ Az ötletek legyenek:
 - Potenciálisan bestseller minőségűek
 - Egymástól jelentősen különbözők`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: "Te egy kreatív könyvíró asszisztens vagy. Mindig érvényes JSON-t adj vissza." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.9,
+        model: "claude-sonnet-4-5-20250514",
         max_tokens: 2000,
+        system: systemPrompt,
+        messages: [{ role: "user", content: prompt }],
       }),
     });
 
@@ -74,7 +74,7 @@ Az ötletek legyenek:
     }
 
     const aiData = await response.json();
-    let content = aiData.choices?.[0]?.message?.content || "";
+    let content = aiData.content?.[0]?.text || "";
     
     // Clean JSON from markdown
     if (content.startsWith("```json")) content = content.slice(7);
