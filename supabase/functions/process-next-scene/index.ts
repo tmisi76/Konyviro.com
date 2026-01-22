@@ -88,8 +88,30 @@ serve(async (req) => {
       if (targetChapter) break;
     }
 
-    // If no pending scenes, mark as completed
+    // If no pending scenes, check why
     if (!targetChapter) {
+      // Check if any chapter has scenes at all
+      const hasAnyScenes = chapters.some(ch => 
+        ch.scene_outline && (ch.scene_outline as any[]).length > 0
+      );
+      
+      if (!hasAnyScenes) {
+        // No scenes exist - this is an error state
+        await supabase
+          .from("projects")
+          .update({ 
+            writing_status: "failed", 
+            background_error: "Nincsenek jelenet vázlatok. Kérlek próbáld újra indítani a háttérírást." 
+          })
+          .eq("id", projectId);
+        
+        return new Response(
+          JSON.stringify({ error: "Nincsenek jelenet vázlatok", status: "failed" }), 
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // All scenes are completed - book is done!
       await supabase
         .from("projects")
         .update({ writing_status: "completed", background_error: null })
