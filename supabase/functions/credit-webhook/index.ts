@@ -26,10 +26,9 @@ serve(async (req) => {
       event = JSON.parse(body) as Stripe.Event;
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -41,6 +40,7 @@ serve(async (req) => {
 
       const userId = session.metadata?.user_id;
       const wordsPurchased = parseInt(session.metadata?.words_purchased || "0", 10);
+      const amountPaid = session.amount_total ? session.amount_total / 100 : 0;
 
       if (!userId || !wordsPurchased) {
         console.error("Missing metadata:", session.metadata);
@@ -60,6 +60,16 @@ serve(async (req) => {
         throw creditError;
       }
 
+      // Get updated balance and user email
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("extra_words_balance")
+        .eq("user_id", userId)
+        .single();
+
+      const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
+      const userEmail = userData?.user?.email;
+
       // Update purchase record
       const { error: updateError } = await supabaseAdmin
         .from("credit_purchases")
@@ -71,6 +81,28 @@ serve(async (req) => {
 
       if (updateError) {
         console.error("Error updating purchase record:", updateError);
+      }
+
+      // Send confirmation email
+      if (userEmail) {
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/send-credit-email`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              email: userEmail,
+              wordsPurchased,
+              amountPaid,
+              newBalance: profile?.extra_words_balance || wordsPurchased,
+            }),
+          });
+          console.log("Credit email sent to:", userEmail);
+        } catch (emailError) {
+          console.error("Failed to send credit email:", emailError);
+        }
       }
 
       console.log(`Successfully added ${wordsPurchased} credits for user ${userId}`);

@@ -8,11 +8,21 @@ const corsHeaders = {
 };
 
 // Credit packages with price IDs
-const CREDIT_PACKAGES = {
-  "10000": {
-    priceId: "price_1SsMriBqXALGTPIrduUDOZHE",
-    words: 10000,
-    amount: 990, // 990 Ft
+const CREDIT_PACKAGES: Record<string, { priceId: string; words: number; amount: number }> = {
+  "25000": {
+    priceId: "price_1SsNyUBqXALGTPIrMfVes3Ca",
+    words: 25000,
+    amount: 1990,
+  },
+  "50000": {
+    priceId: "price_1SsNyVBqXALGTPIrhX4ZinrH",
+    words: 50000,
+    amount: 3490,
+  },
+  "100000": {
+    priceId: "price_1SsNyWBqXALGTPIrRZDAJytx",
+    words: 100000,
+    amount: 5990,
   },
 };
 

@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.credit-webhook]
 verify_jwt = false
+
+[functions.send-credit-email]
+verify_jwt = false
