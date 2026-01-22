@@ -266,6 +266,31 @@ export function useBookWizard() {
     setCurrentStep(7);
   }, [data.projectId, saveProject]);
 
+  const startBackgroundWriting = useCallback(async () => {
+    let projectIdToUse = data.projectId;
+    
+    if (!projectIdToUse) {
+      const savedProjectId = await saveProject();
+      if (!savedProjectId) {
+        throw new Error("Nem sikerült menteni a projektet");
+      }
+      projectIdToUse = savedProjectId;
+    }
+    
+    // Call the background write edge function
+    const { error } = await supabase.functions.invoke("start-background-write", {
+      body: { projectId: projectIdToUse },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // Reset wizard and navigate to dashboard
+    reset();
+    navigate("/dashboard");
+  }, [data.projectId, saveProject, reset, navigate]);
+
   return {
     currentStep,
     data,
@@ -286,5 +311,6 @@ export function useBookWizard() {
     saveChapterOutline,
     reset,
     startWriting,
+    startBackgroundWriting,
   };
 }

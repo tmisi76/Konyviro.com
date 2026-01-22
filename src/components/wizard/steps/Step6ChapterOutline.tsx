@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { WritingModeDialog, WritingMode } from "../WritingModeDialog";
 import type { ChapterOutlineItem, Genre, BookLength } from "@/types/wizard";
 
 interface Step6ChapterOutlineProps {
@@ -29,6 +30,7 @@ interface Step6ChapterOutlineProps {
   onOutlineChange: (outline: ChapterOutlineItem[]) => void;
   onSave: () => Promise<boolean>;
   onStartWriting: () => void;
+  onStartBackgroundWriting?: () => Promise<void>;
   isSaving: boolean;
   isDirty: boolean;
 }
@@ -42,6 +44,7 @@ export function Step6ChapterOutline({
   onOutlineChange,
   onSave,
   onStartWriting,
+  onStartBackgroundWriting,
   isSaving,
   isDirty,
 }: Step6ChapterOutlineProps) {
@@ -50,8 +53,13 @@ export function Step6ChapterOutline({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ChapterOutlineItem>>({});
   const [lastConceptHash, setLastConceptHash] = useState<string | null>(null);
+  const [showModeDialog, setShowModeDialog] = useState(false);
+  const [isStartingBackground, setIsStartingBackground] = useState(false);
 
   const hasOutline = chapters.length > 0;
+
+  // Estimate writing time based on chapters
+  const estimatedMinutes = Math.round(chapters.reduce((sum, ch) => sum + ch.estimatedWords, 0) / 500);
 
   // Sync with existingOutline prop when it changes (e.g., when cleared by wizard)
   useEffect(() => {
@@ -157,6 +165,29 @@ export function Step6ChapterOutline({
     const success = await onSave();
     if (success) {
       toast.success("Fejezetek mentve!");
+    }
+  };
+
+  const handleStartWritingClick = () => {
+    setShowModeDialog(true);
+  };
+
+  const handleModeSelect = async (mode: WritingMode) => {
+    if (mode === "live") {
+      setShowModeDialog(false);
+      onStartWriting();
+    } else if (mode === "background" && onStartBackgroundWriting) {
+      setIsStartingBackground(true);
+      try {
+        await onStartBackgroundWriting();
+        setShowModeDialog(false);
+        toast.success("Háttérben való írás elindítva! Email értesítést kapsz, ha kész a könyv.");
+      } catch (error) {
+        console.error("Error starting background write:", error);
+        toast.error("Hiba történt a háttérben való írás indításakor");
+      } finally {
+        setIsStartingBackground(false);
+      }
     }
   };
 
@@ -378,7 +409,7 @@ export function Step6ChapterOutline({
               </Button>
               <Button
                 size="lg"
-                onClick={onStartWriting}
+                onClick={handleStartWritingClick}
                 disabled={isDirty || !projectId}
                 className="gap-2"
               >
@@ -389,6 +420,15 @@ export function Step6ChapterOutline({
           </div>
         )}
       </motion.div>
+
+      {/* Writing Mode Selection Dialog */}
+      <WritingModeDialog
+        open={showModeDialog}
+        onOpenChange={setShowModeDialog}
+        onSelectMode={handleModeSelect}
+        isStarting={isStartingBackground}
+        estimatedMinutes={estimatedMinutes}
+      />
     </div>
   );
 }
