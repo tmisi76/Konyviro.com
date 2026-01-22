@@ -492,6 +492,7 @@ export type Database = {
           complexity: number | null
           created_at: string
           description: string | null
+          fiction_style: Json | null
           generated_story: string | null
           genre: string
           id: string
@@ -522,6 +523,7 @@ export type Database = {
           complexity?: number | null
           created_at?: string
           description?: string | null
+          fiction_style?: Json | null
           generated_story?: string | null
           genre: string
           id?: string
@@ -552,6 +554,7 @@ export type Database = {
           complexity?: number | null
           created_at?: string
           description?: string | null
+          fiction_style?: Json | null
           generated_story?: string | null
           genre?: string
           id?: string
