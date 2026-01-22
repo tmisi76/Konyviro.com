@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, Check, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { StoryIdea, Genre, Subcategory, Tone, AuthorProfile } from "@/types/wizard";
+import type { StoryIdea, Genre, Subcategory, Tone, AuthorProfile, FictionStyleSettings } from "@/types/wizard";
 
 interface Step5StoryDetailProps {
   genre: Genre;
@@ -17,6 +17,7 @@ interface Step5StoryDetailProps {
   onConceptGenerated: (concept: string) => void;
   onAccept: () => void;
   authorProfile?: AuthorProfile | null;
+  fictionStyle?: FictionStyleSettings | null;
 }
 
 export function Step5StoryDetail({
