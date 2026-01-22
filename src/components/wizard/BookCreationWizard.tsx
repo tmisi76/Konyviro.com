@@ -49,6 +49,7 @@ export function BookCreationWizard() {
     saveChapterOutline,
     reset,
     startWriting,
+    startBackgroundWriting,
   } = useBookWizard();
 
   const handleClose = () => {
@@ -163,6 +164,7 @@ export function BookCreationWizard() {
               onOutlineChange={setChapterOutline}
               onSave={handleSaveOutline}
               onStartWriting={startWriting}
+              onStartBackgroundWriting={startBackgroundWriting}
               isSaving={isSaving}
               isDirty={isDirty}
             />

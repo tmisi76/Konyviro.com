@@ -432,6 +432,8 @@ export type Database = {
       projects: {
         Row: {
           additional_instructions: string | null
+          background_error: string | null
+          background_started_at: string | null
           complexity: number | null
           created_at: string
           description: string | null
@@ -454,10 +456,13 @@ export type Database = {
           user_id: string
           wizard_step: number | null
           word_count: number
+          writing_mode: string | null
           writing_status: string | null
         }
         Insert: {
           additional_instructions?: string | null
+          background_error?: string | null
+          background_started_at?: string | null
           complexity?: number | null
           created_at?: string
           description?: string | null
@@ -480,10 +485,13 @@ export type Database = {
           user_id: string
           wizard_step?: number | null
           word_count?: number
+          writing_mode?: string | null
           writing_status?: string | null
         }
         Update: {
           additional_instructions?: string | null
+          background_error?: string | null
+          background_started_at?: string | null
           complexity?: number | null
           created_at?: string
           description?: string | null
@@ -506,6 +514,7 @@ export type Database = {
           user_id?: string
           wizard_step?: number | null
           word_count?: number
+          writing_mode?: string | null
           writing_status?: string | null
         }
         Relationships: []

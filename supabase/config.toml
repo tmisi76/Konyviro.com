@@ -35,3 +35,12 @@ verify_jwt = false
 
 [functions.write-section]
 verify_jwt = false
+
+[functions.process-next-scene]
+verify_jwt = false
+
+[functions.start-background-write]
+verify_jwt = false
+
+[functions.send-completion-email]
+verify_jwt = false
