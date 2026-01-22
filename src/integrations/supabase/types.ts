@@ -112,9 +112,11 @@ export type Database = {
       chapters: {
         Row: {
           created_at: string
+          generation_status: string | null
           id: string
           key_points: string[] | null
           project_id: string
+          scene_outline: Json | null
           sort_order: number
           status: string
           summary: string | null
@@ -124,9 +126,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          generation_status?: string | null
           id?: string
           key_points?: string[] | null
           project_id: string
+          scene_outline?: Json | null
           sort_order?: number
           status?: string
           summary?: string | null
@@ -136,9 +140,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          generation_status?: string | null
           id?: string
           key_points?: string[] | null
           project_id?: string
+          scene_outline?: Json | null
           sort_order?: number
           status?: string
           summary?: string | null
