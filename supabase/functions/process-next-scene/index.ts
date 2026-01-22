@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 const PROMPTS: Record<string, string> = {
   fiction: "Te egy bestseller magyar író vagy. Írj gazdag leírásokkal és párbeszédekkel.",
@@ -30,8 +29,6 @@ serve(async (req) => {
 
     if (!targetChapter) {
       await supabase.from("projects").update({ writing_status: "completed", background_error: null }).eq("id", projectId);
-      const { data: userData } = await supabase.auth.admin.getUserById(project.user_id);
-      if (userData?.user?.email) { try { await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-completion-email`, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` }, body: JSON.stringify({ email: userData.user.email, projectTitle: project.title, projectId }) }); } catch {} }
       return new Response(JSON.stringify({ status: "completed" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -45,20 +42,22 @@ serve(async (req) => {
     const scene = scenes[targetSceneIndex];
     const prompt = `Írj jelenetet:\nFejezet: ${targetChapter.title}\nJelenet ${targetSceneIndex + 1}/${scenes.length}\nPOV: ${scene.pov || "Harmadik személy"}\nHelyszín: ${scene.location}\nLeírás: ${scene.description}\nKulcsesemények: ${(scene.key_events || []).join(", ")}\nCél: ~${scene.target_words || 1000} szó${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    let sceneText = "";
-    for (let i = 0; i < 5; i++) {
-      const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: "claude-sonnet-4-5-20250929", max_tokens: Math.min((scene.target_words || 1000) * 2, 8000), system: PROMPTS[genre], messages: [{ role: "user", content: prompt }] }) });
-      if (res.ok) { const d = await res.json(); sceneText = d.content?.[0]?.text || ""; break; }
-      if (res.status === 429) { await sleep(30000 * (i + 1)); continue; }
-      throw new Error(`API: ${res.status}`);
-    }
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: PROMPTS[genre] }, { role: "user", content: prompt }], max_tokens: Math.min((scene.target_words || 1000) * 2, 8000) }),
+    });
+
+    if (!res.ok) throw new Error(`API: ${res.status}`);
+    const d = await res.json();
+    const sceneText = d.choices?.[0]?.message?.content || "";
     if (!sceneText) throw new Error("Generálás sikertelen");
 
     const { data: lastBlock } = await supabase.from("blocks").select("sort_order").eq("chapter_id", targetChapter.id).order("sort_order", { ascending: false }).limit(1).single();
     let sortOrder = (lastBlock?.sort_order || 0) + 1;
-    const paragraphs = sceneText.split(/\n\n+/).filter(p => p.trim());
-    if (paragraphs.length) await supabase.from("blocks").insert(paragraphs.map((c, i) => ({ chapter_id: targetChapter.id, type: "paragraph", content: c.trim(), sort_order: sortOrder + i })));
+    const paragraphs = sceneText.split(/\n\n+/).filter((p: string) => p.trim());
+    if (paragraphs.length) await supabase.from("blocks").insert(paragraphs.map((c: string, i: number) => ({ chapter_id: targetChapter.id, type: "paragraph", content: c.trim(), sort_order: sortOrder + i })));
 
     scenes[targetSceneIndex].status = "completed";
     const wordCount = sceneText.split(/\s+/).length;
@@ -69,12 +68,11 @@ serve(async (req) => {
     const totalWords = chapters.reduce((sum, ch) => sum + (ch.id === targetChapter.id ? newWordCount : (ch.word_count || 0)), 0);
     await supabase.from("projects").update({ word_count: totalWords }).eq("id", projectId);
 
-    // Billing
     const month = new Date().toISOString().slice(0, 7);
     const { data: profile } = await supabase.from("profiles").select("monthly_word_limit, extra_words_balance").eq("user_id", project.user_id).single();
     const { data: usage } = await supabase.from("user_usage").select("words_generated").eq("user_id", project.user_id).eq("month", month).single();
     const limit = profile?.monthly_word_limit || 5000, used = usage?.words_generated || 0, extra = profile?.extra_words_balance || 0, remaining = Math.max(0, limit - used);
-    if (limit === -1 || wordCount <= remaining) { await supabase.rpc("increment_words_generated", { p_user_id: project.user_id, p_word_count: wordCount }); }
+    if (limit === -1 || wordCount <= remaining) await supabase.rpc("increment_words_generated", { p_user_id: project.user_id, p_word_count: wordCount });
     else { if (remaining > 0) await supabase.rpc("increment_words_generated", { p_user_id: project.user_id, p_word_count: remaining }); const fromExtra = Math.min(wordCount - remaining, extra); if (fromExtra > 0) await supabase.rpc("use_extra_credits", { p_user_id: project.user_id, p_word_count: fromExtra }); }
 
     return new Response(JSON.stringify({ status: "scene_completed", chapterId: targetChapter.id, sceneIndex: targetSceneIndex, wordsWritten: wordCount, totalWords }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
