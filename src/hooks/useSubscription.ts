@@ -121,6 +121,29 @@ export function useSubscription() {
     return founderSpots.spotsTaken < founderSpots.totalSpots;
   }, [founderSpots]);
 
+  const getNextResetDate = useCallback(() => {
+    if (!subscription?.startDate) {
+      // Free tier: first day of next month
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+    // Paid tier: reset on subscription anniversary day
+    const startDate = new Date(subscription.startDate);
+    const dayOfMonth = startDate.getDate();
+    const now = new Date();
+    let nextReset = new Date(now.getFullYear(), now.getMonth(), dayOfMonth);
+    if (nextReset <= now) {
+      nextReset = new Date(now.getFullYear(), now.getMonth() + 1, dayOfMonth);
+    }
+    return nextReset;
+  }, [subscription?.startDate]);
+
+  const isProjectLimitReached = useCallback(() => {
+    if (!subscription || !usage) return false;
+    if (subscription.projectLimit === -1) return false; // unlimited
+    return usage.projectsCreated >= subscription.projectLimit;
+  }, [subscription, usage]);
+
   return {
     subscription,
     founderSpots,
@@ -130,6 +153,8 @@ export function useSubscription() {
     canGenerateWords,
     getRemainingWords,
     isFounderProgramOpen,
+    getNextResetDate,
+    isProjectLimitReached,
     refetch: fetchSubscription,
   };
 }

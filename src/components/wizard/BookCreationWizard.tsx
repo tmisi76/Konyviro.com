@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, X } from "lucide-react";
 import { WizardProgress } from "./WizardProgress";
 import { useBookWizard } from "@/hooks/useBookWizard";
+import { useSubscription } from "@/hooks/useSubscription";
 import { Step1Genre } from "./steps/Step1Genre";
 import { Step2Subcategory } from "./steps/Step2Subcategory";
 import { Step3BasicInfo } from "./steps/Step3BasicInfo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 const Step4StoryIdeas = lazy(() => import("./steps/Step4StoryIdeas").then(m => ({ default: m.Step4StoryIdeas })));
 const Step5StoryDetail = lazy(() => import("./steps/Step5StoryDetail").then(m => ({ default: m.Step5StoryDetail })));
@@ -31,6 +33,7 @@ function StepLoader() {
 
 export function BookCreationWizard() {
   const navigate = useNavigate();
+  const { isProjectLimitReached, isLoading: isSubscriptionLoading } = useSubscription();
   const {
     currentStep,
     data,
@@ -51,6 +54,14 @@ export function BookCreationWizard() {
     startWriting,
     startBackgroundWriting,
   } = useBookWizard();
+
+  // Check project limit on mount
+  useEffect(() => {
+    if (!isSubscriptionLoading && isProjectLimitReached()) {
+      toast.error("Elérted a projekt limitet. Frissíts a csomagodra!");
+      navigate("/dashboard");
+    }
+  }, [isSubscriptionLoading, isProjectLimitReached, navigate]);
 
   const handleClose = () => {
     if (isDirty) {

@@ -23,11 +23,23 @@ export function UsagePanel() {
   const { subscription, usage, isLoading } = useSubscription();
   const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
 
-  // Calculate next reset date (first day of next month)
+  // Calculate next reset date based on subscription start date
   const nextResetDate = useMemo(() => {
-    const nextMonth = addMonths(startOfMonth(new Date()), 1);
-    return format(nextMonth, "yyyy. MMMM d.", { locale: hu });
-  }, []);
+    if (!subscription?.startDate) {
+      // Free tier: first day of next month
+      const nextMonth = addMonths(startOfMonth(new Date()), 1);
+      return format(nextMonth, "yyyy. MMMM d.", { locale: hu });
+    }
+    // Paid tier: reset on subscription anniversary day
+    const startDate = new Date(subscription.startDate);
+    const dayOfMonth = startDate.getDate();
+    const now = new Date();
+    let nextReset = new Date(now.getFullYear(), now.getMonth(), dayOfMonth);
+    if (nextReset <= now) {
+      nextReset = new Date(now.getFullYear(), now.getMonth() + 1, dayOfMonth);
+    }
+    return format(nextReset, "yyyy. MMMM d.", { locale: hu });
+  }, [subscription?.startDate]);
 
   // Calculate usage percentages
   const wordUsage = useMemo(() => {
@@ -216,7 +228,7 @@ export function UsagePanel() {
           <Button 
             onClick={() => setShowBuyCreditModal(true)} 
             variant="outline"
-            className="w-full gap-2 border-primary text-primary hover:bg-primary/10"
+            className="w-full gap-2 border-primary text-primary hover:text-primary hover:bg-primary/25"
             size="sm"
           >
             <Plus className="h-4 w-4" />
