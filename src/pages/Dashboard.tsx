@@ -94,7 +94,7 @@ export default function Dashboard() {
 
   // Handlers
   const handleNewProject = () => {
-    setIsCreateModalOpen(true);
+    navigate("/create-book");
   };
 
   const handleProjectSelect = (id: string) => {
