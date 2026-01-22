@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSubscription } from "@/hooks/useSubscription";
 
 export type AIAction = "continue" | "rewrite" | "shorten" | "expand" | "dialogue" | "description" | "chat" | "write_chapter";
 
@@ -30,17 +31,29 @@ export function useAIGeneration({ projectId, chapterId, genre }: UseAIGeneration
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedText, setGeneratedText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { canGenerateWords, getRemainingWords, subscription } = useSubscription();
 
   const generate = useCallback(async (
     action: AIAction,
     prompt: string,
     context: AIContext,
-    settings: AISettings
-  ) => {
+    settings: AISettings,
+    estimatedWords: number = 500
+  ): Promise<string | null> => {
+    // Check if user can generate words
+    if (!canGenerateWords(estimatedWords)) {
+      setLimitReached(true);
+      const remaining = getRemainingWords();
+      toast.error(`AI limit elérve! ${remaining === 0 ? "Nincs több szavad erre a hónapra." : `Csak ${remaining} szó maradt.`}`);
+      return null;
+    }
+
     setIsGenerating(true);
     setGeneratedText("");
     setError(null);
+    setLimitReached(false);
 
     // Abort any previous request
     if (abortControllerRef.current) {
@@ -151,7 +164,7 @@ export function useAIGeneration({ projectId, chapterId, genre }: UseAIGeneration
       setIsGenerating(false);
       return null;
     }
-  }, [projectId, chapterId, genre]);
+  }, [projectId, chapterId, genre, canGenerateWords, getRemainingWords]);
 
   const cancel = useCallback(() => {
     if (abortControllerRef.current) {
@@ -164,12 +177,16 @@ export function useAIGeneration({ projectId, chapterId, genre }: UseAIGeneration
   const reset = useCallback(() => {
     setGeneratedText("");
     setError(null);
+    setLimitReached(false);
   }, []);
 
   return {
     isGenerating,
     generatedText,
     error,
+    limitReached,
+    remainingWords: getRemainingWords(),
+    monthlyLimit: subscription?.monthlyWordLimit || 0,
     generate,
     cancel,
     reset,

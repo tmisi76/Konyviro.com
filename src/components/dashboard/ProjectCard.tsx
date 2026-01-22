@@ -151,7 +151,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 relative z-10"
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
@@ -226,11 +226,11 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
         Utoljára szerkesztve: {formatRelativeTime(project.lastEditedAt)}
       </p>
 
-      {/* Hover overlay for quick action */}
+      {/* Hover overlay for quick action - excludes header area */}
       <button
         onClick={() => onOpen(project.id)}
         className={cn(
-          "absolute inset-0 flex items-center justify-center rounded-xl bg-foreground/5 opacity-0 transition-opacity",
+          "absolute inset-x-0 top-14 bottom-0 flex items-center justify-center rounded-b-xl bg-foreground/5 opacity-0 transition-opacity",
           isHovered && "opacity-100"
         )}
         aria-label="Megnyitás"
