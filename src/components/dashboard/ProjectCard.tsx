@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface Project {
   id: string;
   title: string;
-  genre: "szakkönyv" | "fiction" | "erotikus" | "egyéb";
+  genre: "szakkönyv" | "szakkonyv" | "fiction" | "erotikus" | "egyéb";
   wordCount: number;
   targetWordCount: number;
   lastEditedAt: Date;
@@ -31,8 +31,12 @@ interface ProjectCardProps {
   onArchive?: (id: string) => void;
 }
 
-const genreConfig: Record<Project["genre"], { label: string; className: string }> = {
+const genreConfig: Record<string, { label: string; className: string }> = {
   szakkönyv: {
+    label: "Szakkönyv",
+    className: "bg-accent/15 text-accent border-accent/30",
+  },
+  szakkonyv: {
     label: "Szakkönyv",
     className: "bg-accent/15 text-accent border-accent/30",
   },
@@ -79,7 +83,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
     Math.round((liveWordCount / project.targetWordCount) * 100),
     100
   );
-  const genre = genreConfig[project.genre];
+  const genre = genreConfig[project.genre] || genreConfig["egyéb"];
   const isAdultContent = project.genre === "erotikus";
 
   // Poll for updates while background writing is in progress
