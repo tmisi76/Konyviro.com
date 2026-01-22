@@ -81,6 +81,13 @@ export function Step6ChapterOutline({
     onOutlineChange(chapters);
   }, [chapters]);
 
+  // Auto-generate outline when step is reached and no outline exists
+  useEffect(() => {
+    if (existingOutline.length === 0 && !isGenerating && detailedConcept && chapters.length === 0) {
+      generateOutline();
+    }
+  }, [detailedConcept, existingOutline.length]);
+
   const generateOutline = async () => {
     setIsGenerating(true);
     
@@ -212,17 +219,10 @@ export function Step6ChapterOutline({
         transition={{ delay: 0.1 }}
         className="w-full max-w-4xl"
       >
-        {/* Generate button */}
+        {/* Auto-generating message - no manual button needed */}
         {!hasOutline && !isGenerating && (
           <div className="flex justify-center mb-8">
-            <Button
-              size="lg"
-              onClick={generateOutline}
-              className="gap-2"
-            >
-              <Rocket className="w-5 h-5" />
-              Outline Generálása
-            </Button>
+            <p className="text-muted-foreground">Fejezetek generálása indul...</p>
           </div>
         )}
 
