@@ -17,7 +17,7 @@ const shortcutGroups: ShortcutGroup[] = [
   {
     title: "Általános",
     shortcuts: [
-      { keys: ["?"], description: "Billentyűparancsok megjelenítése" },
+      { keys: ["Ctrl", "Q"], description: "Billentyűparancsok megjelenítése" },
       { keys: ["Ctrl", "S"], description: "Mentés" },
       { keys: ["Ctrl", "Z"], description: "Visszavonás" },
       { keys: ["Ctrl", "Shift", "Z"], description: "Mégis" },
@@ -119,8 +119,8 @@ export function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ? key opens shortcuts modal
-      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+      // Ctrl+Q opens shortcuts modal
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "q") {
         e.preventDefault();
         setShowShortcuts(true);
       }
