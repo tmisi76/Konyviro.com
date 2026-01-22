@@ -330,18 +330,18 @@ export function useBookWizard() {
       projectIdToUse = savedProjectId;
     }
     
-    // Call the background write edge function
-    const { error } = await supabase.functions.invoke("start-background-write", {
-      body: { projectId: projectIdToUse },
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    // Reset wizard and navigate to dashboard
+    // Reset wizard and navigate to dashboard IMMEDIATELY
+    // This provides instant feedback to the user
     reset();
     navigate("/dashboard");
+    
+    // Then trigger the background write (fire and forget)
+    // The dashboard poller will handle the actual writing
+    supabase.functions.invoke("start-background-write", {
+      body: { projectId: projectIdToUse },
+    }).catch((error) => {
+      console.error("Failed to start background writing:", error);
+    });
   }, [data.projectId, saveProject, reset, navigate]);
 
   return {
