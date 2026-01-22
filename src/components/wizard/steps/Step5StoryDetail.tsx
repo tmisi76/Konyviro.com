@@ -29,13 +29,21 @@ export function Step5StoryDetail({
 }: Step5StoryDetailProps) {
   const [concept, setConcept] = useState(existingConcept);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [lastIdeaId, setLastIdeaId] = useState<string | null>(null);
 
-  // Generate on mount if no existing concept
+  // Generate on mount or when selected idea changes
   useEffect(() => {
-    if (!concept) {
+    const currentIdeaId = selectedIdea?.title;
+    
+    // Ha nincs koncepció, vagy más ötletet választottak
+    if (!concept || (lastIdeaId && lastIdeaId !== currentIdeaId)) {
+      setConcept("");
+      setLastIdeaId(currentIdeaId);
       generateConcept();
+    } else if (!lastIdeaId) {
+      setLastIdeaId(currentIdeaId);
     }
-  }, []);
+  }, [selectedIdea]);
 
   const generateConcept = async () => {
     setIsGenerating(true);
