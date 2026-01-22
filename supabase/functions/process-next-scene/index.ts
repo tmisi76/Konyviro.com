@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
+const corsHeaders = { 
+  "Access-Control-Allow-Origin": "*", 
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" 
+};
 
 const PROMPTS: Record<string, string> = {
   fiction: "Te egy bestseller magyar író vagy. Írj gazdag leírásokkal és párbeszédekkel.",
@@ -10,73 +13,287 @@ const PROMPTS: Record<string, string> = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
   try {
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!, 
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    
     const { projectId } = await req.json();
-    if (!projectId) return new Response(JSON.stringify({ error: "projectId szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-    const { data: project } = await supabase.from("projects").select("*, profiles!inner(user_id)").eq("id", projectId).single();
-    if (!project) return new Response(JSON.stringify({ error: "Projekt nem található" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (project.writing_status !== "background_writing") return new Response(JSON.stringify({ status: "stopped" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-    const { data: chapters } = await supabase.from("chapters").select("*").eq("project_id", projectId).order("sort_order");
-    if (!chapters?.length) { await supabase.from("projects").update({ writing_status: "failed", background_error: "Nincsenek fejezetek" }).eq("id", projectId); return new Response(JSON.stringify({ error: "Nincsenek fejezetek" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
-
-    let targetChapter = null, targetSceneIndex = -1;
-    for (const ch of chapters) { const scenes = (ch.scene_outline as any[]) || []; for (let i = 0; i < scenes.length; i++) { if (scenes[i].status === "pending" || scenes[i].status === "writing") { targetChapter = ch; targetSceneIndex = i; break; } } if (targetChapter) break; }
-
-    if (!targetChapter) {
-      await supabase.from("projects").update({ writing_status: "completed", background_error: null }).eq("id", projectId);
-      return new Response(JSON.stringify({ status: "completed" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    
+    if (!projectId) {
+      return new Response(
+        JSON.stringify({ error: "projectId szükséges" }), 
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
+    // Get project - no inner join, just simple query
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .select("id, title, genre, subcategory, user_id, writing_status, story_structure, generated_story")
+      .eq("id", projectId)
+      .single();
+    
+    if (projectError || !project) {
+      console.error("Project fetch error:", projectError);
+      return new Response(
+        JSON.stringify({ error: "Projekt nem található" }), 
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    if (project.writing_status !== "background_writing") {
+      return new Response(
+        JSON.stringify({ status: "stopped" }), 
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get chapters
+    const { data: chapters, error: chaptersError } = await supabase
+      .from("chapters")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("sort_order");
+    
+    if (chaptersError || !chapters?.length) {
+      await supabase
+        .from("projects")
+        .update({ writing_status: "failed", background_error: "Nincsenek fejezetek" })
+        .eq("id", projectId);
+      return new Response(
+        JSON.stringify({ error: "Nincsenek fejezetek" }), 
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Find next pending scene
+    let targetChapter = null;
+    let targetSceneIndex = -1;
+    
+    for (const ch of chapters) {
+      const scenes = (ch.scene_outline as any[]) || [];
+      for (let i = 0; i < scenes.length; i++) {
+        if (scenes[i].status === "pending" || scenes[i].status === "writing") {
+          targetChapter = ch;
+          targetSceneIndex = i;
+          break;
+        }
+      }
+      if (targetChapter) break;
+    }
+
+    // If no pending scenes, mark as completed
+    if (!targetChapter) {
+      await supabase
+        .from("projects")
+        .update({ writing_status: "completed", background_error: null })
+        .eq("id", projectId);
+      
+      // TODO: Send completion email
+      return new Response(
+        JSON.stringify({ status: "completed" }), 
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Mark scene as writing
     const scenes = [...(targetChapter.scene_outline as any[])];
     scenes[targetSceneIndex].status = "writing";
-    await supabase.from("chapters").update({ scene_outline: scenes, generation_status: "in_progress" }).eq("id", targetChapter.id);
+    await supabase
+      .from("chapters")
+      .update({ scene_outline: scenes, generation_status: "in_progress" })
+      .eq("id", targetChapter.id);
 
-    const { data: blocks } = await supabase.from("blocks").select("content").eq("chapter_id", targetChapter.id).order("sort_order");
+    // Get previous content for context
+    const { data: blocks } = await supabase
+      .from("blocks")
+      .select("content")
+      .eq("chapter_id", targetChapter.id)
+      .order("sort_order");
+    
     const prevContent = blocks?.map(b => b.content).join("\n\n") || "";
-    const genre = project.genre === "szakkonyv" ? "szakkonyv" : project.subcategory === "erotikus" ? "erotikus" : "fiction";
+    
+    // Determine genre for prompt
+    const genre = project.genre === "szakkonyv" || project.genre === "szakkönyv" 
+      ? "szakkonyv" 
+      : project.subcategory === "erotikus" 
+        ? "erotikus" 
+        : "fiction";
+    
     const scene = scenes[targetSceneIndex];
-    const prompt = `Írj jelenetet:\nFejezet: ${targetChapter.title}\nJelenet ${targetSceneIndex + 1}/${scenes.length}\nPOV: ${scene.pov || "Harmadik személy"}\nHelyszín: ${scene.location}\nLeírás: ${scene.description}\nKulcsesemények: ${(scene.key_events || []).join(", ")}\nCél: ~${scene.target_words || 1000} szó${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
+    const prompt = `Írj jelenetet:
+Fejezet: ${targetChapter.title}
+Jelenet ${targetSceneIndex + 1}/${scenes.length}
+POV: ${scene.pov || "Harmadik személy"}
+Helyszín: ${scene.location}
+Leírás: ${scene.description}
+Kulcsesemények: ${(scene.key_events || []).join(", ")}
+Cél: ~${scene.target_words || 1000} szó
+${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
+    // Generate scene content
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: PROMPTS[genre] }, { role: "user", content: prompt }], max_tokens: Math.min((scene.target_words || 1000) * 2, 8000) }),
+      headers: { 
+        Authorization: `Bearer ${LOVABLE_API_KEY}`, 
+        "Content-Type": "application/json" 
+      },
+      body: JSON.stringify({ 
+        model: "google/gemini-3-flash-preview", 
+        messages: [
+          { role: "system", content: PROMPTS[genre] }, 
+          { role: "user", content: prompt }
+        ], 
+        max_tokens: Math.min((scene.target_words || 1000) * 2, 8000) 
+      }),
     });
 
-    if (!res.ok) throw new Error(`API: ${res.status}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("AI API error:", res.status, errorText);
+      throw new Error(`API: ${res.status}`);
+    }
+    
     const d = await res.json();
     const sceneText = d.choices?.[0]?.message?.content || "";
-    if (!sceneText) throw new Error("Generálás sikertelen");
+    
+    if (!sceneText) {
+      throw new Error("Generálás sikertelen");
+    }
 
-    const { data: lastBlock } = await supabase.from("blocks").select("sort_order").eq("chapter_id", targetChapter.id).order("sort_order", { ascending: false }).limit(1).single();
+    // Get last block sort order
+    const { data: lastBlock } = await supabase
+      .from("blocks")
+      .select("sort_order")
+      .eq("chapter_id", targetChapter.id)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .single();
+    
     let sortOrder = (lastBlock?.sort_order || 0) + 1;
+    
+    // Insert paragraphs as blocks
     const paragraphs = sceneText.split(/\n\n+/).filter((p: string) => p.trim());
-    if (paragraphs.length) await supabase.from("blocks").insert(paragraphs.map((c: string, i: number) => ({ chapter_id: targetChapter.id, type: "paragraph", content: c.trim(), sort_order: sortOrder + i })));
+    if (paragraphs.length) {
+      await supabase.from("blocks").insert(
+        paragraphs.map((c: string, i: number) => ({ 
+          chapter_id: targetChapter.id, 
+          type: "paragraph", 
+          content: c.trim(), 
+          sort_order: sortOrder + i 
+        }))
+      );
+    }
 
+    // Update scene status and chapter word count
     scenes[targetSceneIndex].status = "completed";
     const wordCount = sceneText.split(/\s+/).length;
     const newWordCount = (targetChapter.word_count || 0) + wordCount;
     const allDone = scenes.every((s: any) => s.status === "completed");
-    await supabase.from("chapters").update({ scene_outline: scenes, word_count: newWordCount, generation_status: allDone ? "completed" : "in_progress" }).eq("id", targetChapter.id);
+    
+    await supabase
+      .from("chapters")
+      .update({ 
+        scene_outline: scenes, 
+        word_count: newWordCount, 
+        generation_status: allDone ? "completed" : "in_progress" 
+      })
+      .eq("id", targetChapter.id);
 
-    const totalWords = chapters.reduce((sum, ch) => sum + (ch.id === targetChapter.id ? newWordCount : (ch.word_count || 0)), 0);
-    await supabase.from("projects").update({ word_count: totalWords }).eq("id", projectId);
+    // Update project total word count
+    const totalWords = chapters.reduce((sum, ch) => {
+      return sum + (ch.id === targetChapter.id ? newWordCount : (ch.word_count || 0));
+    }, 0);
+    
+    await supabase
+      .from("projects")
+      .update({ word_count: totalWords })
+      .eq("id", projectId);
 
+    // Track usage
     const month = new Date().toISOString().slice(0, 7);
-    const { data: profile } = await supabase.from("profiles").select("monthly_word_limit, extra_words_balance").eq("user_id", project.user_id).single();
-    const { data: usage } = await supabase.from("user_usage").select("words_generated").eq("user_id", project.user_id).eq("month", month).single();
-    const limit = profile?.monthly_word_limit || 5000, used = usage?.words_generated || 0, extra = profile?.extra_words_balance || 0, remaining = Math.max(0, limit - used);
-    if (limit === -1 || wordCount <= remaining) await supabase.rpc("increment_words_generated", { p_user_id: project.user_id, p_word_count: wordCount });
-    else { if (remaining > 0) await supabase.rpc("increment_words_generated", { p_user_id: project.user_id, p_word_count: remaining }); const fromExtra = Math.min(wordCount - remaining, extra); if (fromExtra > 0) await supabase.rpc("use_extra_credits", { p_user_id: project.user_id, p_word_count: fromExtra }); }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("monthly_word_limit, extra_words_balance")
+      .eq("user_id", project.user_id)
+      .single();
+    
+    const { data: usage } = await supabase
+      .from("user_usage")
+      .select("words_generated")
+      .eq("user_id", project.user_id)
+      .eq("month", month)
+      .single();
+    
+    const limit = profile?.monthly_word_limit || 5000;
+    const used = usage?.words_generated || 0;
+    const extra = profile?.extra_words_balance || 0;
+    const remaining = Math.max(0, limit - used);
+    
+    if (limit === -1 || wordCount <= remaining) {
+      await supabase.rpc("increment_words_generated", { 
+        p_user_id: project.user_id, 
+        p_word_count: wordCount 
+      });
+    } else {
+      if (remaining > 0) {
+        await supabase.rpc("increment_words_generated", { 
+          p_user_id: project.user_id, 
+          p_word_count: remaining 
+        });
+      }
+      const fromExtra = Math.min(wordCount - remaining, extra);
+      if (fromExtra > 0) {
+        await supabase.rpc("use_extra_credits", { 
+          p_user_id: project.user_id, 
+          p_word_count: fromExtra 
+        });
+      }
+    }
 
-    return new Response(JSON.stringify({ status: "scene_completed", chapterId: targetChapter.id, sceneIndex: targetSceneIndex, wordsWritten: wordCount, totalWords }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Schedule next scene processing after 8 seconds delay
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Fire and forget - schedule next scene
+    setTimeout(async () => {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/process-next-scene`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({ projectId }),
+        });
+      } catch (e) {
+        console.error("Error scheduling next scene:", e);
+      }
+    }, 8000);
+
+    return new Response(
+      JSON.stringify({ 
+        status: "scene_completed", 
+        chapterId: targetChapter.id, 
+        sceneIndex: targetSceneIndex, 
+        wordsWritten: wordCount, 
+        totalWords 
+      }), 
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+    
   } catch (e) {
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    console.error("Process next scene error:", e);
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Hiba" }), 
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
