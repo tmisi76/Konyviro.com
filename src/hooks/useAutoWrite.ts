@@ -188,12 +188,16 @@ export function useAutoWrite({
     }
   }, [chapters, generateOutlineForChapter, fetchChapters]);
 
-  // Write a single scene/section (genre-aware)
+  // Write a single scene/section (genre-aware) with retry logic
   const writeScene = useCallback(async (
     chapter: ChapterWithScenes,
     sceneIndex: number,
-    previousContent: string
+    previousContent: string,
+    retryCount = 0
   ): Promise<string> => {
+    const MAX_RETRIES = 5;
+    const BASE_DELAY = 5000; // 5 seconds base delay
+    
     const scene = chapter.scene_outline[sceneIndex];
     
     if (!scene) {
@@ -238,6 +242,20 @@ export function useAutoWrite({
       body: JSON.stringify(body),
       signal: abortControllerRef.current.signal,
     });
+
+    // Handle rate limiting with exponential backoff
+    if (response.status === 429) {
+      if (retryCount >= MAX_RETRIES) {
+        throw new Error("Túl sok próbálkozás után sem sikerült. Kérlek próbáld újra később.");
+      }
+      
+      const delay = BASE_DELAY * Math.pow(2, retryCount); // 5s, 10s, 20s, 40s, 80s
+      console.log(`Rate limited. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      toast.info(`Várakozás ${delay / 1000} másodpercig a következő kérés előtt...`);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
+    }
 
     if (!response.ok) {
       const error = await response.json();
