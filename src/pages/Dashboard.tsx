@@ -13,6 +13,7 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
+import { UsagePanel } from "@/components/dashboard/UsagePanel";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { SuccessModal } from "@/components/subscription/SuccessModal";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
@@ -361,8 +362,11 @@ export default function Dashboard() {
           </div>
 
           {/* Writing Stats Panel */}
-          <div className="mb-8">
-            <WritingStatsPanel />
+          <div className="mb-8 grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <WritingStatsPanel />
+            </div>
+            <UsagePanel />
           </div>
 
           {/* Projects section */}
