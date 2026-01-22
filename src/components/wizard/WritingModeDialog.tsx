@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Eye, Cloud, Clock, Mail, Loader2 } from "lucide-react";
+import { Wand2, Edit3, Clock, Sparkles, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type WritingMode = "live" | "background";
+export type WritingMode = "automatic" | "semiAutomatic";
 
 interface WritingModeDialogProps {
   open: boolean;
@@ -42,40 +42,40 @@ export function WritingModeDialog({
         <DialogHeader>
           <DialogTitle className="text-2xl">Hogyan szeretnéd megírni a könyved?</DialogTitle>
           <DialogDescription>
-            A könyv megírása kb. {estimatedMinutes} percet vesz igénybe
+            Válaszd ki az írás módját
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* Live Mode Card */}
+          {/* Automatic Mode Card */}
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
-            onClick={() => setSelectedMode("live")}
+            onClick={() => setSelectedMode("automatic")}
             className={cn(
               "relative flex items-start gap-4 rounded-xl border-2 p-5 text-left transition-all",
-              selectedMode === "live"
+              selectedMode === "automatic"
                 ? "border-primary bg-primary/5"
                 : "border-border hover:border-primary/50"
             )}
           >
             <div className={cn(
               "flex h-12 w-12 shrink-0 items-center justify-center rounded-full",
-              selectedMode === "live" ? "bg-primary text-primary-foreground" : "bg-muted"
+              selectedMode === "automatic" ? "bg-primary text-primary-foreground" : "bg-muted"
             )}>
-              <Eye className="h-6 w-6" />
+              <Wand2 className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg">🔴 Élő Írás</h3>
+              <h3 className="font-semibold text-lg">🤖 Automatikus Könyvírás</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Valós időben látod ahogy íródik a könyved. Az oldalt nyitva kell tartanod a generálás végéig.
+                Az AI megírja a teljes könyvet a vázlat alapján. Valós időben látod ahogy íródik.
               </p>
               <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" />
                 <span>~{estimatedMinutes} perc várakozás</span>
               </div>
             </div>
-            {selectedMode === "live" && (
+            {selectedMode === "automatic" && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -88,35 +88,35 @@ export function WritingModeDialog({
             )}
           </motion.button>
 
-          {/* Background Mode Card */}
+          {/* Semi-Automatic Mode Card */}
           <motion.button
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
-            onClick={() => setSelectedMode("background")}
+            onClick={() => setSelectedMode("semiAutomatic")}
             className={cn(
               "relative flex items-start gap-4 rounded-xl border-2 p-5 text-left transition-all",
-              selectedMode === "background"
+              selectedMode === "semiAutomatic"
                 ? "border-primary bg-primary/5"
                 : "border-border hover:border-primary/50"
             )}
           >
             <div className={cn(
               "flex h-12 w-12 shrink-0 items-center justify-center rounded-full",
-              selectedMode === "background" ? "bg-primary text-primary-foreground" : "bg-muted"
+              selectedMode === "semiAutomatic" ? "bg-primary text-primary-foreground" : "bg-muted"
             )}>
-              <Cloud className="h-6 w-6" />
+              <Edit3 className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-lg">🟢 Háttérben Írás</h3>
+              <h3 className="font-semibold text-lg">✍️ Félautomata Szerkesztés</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                A szerver írja meg a könyved a háttérben. Bezárhatod az oldalt, emailben értesítünk ha kész.
+                Átlépsz a szerkesztőbe, ahol te irányítod az AI eszköztárat. Fejezetenként írathatod meg a tartalmat.
               </p>
               <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <Mail className="h-3.5 w-3.5" />
-                <span>Email értesítés a befejezéskor</span>
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Teljes kontroll az írás felett</span>
               </div>
             </div>
-            {selectedMode === "background" && (
+            {selectedMode === "semiAutomatic" && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -145,7 +145,7 @@ export function WritingModeDialog({
                 Indítás...
               </>
             ) : (
-              "Könyv Írása"
+              "Tovább"
             )}
           </Button>
         </div>

@@ -9,7 +9,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useWritingStats } from "@/hooks/useWritingStats";
-import { useBackgroundWritePoller } from "@/hooks/useBackgroundWritePoller";
+
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
@@ -48,18 +48,6 @@ export default function Dashboard() {
   const { isOnline, pendingChanges, saveLastProject } = useOfflineSync();
   const { streak, getTodayWords, goals } = useWritingStats();
 
-  // Find projects that are in background_writing status
-  const backgroundWritingProject = useMemo(() => {
-    return projects.find(p => p.writing_status === "background_writing");
-  }, [projects]);
-
-  // Poll for background writing progress
-  useBackgroundWritePoller({
-    projectId: backgroundWritingProject?.id || null,
-    writingStatus: backgroundWritingProject?.writing_status || null,
-    enabled: !!backgroundWritingProject,
-    onUpdate: refetch,
-  });
   const handleRefresh = async () => {
     await refetch();
   };
@@ -103,10 +91,7 @@ export default function Dashboard() {
     return projects
       .filter((p) => p.status !== "archived")
       .sort((a, b) => {
-        // Background writing projects go to the top
-        if (a.writing_status === "background_writing" && b.writing_status !== "background_writing") return -1;
-        if (b.writing_status === "background_writing" && a.writing_status !== "background_writing") return 1;
-        // Then in_progress projects
+        // In-progress projects go to the top
         if (a.writing_status === "in_progress" && b.writing_status !== "in_progress") return -1;
         if (b.writing_status === "in_progress" && a.writing_status !== "in_progress") return 1;
         // Keep original order (by updated_at from API)
