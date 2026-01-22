@@ -51,14 +51,14 @@ A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN (és semmi más):
     {"beat": "Resolution", "description": "A lezárás és új egyensúly"}
   ],
   "chapters": [
-    {"number": 1, "title": "Fejezet címe", "summary": "1 mondatos összefoglaló"}
+    {"number": 1, "title": "Fejezet címe", "summary": "Max 15 szavas összefoglaló"}
   ]
 }
 
 FONTOS:
-- Maximum 8-10 fejezetet javasolj rövid összefoglalókkal
+- Maximum 6-8 fejezetet javasolj RÖVID összefoglalókkal (max 15 szó/fejezet)
+- A synopsis legyen tömör (max 3 bekezdés)
 - Minden fejezet címe legyen kreatív és utaljon a tartalomra
-- A fejezet összefoglalók legyenek konkrétak, ne általánosak
 - A válasz CSAK a JSON legyen, semmi más szöveg
 - Magyar nyelven válaszolj`;
 
@@ -152,7 +152,7 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          max_tokens: 6000, // Reduced to get faster response
+          max_tokens: 4000, // Further reduced for faster, more reliable responses
         }),
         signal: controller.signal,
       });
@@ -189,7 +189,30 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
       );
     }
 
-    const data = await response.json();
+    // Use response.text() for more stable body reading
+    let rawText: string;
+    try {
+      rawText = await response.text();
+      console.log("Raw response length:", rawText.length);
+    } catch (bodyError) {
+      console.error("Body read error:", bodyError);
+      return new Response(
+        JSON.stringify({ error: "A válasz olvasása sikertelen. Próbáld újra." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseError) {
+      console.error("Gateway response parse error:", parseError, "Raw:", rawText.substring(0, 200));
+      return new Response(
+        JSON.stringify({ error: "Hibás válasz az AI szolgáltatástól. Próbáld újra." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
@@ -221,6 +244,21 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
       return '';
     });
 
+    // Truncated JSON repair: if we have chapters started but JSON doesn't end properly
+    if (jsonContent.includes('"chapters"') && !jsonContent.trim().endsWith('}')) {
+      console.log("Detected truncated JSON, attempting repair...");
+      // Find the last complete chapter object
+      const lastCompleteChapter = jsonContent.lastIndexOf('"}');
+      if (lastCompleteChapter > 0) {
+        // Cut at the last complete chapter and close the arrays/objects
+        jsonContent = jsonContent.substring(0, lastCompleteChapter + 2);
+        // Close chapters array and main object
+        if (!jsonContent.endsWith(']}')) {
+          jsonContent += ']}';
+        }
+      }
+    }
+
     let storyData;
     try {
       storyData = JSON.parse(jsonContent);
@@ -232,7 +270,22 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
         // Attempt to find and parse a valid JSON object
         const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          const cleanedJson = jsonMatch[0].replace(/,(\s*[\]}])/g, '$1');
+          let cleanedJson = jsonMatch[0].replace(/,(\s*[\]}])/g, '$1');
+          
+          // Additional repair: ensure proper closing
+          const openBraces = (cleanedJson.match(/\{/g) || []).length;
+          const closeBraces = (cleanedJson.match(/\}/g) || []).length;
+          const openBrackets = (cleanedJson.match(/\[/g) || []).length;
+          const closeBrackets = (cleanedJson.match(/\]/g) || []).length;
+          
+          // Add missing closing brackets/braces
+          for (let i = 0; i < openBrackets - closeBrackets; i++) {
+            cleanedJson += ']';
+          }
+          for (let i = 0; i < openBraces - closeBraces; i++) {
+            cleanedJson += '}';
+          }
+          
           storyData = JSON.parse(cleanedJson);
         } else {
           throw new Error("No JSON object found");
