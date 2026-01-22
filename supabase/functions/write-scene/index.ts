@@ -8,6 +8,44 @@ const corsHeaders = {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Count words in text
+const countWords = (text: string): number => {
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+};
+
+// Parse SSE stream and extract text content
+const parseSSEStream = async (response: Response): Promise<string> => {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  
+  const decoder = new TextDecoder();
+  let fullText = "";
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n");
+    
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        try {
+          const json = JSON.parse(line.slice(6));
+          const content = json.choices?.[0]?.delta?.content;
+          if (content) {
+            fullText += content;
+          }
+        } catch {
+          // Skip invalid JSON
+        }
+      }
+    }
+  }
+  
+  return fullText;
+};
+
 // Genre-specific system prompts
 const SYSTEM_PROMPTS: Record<string, string> = {
   fiction: `Te egy bestseller regényíró vagy. Feladatod, hogy a megadott jelenet-vázlat alapján megírd a jelenet teljes szövegét.
@@ -189,7 +227,6 @@ Most írd meg ezt a jelenetet! A válasz CSAK a jelenet szövege legyen, semmi m
             headers: {
               ...corsHeaders,
               "Content-Type": "application/json",
-              // Hint the client it should wait before retrying.
               "Retry-After": "10",
             },
           }
@@ -208,10 +245,41 @@ Most írd meg ezt a jelenetet! A válasz CSAK a jelenet szövege legyen, semmi m
       );
     }
 
-    // Return streaming response
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    // Parse the stream to get full text for word counting
+    const sceneContent = await parseSSEStream(response);
+    const wordCount = countWords(sceneContent);
+    
+    // Update user_usage for billing
+    if (wordCount > 0) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Get user_id from project
+      const { data: project } = await supabase
+        .from("projects")
+        .select("user_id")
+        .eq("id", projectId)
+        .single();
+      
+      if (project?.user_id) {
+        try {
+          await supabase.rpc('increment_words_generated', {
+            p_user_id: project.user_id,
+            p_word_count: wordCount
+          });
+          console.log(`Updated user_usage: +${wordCount} words for user ${project.user_id}`);
+        } catch (usageError) {
+          console.error('Failed to update word usage:', usageError);
+        }
+      }
+    }
+    
+    // Return the content as JSON (not streaming anymore, but complete)
+    return new Response(
+      JSON.stringify({ content: sceneContent, wordCount }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (error) {
     console.error("Write scene error:", error);
     return new Response(
