@@ -13,12 +13,14 @@ export function useSubscription() {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [founderSpots, setFounderSpots] = useState<FounderSpots | null>(null);
   const [usage, setUsage] = useState<UserUsage | null>(null);
+  const [activeProjectCount, setActiveProjectCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSubscription = useCallback(async () => {
     if (!user) {
       setSubscription(null);
       setUsage(null);
+      setActiveProjectCount(0);
       setIsLoading(false);
       return;
     }
@@ -60,6 +62,19 @@ export function useSubscription() {
         wordsGenerated: usageData?.words_generated || 0,
         projectsCreated: usageData?.projects_created || 0,
       });
+
+      // Fetch actual active project count from projects table
+      const { count: projectCount, error: projectError } = await supabase
+        .from("projects")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .in("status", ["active", "draft"]);
+
+      if (projectError) {
+        console.error("Error fetching project count:", projectError);
+      }
+
+      setActiveProjectCount(projectCount || 0);
     } catch (error) {
       console.error("Error fetching subscription:", error);
     } finally {
@@ -91,10 +106,10 @@ export function useSubscription() {
   }, [fetchSubscription, fetchFounderSpots]);
 
   const canCreateProject = useCallback(() => {
-    if (!subscription || !usage) return false;
+    if (!subscription) return false;
     if (subscription.projectLimit === -1) return true; // unlimited
-    return usage.projectsCreated < subscription.projectLimit;
-  }, [subscription, usage]);
+    return activeProjectCount < subscription.projectLimit;
+  }, [subscription, activeProjectCount]);
 
   const canGenerateWords = useCallback(
     (wordCount: number) => {
@@ -139,15 +154,16 @@ export function useSubscription() {
   }, [subscription?.startDate]);
 
   const isProjectLimitReached = useCallback(() => {
-    if (!subscription || !usage) return false;
+    if (!subscription) return false;
     if (subscription.projectLimit === -1) return false; // unlimited
-    return usage.projectsCreated >= subscription.projectLimit;
-  }, [subscription, usage]);
+    return activeProjectCount >= subscription.projectLimit;
+  }, [subscription, activeProjectCount]);
 
   return {
     subscription,
     founderSpots,
     usage,
+    activeProjectCount,
     isLoading,
     canCreateProject,
     canGenerateWords,
