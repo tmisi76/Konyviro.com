@@ -123,7 +123,7 @@ Készíts 4-8 szekció-vázlatot ehhez a fejezethez. A válasz CSAK a JSON tömb
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250514",
+        model: "claude-sonnet-4-5-20250929",
         max_tokens: 4000,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
