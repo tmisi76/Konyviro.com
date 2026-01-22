@@ -1,15 +1,28 @@
+// Unified outline item - works for both fiction scenes and non-fiction sections
 export interface SceneOutline {
   scene_number: number;
   title: string;
-  pov: string;
-  location: string;
+  pov: string; // For fiction: character POV, for non-fiction: section type (intro, concept, etc.)
+  location: string; // For fiction: place, for non-fiction: section type label
   time: string;
   description: string;
-  key_events: string[];
-  emotional_arc: string;
+  key_events: string[]; // For fiction: events, for non-fiction: key_points
+  emotional_arc: string; // For fiction: emotional arc, for non-fiction: examples count
   target_words: number;
   status: "pending" | "writing" | "done";
 }
+
+// Non-fiction section types
+export type SectionType = "intro" | "concept" | "example" | "exercise" | "summary" | "case_study";
+
+export const SECTION_TYPE_LABELS: Record<SectionType, string> = {
+  intro: "Bevezető",
+  concept: "Fogalom",
+  example: "Példa",
+  exercise: "Gyakorlat",
+  summary: "Összefoglaló",
+  case_study: "Esettanulmány",
+};
 
 export interface AutoWriteProgress {
   totalScenes: number;
