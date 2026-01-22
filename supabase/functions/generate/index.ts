@@ -82,14 +82,78 @@ serve(async (req) => {
     const baseSystemPrompt = SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction;
     const actionInstruction = ACTION_PROMPTS[action] || ACTION_PROMPTS.chat;
     
-    const systemPrompt = `${baseSystemPrompt}
+    let systemPrompt = `${baseSystemPrompt}
 
 Aktuális feladat: ${actionInstruction}
 
 ${context?.bookDescription ? `Könyv leírása: ${context.bookDescription}` : ""}
-${context?.tone ? `Hangnem: ${context.tone}` : ""}
-${context?.characters ? `Releváns karakterek:\n${context.characters}` : ""}
-${context?.sources ? `Releváns források:\n${context.sources}` : ""}`;
+${context?.tone ? `Hangnem: ${context.tone}` : ""}`;
+
+    // Add story structure context if available
+    if (context?.storyStructure) {
+      const ss = context.storyStructure;
+      systemPrompt += `
+
+TÖRTÉNET STRUKTÚRA (KÖTELEZŐ KÖVETNI!):`;
+      
+      if (ss.protagonist) {
+        systemPrompt += `
+Főszereplő: ${ss.protagonist.name || "N/A"}
+  - Leírás: ${ss.protagonist.description || "N/A"}
+  - Belső konfliktus: ${ss.protagonist.innerConflict || "N/A"}
+  - Karakterív: ${ss.protagonist.arc || "N/A"}`;
+      }
+      
+      if (ss.antagonist) {
+        systemPrompt += `
+Ellenfél/Partner: ${ss.antagonist.name || "N/A"}
+  - Leírás: ${ss.antagonist.description || "N/A"}`;
+      }
+      
+      if (ss.setting) {
+        systemPrompt += `
+Helyszín: ${ss.setting}`;
+      }
+      
+      if (ss.themes?.length) {
+        systemPrompt += `
+Témák: ${ss.themes.join(", ")}`;
+      }
+      
+      if (ss.plotPoints?.length) {
+        systemPrompt += `
+Történet fordulópontjai:
+${ss.plotPoints.map((p: { beat: string; description: string }) => `- ${p.beat}: ${p.description}`).join("\n")}`;
+      }
+    }
+
+    // Add character context
+    if (context?.characters) {
+      systemPrompt += `
+
+KARAKTEREK (KÖTELEZŐ HASZNÁLNI, NE TALÁLJ KI ÚJAKAT!):
+${context.characters}`;
+    }
+
+    // Add scene context if available
+    if (context?.currentScene) {
+      systemPrompt += `
+
+AKTUÁLIS JELENET:
+- Cím: ${context.currentScene.title}
+- POV: ${context.currentScene.pov}
+- Helyszín: ${context.currentScene.location}
+- Időpont: ${context.currentScene.time}
+- Mi történik: ${context.currentScene.description}
+- Érzelmi ív: ${context.currentScene.emotional_arc}`;
+    }
+
+    if (context?.sources) {
+      systemPrompt += `
+
+Releváns források:
+${context.sources}`;
+    }
 
     // Map settings to API parameters
     const temperature = settings?.creativity !== undefined 
