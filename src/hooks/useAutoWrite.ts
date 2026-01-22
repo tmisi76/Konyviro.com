@@ -3,7 +3,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SceneOutline, AutoWriteProgress, ChapterWithScenes } from "@/types/autowrite";
 import type { Block } from "@/types/editor";
+import { useAuth } from "@/contexts/AuthContext";
 
+// Helper to update user usage in database
+const updateUserUsage = async (userId: string, wordsGenerated: number) => {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  
+  const { data: existing } = await supabase
+    .from("user_usage")
+    .select("id, words_generated")
+    .eq("user_id", userId)
+    .eq("month", currentMonth)
+    .single();
+
+  if (existing) {
+    await supabase
+      .from("user_usage")
+      .update({ 
+        words_generated: existing.words_generated + wordsGenerated,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id);
+  } else {
+    await supabase
+      .from("user_usage")
+      .insert({
+        user_id: userId,
+        month: currentMonth,
+        words_generated: wordsGenerated,
+        projects_created: 0
+      });
+  }
+};
 interface UseAutoWriteOptions {
   projectId: string;
   genre: string;
@@ -47,6 +78,7 @@ export function useAutoWrite({
   });
   
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { user } = useAuth();
   const isPausedRef = useRef(false);
   const isRunningRef = useRef(false);
 
@@ -452,13 +484,19 @@ export function useAutoWrite({
           nextSortOrder += sceneText.split(/\n\n+/).filter(p => p.trim()).length;
 
           // Update chapter word count
-          const wordCount = sceneText.split(/\s+/).length;
+          const wordCount = sceneText.split(/\s+/).filter(w => w.length > 0).length;
           await supabase
             .from("chapters")
             .update({ 
               word_count: chapter.word_count + wordCount,
             })
             .eq("id", chapter.id);
+
+          // Track word usage for the user
+          if (user && wordCount > 0) {
+            updateUserUsage(user.id, wordCount)
+              .catch(err => console.error("Failed to update usage:", err));
+          }
 
           // Update scene status to done
           await updateSceneStatus(chapter.id, sceneIndex, "done");
