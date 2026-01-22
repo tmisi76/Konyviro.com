@@ -351,7 +351,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="max-w-2xl overflow-hidden p-0">
           {/* Progress indicator */}
-          <div className="border-b border-border bg-muted/30 px-4 py-4">
+          <div className="border-b border-border bg-muted/30 pl-4 pr-10 py-4">
             <div className="flex items-center">
               {steps.map((step, index) => (
                 <div key={step.id} className="flex flex-1 items-center last:flex-none">
