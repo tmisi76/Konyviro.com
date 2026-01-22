@@ -6,6 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Genre-specific system prompts
 const SYSTEM_PROMPTS: Record<string, string> = {
   fiction: `Te egy bestseller regényíró vagy. Feladatod, hogy a megadott jelenet-vázlat alapján megírd a jelenet teljes szövegét.
@@ -124,29 +126,73 @@ ${previousContent}
     userPrompt += `
 Most írd meg ezt a jelenetet! A válasz CSAK a jelenet szövege legyen, semmi más megjegyzés vagy formázás.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.8,
-        max_tokens: Math.min(sceneOutline.target_words * 2, 8000),
-        stream: true,
-      }),
-    });
+    // The preview model can be rate-limited aggressively.
+    // Use a stable model + retry a few times on transient gateway limits.
+    const gatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const gatewayPayload = {
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.8,
+      max_tokens: Math.min(sceneOutline.target_words * 2, 8000),
+      stream: true,
+    };
+
+    const MAX_GATEWAY_RETRIES = 3;
+    let response: Response | null = null;
+    let lastErrorText = "";
+
+    for (let attempt = 0; attempt <= MAX_GATEWAY_RETRIES; attempt++) {
+      response = await fetch(gatewayUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(gatewayPayload),
+      });
+
+      if (response.ok) break;
+
+      // Best-effort read for debugging; body can only be read once.
+      try {
+        lastErrorText = await response.text();
+      } catch {
+        lastErrorText = "";
+      }
+
+      const isRetryable = response.status === 429 || response.status >= 500;
+      if (!isRetryable || attempt === MAX_GATEWAY_RETRIES) break;
+
+      const retryAfter = response.headers.get("retry-after");
+      const retryAfterMs = retryAfter ? Number(retryAfter) * 1000 : NaN;
+      const baseDelay = Number.isFinite(retryAfterMs) ? retryAfterMs : Math.min(2000 * 2 ** attempt, 15000);
+      const jitter = Math.floor(Math.random() * 750);
+      await sleep(baseDelay + jitter);
+    }
+
+    if (!response) {
+      return new Response(
+        JSON.stringify({ error: "AI szolgáltatás hiba" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Túl sok kérés. Kérlek várj." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              // Hint the client it should wait before retrying.
+              "Retry-After": "10",
+            },
+          }
         );
       }
       if (response.status === 402) {
@@ -155,8 +201,7 @@ Most írd meg ezt a jelenetet! A válasz CSAK a jelenet szövege legyen, semmi m
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("AI gateway error:", response.status, lastErrorText);
       return new Response(
         JSON.stringify({ error: "AI szolgáltatás hiba" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
