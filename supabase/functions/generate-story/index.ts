@@ -51,14 +51,12 @@ A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN (és semmi más):
     {"beat": "Resolution", "description": "A lezárás és új egyensúly"}
   ],
   "chapters": [
-    {"number": 1, "title": "Fejezet címe", "summary": "2-3 mondatos összefoglaló a fejezet tartalmáról"},
-    {"number": 2, "title": "Fejezet címe", "summary": "2-3 mondatos összefoglaló"},
-    ...
+    {"number": 1, "title": "Fejezet címe", "summary": "1 mondatos összefoglaló"}
   ]
 }
 
 FONTOS:
-- 10-15 fejezetet javasolj
+- Maximum 8-10 fejezetet javasolj rövid összefoglalókkal
 - Minden fejezet címe legyen kreatív és utaljon a tartalomra
 - A fejezet összefoglalók legyenek konkrétak, ne általánosak
 - A válasz CSAK a JSON legyen, semmi más szöveg
@@ -149,7 +147,7 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
           { role: "user", content: userPrompt }
         ],
         temperature: 0.8,
-        max_tokens: 4000,
+        max_tokens: 8000,
       }),
     });
 

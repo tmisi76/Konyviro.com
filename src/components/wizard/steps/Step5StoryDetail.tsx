@@ -90,7 +90,12 @@ export function Step5StoryDetail({
       onConceptGenerated(detailedConcept);
     } catch (error) {
       console.error("Error generating concept:", error);
-      toast.error("Hiba történt a koncepció generálása során");
+      const errorMessage = error instanceof Error ? error.message : "";
+      if (errorMessage.includes("feldolgozni") || errorMessage.includes("parse")) {
+        toast.error("A generálás túl hosszú volt. Kérlek próbáld újra.");
+      } else {
+        toast.error("Hiba történt a koncepció generálása során. Próbáld újra.");
+      }
     } finally {
       setIsGenerating(false);
     }
