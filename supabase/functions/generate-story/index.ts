@@ -86,8 +86,8 @@ serve(async (req) => {
       );
     }
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(
         JSON.stringify({ error: "AI szolgáltatás nincs konfigurálva" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -134,18 +134,19 @@ ${storyIdea}
 
 Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a megadott JSON formátumban!`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
         max_tokens: 8000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
       }),
     });
 
@@ -154,6 +155,12 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
         return new Response(
           JSON.stringify({ error: "Túl sok kérés. Kérlek várj egy kicsit és próbáld újra." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Nincs elég kredit. Kérlek töltsd fel az egyenleged." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
@@ -165,7 +172,7 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
     }
 
     const data = await response.json();
-    const content = data.content?.[0]?.text;
+    const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
       return new Response(
