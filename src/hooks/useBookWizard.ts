@@ -96,6 +96,8 @@ export function useBookWizard() {
 
   const selectStoryIdea = useCallback((idea: StoryIdea) => {
     updateData("selectedStoryIdea", idea);
+    // Töröljük a korábbi koncepciót, hogy új generálódjon
+    updateData("detailedConcept", "");
   }, [updateData]);
 
   const setDetailedConcept = useCallback((concept: string) => {
