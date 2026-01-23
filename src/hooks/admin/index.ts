@@ -18,3 +18,6 @@ export { useRecentInvoices } from "./useRecentInvoices";
 export type { Invoice } from "./useRecentInvoices";
 export { useSubscriptionPlans, useTogglePlanActive } from "./useSubscriptionPlans";
 export type { AdminPlan } from "./useSubscriptionPlans";
+
+export { useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate } from "./useEmailTemplates";
+export type { EmailTemplate } from "./useEmailTemplates";
