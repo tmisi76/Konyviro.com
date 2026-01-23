@@ -271,7 +271,7 @@ Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
 Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${characters}` : ""}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
-    // Retry logic for transient errors (503, timeouts) - bővített védelem
+    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
     const maxRetries = 7;
     let lastError: Error | null = null;
     let aiData: any = null;
@@ -279,7 +279,6 @@ Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${cha
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        // 90 másodperces timeout a stabilabb működésért
         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
         const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -301,29 +300,34 @@ Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${cha
 
         clearTimeout(timeoutId);
 
-        if (!response.ok) {
+        // Kezeljük a rate limit (429), gateway (502/503) hibákat
+        if (response.status === 429 || response.status === 502 || response.status === 503) {
+          const statusText = response.status === 429 ? "Rate limit" : `Gateway ${response.status}`;
+          console.error(`${statusText} (attempt ${attempt}/${maxRetries})`);
+          
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            console.log(`Waiting ${delay/1000}s before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
           if (response.status === 429) {
             return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később." }), {
               status: 429,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
+          return new Response(JSON.stringify({ error: "Az AI szolgáltatás túlterhelt. Próbáld újra pár másodperc múlva." }), {
+            status: 503,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if (!response.ok) {
           if (response.status === 402) {
             return new Response(JSON.stringify({ error: "Nincs elegendő kredit." }), {
               status: 402,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-          if (response.status === 503 || response.status === 502) {
-            const errorText = await response.text();
-            console.error(`AI gateway ${response.status} error (attempt ${attempt}/${maxRetries}):`, errorText.substring(0, 200));
-            if (attempt < maxRetries) {
-              // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, attempt * 2000));
-              continue;
-            }
-            return new Response(JSON.stringify({ error: "Az AI szolgáltatás túlterhelt. Próbáld újra pár másodperc múlva." }), {
-              status: 503,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
@@ -336,25 +340,23 @@ Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${cha
         }
 
         aiData = await response.json();
-        break; // Success, exit retry loop
+        break;
       } catch (fetchError) {
         lastError = fetchError as Error;
         if ((fetchError as Error).name === "AbortError") {
           console.error(`Request timeout (attempt ${attempt}/${maxRetries})`);
-          if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, attempt * 2000));
-            continue;
-          }
-          return new Response(JSON.stringify({ error: "A generálás időtúllépés miatt sikertelen. Próbáld újra." }), {
-            status: 504,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        } else {
+          console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
         }
-        console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
         if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
+        return new Response(JSON.stringify({ error: "A generálás időtúllépés miatt sikertelen. Próbáld újra." }), {
+          status: 504,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
