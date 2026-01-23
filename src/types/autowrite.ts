@@ -9,7 +9,7 @@ export interface SceneOutline {
   key_events: string[]; // For fiction: events, for non-fiction: key_points
   emotional_arc: string; // For fiction: emotional arc, for non-fiction: examples count
   target_words: number;
-  status: "pending" | "writing" | "done";
+  status: "pending" | "writing" | "done" | "failed";
 }
 
 // Non-fiction section types

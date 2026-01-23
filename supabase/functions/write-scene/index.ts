@@ -271,15 +271,16 @@ Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
 Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${characters}` : ""}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
-    // Retry logic for transient errors (503, timeouts)
-    const maxRetries = 3;
+    // Retry logic for transient errors (503, timeouts) - bővített védelem
+    const maxRetries = 7;
     let lastError: Error | null = null;
     let aiData: any = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 55000);
+        // 90 másodperces timeout a stabilabb működésért
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
 
         const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
