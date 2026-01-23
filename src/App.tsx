@@ -25,6 +25,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const Install = lazy(() => import("./pages/Install"));
 const CreateBook = lazy(() => import("./pages/CreateBook"));
+const BookCoach = lazy(() => import("./pages/BookCoach"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -115,6 +116,16 @@ function AppContent() {
             <Install />
           </Suspense>
         } />
+        <Route
+          path="/coach"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Coach betöltése..." />}>
+                <BookCoach />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         {/* Admin Routes */}
         <Route
           path="/admin"
