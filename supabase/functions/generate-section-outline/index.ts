@@ -78,14 +78,56 @@ KÖTELEZŐ SZEKCIÓK:
 3. Alkalmazás szekció - gyakorlati útmutató
 4. Összefoglaló szekció - kulcspontok listája`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 4000 }),
-    });
+    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
+    const maxRetries = 7;
+    let response: Response | null = null;
 
-    if (!response.ok) {
-      if (response.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 4000 }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 429 || response.status === 502 || response.status === 503) {
+          console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          if (response.status === 429) {
+            return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+        }
+        break;
+      } catch (fetchError) {
+        console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          return new Response(JSON.stringify({ error: "Időtúllépés" }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        if (attempt < maxRetries) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+
+    if (!response || !response.ok) {
       throw new Error("AI hiba");
     }
 
