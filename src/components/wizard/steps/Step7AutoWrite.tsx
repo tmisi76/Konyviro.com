@@ -55,6 +55,7 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
     projectId,
     genre,
     storyStructure,
+    targetWordCount,
     onChapterUpdated: () => {
       fetchChapters();
     },

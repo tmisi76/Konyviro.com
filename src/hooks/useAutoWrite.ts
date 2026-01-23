@@ -12,6 +12,7 @@ interface UseAutoWriteOptions {
   charactersContext?: string;
   bookTopic?: string;
   targetAudience?: string;
+  targetWordCount?: number;
   onBlockCreated?: (chapterId: string, block: Block) => void;
   onChapterUpdated?: (chapterId: string) => void;
   onStreamingUpdate?: (text: string) => void;
@@ -35,6 +36,7 @@ export function useAutoWrite({
   charactersContext,
   bookTopic,
   targetAudience,
+  targetWordCount = 50000,
   onBlockCreated,
   onChapterUpdated,
   onStreamingUpdate,
@@ -46,7 +48,7 @@ export function useAutoWrite({
     totalScenes: 0,
     completedScenes: 0,
     totalWords: 0,
-    targetWords: 50000,
+    targetWords: targetWordCount,
     currentChapterIndex: 0,
     currentSceneIndex: 0,
     status: "idle",
@@ -125,6 +127,10 @@ export function useAutoWrite({
     // Choose URL based on genre
     const url = isNonFiction ? SECTION_OUTLINE_URL : OUTLINE_URL;
 
+    // Calculate words for this chapter based on total chapters
+    const totalChapters = chapters.length || 1;
+    const wordsForChapter = Math.round(targetWordCount / totalChapters);
+
     const body = isNonFiction 
       ? {
           projectId,
@@ -135,6 +141,9 @@ export function useAutoWrite({
           learningObjectives: storyStructure?.learningObjectives,
           previousChaptersSummary,
           nextChapterTitle,
+          targetWordCount,
+          wordsForChapter,
+          totalChapters,
         }
       : {
           projectId,
@@ -145,6 +154,9 @@ export function useAutoWrite({
           genre,
           previousChaptersSummary,
           nextChapterTitle,
+          targetWordCount,
+          wordsForChapter,
+          totalChapters,
         };
 
     // Client-side timeout
@@ -193,7 +205,7 @@ export function useAutoWrite({
       }
       throw error;
     }
-  }, [projectId, storyStructure, charactersContext, genre, isNonFiction, bookTopic, targetAudience]);
+  }, [projectId, storyStructure, charactersContext, genre, isNonFiction, bookTopic, targetAudience, targetWordCount, chapters.length]);
 
   // Generate outlines for all chapters
   const generateAllOutlines = useCallback(async () => {
@@ -284,6 +296,9 @@ export function useAutoWrite({
     // Choose URL and body based on genre
     const url = isNonFiction ? WRITE_SECTION_URL : WRITE_URL;
 
+    // Calculate target words for this scene
+    const targetSceneWords = scene.target_words || 500;
+
     const body = isNonFiction
       ? {
           projectId,
@@ -294,6 +309,7 @@ export function useAutoWrite({
           bookTopic: bookTopic || storyStructure?.mainTopic,
           targetAudience,
           chapterTitle: chapter.title,
+          targetSceneWords,
         }
       : {
           projectId,
@@ -305,6 +321,7 @@ export function useAutoWrite({
           storyStructure,
           genre,
           chapterTitle: chapter.title,
+          targetSceneWords,
         };
 
     try {
@@ -680,6 +697,21 @@ export function useAutoWrite({
             if (scene.status === "skipped") skippedCount++;
             if (scene.status === "failed") failedCount++;
             continue;
+          }
+
+          // *** WORD COUNT LIMIT CHECK ***
+          // Stop if we've reached or exceeded target word count (with 10% tolerance)
+          const currentTotalWords = progress.totalWords + completedCount * 300; // Estimate from already written
+          if (currentTotalWords >= targetWordCount * 1.1) {
+            console.log(`Target word count reached (${currentTotalWords}/${targetWordCount}), stopping...`);
+            // Mark remaining scenes as skipped
+            for (let remainingScene = sceneIndex; remainingScene < chapter.scene_outline.length; remainingScene++) {
+              if (chapter.scene_outline[remainingScene]?.status === "pending") {
+                await updateSceneStatus(chapter.id, remainingScene, "skipped");
+                skippedCount++;
+              }
+            }
+            break;
           }
 
           // Calculate average time per scene
