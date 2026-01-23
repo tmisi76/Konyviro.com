@@ -54,6 +54,9 @@ export function Step4StoryIdeas({
     setIsGenerating(true);
     setSelectedId(null);
     
+    // Előző ötletek címei az egyediség biztosításához
+    const previousTitles = ideas.map(i => i.title);
+    
     try {
       const { data, error } = await supabase.functions.invoke("generate-story-ideas", {
         body: {
@@ -64,6 +67,7 @@ export function Step4StoryIdeas({
           targetAudience,
           additionalInstructions,
           authorProfile: authorProfile || undefined,
+          previousIdeas: previousTitles.length > 0 ? previousTitles : undefined,
         },
       });
 

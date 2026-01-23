@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, authorProfile } = await req.json();
+    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, authorProfile, previousIdeas } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -22,9 +22,25 @@ serve(async (req) => {
 
     const isFiction = genre === "fiction";
     
+    // Előző ötletek kizárása az újragenerálásnál
+    const previousIdeasClause = previousIdeas?.length > 0 
+      ? `\n\nKRITIKUS SZABÁLY - KERÜLD AZ ALÁBBI ÖTLETEKET:\n${previousIdeas.map((t: string, i: number) => `${i+1}. "${t}"`).join('\n')}\n\nGenerálj TELJESEN MÁS témákat, megközelítéseket, címeket és koncepciókat! Az új ötletek NE hasonlítsanak az előzőekre semmilyen módon.`
+      : "";
+
     const systemPrompt = isFiction 
       ? "Te egy kreatív könyvíró asszisztens vagy. Mindig érvényes JSON-t adj vissza."
-      : `Te egy bestseller szakértői könyveket író ghostwriter vagy${authorProfile?.authorName ? ` ${authorProfile.authorName} nevében` : ""}. NE használj kitalált szereplőket vagy fiktív karaktereket. A szerző első személyben beszél. Mindig érvényes JSON-t adj vissza.`;
+      : `Te egy bestseller szakértői könyveket író ghostwriter vagy${authorProfile?.authorName ? ` ${authorProfile.authorName} nevében` : ""}. 
+
+SZAKKÖNYV ÍRÁS SZABÁLYOK:
+- NE használj kitalált szereplőket vagy fiktív karaktereket
+- A szerző első személyben beszél ("Én", "Mi")
+- Közvetlen megszólítás ("Te" vagy "Ön" a formalitástól függően)
+- Zero fluff - tömör, lényegre törő szöveg
+- Minden ígéret mögött konkrét szám vagy példa
+- Személyes történetek a hitelesség érdekében
+- Gyakorlatias, azonnal alkalmazható tanácsok
+
+Mindig érvényes JSON-t adj vissza.`;
     
     const prompt = isFiction 
       ? `Generálj 3 egyedi sztori ötletet a következő paraméterek alapján:
@@ -35,6 +51,7 @@ Hangnem: ${tone}
 Hossz: ${length === "short" ? "rövid (~30k szó)" : length === "medium" ? "közepes (~60k szó)" : "hosszú (~100k szó)"}
 ${targetAudience ? `Célközönség: ${targetAudience}` : ""}
 ${additionalInstructions ? `Extra instrukciók: ${additionalInstructions}` : ""}
+${previousIdeasClause}
 
 VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
 {
@@ -53,28 +70,50 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
 
 Téma: ${subcategory}
 Hangnem: ${tone}
-Hossz: ${length === "short" ? "rövid (~30k szó)" : length === "medium" ? "közepes (~60k szó)" : "hosszú (~100k szó)"}
+Hossz: ${length === "short" ? "rövid (~30k szó, 10 fejezet)" : length === "medium" ? "közepes (~60k szó, 18 fejezet)" : "hosszú (~100k szó, 28 fejezet)"}
 ${targetAudience ? `Célközönség: ${targetAudience}` : ""}
 ${authorProfile?.authorBackground ? `Szerző háttere: ${authorProfile.authorBackground}` : ""}
 ${authorProfile?.mainPromise ? `Fő ígéret: ${authorProfile.mainPromise}` : ""}
 ${additionalInstructions ? `Extra instrukciók: ${additionalInstructions}` : ""}
+${previousIdeasClause}
 
-FONTOS SZABÁLYOK:
-- NE használj kitalált karaktereket vagy fiktív szereplőket
-- A könyv a szerző valós tapasztalatain alapul
-- Fókuszálj: gyakorlati tanácsok, esettanulmányok, módszerek, lépésről-lépésre útmutatók
-- Az olvasó konkrét eredményt ér el a könyv végére
+KÖTELEZŐ KÖNYV ELEMEK (minden ötlethez):
+1. NAGY, SPECIFIKUS ÍGÉRET - Konkrét, mérhető eredmény (pl. "7 számjegyű bevétel 12 hónap alatt", "100 új ügyfél 90 nap alatt")
+2. EGYEDI MÓDSZERTAN NEVE - Brandelhető keretrendszer (pl. "A Million-Dollar Book Method", "A 4 Lépéses Áttörés Rendszer")
+3. 3-5 FŐ FEJEZET TÉMA - A könyv gerincét adó kulcstémák
+4. KONKRÉT EREDMÉNY - Mit ér el az olvasó a könyv végére
+
+KÖTELEZŐ STRUKTÚRA MINDEN KÖNYVHÖZ:
+- Bevezetés (Miért olvasd el? Mi a probléma?)
+- A módszertan bemutatása (Hogyan jött létre? Mi a lényege?)
+- Tematikus fejezetek (Lépésről-lépésre útmutató)
+- Implementáció (Hogyan kezdj hozzá?)
+- Zárás (Következő lépések, CTA)
+
+STÍLUS KÖVETELMÉNYEK:
+- Első személy narratíva
+- Közvetlen megszólítás
+- Rövid bekezdések (max 3-4 mondat)
+- Minden fejezethez összefoglaló
+- Személyes történetek és esettanulmányok
+- Konkrét számok és statisztikák
+
+NE HASZNÁLJ:
+- Fiktív karaktereket vagy szereplőket
+- Általános, üres ígéreteket ("sikeres leszel", "jobb életed lesz")
+- Akadémiai/tudományos stílust
+- Hosszú elméleti bevezetéseket
 
 VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
 {
   "ideas": [
     {
       "id": "idea-1",
-      "title": "Könyv címe",
-      "synopsis": "3-4 mondatos leírás arról, mit tanul meg az olvasó",
+      "title": "Figyelemfelkeltő cím ami tartalmazza az ígéretet",
+      "synopsis": "3-4 mondat: Mit tanul meg az olvasó? Milyen konkrét eredményt ér el? Mi az egyedi módszer?",
       "mainElements": ["Kulcstéma 1", "Kulcstéma 2", "Kulcstéma 3"],
-      "uniqueSellingPoint": "Mi teszi ezt a könyvet egyedivé a piacon",
-      "mood": "A könyv stílusa 2-3 szóban"
+      "uniqueSellingPoint": "Az egyedi módszertan neve és a konkrét, mérhető eredmény",
+      "mood": "A könyv stílusa 2-3 szóban (pl. gyakorlatias, motiváló, lépésről-lépésre)"
     }
   ]
 }`;
