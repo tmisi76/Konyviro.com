@@ -113,11 +113,16 @@ export function validateSceneOutline(data: unknown): SceneOutlineItem[] {
     throw new Error("Scene outline must be an array");
   }
 
-  if (data.length === 0) {
-    throw new Error("Scene outline cannot be empty");
+  // NULL és undefined értékek kiszűrése
+  const filtered = data.filter(item => item !== null && item !== undefined && typeof item === 'object');
+
+  if (filtered.length === 0) {
+    throw new Error("Scene outline cannot be empty after filtering null values");
   }
 
-  return data.map((scene, index) => ({
+  console.log(`Validated ${filtered.length} scenes (filtered from ${data.length})`);
+
+  return filtered.map((scene, index) => ({
     scene_number: typeof scene.scene_number === "number" ? scene.scene_number : index + 1,
     title: typeof scene.title === "string" ? scene.title : `Jelenet ${index + 1}`,
     pov: typeof scene.pov === "string" ? scene.pov : "Harmadik személy",

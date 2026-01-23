@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { repairAndParseJSON } from "../_shared/json-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,7 +115,7 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
         response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
@@ -152,12 +153,40 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
 
     const aiData = await response.json();
     let content = aiData.choices?.[0]?.message?.content || "";
-    if (content.startsWith("```json")) content = content.slice(7);
-    if (content.startsWith("```")) content = content.slice(3);
-    if (content.endsWith("```")) content = content.slice(0, -3);
     
-    return new Response(JSON.stringify(JSON.parse(content.trim())), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!content) {
+      console.error("Empty AI response");
+      throw new Error("Üres AI válasz");
+    }
+    
+    console.log("Raw AI response length:", content.length);
+    
+    // Robusztus JSON parse a json-utils-szal
+    let parsedResponse: { chapters?: unknown[] };
+    try {
+      parsedResponse = repairAndParseJSON<{ chapters?: unknown[] }>(content);
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      console.error("Raw content (first 500 chars):", content.substring(0, 500));
+      throw new Error("Hiba a fejezet struktúra feldolgozása közben");
+    }
+    
+    // Validáljuk a chapters tömböt
+    if (!parsedResponse.chapters || !Array.isArray(parsedResponse.chapters)) {
+      console.error("Invalid chapters format:", parsedResponse);
+      throw new Error("Érvénytelen fejezet formátum");
+    }
+    
+    // Null értékek kiszűrése a fejezetekből
+    parsedResponse.chapters = parsedResponse.chapters.filter(
+      (ch: unknown) => ch !== null && ch !== undefined && typeof ch === 'object'
+    );
+    
+    console.log(`Returning ${parsedResponse.chapters.length} chapters`);
+    
+    return new Response(JSON.stringify(parsedResponse), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
+    console.error("Generate chapter outline error:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
