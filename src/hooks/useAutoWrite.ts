@@ -236,8 +236,7 @@ export function useAutoWrite({
           await generateOutlineForChapter(chapter, previousSummary, nextChapterTitle);
         } catch (outlineError) {
           console.error(`Outline generation failed for chapter ${chapter.title}:`, outlineError);
-          // Continue with next chapter instead of stopping
-          toast.warning(`Fejezet vázlat kihagyva: ${chapter.title}`);
+          // Continue with next chapter instead of stopping - popup shows progress
           continue;
         }
         
@@ -245,7 +244,7 @@ export function useAutoWrite({
       }
 
       setProgress(prev => ({ ...prev, status: "idle" }));
-      toast.success("Minden fejezet vázlata elkészült!");
+      console.log("All outlines generated successfully");
     } catch (error) {
       console.error("Outline generation error:", error);
       setProgress(prev => ({ 
@@ -253,7 +252,7 @@ export function useAutoWrite({
         status: "error",
         error: error instanceof Error ? error.message : "Ismeretlen hiba"
       }));
-      toast.error(error instanceof Error ? error.message : "Hiba a vázlat generálása közben");
+      // Error state shown in modal, no toast needed
     }
   }, [chapters, generateOutlineForChapter, fetchChapters]);
 
@@ -660,8 +659,7 @@ export function useAutoWrite({
             console.error(`Scene ${sceneIndex} failed:`, sceneError);
             await updateSceneStatus(chapter.id, sceneIndex, "failed");
             failedCount++;
-            toast.warning(`A ${sceneIndex + 1}. jelenet kihagyva. Később újrapróbálható.`, { duration: 5000 });
-            // Continue with next scene - DON'T stop the whole book
+            // Progress tracked in modal, continue with next scene
             continue;
           }
 
@@ -723,11 +721,8 @@ export function useAutoWrite({
         skippedScenes: skippedCount,
       }));
       
-      if (failedCount > 0 || skippedCount > 0) {
-        toast.success(`A könyv elkészült! (${failedCount + skippedCount} jelenet kihagyva)`, { duration: 10000 });
-      } else {
-        toast.success("A könyv elkészült! 🎉");
-      }
+      // Completion is shown in modal with celebration, no toast needed
+      console.log(`Book completed! Failed: ${failedCount}, Skipped: ${skippedCount}`);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         setProgress(prev => ({ ...prev, status: "paused" }));
@@ -740,7 +735,7 @@ export function useAutoWrite({
         status: "error",
         error: error instanceof Error ? error.message : "Ismeretlen hiba"
       }));
-      toast.error(error instanceof Error ? error.message : "Hiba az automatikus írás közben");
+      // Error state shown in modal, no toast needed
     } finally {
       isRunningRef.current = false;
     }
