@@ -113,6 +113,11 @@ serve(async (req) => {
     for (const ch of chapters) {
       const scenes = (ch.scene_outline as any[]) || [];
       for (let i = 0; i < scenes.length; i++) {
+        // NULL JELENET KIHAGYÁSA
+        if (!scenes[i] || typeof scenes[i] !== 'object') {
+          console.warn(`Null/invalid scene at index ${i} in chapter ${ch.id}, skipping`);
+          continue;
+        }
         if (scenes[i].status === "pending" || scenes[i].status === "writing") {
           targetChapter = ch;
           targetSceneIndex = i;
@@ -183,13 +188,26 @@ serve(async (req) => {
         : "fiction";
     
     const scene = scenes[targetSceneIndex];
+    
+    // Explicit null ellenőrzés a jelenet objektumra
+    if (!scene || typeof scene !== 'object') {
+      console.error(`Invalid scene at index ${targetSceneIndex}:`, scene);
+      // Jelöljük a jelenetet hibásnak és lépjünk tovább
+      scenes[targetSceneIndex] = { status: "skipped", error: "Invalid scene data" };
+      await supabase.from("chapters").update({ scene_outline: scenes }).eq("id", targetChapter.id);
+      return new Response(
+        JSON.stringify({ status: "scene_skipped", sceneIndex: targetSceneIndex, reason: "Invalid scene data" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     const prompt = `Írj jelenetet:
 Fejezet: ${targetChapter.title}
 Jelenet ${targetSceneIndex + 1}/${scenes.length}
 POV: ${scene.pov || "Harmadik személy"}
-Helyszín: ${scene.location}
-Leírás: ${scene.description}
-Kulcsesemények: ${(scene.key_events || []).join(", ")}
+Helyszín: ${scene.location || "Ismeretlen"}
+Leírás: ${scene.description || "Folytasd a történetet"}
+Kulcsesemények: ${(scene.key_events || []).join(", ") || "Folytasd a cselekményt"}
 Cél: ~${scene.target_words || 1000} szó
 ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
