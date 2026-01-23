@@ -104,7 +104,15 @@ export function Step6ChapterOutline({
 
       if (error) throw error;
       
-      setChapters(data.chapters as ChapterOutlineItem[]);
+      // Filter out null/invalid chapters from the response
+      const validChapters = ((data.chapters || []) as ChapterOutlineItem[])
+        .filter(ch => ch != null && ch.title);
+      
+      if (validChapters.length === 0) {
+        throw new Error("Nem sikerült érvényes fejezeteket generálni");
+      }
+      
+      setChapters(validChapters);
       toast.success("Fejezet struktúra generálva!");
     } catch (error) {
       console.error("Error generating outline:", error);

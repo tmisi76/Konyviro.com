@@ -141,12 +141,20 @@ export function useAutoWrite({
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || (isNonFiction ? "Szekció vázlat generálási hiba" : "Jelenet vázlat generálási hiba"));
+      let errorMessage = isNonFiction ? "Szekció vázlat generálási hiba" : "Jelenet vázlat generálási hiba";
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        console.error("Failed to parse error response");
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
-    return data.sceneOutline as SceneOutline[];
+    // Filter out null/undefined scenes from the outline
+    const sceneOutline = (data.sceneOutline as SceneOutline[]) || [];
+    return sceneOutline.filter(s => s != null);
   }, [projectId, storyStructure, charactersContext, genre, isNonFiction, bookTopic, targetAudience]);
 
   // Generate outlines for all chapters
@@ -168,10 +176,16 @@ export function useAutoWrite({
 
         setProgress(prev => ({ ...prev, currentChapterIndex: i }));
 
-        // Build previous chapters summary
+        // Build previous chapters summary with null-safe scene mapping
         const previousSummary = chapters
           .slice(0, i)
-          .map(c => `${c.title}: ${c.scene_outline.map(s => s.description).join(". ")}`)
+          .map(c => {
+            const sceneDescriptions = (c.scene_outline || [])
+              .filter(s => s != null && s.description)
+              .map(s => s.description)
+              .join(". ");
+            return `${c.title}: ${sceneDescriptions}`;
+          })
           .join("\n");
 
         const nextChapterTitle = chapters[i + 1]?.title;
@@ -278,8 +292,14 @@ export function useAutoWrite({
     }
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || (isNonFiction ? "Szekció írási hiba" : "Jelenet írási hiba"));
+      let errorMessage = isNonFiction ? "Szekció írási hiba" : "Jelenet írási hiba";
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch {
+        console.error("Failed to parse error response");
+      }
+      throw new Error(errorMessage);
     }
 
     // Parse JSON response (no longer streaming)

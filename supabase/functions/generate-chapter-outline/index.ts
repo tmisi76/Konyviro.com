@@ -108,24 +108,31 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
   ]
 }`;
 
-    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
-    const maxRetries = 5;
-    let response: Response | null = null;
+    // Retry logic exponenciális backoff-al (429/502/503 + empty response kezelés)
+    const maxRetries = 7;
+    let content = "";
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
-        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        console.log(`AI request attempt ${attempt}/${maxRetries}`);
+
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }], max_tokens: 4000 }),
+          body: JSON.stringify({ 
+            model: "google/gemini-3-flash-preview", 
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }], 
+            max_tokens: 6000 
+          }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
+        // Retry on transient errors
         if (response.status === 429 || response.status === 502 || response.status === 503) {
           console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
@@ -133,8 +140,35 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
+          if (response.status === 429) {
+            return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+          throw new Error("AI szolgáltatás nem elérhető");
         }
+
+        if (!response.ok) {
+          console.error(`Response not ok: ${response.status}`);
+          throw new Error("AI hiba");
+        }
+
+        const aiData = await response.json();
+        content = aiData.choices?.[0]?.message?.content || "";
+
+        // Retry on empty or too short response
+        if (!content || content.trim().length < 10) {
+          console.warn(`Empty/too short AI response (attempt ${attempt}/${maxRetries}), length: ${content?.length || 0}`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Az AI nem tudott választ generálni, próbáld újra");
+        }
+
+        // Success - exit retry loop
+        console.log(`AI response received, length: ${content.length}`);
         break;
+
       } catch (fetchError) {
         console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
         if (attempt < maxRetries) {
@@ -144,19 +178,6 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
         }
         throw fetchError;
       }
-    }
-
-    if (!response || !response.ok) {
-      if (response?.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      throw new Error(`AI error: ${response?.status || "unknown"}`);
-    }
-
-    const aiData = await response.json();
-    let content = aiData.choices?.[0]?.message?.content || "";
-    
-    if (!content) {
-      console.error("Empty AI response");
-      throw new Error("Üres AI válasz");
     }
     
     console.log("Raw AI response length:", content.length);
@@ -177,14 +198,32 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
       throw new Error("Érvénytelen fejezet formátum");
     }
     
-    // Null értékek kiszűrése a fejezetekből
-    parsedResponse.chapters = parsedResponse.chapters.filter(
-      (ch: unknown) => ch !== null && ch !== undefined && typeof ch === 'object'
-    );
+    // Null értékek kiszűrése és validálás - kötelező mezők ellenőrzése
+    const validChapters = parsedResponse.chapters
+      .filter((ch: unknown): ch is Record<string, unknown> => 
+        ch !== null && 
+        ch !== undefined && 
+        typeof ch === 'object' &&
+        'title' in ch
+      )
+      .map((ch, index) => ({
+        id: ch.id || `ch-${index + 1}`,
+        number: typeof ch.number === 'number' ? ch.number : index + 1,
+        title: String(ch.title || `Fejezet ${index + 1}`),
+        description: String(ch.description || ""),
+        keyPoints: Array.isArray(ch.keyPoints) ? ch.keyPoints : [],
+        estimatedWords: typeof ch.estimatedWords === 'number' ? ch.estimatedWords : wordsPerChapter,
+        chapterType: ch.chapterType || "topic",
+      }));
+
+    if (validChapters.length === 0) {
+      console.error("No valid chapters after filtering");
+      throw new Error("Nem sikerült érvényes fejezeteket generálni");
+    }
     
-    console.log(`Returning ${parsedResponse.chapters.length} chapters`);
+    console.log(`Returning ${validChapters.length} valid chapters`);
     
-    return new Response(JSON.stringify(parsedResponse), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ chapters: validChapters }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Generate chapter outline error:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
