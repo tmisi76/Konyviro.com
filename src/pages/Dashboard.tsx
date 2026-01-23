@@ -27,6 +27,7 @@ import { ContentSkeleton } from "@/components/ui/content-skeleton";
 import { OnboardingTour } from "@/components/ui/onboarding-tour";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { RetryError } from "@/components/ui/retry-error";
+import { BugReportFab } from "@/components/support/BugReportFab";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -449,6 +450,9 @@ export default function Dashboard() {
         description="Biztosan törlöd ezt a projektet? Az összes fejezet, karakter és tartalom véglegesen törlődik. Ez a művelet nem visszavonható."
         isLoading={isDeleting}
       />
+
+      {/* Bug Report FAB */}
+      <BugReportFab />
 
       {/* Onboarding Tour */}
       <OnboardingTour />

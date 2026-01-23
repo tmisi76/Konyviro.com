@@ -4,14 +4,17 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Filter, BookOpen, MoreHorizontal, Eye, Trash2, Archive, User, Download, Loader2 } from "lucide-react";
+import { Search, BookOpen, MoreHorizontal, Eye, Trash2, Archive, User, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { hu } from "date-fns/locale";
+import { ConfirmationModal } from "@/components/ui/confirmation-modal";
+import { supabase } from "@/integrations/supabase/client";
 
 import { useAdminProjects, type AdminProject } from "@/hooks/admin/useAdminProjects";
 
@@ -39,6 +42,11 @@ export default function AdminProjects() {
   const [genreFilter, setGenreFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
 
   const { data: projects, isLoading, refetch } = useAdminProjects({
     search,
@@ -48,16 +56,104 @@ export default function AdminProjects() {
     limit: 20
   });
 
-  const handleArchiveProject = async (projectId: string) => {
-    toast.info("Archiválás funkció hamarosan...");
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && projects?.data) {
+      setSelectedProjects(projects.data.map(p => p.id));
+    } else {
+      setSelectedProjects([]);
+    }
   };
 
-  const handleDeleteProject = async (projectId: string) => {
-    toast.info("Törlés funkció hamarosan...");
+  const handleSelectProject = (projectId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedProjects(prev => [...prev, projectId]);
+    } else {
+      setSelectedProjects(prev => prev.filter(id => id !== projectId));
+    }
+  };
+
+  const handleArchiveProject = async (projectId: string) => {
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .update({ status: "archived" })
+        .eq("id", projectId);
+      
+      if (error) throw error;
+      toast.success("Projekt archiválva!");
+      refetch();
+    } catch (error: any) {
+      toast.error("Hiba: " + error.message);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+    setIsDeleting(true);
+    
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", projectToDelete);
+      
+      if (error) throw error;
+      toast.success("Projekt törölve!");
+      setDeleteModalOpen(false);
+      setProjectToDelete(null);
+      refetch();
+    } catch (error: any) {
+      toast.error("Hiba: " + error.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProjects.length === 0) return;
+    setIsDeleting(true);
+
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .delete()
+        .in("id", selectedProjects);
+
+      if (error) throw error;
+      
+      toast.success(`${selectedProjects.length} projekt törölve!`);
+      setSelectedProjects([]);
+      setBulkDeleteModalOpen(false);
+      refetch();
+    } catch (error: any) {
+      toast.error("Hiba: " + error.message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleExportProjects = () => {
-    toast.info("Export funkció hamarosan...");
+    if (!projects?.data) return;
+    
+    const csvContent = [
+      ['Cím', 'Műfaj', 'Szerző', 'Fejezetek', 'Szavak', 'Státusz', 'Létrehozva'].join(','),
+      ...projects.data.map(p => [
+        `"${p.title}"`,
+        p.genre,
+        p.user_name || 'Névtelen',
+        p.chapter_count,
+        p.word_count,
+        p.status,
+        new Date(p.created_at).toISOString()
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `projektek_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success("CSV exportálva!");
   };
 
   const getStatusBadge = (status: string) => {
@@ -154,6 +250,24 @@ export default function AdminProjects() {
               </Select>
             </div>
           </div>
+
+          {/* Bulk actions */}
+          {selectedProjects.length > 0 && (
+            <div className="flex items-center gap-4 mt-4 p-3 bg-muted rounded-lg">
+              <span className="text-sm font-medium">{selectedProjects.length} kiválasztva</span>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setBulkDeleteModalOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Tömeges törlés
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setSelectedProjects([])}>
+                Kijelölés törlése
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -174,6 +288,12 @@ export default function AdminProjects() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox 
+                        checked={selectedProjects.length === projects?.data?.length && projects.data.length > 0}
+                        onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      />
+                    </TableHead>
                     <TableHead>Cím</TableHead>
                     <TableHead>Műfaj</TableHead>
                     <TableHead>Szerző</TableHead>
@@ -187,6 +307,12 @@ export default function AdminProjects() {
                 <TableBody>
                   {projects.data.map((project) => (
                     <TableRow key={project.id}>
+                      <TableCell>
+                        <Checkbox 
+                          checked={selectedProjects.includes(project.id)}
+                          onCheckedChange={(checked) => handleSelectProject(project.id, !!checked)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{project.title}</span>
@@ -242,7 +368,10 @@ export default function AdminProjects() {
                               Archiválás
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => handleDeleteProject(project.id)}
+                              onClick={() => {
+                                setProjectToDelete(project.id);
+                                setDeleteModalOpen(true);
+                              }}
                               className="text-destructive"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -286,6 +415,28 @@ export default function AdminProjects() {
           )}
         </CardContent>
       </Card>
+
+      {/* Single Delete Modal */}
+      <ConfirmationModal
+        open={deleteModalOpen}
+        onOpenChange={setDeleteModalOpen}
+        onConfirm={handleDeleteProject}
+        type="delete"
+        title="Projekt törlése"
+        description="Biztosan törölni szeretnéd ezt a projektet? Ez a művelet nem vonható vissza és az összes kapcsolódó adat törlésre kerül."
+        isLoading={isDeleting}
+      />
+
+      {/* Bulk Delete Modal */}
+      <ConfirmationModal
+        open={bulkDeleteModalOpen}
+        onOpenChange={setBulkDeleteModalOpen}
+        onConfirm={handleBulkDelete}
+        type="delete"
+        title="Tömeges törlés"
+        description={`Biztosan törölni szeretnéd a kiválasztott ${selectedProjects.length} projektet? Ez a művelet nem vonható vissza.`}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

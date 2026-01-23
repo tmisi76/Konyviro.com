@@ -13,6 +13,7 @@ import {
   Settings,
   BarChart3,
   ScrollText,
+  AlertCircle,
   Menu,
   Bell,
   ChevronDown,
@@ -69,6 +70,7 @@ const ADMIN_NAV_ITEMS = [
     items: [
       { name: "Statisztikák", href: "/admin/analytics", icon: BarChart3 },
       { name: "Tevékenység Log", href: "/admin/logs", icon: ScrollText },
+      { name: "Hibalista", href: "/admin/issues", icon: AlertCircle },
     ],
   },
 ];

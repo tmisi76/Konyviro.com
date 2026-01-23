@@ -1,11 +1,16 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import Stripe from "https://esm.sh/stripe@18.5.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+};
+
+const logStep = (step: string, details?: unknown) => {
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
 serve(async (req) => {
@@ -14,6 +19,8 @@ serve(async (req) => {
   }
 
   try {
+    logStep("Function started");
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
@@ -41,14 +48,23 @@ serve(async (req) => {
       throw new Error("User email not found");
     }
 
+    logStep("User authenticated", { userId, email: userEmail });
+
     const { priceId, tier, successUrl, cancelUrl } = await req.json();
 
     if (!priceId || !tier) {
       throw new Error("Missing required parameters");
     }
 
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-      apiVersion: "2023-10-16",
+    logStep("Request params", { priceId, tier });
+
+    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!stripeKey) {
+      throw new Error("STRIPE_SECRET_KEY is not set");
+    }
+
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: "2025-08-27.basil",
     });
 
     // Check if customer already exists
@@ -60,6 +76,7 @@ serve(async (req) => {
     let customerId: string;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
+      logStep("Existing customer found", { customerId });
     } else {
       const customer = await stripe.customers.create({
         email: userEmail,
@@ -68,6 +85,7 @@ serve(async (req) => {
         },
       });
       customerId = customer.id;
+      logStep("New customer created", { customerId });
     }
 
     // Create checkout session
@@ -80,8 +98,8 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+      success_url: successUrl || `${req.headers.get("origin")}/dashboard?subscription=success`,
+      cancel_url: cancelUrl || `${req.headers.get("origin")}/pricing?subscription=cancelled`,
       metadata: {
         supabase_user_id: userId,
         tier: tier,
@@ -96,6 +114,8 @@ serve(async (req) => {
       },
     });
 
+    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+
     return new Response(
       JSON.stringify({ url: session.url }),
       {
@@ -106,6 +126,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Checkout error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    logStep("ERROR", { message: errorMessage });
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
