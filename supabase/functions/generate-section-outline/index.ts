@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { repairAndParseJSON } from "../_shared/json-utils.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -90,7 +91,7 @@ KÖTELEZŐ SZEKCIÓK:
         response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 4000 }),
+          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 6000 }),
           signal: controller.signal,
         });
 
@@ -132,17 +133,35 @@ KÖTELEZŐ SZEKCIÓK:
     }
 
     const data = await response.json();
-    let content = data.choices?.[0]?.message?.content || "";
-    content = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const sectionOutline = JSON.parse(content);
+    const content = data.choices?.[0]?.message?.content || "";
 
-    if (!Array.isArray(sectionOutline)) throw new Error("Érvénytelen formátum");
+    if (!content) {
+      throw new Error("Üres AI válasz");
+    }
 
-    const sceneOutline = sectionOutline.map((s: any) => ({
-      scene_number: s.section_number || s.scene_number,
-      title: s.title,
-      pov: s.type || s.pov,
-      location: s.location || `Szekció: ${s.type}`,
+    console.log("Raw AI response length:", content.length);
+
+    // Use robust JSON parsing with repair capability
+    let sectionOutline;
+    try {
+      sectionOutline = repairAndParseJSON<unknown[]>(content);
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      console.error("Content preview:", content.substring(0, 1000));
+      throw new Error("Nem sikerült feldolgozni az AI válaszát");
+    }
+
+    if (!Array.isArray(sectionOutline) || sectionOutline.length === 0) {
+      throw new Error("Érvénytelen formátum: üres vagy nem tömb");
+    }
+
+    console.log("Successfully parsed", sectionOutline.length, "sections");
+
+    const sceneOutline = sectionOutline.map((s: any, index: number) => ({
+      scene_number: s.section_number || s.scene_number || index + 1,
+      title: s.title || `Szekció ${index + 1}`,
+      pov: s.type || s.pov || "concept",
+      location: s.location || `Szekció: ${s.type || "content"}`,
       time: s.time || "",
       description: s.learning_objective || s.description || "",
       key_events: s.key_points || s.key_events || [],
@@ -156,6 +175,7 @@ KÖTELEZŐ SZEKCIÓK:
 
     return new Response(JSON.stringify({ sceneOutline, sectionOutline }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
+    console.error("Function error:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
