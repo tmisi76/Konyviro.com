@@ -9,7 +9,7 @@ export interface SceneOutline {
   key_events: string[]; // For fiction: events, for non-fiction: key_points
   emotional_arc: string; // For fiction: emotional arc, for non-fiction: examples count
   target_words: number;
-  status: "pending" | "writing" | "done" | "failed";
+  status: "pending" | "writing" | "done" | "failed" | "skipped"; // Added skipped status
 }
 
 // Non-fiction section types
@@ -33,6 +33,14 @@ export interface AutoWriteProgress {
   currentSceneIndex: number;
   status: "idle" | "generating_outline" | "writing" | "paused" | "completed" | "error";
   error?: string;
+  // Enhanced progress tracking
+  currentSceneTitle?: string;
+  currentChapterTitle?: string;
+  failedScenes: number;
+  skippedScenes: number;
+  avgSecondsPerScene?: number;
+  estimatedRemainingSeconds?: number;
+  startTime?: number;
 }
 
 export interface ChapterWithScenes {
