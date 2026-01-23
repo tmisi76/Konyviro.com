@@ -368,6 +368,9 @@ export function useEditorData(projectId: string) {
     const autoSaveInterval = setInterval(() => {
       if (pendingChangesRef.current.size > 0) {
         flushPendingChanges();
+      } else {
+        // Frissítsük a lastSaved-et, hogy jelezze: minden mentve van
+        setLastSaved(new Date());
       }
     }, 5000);
 
