@@ -271,15 +271,18 @@ Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
 Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${characters}` : ""}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
-    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
+    // Rock-solid retry logic with max resilience
     const maxRetries = 7;
+    const MAX_TIMEOUT = 120000; // 2 minutes timeout
     let lastError: Error | null = null;
-    let aiData: any = null;
+    let content = "";
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90000);
+        const timeoutId = setTimeout(() => controller.abort(), MAX_TIMEOUT);
+
+        console.log(`AI request attempt ${attempt}/${maxRetries} for scene ${sceneNumber}`);
 
         const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
@@ -293,19 +296,20 @@ Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${cha
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            max_tokens: Math.min(sceneOutline.target_words * 2, 6000),
+            max_tokens: 8192, // INCREASED for maximum response length
           }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        // Kezeljük a rate limit (429), gateway (502/503) hibákat
-        if (response.status === 429 || response.status === 502 || response.status === 503) {
+        // Handle rate limit (429), gateway errors (502/503/504)
+        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) {
           const statusText = response.status === 429 ? "Rate limit" : `Gateway ${response.status}`;
           console.error(`${statusText} (attempt ${attempt}/${maxRetries})`);
           
           if (attempt < maxRetries) {
+            // Exponential backoff: 5s, 10s, 20s, 40s, 60s, 60s, 60s
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
             console.log(`Waiting ${delay/1000}s before retry...`);
             await new Promise(resolve => setTimeout(resolve, delay));
@@ -333,18 +337,55 @@ Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${cha
           }
           const errorText = await response.text();
           console.error("AI gateway error:", response.status, errorText.substring(0, 200));
+          
+          // Retry on 5xx errors
+          if (response.status >= 500 && attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
           return new Response(JSON.stringify({ error: "AI szolgáltatás hiba" }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
-        aiData = await response.json();
+        // Parse response safely
+        let aiData;
+        try {
+          aiData = await response.json();
+        } catch (parseError) {
+          console.error(`JSON parse error (attempt ${attempt}/${maxRetries}):`, parseError);
+          if (attempt < maxRetries) {
+            const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Hibás API válasz formátum");
+        }
+
+        content = aiData.choices?.[0]?.message?.content || "";
+
+        // Retry on empty or too short response (minimum 100 chars for a valid scene)
+        if (!content || content.trim().length < 100) {
+          console.warn(`Empty/too short AI response (attempt ${attempt}/${maxRetries}), length: ${content?.length || 0}`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Az AI nem tudott megfelelő választ generálni");
+        }
+
+        // Success - exit retry loop
+        console.log(`AI response received, length: ${content.length}`);
         break;
+
       } catch (fetchError) {
         lastError = fetchError as Error;
         if ((fetchError as Error).name === "AbortError") {
-          console.error(`Request timeout (attempt ${attempt}/${maxRetries})`);
+          console.error(`Request timeout after ${MAX_TIMEOUT/1000}s (attempt ${attempt}/${maxRetries})`);
         } else {
           console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
         }
@@ -360,14 +401,13 @@ Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${cha
       }
     }
 
-    if (!aiData) {
+    if (!content || content.trim().length < 100) {
       console.error("All retry attempts failed:", lastError?.message);
       return new Response(JSON.stringify({ error: "A generálás sikertelen. Próbáld újra." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const content = aiData.choices?.[0]?.message?.content || "";
 
     if (!content) {
       throw new Error("Generálás sikertelen");
