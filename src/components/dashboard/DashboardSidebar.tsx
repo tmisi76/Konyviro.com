@@ -14,7 +14,8 @@ import {
   ArchiveRestore,
   Trash2,
   Lock,
-  Shield
+  Shield,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -136,6 +137,22 @@ export function DashboardSidebar({
           </Link>
         </div>
       )}
+
+      {/* Book Coach link */}
+      <div className={cn("px-4 pb-2", isCollapsed && "flex justify-center")}>
+        <Link to="/coach" className="w-full">
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent",
+              isCollapsed && "w-10 p-0 justify-center"
+            )}
+          >
+            <Sparkles className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+            {!isCollapsed && "Könyv Coach"}
+          </Button>
+        </Link>
+      </div>
 
       {/* New project button */}
       <div className={cn("p-4 pt-2", isCollapsed && "flex justify-center")}>
