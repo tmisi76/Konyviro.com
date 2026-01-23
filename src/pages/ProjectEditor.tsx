@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Wand2 } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
@@ -9,14 +9,12 @@ import { ChapterSidebar } from "@/components/editor/ChapterSidebar";
 import { EditorBlock } from "@/components/editor/EditorBlock";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
 import { OutlineView } from "@/components/editor/OutlineView";
-import { AutoWritePanel } from "@/components/editor/AutoWritePanel";
 import { CharacterList } from "@/components/characters/CharacterList";
 import { ResearchView } from "@/components/research/ResearchView";
 import { CitationPanel } from "@/components/research/CitationPanel";
 import { useEditorData } from "@/hooks/useEditorData";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useCharacters } from "@/hooks/useCharacters";
-import { useAutoWrite } from "@/hooks/useAutoWrite";
 import { useSources, useCitations } from "@/hooks/useResearch";
 import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
 import { toast } from "sonner";
@@ -24,7 +22,7 @@ import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
 import { ROLE_LABELS } from "@/types/character";
 
-type ViewMode = "editor" | "outline" | "characters" | "research" | "autowrite";
+type ViewMode = "editor" | "outline" | "characters" | "research";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -39,6 +37,8 @@ export default function ProjectEditor() {
   const [showCitationPanel, setShowCitationPanel] = useState(false);
   const [isInlineGenerating, setIsInlineGenerating] = useState(false);
   const [inlineGeneratingBlockId, setInlineGeneratingBlockId] = useState<string | null>(null);
+  const [globalSelectedText, setGlobalSelectedText] = useState<string>("");
+  const [cursorPosition, setCursorPosition] = useState<{ blockId: string; offset: number } | null>(null);
 
   const { project, isLoading: projectLoading } = useProjectDetails(projectId || "");
   const {
@@ -58,6 +58,7 @@ export default function ProjectEditor() {
     updateBlock,
     deleteBlock,
     reorderBlocks,
+    flushPendingChanges,
   } = useEditorData(projectId || "");
 
   // Research hooks for Szakkönyv projects
@@ -89,29 +90,6 @@ export default function ProjectEditor() {
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
   // Check if project supports research (non-fiction)
   const supportsResearch = project?.genre === "szakkonyv";
-  // Check if project supports auto-write (all genres)
-  const supportsAutoWrite = true;
-
-  // Auto-write hook for fiction/erotic projects
-  const {
-    chapters: autoWriteChapters,
-    progress: autoWriteProgress,
-    startAutoWrite,
-    generateAllOutlines,
-    pause: pauseAutoWrite,
-    resume: resumeAutoWrite,
-    reset: resetAutoWrite,
-    fetchChapters: refetchAutoWriteChapters,
-  } = useAutoWrite({
-    projectId: projectId || "",
-    genre: project?.genre || "fiction",
-    storyStructure: project?.story_structure as Record<string, unknown> | undefined,
-    charactersContext,
-    onChapterUpdated: () => {
-      // Refresh editor data when auto-write updates a chapter
-      // This will be called after each scene is written
-    },
-  });
 
   // AI generation for inline actions
   const { generate: aiGenerate, reset: aiReset } = useAIGeneration({
@@ -119,6 +97,31 @@ export default function ProjectEditor() {
     chapterId: activeChapterId || undefined,
     genre: project?.genre,
   });
+
+  // Global selection listener for AI sidebar tools
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (sel && sel.toString().length > 0) {
+        setGlobalSelectedText(sel.toString());
+        
+        // Track cursor position
+        if (sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const container = range.startContainer.parentElement?.closest('[data-block-id]');
+          if (container) {
+            const blockId = container.getAttribute('data-block-id');
+            if (blockId) {
+              setCursorPosition({ blockId, offset: range.startOffset });
+            }
+          }
+        }
+      }
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, []);
 
   // Handle inline AI action from FloatingToolbar
   const handleInlineAIAction = useCallback(async (action: AIAction, selectedText: string, blockId: string) => {
@@ -339,30 +342,62 @@ export default function ProjectEditor() {
 
       {/* Main Editor Area */}
       <main className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
-        <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild>
-              <Link to="/dashboard">
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-            </Button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold text-foreground">
-                  {project?.title || "Projekt"}
-                </h1>
-                {isAdultContent && <AdultBadge size="sm" />}
-              </div>
-              {viewMode === "editor" && (
-                <p className="text-sm text-muted-foreground">
-                  {chapters.find((c) => c.id === activeChapterId)?.title}
-                </p>
-              )}
+        {/* Top Navigation Bar */}
+        <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-2">
+          <Button variant="ghost" size="sm" className="gap-2" asChild>
+            <Link to="/dashboard">
+              <ArrowLeft className="h-4 w-4" />
+              Vissza
+            </Link>
+          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Mentés...</span>
+                </>
+              ) : lastSaved ? (
+                <>
+                  <Cloud className="h-4 w-4 text-success" />
+                  <span>{formatLastSaved()}</span>
+                </>
+              ) : null}
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => flushPendingChanges()}
+              disabled={isSaving}
+              className="gap-2"
+            >
+              <Save className="h-4 w-4" />
+              Mentés
+            </Button>
+            <Button
+              size="sm"
+              onClick={async () => {
+                await flushPendingChanges();
+                navigate("/dashboard");
+              }}
+            >
+              Mentés és bezár
+            </Button>
           </div>
+        </div>
 
-          {/* View mode toggle */}
+        {/* Header Row 1: Title */}
+        <div className="border-b border-border bg-card px-4 py-3">
+          <div className="flex items-center justify-center gap-2">
+            <h1 className="text-lg font-semibold text-foreground">
+              {project?.title || "Projekt"}
+            </h1>
+            {isAdultContent && <AdultBadge size="sm" />}
+          </div>
+        </div>
+
+        {/* Header Row 2: Tabs */}
+        <div className="border-b border-border bg-card px-4 py-2 flex justify-center">
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
             <TabsList>
               <TabsTrigger value="editor" className="gap-2">
@@ -385,29 +420,9 @@ export default function ProjectEditor() {
                   Kutatás
                 </TabsTrigger>
               )}
-              {supportsAutoWrite && (
-                <TabsTrigger value="autowrite" className="gap-2">
-                  <Wand2 className="h-4 w-4" />
-                  Auto Írás
-                </TabsTrigger>
-              )}
             </TabsList>
           </Tabs>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Mentés...</span>
-              </>
-            ) : lastSaved ? (
-              <>
-                <Cloud className="h-4 w-4 text-success" />
-                <span>{formatLastSaved()}</span>
-              </>
-            ) : null}
-          </div>
-        </header>
+        </div>
 
         {/* Content based on view mode */}
         {viewMode === "editor" ? (
@@ -416,6 +431,7 @@ export default function ProjectEditor() {
               {blocks.map((block) => (
                 <div
                   key={block.id}
+                  data-block-id={block.id}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.currentTarget.classList.add("border-t-2", "border-primary");
@@ -471,17 +487,6 @@ export default function ProjectEditor() {
           <CharacterList projectId={projectId} />
         ) : viewMode === "research" ? (
           <ResearchView projectId={projectId} />
-        ) : viewMode === "autowrite" ? (
-          <AutoWritePanel
-            chapters={autoWriteChapters}
-            progress={autoWriteProgress}
-            genre={project?.genre}
-            onStart={startAutoWrite}
-            onPause={pauseAutoWrite}
-            onResume={resumeAutoWrite}
-            onReset={resetAutoWrite}
-            onGenerateOutlines={generateAllOutlines}
-          />
         ) : null}
       </main>
 
@@ -499,6 +504,8 @@ export default function ProjectEditor() {
           currentChapterContent={blocks.map((b) => b.content).join("\n")}
           characterCount={characters.length}
           charactersContext={charactersContext}
+          selectedText={globalSelectedText}
+          cursorPosition={cursorPosition}
           onInsertText={(text) => {
             // Insert at the end of the last block or create new block
             if (blocks.length > 0) {
@@ -524,6 +531,23 @@ export default function ProjectEditor() {
               }, 0);
             } else {
               createBlock("paragraph", text, 0);
+            }
+          }}
+          onInsertTextAtCursor={(text, position) => {
+            const block = blocks.find(b => b.id === position.blockId);
+            if (block) {
+              const before = block.content.substring(0, position.offset);
+              const after = block.content.substring(position.offset);
+              const newContent = before + text + after;
+              updateBlock(position.blockId, { content: newContent });
+              
+              // Sync DOM
+              setTimeout(() => {
+                const blockEl = document.querySelector(`[data-block-id="${position.blockId}"] [contenteditable="true"]`) as HTMLElement;
+                if (blockEl) {
+                  blockEl.innerText = newContent;
+                }
+              }, 0);
             }
           }}
         />
