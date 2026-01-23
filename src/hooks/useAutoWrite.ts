@@ -641,7 +641,20 @@ export function useAutoWrite({
           generation_status: (ch.generation_status as ChapterWithScenes["generation_status"]) || "pending",
         }));
         
-        setProgress(prev => ({ ...prev, status: "writing" }));
+        // Calculate totalScenes IMMEDIATELY after outline generation
+        let totalScenesAfterOutline = 0;
+        chaptersData.forEach(ch => {
+          totalScenesAfterOutline += (ch.scene_outline?.length || 0);
+        });
+        
+        console.log(`All outlines generated. Total scenes: ${totalScenesAfterOutline}. Starting scene writing...`);
+        
+        setProgress(prev => ({ 
+          ...prev, 
+          status: "writing",
+          totalScenes: totalScenesAfterOutline,
+          completedScenes: 0,
+        }));
       }
 
       let allPreviousContent = "";

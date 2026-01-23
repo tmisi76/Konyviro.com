@@ -444,7 +444,11 @@ export function WritingProgressPage({
             {/* Jelenet és szószám */}
             <div className="flex justify-between text-xs text-muted-foreground mb-4 px-1">
               <div className="flex gap-2">
-                <span>{completedScenes}/{totalScenes} {sceneLabel} kész</span>
+                {totalScenes > 0 ? (
+                  <span>{completedScenes}/{totalScenes} {sceneLabel} kész</span>
+                ) : (
+                  <span>Jelenetek előkészítése...</span>
+                )}
                 {failedScenes > 0 && <span className="text-destructive">{failedScenes} hibás</span>}
                 {skippedScenes > 0 && <span className="text-amber-500">{skippedScenes} kihagyva</span>}
               </div>
