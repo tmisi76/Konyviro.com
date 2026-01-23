@@ -22,16 +22,17 @@ serve(async (req) => {
     if (storyStructure) userPrompt += `\nKONTEXTUS: ${JSON.stringify(storyStructure)}`;
     if (characters) userPrompt += `\nKARAKTEREK: ${characters}`;
 
-    // Retry logic exponenciális backoff-al (429/502/503 + üres válasz kezelés)
+    // Rock-solid retry logic with max resilience
     const maxRetries = 7;
+    const MAX_TIMEOUT = 120000; // 2 minutes timeout
     let content = "";
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+        const timeoutId = setTimeout(() => controller.abort(), MAX_TIMEOUT);
 
-        console.log(`AI request attempt ${attempt}/${maxRetries}`);
+        console.log(`AI request attempt ${attempt}/${maxRetries} for chapter: ${chapterTitle}`);
 
         const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
@@ -39,7 +40,7 @@ serve(async (req) => {
           body: JSON.stringify({ 
             model: "google/gemini-3-flash-preview", 
             messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt }], 
-            max_tokens: 6000 
+            max_tokens: 8192 // INCREASED for maximum response length
           }),
           signal: controller.signal,
         });

@@ -211,17 +211,20 @@ Kulcsesemények: ${(scene.key_events || []).join(", ") || "Folytasd a cselekmén
 Cél: ~${scene.target_words || 1000} szó
 ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
-    // Generate scene content with retry logic
+    // Generate scene content with rock-solid retry logic
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const maxRetries = 7;
-    let res: Response | null = null;
+    const MAX_TIMEOUT = 120000; // 2 minutes
+    let sceneText = "";
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90000);
+        const timeoutId = setTimeout(() => controller.abort(), MAX_TIMEOUT);
 
-        res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        console.log(`AI request attempt ${attempt}/${maxRetries} for scene ${targetSceneIndex + 1}`);
+
+        const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
             Authorization: `Bearer ${LOVABLE_API_KEY}`, 
@@ -233,14 +236,15 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
               { role: "system", content: PROMPTS[genre] }, 
               { role: "user", content: prompt }
             ], 
-            max_tokens: Math.min((scene.target_words || 1000) * 2, 8000) 
+            max_tokens: 8192 // INCREASED for maximum response length
           }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        if (res.status === 429 || res.status === 502 || res.status === 503) {
+        // Handle rate limit and gateway errors
+        if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
           console.error(`Status ${res.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
@@ -253,11 +257,60 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
               { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
+          return new Response(
+            JSON.stringify({ error: "AI szolgáltatás túlterhelt" }), 
+            { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("AI API error:", res.status, errorText.substring(0, 200));
+          
+          // Retry on 5xx errors
+          if (res.status >= 500 && attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error(`API: ${res.status}`);
+        }
+        
+        // Parse response safely
+        let d;
+        try {
+          d = await res.json();
+        } catch (parseError) {
+          console.error(`JSON parse error (attempt ${attempt}/${maxRetries}):`, parseError);
+          if (attempt < maxRetries) {
+            const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Hibás API válasz formátum");
+        }
+
+        sceneText = d.choices?.[0]?.message?.content || "";
+        
+        // Retry on empty or too short response
+        if (!sceneText || sceneText.trim().length < 100) {
+          console.warn(`Empty/too short response (attempt ${attempt}/${maxRetries}), length: ${sceneText?.length || 0}`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Az AI nem tudott megfelelő választ generálni");
+        }
+
+        // Success
+        console.log(`AI response received, length: ${sceneText.length}`);
         break;
+
       } catch (fetchError) {
         console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
         if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          console.error(`Timeout after ${MAX_TIMEOUT/1000}s`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
             await new Promise(resolve => setTimeout(resolve, delay));
@@ -277,17 +330,16 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
       }
     }
 
-    if (!res || !res.ok) {
-      const errorText = res ? await res.text() : "No response";
-      console.error("AI API error:", res?.status, errorText);
-      throw new Error(`API: ${res?.status}`);
-    }
-    
-    const d = await res.json();
-    const sceneText = d.choices?.[0]?.message?.content || "";
-    
-    if (!sceneText) {
-      throw new Error("Generálás sikertelen");
+    if (!sceneText || sceneText.trim().length < 100) {
+      console.error("All retry attempts failed - no valid content");
+      // Mark scene as failed and continue with next
+      scenes[targetSceneIndex].status = "failed";
+      scenes[targetSceneIndex].error = "AI response failed";
+      await supabase.from("chapters").update({ scene_outline: scenes }).eq("id", targetChapter.id);
+      return new Response(
+        JSON.stringify({ status: "scene_failed", sceneIndex: targetSceneIndex, reason: "AI generation failed" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Get last block sort order

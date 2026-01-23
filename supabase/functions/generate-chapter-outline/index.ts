@@ -108,14 +108,15 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
   ]
 }`;
 
-    // Retry logic exponenciális backoff-al (429/502/503 + empty response kezelés)
+    // Rock-solid retry logic with max resilience
     const maxRetries = 7;
+    const MAX_TIMEOUT = 120000; // 2 minutes
     let content = "";
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+        const timeoutId = setTimeout(() => controller.abort(), MAX_TIMEOUT);
 
         console.log(`AI request attempt ${attempt}/${maxRetries}`);
 
@@ -125,15 +126,15 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
           body: JSON.stringify({ 
             model: "google/gemini-3-flash-preview", 
             messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }], 
-            max_tokens: 6000 
+            max_tokens: 8192 // INCREASED for maximum response length
           }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        // Retry on transient errors
-        if (response.status === 429 || response.status === 502 || response.status === 503) {
+        // Handle rate limit and gateway errors
+        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) {
           console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
@@ -147,22 +148,43 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
         }
 
         if (!response.ok) {
-          console.error(`Response not ok: ${response.status}`);
+          const errorText = await response.text();
+          console.error(`Response not ok: ${response.status}`, errorText.substring(0, 200));
+          
+          // Retry on 5xx errors
+          if (response.status >= 500 && attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
           throw new Error("AI hiba");
         }
 
-        const aiData = await response.json();
+        // Parse response safely
+        let aiData;
+        try {
+          aiData = await response.json();
+        } catch (parseError) {
+          console.error(`JSON parse error (attempt ${attempt}/${maxRetries}):`, parseError);
+          if (attempt < maxRetries) {
+            const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Hibás API válasz formátum");
+        }
+
         content = aiData.choices?.[0]?.message?.content || "";
 
-        // Retry on empty or too short response
-        if (!content || content.trim().length < 10) {
+        // Retry on empty or too short response (minimum 50 chars for valid chapters)
+        if (!content || content.trim().length < 50) {
           console.warn(`Empty/too short AI response (attempt ${attempt}/${maxRetries}), length: ${content?.length || 0}`);
           if (attempt < maxRetries) {
             const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
-          throw new Error("Az AI nem tudott választ generálni, próbáld újra");
+          throw new Error("Az AI nem tudott megfelelő választ generálni");
         }
 
         // Success - exit retry loop
