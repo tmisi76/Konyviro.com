@@ -8,6 +8,17 @@ export function useCompletionCelebration() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const celebrate = useCallback(() => {
+    // Mobil vibráció (ha támogatott)
+    if ("vibrate" in navigator) {
+      try {
+        // Rövid, kellemes mintázat: rövid-szünet-rövid-szünet-hosszú
+        navigator.vibrate([200, 100, 200, 100, 400]);
+      } catch (e) {
+        // Némán hagyjuk, ha nem sikerül
+        console.log("Vibration not available:", e);
+      }
+    }
+
     // Confetti animáció
     confetti({
       particleCount: 150,
