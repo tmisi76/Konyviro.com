@@ -21,7 +21,13 @@ export function repairAndParseJSON<T = unknown>(content: string): T {
     .replace(/```\s*/g, "")
     .trim();
 
-  // Step 2: Try normal parse first
+  // Step 2: Remove duplicate closing brackets/braces (common AI error: `]]` or `}}`)
+  cleaned = cleaned
+    .replace(/\]\s*\]+\s*$/g, "]")  // Fix trailing ]] or ]]]
+    .replace(/\}\s*\}+\s*$/g, "}")  // Fix trailing }} or }}}
+    .trim();
+
+  // Step 3: Try normal parse first
   try {
     return JSON.parse(cleaned) as T;
   } catch (_e) {
