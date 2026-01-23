@@ -546,27 +546,48 @@ export function useAutoWrite({
     sceneDurationsRef.current = [];
 
     try {
-      // First, ensure all chapters have outlines
-      const chaptersWithoutOutline = chapters.filter(c => c.scene_outline.length === 0);
-      if (chaptersWithoutOutline.length > 0) {
-        await generateAllOutlines();
-        await fetchChapters();
-      }
-
-      // Get fresh chapter data
-      const { data: freshChapters } = await supabase
+      // ALWAYS fetch fresh chapters from DB first (fixes stale state race condition)
+      const { data: freshChapters, error: fetchError } = await supabase
         .from("chapters")
         .select("id, title, sort_order, scene_outline, generation_status, word_count")
         .eq("project_id", projectId)
         .order("sort_order");
 
-      if (!freshChapters) return;
+      if (fetchError || !freshChapters || freshChapters.length === 0) {
+        throw new Error("Nem sikerült betölteni a fejezeteket");
+      }
 
-      const chaptersData = freshChapters.map(ch => ({
+      let chaptersData: ChapterWithScenes[] = freshChapters.map(ch => ({
         ...ch,
         scene_outline: (ch.scene_outline as unknown as SceneOutline[]) || [],
         generation_status: (ch.generation_status as ChapterWithScenes["generation_status"]) || "pending",
       }));
+
+      // Check if any chapters need outlines generated
+      const chaptersWithoutOutline = chaptersData.filter(c => c.scene_outline.length === 0);
+      if (chaptersWithoutOutline.length > 0) {
+        setProgress(prev => ({ ...prev, status: "generating_outline" }));
+        await generateAllOutlines();
+        
+        // Re-fetch after outline generation
+        const { data: updatedChapters, error: refetchError } = await supabase
+          .from("chapters")
+          .select("id, title, sort_order, scene_outline, generation_status, word_count")
+          .eq("project_id", projectId)
+          .order("sort_order");
+
+        if (refetchError || !updatedChapters) {
+          throw new Error("Nem sikerült újratölteni a fejezeteket");
+        }
+
+        chaptersData = updatedChapters.map(ch => ({
+          ...ch,
+          scene_outline: (ch.scene_outline as unknown as SceneOutline[]) || [],
+          generation_status: (ch.generation_status as ChapterWithScenes["generation_status"]) || "pending",
+        }));
+        
+        setProgress(prev => ({ ...prev, status: "writing" }));
+      }
 
       let allPreviousContent = "";
       let completedCount = 0;

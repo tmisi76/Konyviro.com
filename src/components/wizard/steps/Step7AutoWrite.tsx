@@ -159,20 +159,21 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
     clearProgress();
   };
 
-  // Auto-start writing
+  // Auto-start writing - wait for chapters to be loaded first
   useEffect(() => {
     if (subscriptionLoading) return;
     setCreditCheckDone(true);
     
     if (!resumeDecisionMade) return;
     
-    if (!hasStartedRef.current && projectId && storyStructure !== undefined && hasCredits) {
+    // CRITICAL: Wait for chapters to be loaded before starting (fixes race condition)
+    if (!hasStartedRef.current && projectId && storyStructure !== undefined && hasCredits && chapters.length > 0) {
       hasStartedRef.current = true;
       setTimeout(() => {
         startAutoWrite();
       }, 500);
     }
-  }, [projectId, storyStructure, startAutoWrite, subscriptionLoading, hasCredits, resumeDecisionMade]);
+  }, [projectId, storyStructure, startAutoWrite, subscriptionLoading, hasCredits, resumeDecisionMade, chapters.length]);
 
   // Poll for content updates
   useEffect(() => {
