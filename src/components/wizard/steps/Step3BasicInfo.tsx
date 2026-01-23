@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { ArrowRight } from "lucide-react";
-import type { Tone, BookLength, Genre } from "@/types/wizard";
-import { TONES, BOOK_LENGTHS } from "@/types/wizard";
+import type { Tone, Genre } from "@/types/wizard";
+import { TONES, BOOK_LENGTH_PRESETS } from "@/types/wizard";
 
 interface Step3BasicInfoProps {
   genre: Genre;
@@ -15,14 +16,14 @@ interface Step3BasicInfoProps {
     title: string;
     targetAudience: string;
     tone: Tone | null;
-    length: BookLength | null;
+    length: number | null;
     additionalInstructions: string;
   };
   onSubmit: (data: {
     title: string;
     targetAudience: string;
     tone: Tone;
-    length: BookLength;
+    length: number;
     additionalInstructions: string;
   }) => void;
 }
@@ -31,10 +32,10 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
   const [title, setTitle] = useState(initialData.title);
   const [targetAudience, setTargetAudience] = useState(initialData.targetAudience);
   const [tone, setTone] = useState<Tone | null>(initialData.tone);
-  const [length, setLength] = useState<BookLength | null>(initialData.length);
+  const [length, setLength] = useState<number>(initialData.length || 25000);
   const [additionalInstructions, setAdditionalInstructions] = useState(initialData.additionalInstructions);
 
-  const canSubmit = tone && length;
+  const canSubmit = tone && length >= 1000;
 
   const handleSubmit = () => {
     if (!tone || !length) return;
@@ -123,27 +124,47 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
           </div>
         </div>
 
-        {/* Length */}
-        <div className="space-y-3">
-          <Label className="text-base">Tervezett hosszúság</Label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {BOOK_LENGTHS.map((l) => (
-              <motion.button
-                key={l.id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setLength(l.id)}
+        {/* Length - Csúszka */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label className="text-base">Tervezett hosszúság</Label>
+            <span className="text-lg font-bold text-primary">
+              {length.toLocaleString("hu-HU")} szó
+            </span>
+          </div>
+
+          <Slider
+            value={[length]}
+            onValueChange={([value]) => setLength(value)}
+            min={1000}
+            max={50000}
+            step={1000}
+            className="py-4"
+          />
+
+          {/* Skála jelzők */}
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>1,000</span>
+            <span>10,000</span>
+            <span>25,000</span>
+            <span>50,000</span>
+          </div>
+
+          {/* Gyors preset gombok */}
+          <div className="flex gap-2 justify-center">
+            {BOOK_LENGTH_PRESETS.map((preset) => (
+              <button
+                key={preset.value}
+                onClick={() => setLength(preset.value)}
                 className={cn(
-                  "p-4 rounded-xl border-2 transition-all text-left",
-                  length === l.id
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:border-primary/40"
+                  "px-3 py-1.5 rounded-full text-sm border transition-all",
+                  length === preset.value
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:border-primary/40"
                 )}
               >
-                <div className="font-bold mb-1">{l.label}</div>
-                <div className="text-sm text-muted-foreground">{l.words}</div>
-                <div className="text-xs text-muted-foreground">{l.chapters}</div>
-              </motion.button>
+                {preset.label}
+              </button>
             ))}
           </div>
         </div>

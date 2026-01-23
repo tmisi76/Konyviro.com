@@ -39,7 +39,7 @@ export type Subcategory = FictionSubcategory | NonfictionSubcategory;
 
 export type Tone = "light" | "professional" | "dramatic" | "humorous" | "dark" | "suspenseful" | "inspiring";
 
-export type BookLength = "short" | "medium" | "long";
+export type BookLength = number; // 1000-50000 szó
 
 export type WritingStatus = "draft" | "in_progress" | "paused" | "completed";
 
@@ -194,8 +194,8 @@ export const TONES: { id: Tone; label: string; icon: string }[] = [
   { id: "inspiring", label: "Inspiráló", icon: "✨" },
 ];
 
-export const BOOK_LENGTHS: { id: BookLength; label: string; words: string; chapters: string }[] = [
-  { id: "short", label: "Rövid", words: "~30,000 szó", chapters: "8-10 fejezet" },
-  { id: "medium", label: "Közepes", words: "~60,000 szó", chapters: "15-20 fejezet" },
-  { id: "long", label: "Hosszú", words: "~100,000 szó", chapters: "25-35 fejezet" },
+export const BOOK_LENGTH_PRESETS = [
+  { value: 10000, label: "Novella" },
+  { value: 25000, label: "Kisregény" },
+  { value: 50000, label: "Regény" },
 ];
