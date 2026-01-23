@@ -22,6 +22,7 @@ import {
   Wand2,
   Feather,
 } from "lucide-react";
+import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -532,11 +533,14 @@ ${projectTone ? `Hangnem: ${projectTone}.` : ""}
                         msg.role === "assistant" ? (
                           <div 
                             dangerouslySetInnerHTML={{ 
-                              __html: msg.content
-                                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-                                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                                .replace(/\n/g, '<br />')
+                              __html: DOMPurify.sanitize(
+                                msg.content
+                                  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                                  .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                                  .replace(/`([^`]+)`/g, '<code>$1</code>')
+                                  .replace(/\n/g, '<br />'),
+                                { ALLOWED_TAGS: ['strong', 'em', 'code', 'br'], ALLOWED_ATTR: [] }
+                              )
                             }} 
                           />
                         ) : msg.content

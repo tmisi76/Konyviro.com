@@ -18,11 +18,6 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!, 
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-    
     const { projectId } = await req.json();
     
     if (!projectId) {
@@ -31,6 +26,36 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ========== AUTHENTICATION CHECK ==========
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "No authorization header provided" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Verify user with anon key client
+    const authClient = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: userData, error: userError } = await authClient.auth.getUser(token);
+    
+    if (userError || !userData?.user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const authenticatedUserId = userData.user.id;
+    // ========== END AUTHENTICATION CHECK ==========
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get project - no inner join, just simple query
     const { data: project, error: projectError } = await supabase
@@ -46,6 +71,15 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ========== OWNERSHIP VERIFICATION ==========
+    if (project.user_id !== authenticatedUserId) {
+      return new Response(
+        JSON.stringify({ error: "Access denied: you do not own this project" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    // ========== END OWNERSHIP VERIFICATION ==========
     
     if (project.writing_status !== "background_writing") {
       return new Response(
