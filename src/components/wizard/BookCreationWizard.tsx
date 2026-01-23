@@ -51,6 +51,7 @@ export function BookCreationWizard() {
     selectStoryIdea,
     setDetailedConcept,
     setChapterOutline,
+    setEstimatedWritingMinutes,
     nextStep,
     prevStep,
     saveProject,
@@ -220,6 +221,7 @@ export function BookCreationWizard() {
               onSave={handleSaveOutline}
               onStartWriting={startWriting}
               onStartSemiAutomatic={startSemiAutomatic}
+              onEstimatedMinutesChange={setEstimatedWritingMinutes}
               isSaving={isSaving}
               isDirty={isDirty}
             />
@@ -232,6 +234,7 @@ export function BookCreationWizard() {
             <Step7AutoWrite
               projectId={data.projectId!}
               genre={data.genre!}
+              estimatedMinutes={data.estimatedWritingMinutes || undefined}
               onComplete={() => navigate(`/project/${data.projectId}`)}
             />
           </Suspense>

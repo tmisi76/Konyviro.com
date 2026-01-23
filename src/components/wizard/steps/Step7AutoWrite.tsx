@@ -30,6 +30,7 @@ import confetti from "canvas-confetti";
 interface Step7AutoWriteProps {
   projectId: string;
   genre: Genre;
+  estimatedMinutes?: number;
   onComplete: () => void;
 }
 
@@ -44,7 +45,7 @@ interface ChapterDisplay {
   scenesCompleted: number;
 }
 
-export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteProps) {
+export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete }: Step7AutoWriteProps) {
   const navigate = useNavigate();
   const [chapters, setChapters] = useState<ChapterDisplay[]>([]);
   const [currentContent, setCurrentContent] = useState("");
@@ -511,6 +512,7 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
         streamingText={streamingText || currentContent.slice(-500)}
         totalWords={progress.totalWords}
         isNonFiction={isNonFiction}
+        initialEstimatedMinutes={estimatedMinutes}
         onPause={pause}
         onOpenEditor={handleGoToEditor}
       />

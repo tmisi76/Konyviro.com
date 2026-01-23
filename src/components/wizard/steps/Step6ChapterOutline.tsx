@@ -31,6 +31,7 @@ interface Step6ChapterOutlineProps {
   onSave: () => Promise<boolean>;
   onStartWriting: () => void;
   onStartSemiAutomatic?: () => Promise<void>;
+  onEstimatedMinutesChange?: (minutes: number) => void;
   isSaving: boolean;
   isDirty: boolean;
 }
@@ -45,6 +46,7 @@ export function Step6ChapterOutline({
   onSave,
   onStartWriting,
   onStartSemiAutomatic,
+  onEstimatedMinutesChange,
   isSaving,
   isDirty,
 }: Step6ChapterOutlineProps) {
@@ -180,6 +182,11 @@ export function Step6ChapterOutline({
   };
 
   const handleModeSelect = async (mode: WritingMode) => {
+    // Mentsük el a becsült időt a wizard data-ba
+    if (onEstimatedMinutesChange) {
+      onEstimatedMinutesChange(estimatedMinutes);
+    }
+
     if (mode === "automatic") {
       setShowModeDialog(false);
       onStartWriting();

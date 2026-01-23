@@ -26,6 +26,7 @@ interface WritingProgressModalProps {
   streamingText: string;
   totalWords: number;
   isNonFiction?: boolean;
+  initialEstimatedMinutes?: number;
   onPause: () => void;
   onOpenEditor?: () => void;
 }
@@ -76,12 +77,16 @@ export function WritingProgressModal({
   streamingText,
   totalWords,
   isNonFiction = false,
+  initialEstimatedMinutes,
   onPause,
   onOpenEditor,
 }: WritingProgressModalProps) {
   const [messageIndex, setMessageIndex] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  
+  // Wizard-ból kapott becsült idő másodpercben
+  const initialTotalSeconds = initialEstimatedMinutes ? initialEstimatedMinutes * 60 : null;
 
   // Válaszd ki a megfelelő üzenet listát
   const messages = status === "generating_outline" 
@@ -129,13 +134,21 @@ export function WritingProgressModal({
 
   const sceneLabel = isNonFiction ? "szekció" : "jelenet";
 
-  // Becsült hátralevő idő kalkuláció
-  const avgSecondsPerScene = completedScenes > 0 
-    ? elapsedSeconds / completedScenes 
-    : 45; // Alapértelmezett 45mp/jelenet
-
-  const remainingScenes = totalScenes - completedScenes;
-  const estimatedRemainingSeconds = Math.round(remainingScenes * avgSecondsPerScene);
+  // Becsült hátralevő idő kalkuláció - kombináljuk a wizard becslését a valós adatokkal
+  const estimatedRemainingSeconds = (() => {
+    if (completedScenes === 0 && initialTotalSeconds) {
+      // Még nem kezdtünk el - használjuk a wizard becslését
+      return initialTotalSeconds;
+    }
+    
+    // Ha már van adat, használjuk a dinamikus kalkulációt
+    const avgSecondsPerScene = completedScenes > 0 
+      ? elapsedSeconds / completedScenes 
+      : (initialTotalSeconds && totalScenes > 0 ? initialTotalSeconds / totalScenes : 45);
+    
+    const remainingScenes = totalScenes - completedScenes;
+    return Math.round(remainingScenes * avgSecondsPerScene);
+  })();
 
   const isCompleted = status === "completed";
 
