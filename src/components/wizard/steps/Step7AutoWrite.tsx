@@ -500,7 +500,7 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
 
       {/* Real-time writing progress modal */}
       <WritingProgressModal
-        open={progress.status === "writing" || progress.status === "generating_outline"}
+        open={progress.status === "writing" || progress.status === "generating_outline" || progress.status === "completed"}
         status={progress.status}
         currentChapter={chapters[progress.currentChapterIndex]?.title || ""}
         currentScene={chapters[progress.currentChapterIndex]?.scenesTotal > 0 
@@ -512,6 +512,7 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
         totalWords={progress.totalWords}
         isNonFiction={isNonFiction}
         onPause={pause}
+        onOpenEditor={handleGoToEditor}
       />
     </div>
   );
