@@ -323,68 +323,71 @@ export default function ProjectEditor() {
   const isAdultContent = project?.genre === "erotikus";
 
   return (
-    <div className="flex h-screen w-full bg-background">
-      {/* Chapter Sidebar - only in editor mode */}
-      {viewMode === "editor" && (
-        <ChapterSidebar
-          chapters={chapters}
-          activeChapterId={activeChapterId}
-          onSelectChapter={setActiveChapterId}
-          onCreateChapter={createChapter}
-          onUpdateChapter={updateChapter}
-          onDeleteChapter={deleteChapter}
-          onDuplicateChapter={duplicateChapter}
-          onReorderChapters={reorderChapters}
-          isCollapsed={chapterSidebarCollapsed}
-          onToggleCollapse={() => setChapterSidebarCollapsed(!chapterSidebarCollapsed)}
-        />
-      )}
-
-      {/* Main Editor Area */}
-      <main className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Navigation Bar */}
-        <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-2">
-          <Button variant="ghost" size="sm" className="gap-2" asChild>
-            <Link to="/dashboard">
-              <ArrowLeft className="h-4 w-4" />
-              Vissza
-            </Link>
-          </Button>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Mentés...</span>
-                </>
-              ) : lastSaved ? (
-                <>
-                  <Cloud className="h-4 w-4 text-success" />
-                  <span>{formatLastSaved()}</span>
-                </>
-              ) : null}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => flushPendingChanges()}
-              disabled={isSaving}
-              className="gap-2"
-            >
-              <Save className="h-4 w-4" />
-              Mentés
-            </Button>
-            <Button
-              size="sm"
-              onClick={async () => {
-                await flushPendingChanges();
-                navigate("/dashboard");
-              }}
-            >
-              Mentés és bezár
-            </Button>
+    <div className="flex h-screen w-full flex-col bg-background">
+      {/* Top Navigation Bar - Full Width */}
+      <div className="flex w-full items-center justify-between border-b border-border bg-muted/30 px-4 py-2">
+        <Button variant="ghost" size="sm" className="gap-2" asChild>
+          <Link to="/dashboard">
+            <ArrowLeft className="h-4 w-4" />
+            Vissza
+          </Link>
+        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mr-4">
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Mentés...</span>
+              </>
+            ) : lastSaved ? (
+              <>
+                <Cloud className="h-4 w-4 text-success" />
+                <span>{formatLastSaved()}</span>
+              </>
+            ) : null}
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => flushPendingChanges()}
+            disabled={isSaving}
+            className="gap-2"
+          >
+            <Save className="h-4 w-4" />
+            Mentés
+          </Button>
+          <Button
+            size="sm"
+            onClick={async () => {
+              await flushPendingChanges();
+              navigate("/dashboard");
+            }}
+          >
+            Mentés és bezár
+          </Button>
         </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Chapter Sidebar - only in editor mode */}
+        {viewMode === "editor" && (
+          <ChapterSidebar
+            chapters={chapters}
+            activeChapterId={activeChapterId}
+            onSelectChapter={setActiveChapterId}
+            onCreateChapter={createChapter}
+            onUpdateChapter={updateChapter}
+            onDeleteChapter={deleteChapter}
+            onDuplicateChapter={duplicateChapter}
+            onReorderChapters={reorderChapters}
+            isCollapsed={chapterSidebarCollapsed}
+            onToggleCollapse={() => setChapterSidebarCollapsed(!chapterSidebarCollapsed)}
+          />
+        )}
+
+          {/* Main Editor Area */}
+          <main className="flex flex-1 flex-col overflow-hidden">
 
         {/* Header Row 1: Title */}
         <div className="border-b border-border bg-card px-4 py-3">
@@ -488,80 +491,81 @@ export default function ProjectEditor() {
         ) : viewMode === "research" ? (
           <ResearchView projectId={projectId} />
         ) : null}
-      </main>
+          </main>
 
-      {/* AI Assistant Panel - only in editor mode */}
-      {viewMode === "editor" && (
-        <AIAssistantPanel
-          isCollapsed={aiPanelCollapsed}
-          onToggleCollapse={() => setAiPanelCollapsed(!aiPanelCollapsed)}
-          projectId={projectId}
-          projectGenre={project?.genre}
-          projectDescription={project?.description || undefined}
-          projectTone={project?.tone || undefined}
-          currentChapterId={activeChapterId || undefined}
-          currentChapterTitle={chapters.find((c) => c.id === activeChapterId)?.title}
-          currentChapterContent={blocks.map((b) => b.content).join("\n")}
-          characterCount={characters.length}
-          charactersContext={charactersContext}
-          selectedText={globalSelectedText}
-          cursorPosition={cursorPosition}
-          onInsertText={(text) => {
-            // Insert at the end of the last block or create new block
-            if (blocks.length > 0) {
-              const lastBlock = blocks[blocks.length - 1];
-              const newContent = lastBlock.content ? lastBlock.content + "\n\n" + text : text;
-              updateBlock(lastBlock.id, { content: newContent });
-              
-              // Sync the DOM directly since contentEditable doesn't react to state
-              setTimeout(() => {
-                const blockElements = document.querySelectorAll('[contenteditable="true"]');
-                const lastElement = blockElements[blockElements.length - 1] as HTMLElement;
-                if (lastElement) {
-                  lastElement.innerText = newContent;
-                  // Move cursor to end
-                  const range = document.createRange();
-                  const sel = window.getSelection();
-                  range.selectNodeContents(lastElement);
-                  range.collapse(false);
-                  sel?.removeAllRanges();
-                  sel?.addRange(range);
-                  lastElement.focus();
+          {/* AI Assistant Panel - only in editor mode */}
+          {viewMode === "editor" && (
+            <AIAssistantPanel
+              isCollapsed={aiPanelCollapsed}
+              onToggleCollapse={() => setAiPanelCollapsed(!aiPanelCollapsed)}
+              projectId={projectId}
+              projectGenre={project?.genre}
+              projectDescription={project?.description || undefined}
+              projectTone={project?.tone || undefined}
+              currentChapterId={activeChapterId || undefined}
+              currentChapterTitle={chapters.find((c) => c.id === activeChapterId)?.title}
+              currentChapterContent={blocks.map((b) => b.content).join("\n")}
+              characterCount={characters.length}
+              charactersContext={charactersContext}
+              selectedText={globalSelectedText}
+              cursorPosition={cursorPosition}
+              onInsertText={(text) => {
+                // Insert at the end of the last block or create new block
+                if (blocks.length > 0) {
+                  const lastBlock = blocks[blocks.length - 1];
+                  const newContent = lastBlock.content ? lastBlock.content + "\n\n" + text : text;
+                  updateBlock(lastBlock.id, { content: newContent });
+                  
+                  // Sync the DOM directly since contentEditable doesn't react to state
+                  setTimeout(() => {
+                    const blockElements = document.querySelectorAll('[contenteditable="true"]');
+                    const lastElement = blockElements[blockElements.length - 1] as HTMLElement;
+                    if (lastElement) {
+                      lastElement.innerText = newContent;
+                      // Move cursor to end
+                      const range = document.createRange();
+                      const sel = window.getSelection();
+                      range.selectNodeContents(lastElement);
+                      range.collapse(false);
+                      sel?.removeAllRanges();
+                      sel?.addRange(range);
+                      lastElement.focus();
+                    }
+                  }, 0);
+                } else {
+                  createBlock("paragraph", text, 0);
                 }
-              }, 0);
-            } else {
-              createBlock("paragraph", text, 0);
-            }
-          }}
-          onInsertTextAtCursor={(text, position) => {
-            const block = blocks.find(b => b.id === position.blockId);
-            if (block) {
-              const before = block.content.substring(0, position.offset);
-              const after = block.content.substring(position.offset);
-              const newContent = before + text + after;
-              updateBlock(position.blockId, { content: newContent });
-              
-              // Sync DOM
-              setTimeout(() => {
-                const blockEl = document.querySelector(`[data-block-id="${position.blockId}"] [contenteditable="true"]`) as HTMLElement;
-                if (blockEl) {
-                  blockEl.innerText = newContent;
+              }}
+              onInsertTextAtCursor={(text, position) => {
+                const block = blocks.find(b => b.id === position.blockId);
+                if (block) {
+                  const before = block.content.substring(0, position.offset);
+                  const after = block.content.substring(position.offset);
+                  const newContent = before + text + after;
+                  updateBlock(position.blockId, { content: newContent });
+                  
+                  // Sync DOM
+                  setTimeout(() => {
+                    const blockEl = document.querySelector(`[data-block-id="${position.blockId}"] [contenteditable="true"]`) as HTMLElement;
+                    if (blockEl) {
+                      blockEl.innerText = newContent;
+                    }
+                  }, 0);
                 }
-              }, 0);
-            }
-          }}
-        />
-      )}
+              }}
+            />
+          )}
 
-      {/* Citation Panel for research projects */}
-      {supportsResearch && (
-        <CitationPanel
-          isOpen={showCitationPanel}
-          onClose={() => setShowCitationPanel(false)}
-          sources={sources}
-          onSelectSource={handleInsertCitation}
-        />
-      )}
+          {/* Citation Panel for research projects */}
+          {supportsResearch && (
+            <CitationPanel
+              isOpen={showCitationPanel}
+              onClose={() => setShowCitationPanel(false)}
+              sources={sources}
+              onSelectSource={handleInsertCitation}
+            />
+          )}
+        </div>
     </div>
   );
 }
