@@ -26,6 +26,23 @@ const Pricing = lazy(() => import("./pages/Pricing"));
 const Install = lazy(() => import("./pages/Install"));
 const CreateBook = lazy(() => import("./pages/CreateBook"));
 
+// Admin pages
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminUserDetail = lazy(() => import("./pages/admin/AdminUserDetail"));
+const AdminProjects = lazy(() => import("./pages/admin/AdminProjects"));
+const AdminProjectDetail = lazy(() => import("./pages/admin/AdminProjectDetail"));
+const AdminBilling = lazy(() => import("./pages/admin/AdminBilling"));
+const AdminPlans = lazy(() => import("./pages/admin/AdminPlans"));
+const AdminAISettings = lazy(() => import("./pages/admin/AdminAISettings"));
+const AdminEmailTemplates = lazy(() => import("./pages/admin/AdminEmailTemplates"));
+const AdminSupport = lazy(() => import("./pages/admin/AdminSupport"));
+const AdminTicketDetail = lazy(() => import("./pages/admin/AdminTicketDetail"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics"));
+const AdminActivityLogs = lazy(() => import("./pages/admin/AdminActivityLogs"));
+import { AdminLayout } from "@/layouts/AdminLayout";
+
 const queryClient = new QueryClient();
 
 function AppContent() {
@@ -97,6 +114,175 @@ function AppContent() {
             <Install />
           </Suspense>
         } />
+        {/* Admin Routes */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminDashboard />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminUsers />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users/:id"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminUserDetail />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/projects"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminProjects />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/projects/:id"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminProjectDetail />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/billing"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminBilling />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/billing/plans"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminPlans />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/ai-settings"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminAISettings />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/emails"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminEmailTemplates />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/support"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminSupport />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/support/:id"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminTicketDetail />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminSettings />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/analytics"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminAnalytics />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/logs"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminActivityLogs />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
