@@ -150,39 +150,68 @@ ${storyIdea}
 
 Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a megadott JSON formátumban!`;
 
-    // Create abort controller for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000); // 55 second timeout
+    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
+    const maxRetries = 7;
+    let response: Response | null = null;
+    let lastError: Error | null = null;
 
-    let response: Response;
-    try {
-      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          max_tokens: 4000, // Further reduced for faster, more reliable responses
-        }),
-        signal: controller.signal,
-      });
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      if (fetchError instanceof Error && fetchError.name === "AbortError") {
-        return new Response(
-          JSON.stringify({ error: "A generálás túl sokáig tartott. Próbáld újra rövidebb ötlettel." }),
-          { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 55000);
+
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            max_tokens: 4000,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 429 || response.status === 502 || response.status === 503) {
+          const statusText = response.status === 429 ? "Rate limit" : `Gateway ${response.status}`;
+          console.error(`${statusText} (attempt ${attempt}/${maxRetries})`);
+          
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            console.log(`Waiting ${delay/1000}s before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        break;
+      } catch (fetchError) {
+        lastError = fetchError as Error;
+        if ((fetchError as Error).name === "AbortError") {
+          console.error(`Timeout (attempt ${attempt}/${maxRetries})`);
+        } else {
+          console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
+        }
+        if (attempt < maxRetries) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
       }
-      throw fetchError;
     }
-    clearTimeout(timeoutId);
+
+    if (!response) {
+      return new Response(
+        JSON.stringify({ error: lastError?.message || "A generálás túl sokáig tartott. Próbáld újra rövidebb ötlettel." }),
+        { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
