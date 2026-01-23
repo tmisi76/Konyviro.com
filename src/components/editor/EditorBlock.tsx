@@ -232,6 +232,7 @@ export function EditorBlock({
 
   return (
     <div
+      data-block-id={block.id}
       className={cn(
         "group relative py-1 transition-colors",
         isSelected && "bg-primary/5",

@@ -235,6 +235,14 @@ export default function ProjectEditor() {
       const reordered = newBlocks.map((b, i) => ({ ...b, sort_order: i }));
       await reorderBlocks(reordered);
       setSelectedBlockId(newBlock.id);
+      
+      // Fókuszálás az új blokkra
+      setTimeout(() => {
+        const newBlockElement = document.querySelector(`[data-block-id="${newBlock.id}"] [contenteditable]`);
+        if (newBlockElement instanceof HTMLElement) {
+          newBlockElement.focus();
+        }
+      }, 50);
     }
   }, [blocks, createBlock, reorderBlocks]);
 
