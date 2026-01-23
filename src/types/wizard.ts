@@ -136,6 +136,8 @@ export interface WizardData {
   authorProfile: AuthorProfile | null;
   // Fiction specific
   fictionStyle: FictionStyleSettings | null;
+  // Estimated writing time from wizard
+  estimatedWritingMinutes: number | null;
 }
 
 export const INITIAL_WIZARD_DATA: WizardData = {
@@ -153,6 +155,7 @@ export const INITIAL_WIZARD_DATA: WizardData = {
   projectId: null,
   authorProfile: null,
   fictionStyle: null,
+  estimatedWritingMinutes: null,
 };
 
 export const FICTION_SUBCATEGORIES: { id: FictionSubcategory; icon: string; title: string; isAdult?: boolean }[] = [

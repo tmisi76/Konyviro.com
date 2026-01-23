@@ -37,6 +37,7 @@ export function useBookWizard() {
     projectId: null,
     authorProfile: null,
     fictionStyle: null,
+    estimatedWritingMinutes: null,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -144,6 +145,10 @@ export function useBookWizard() {
   const setChapterOutline = useCallback((outline: ChapterOutlineItem[]) => {
     updateData("chapterOutline", outline);
     setIsDirty(true);
+  }, [updateData]);
+
+  const setEstimatedWritingMinutes = useCallback((minutes: number) => {
+    updateData("estimatedWritingMinutes", minutes);
   }, [updateData]);
 
   // Fiction has 8 steps, szakkonyv has 8 steps too
@@ -346,6 +351,7 @@ export function useBookWizard() {
       projectId: null,
       authorProfile: null,
       fictionStyle: null,
+      estimatedWritingMinutes: null,
     });
     setCurrentStep(1);
     setIsDirty(false);
@@ -411,6 +417,7 @@ export function useBookWizard() {
     selectStoryIdea,
     setDetailedConcept,
     setChapterOutline,
+    setEstimatedWritingMinutes,
     updateData,
     nextStep,
     prevStep,
