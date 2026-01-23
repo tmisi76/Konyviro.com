@@ -14,6 +14,7 @@ interface UseAutoWriteOptions {
   targetAudience?: string;
   onBlockCreated?: (chapterId: string, block: Block) => void;
   onChapterUpdated?: (chapterId: string) => void;
+  onStreamingUpdate?: (text: string) => void;
 }
 
 // URLs for fiction (scenes)
@@ -33,6 +34,7 @@ export function useAutoWrite({
   targetAudience,
   onBlockCreated,
   onChapterUpdated,
+  onStreamingUpdate,
 }: UseAutoWriteOptions) {
   // Determine if this is a non-fiction project
   const isNonFiction = genre === "szakkonyv";
@@ -191,15 +193,16 @@ export function useAutoWrite({
     }
   }, [chapters, generateOutlineForChapter, fetchChapters]);
 
-  // Write a single scene/section (genre-aware) with retry logic
+  // Write a single scene/section (genre-aware) with enhanced retry logic
   const writeScene = useCallback(async (
     chapter: ChapterWithScenes,
     sceneIndex: number,
     previousContent: string,
     retryCount = 0
   ): Promise<string> => {
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 7;
     const BASE_DELAY = 5000; // 5 seconds base delay
+    const MAX_DELAY = 120000; // Maximum 2 perc
     
     const scene = chapter.scene_outline[sceneIndex];
     
@@ -246,15 +249,29 @@ export function useAutoWrite({
       signal: abortControllerRef.current.signal,
     });
 
-    // Handle rate limiting with exponential backoff
+    // Handle rate limiting with exponential backoff + max delay
     if (response.status === 429) {
       if (retryCount >= MAX_RETRIES) {
         throw new Error("Túl sok próbálkozás után sem sikerült. Kérlek próbáld újra később.");
       }
       
-      const delay = BASE_DELAY * Math.pow(2, retryCount); // 5s, 10s, 20s, 40s, 80s
+      const delay = Math.min(BASE_DELAY * Math.pow(2, retryCount), MAX_DELAY); // 5s, 10s, 20s, 40s, 80s, max 120s
       console.log(`Rate limited. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-      toast.info(`Várakozás ${delay / 1000} másodpercig a következő kérés előtt...`);
+      toast.info(`AI válaszra várakozás... ${Math.ceil(delay / 1000)} másodperc`, { duration: delay });
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
+    }
+    
+    // Handle transient server errors with retry
+    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      if (retryCount >= MAX_RETRIES) {
+        throw new Error("Az AI szolgáltatás túlterhelt. Próbáld újra pár perc múlva.");
+      }
+      
+      const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
+      console.log(`Server error ${response.status}. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      toast.info(`Szerver hiba, újrapróbálás ${Math.ceil(delay / 1000)} mp múlva...`, { duration: delay });
       
       await new Promise(resolve => setTimeout(resolve, delay));
       return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
@@ -271,9 +288,21 @@ export function useAutoWrite({
     
     // Word count is now tracked server-side, no need to track here
     console.log(`Scene written: ${data.wordCount || 0} words (tracked server-side)`);
+    
+    // Notify streaming update for preview
+    if (fullText && onStreamingUpdate) {
+      // Szimulált streaming hatás: a szöveget fokozatosan jelenítjük meg
+      const words = fullText.split(/\s+/);
+      let displayed = "";
+      for (let i = 0; i < words.length; i += 5) {
+        displayed = words.slice(0, i + 5).join(" ");
+        onStreamingUpdate(displayed);
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+    }
 
     return fullText;
-  }, [projectId, charactersContext, storyStructure, genre, isNonFiction, bookTopic, targetAudience]);
+  }, [projectId, charactersContext, storyStructure, genre, isNonFiction, bookTopic, targetAudience, onStreamingUpdate]);
 
   // Save scene content as blocks
   const saveSceneAsBlocks = useCallback(async (
@@ -408,12 +437,22 @@ export function useAutoWrite({
           // Update scene status to writing
           await updateSceneStatus(chapter.id, sceneIndex, "writing");
 
-          // Write the scene
-          const sceneText = await writeScene(
-            chapter,
-            sceneIndex,
-            allPreviousContent + "\n\n" + chapterContent
-          );
+          // Write the scene with graceful error recovery
+          let sceneText = "";
+          try {
+            sceneText = await writeScene(
+              chapter,
+              sceneIndex,
+              allPreviousContent + "\n\n" + chapterContent
+            );
+          } catch (sceneError) {
+            // Graceful error recovery: ha a jelenet sikertelen, jelöljük meg és folytassuk
+            console.error(`Scene ${sceneIndex} failed:`, sceneError);
+            await updateSceneStatus(chapter.id, sceneIndex, "failed");
+            toast.warning(`A ${sceneIndex + 1}. jelenet kihagyva. Később újrapróbálható.`, { duration: 5000 });
+            // Folytatás a következő jelenettel - NE álljon le az egész könyv
+            continue;
+          }
 
           // Save as blocks
           await saveSceneAsBlocks(chapter.id, sceneText, nextSortOrder);

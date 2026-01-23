@@ -88,18 +88,57 @@ FORMÁZÁSI KÖVETELMÉNYEK:
 - Használj számozott lépéseket a folyamatoknál
 - A szekció végén készíts átvezetést a következőhöz`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        model: "google/gemini-3-flash-preview", 
-        messages: [
-          { role: "system", content: systemPrompt }, 
-          { role: "user", content: userPrompt }
-        ], 
-        max_tokens: Math.min(sectionOutline.target_words * 2, 6000) 
-      }),
-    });
+    // Retry logic a stabilabb működésért
+    const maxRetries = 7;
+    let response: Response | null = null;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            model: "google/gemini-3-flash-preview", 
+            messages: [
+              { role: "system", content: systemPrompt }, 
+              { role: "user", content: userPrompt }
+            ], 
+            max_tokens: Math.min(sectionOutline.target_words * 2, 6000) 
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 502 || response.status === 503) {
+          console.error(`AI gateway ${response.status} (attempt ${attempt}/${maxRetries})`);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, attempt * 3000));
+            continue;
+          }
+        }
+        break;
+      } catch (fetchError) {
+        lastError = fetchError as Error;
+        if ((fetchError as Error).name === "AbortError") {
+          console.error(`Timeout (attempt ${attempt}/${maxRetries})`);
+        } else {
+          console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
+        }
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, attempt * 3000));
+          continue;
+        }
+      }
+    }
+
+    if (!response) {
+      return new Response(JSON.stringify({ error: lastError?.message || "Időtúllépés" }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     if (!response.ok) {
       if (response.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });

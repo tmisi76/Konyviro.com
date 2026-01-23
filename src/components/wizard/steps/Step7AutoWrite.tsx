@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAutoWrite } from "@/hooks/useAutoWrite";
 import { useSubscription } from "@/hooks/useSubscription";
 import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
+import { WritingProgressModal } from "@/components/writing/WritingProgressModal";
 import type { Genre } from "@/types/wizard";
 import type { ChapterWithScenes, SceneOutline } from "@/types/autowrite";
 import confetti from "canvas-confetti";
@@ -54,6 +55,8 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
   const [creditCheckDone, setCreditCheckDone] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const hasStartedRef = useRef(false);
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastProgressRef = useRef(0);
 
   const { getRemainingWords, canGenerateWords, isLoading: subscriptionLoading } = useSubscription();
 
@@ -69,7 +72,33 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
     onChapterUpdated: () => {
       fetchChapters();
     },
+    onStreamingUpdate: (text) => {
+      setStreamingText(text);
+    },
   });
+
+  // Watchdog timer: ha 3 percig nincs progress, auto-resume
+  useEffect(() => {
+    if (progress.status === "writing") {
+      // Ellenőrizzük, hogy volt-e változás az utolsó ellenőrzés óta
+      if (lastProgressRef.current === progress.completedScenes) {
+        // Ha 3 perce nincs előrehaladás, próbáljunk újraindítani
+        watchdogRef.current = setTimeout(() => {
+          console.log("Watchdog: no progress for 3 minutes, attempting auto-resume...");
+          resume();
+        }, 180000); // 3 perc
+      } else {
+        // Volt előrehaladás, frissítsük a referenciát
+        lastProgressRef.current = progress.completedScenes;
+      }
+      
+      return () => {
+        if (watchdogRef.current) {
+          clearTimeout(watchdogRef.current);
+        }
+      };
+    }
+  }, [progress.status, progress.completedScenes, resume]);
 
   // Fetch project info
   useEffect(() => {
@@ -467,6 +496,22 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
       <BuyCreditModal 
         open={showBuyCreditModal} 
         onOpenChange={setShowBuyCreditModal} 
+      />
+
+      {/* Real-time writing progress modal */}
+      <WritingProgressModal
+        open={progress.status === "writing" || progress.status === "generating_outline"}
+        status={progress.status}
+        currentChapter={chapters[progress.currentChapterIndex]?.title || ""}
+        currentScene={chapters[progress.currentChapterIndex]?.scenesTotal > 0 
+          ? `${isNonFiction ? "Szekció" : "Jelenet"} ${progress.currentSceneIndex + 1}/${chapters[progress.currentChapterIndex]?.scenesTotal || 0}` 
+          : ""}
+        completedScenes={progress.completedScenes}
+        totalScenes={progress.totalScenes}
+        streamingText={streamingText || currentContent.slice(-500)}
+        totalWords={progress.totalWords}
+        isNonFiction={isNonFiction}
+        onPause={pause}
       />
     </div>
   );
