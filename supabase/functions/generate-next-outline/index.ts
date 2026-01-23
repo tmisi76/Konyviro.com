@@ -85,26 +85,74 @@ serve(async (req) => {
 
     console.log(`Generating outline for chapter: ${chapterNeedingOutline.title}`);
 
-    // Call generate-detailed-outline for this chapter
-    const outlineResponse = await fetch(`${supabaseUrl}/functions/v1/generate-detailed-outline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${supabaseServiceKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        projectId,
-        chapterId: chapterNeedingOutline.id,
-        chapterTitle: chapterNeedingOutline.title,
-        chapterSummary: chapterNeedingOutline.summary,
-        storyStructure: project.generated_story,
-        genre: project.genre,
-        previousChapters,
-      }),
-    });
+    // Call generate-detailed-outline with retry logic for rate limits
+    const maxRetries = 5;
+    let outlineResponse: Response | null = null;
 
-    if (!outlineResponse.ok) {
-      const errorText = await outlineResponse.text();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+        outlineResponse = await fetch(`${supabaseUrl}/functions/v1/generate-detailed-outline`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectId,
+            chapterId: chapterNeedingOutline.id,
+            chapterTitle: chapterNeedingOutline.title,
+            chapterSummary: chapterNeedingOutline.summary,
+            storyStructure: project.generated_story,
+            genre: project.genre,
+            previousChapters,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (outlineResponse.status === 429 || outlineResponse.status === 502 || outlineResponse.status === 503) {
+          console.error(`Status ${outlineResponse.status} (attempt ${attempt}/${maxRetries})`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          if (outlineResponse.status === 429) {
+            return new Response(
+              JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }),
+              { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+        break;
+      } catch (fetchError) {
+        console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          return new Response(
+            JSON.stringify({ error: "Időtúllépés" }),
+            { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (attempt < maxRetries) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+
+    if (!outlineResponse || !outlineResponse.ok) {
+      const errorText = outlineResponse ? await outlineResponse.text() : "No response";
       console.error(`Failed to generate outline for chapter ${chapterNeedingOutline.id}:`, errorText);
       
       // Don't fail the whole process, just report error
