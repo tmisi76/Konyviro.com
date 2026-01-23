@@ -212,7 +212,7 @@ serve(async (req) => {
   }
 
   try {
-    const { projectId, chapterId, sceneNumber, sceneOutline, previousContent, characters, storyStructure, genre, chapterTitle, subcategory } = await req.json();
+    const { projectId, chapterId, sceneNumber, sceneOutline, previousContent, characters, storyStructure, genre, chapterTitle, subcategory, targetSceneWords } = await req.json();
     
     if (!projectId || !chapterId || !sceneOutline) {
       return new Response(JSON.stringify({ error: "Hiányzó mezők" }), {
@@ -264,12 +264,21 @@ serve(async (req) => {
     const basePrompt = PROMPTS[genre] || PROMPTS.fiction;
     const systemPrompt = basePrompt + fictionStylePrompt + stylePrompt;
 
+    // Calculate effective target words (from request or scene outline)
+    const effectiveTargetWords = targetSceneWords || sceneOutline.target_words || 500;
+    
+    // Dynamic max_tokens based on target (Hungarian: ~1.3 tokens per word)
+    const dynamicMaxTokens = Math.min(Math.max(effectiveTargetWords * 2, 1024), 8192);
+
     const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"
+
+FONTOS: Ez a jelenet MAXIMUM ${effectiveTargetWords} szó legyen! Ne írj többet!
+
 POV: ${sceneOutline.pov}
 Helyszín: ${sceneOutline.location}
 Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
-Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${characters}` : ""}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
+Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
@@ -296,7 +305,7 @@ Célhossz: ~${sceneOutline.target_words} szó${characters ? `\nKarakterek: ${cha
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            max_tokens: 8192, // INCREASED for maximum response length
+            max_tokens: dynamicMaxTokens, // Dynamic based on target words
           }),
           signal: controller.signal,
         });
