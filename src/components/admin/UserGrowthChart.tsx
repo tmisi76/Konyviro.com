@@ -1,14 +1,22 @@
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
-interface RevenueChartProps {
-  data?: { date?: string; month?: string; revenue: number }[];
+interface UserGrowthChartProps {
+  data?: { date: string; users: number }[];
 }
 
-export function RevenueChart({ data }: RevenueChartProps) {
-  if (!data || data.length === 0) {
+export function UserGrowthChart({ data = [] }: UserGrowthChartProps) {
+  if (!data.length) {
     return (
       <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-        Nincs adat a megjelenítéshez
+        Nincs adat
       </div>
     );
   }
@@ -17,38 +25,36 @@ export function RevenueChart({ data }: RevenueChartProps) {
     <ResponsiveContainer width="100%" height={300}>
       <AreaChart data={data}>
         <defs>
-          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="userGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
             <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
         <XAxis 
-          dataKey={data?.[0]?.month ? "month" : "date"}
+          dataKey="date" 
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
         />
         <YAxis 
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
-          tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
-            borderRadius: '8px',
+            backgroundColor: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
+            borderRadius: "8px",
           }}
-          labelStyle={{ color: 'hsl(var(--foreground))' }}
-          formatter={(value: number) => [`${value.toLocaleString()} Ft`, 'Bevétel']}
+          labelStyle={{ color: "hsl(var(--foreground))" }}
         />
         <Area
           type="monotone"
-          dataKey="revenue"
+          dataKey="users"
           stroke="hsl(var(--primary))"
           strokeWidth={2}
-          fillOpacity={1}
-          fill="url(#colorRevenue)"
+          fill="url(#userGradient)"
+          name="Új felhasználók"
         />
       </AreaChart>
     </ResponsiveContainer>

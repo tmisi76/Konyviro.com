@@ -26,3 +26,8 @@ export { useAdminTickets } from "./useAdminTickets";
 export type { AdminTicket } from "./useAdminTickets";
 export { useTicketMessages, useSendTicketReply, useUpdateTicketStatus, useUpdateTicketPriority } from "./useTicketMessages";
 export type { TicketMessage } from "./useTicketMessages";
+
+export { useAnalytics } from "./useAnalytics";
+export type { AnalyticsData } from "./useAnalytics";
+export { useActivityLogs, useLogActivity } from "./useActivityLogs";
+export type { ActivityLog } from "./useActivityLogs";
