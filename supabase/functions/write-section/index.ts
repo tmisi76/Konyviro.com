@@ -88,7 +88,7 @@ FORMÁZÁSI KÖVETELMÉNYEK:
 - Használj számozott lépéseket a folyamatoknál
 - A szekció végén készíts átvezetést a következőhöz`;
 
-    // Retry logic a stabilabb működésért
+    // Retry logic exponenciális backoff-al (429 kezelés is)
     const maxRetries = 7;
     let response: Response | null = null;
     let lastError: Error | null = null;
@@ -114,11 +114,24 @@ FORMÁZÁSI KÖVETELMÉNYEK:
 
         clearTimeout(timeoutId);
 
-        if (response.status === 502 || response.status === 503) {
-          console.error(`AI gateway ${response.status} (attempt ${attempt}/${maxRetries})`);
+        // Kezeljük a rate limit (429), gateway (502/503) hibákat
+        if (response.status === 429 || response.status === 502 || response.status === 503) {
+          const statusText = response.status === 429 ? "Rate limit" : `Gateway ${response.status}`;
+          console.error(`${statusText} (attempt ${attempt}/${maxRetries})`);
+          
           if (attempt < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, attempt * 3000));
+            // Exponenciális backoff: 5s, 10s, 20s, 40s, 60s, 60s, 60s
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            console.log(`Waiting ${delay/1000}s before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
             continue;
+          }
+          // Utolsó kísérlet után is 429 → visszaadjuk a hibát
+          if (response.status === 429) {
+            return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { 
+              status: 429, 
+              headers: { ...corsHeaders, "Content-Type": "application/json" } 
+            });
           }
         }
         break;
@@ -130,7 +143,8 @@ FORMÁZÁSI KÖVETELMÉNYEK:
           console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
         }
         if (attempt < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, attempt * 3000));
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
       }
@@ -141,7 +155,7 @@ FORMÁZÁSI KÖVETELMÉNYEK:
     }
 
     if (!response.ok) {
-      if (response.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (response.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       throw new Error("AI hiba");
     }
 
