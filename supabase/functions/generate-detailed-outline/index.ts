@@ -69,15 +69,15 @@ serve(async (req) => {
         const data = await response.json();
         content = data.choices?.[0]?.message?.content || "";
 
-        // Retry on empty response
-        if (!content || content.trim().length < 10) {
-          console.warn(`Empty or too short AI response (attempt ${attempt}/${maxRetries}), length: ${content?.length || 0}`);
+        // Retry on empty or suspiciously short response (under 500 chars is likely truncated for scene outlines)
+        if (!content || content.trim().length < 500) {
+          console.warn(`Empty or truncated AI response (attempt ${attempt}/${maxRetries}), length: ${content?.length || 0}`);
           if (attempt < maxRetries) {
             const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
-          throw new Error("Az AI nem tudott választ generálni, próbáld újra");
+          throw new Error("Az AI nem tudott teljes választ generálni, próbáld újra");
         }
 
         // Success - exit retry loop
