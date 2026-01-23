@@ -243,8 +243,8 @@ export function useAutoWrite({
         await fetchChapters();
       }
 
-      setProgress(prev => ({ ...prev, status: "idle" }));
-      console.log("All outlines generated successfully");
+      // DO NOT set to idle - keep modal open, startAutoWrite will transition to "writing"
+      console.log("All outlines generated successfully, transitioning to writing...");
     } catch (error) {
       console.error("Outline generation error:", error);
       setProgress(prev => ({ 
