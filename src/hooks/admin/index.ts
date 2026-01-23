@@ -21,3 +21,8 @@ export type { AdminPlan } from "./useSubscriptionPlans";
 
 export { useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate } from "./useEmailTemplates";
 export type { EmailTemplate } from "./useEmailTemplates";
+
+export { useAdminTickets } from "./useAdminTickets";
+export type { AdminTicket } from "./useAdminTickets";
+export { useTicketMessages, useSendTicketReply, useUpdateTicketStatus, useUpdateTicketPriority } from "./useTicketMessages";
+export type { TicketMessage } from "./useTicketMessages";
