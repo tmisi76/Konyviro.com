@@ -8,12 +8,16 @@ import { Button } from "@/components/ui/button";
 import { 
   Loader2, 
   Pause, 
+  Play,
   BookOpen, 
   Sparkles,
   Clock,
   Timer,
   CheckCircle2,
-  FileEdit
+  FileEdit,
+  AlertCircle,
+  RefreshCw,
+  Coins
 } from "lucide-react";
 
 interface WritingProgressModalProps {
@@ -30,7 +34,17 @@ interface WritingProgressModalProps {
   failedScenes?: number;
   skippedScenes?: number;
   avgSecondsPerScene?: number;
+  error?: string;
+  // Kredit adatok
+  remainingWords?: number;
+  usedWordsThisSession?: number;
+  extraWordsBalance?: number;
+  monthlyWordLimit?: number;
+  monthlyWordsUsed?: number;
+  // Callbacks
   onPause: () => void;
+  onResume?: () => void;
+  onRestartFailed?: () => void;
   onOpenEditor?: () => void;
 }
 
@@ -84,7 +98,15 @@ export function WritingProgressModal({
   failedScenes = 0,
   skippedScenes = 0,
   avgSecondsPerScene,
+  error,
+  remainingWords = 0,
+  usedWordsThisSession = 0,
+  extraWordsBalance = 0,
+  monthlyWordLimit = 0,
+  monthlyWordsUsed = 0,
   onPause,
+  onResume,
+  onRestartFailed,
   onOpenEditor,
 }: WritingProgressModalProps) {
   const [messageIndex, setMessageIndex] = useState(0);
@@ -103,7 +125,7 @@ export function WritingProgressModal({
 
   // Rotáló üzenet minden 4 másodpercben
   useEffect(() => {
-    if (!open || status === "paused" || status === "completed") return;
+    if (!open || status === "paused" || status === "completed" || status === "error") return;
     
     const interval = setInterval(() => {
       setMessageIndex(i => (i + 1) % messages.length);
@@ -122,10 +144,7 @@ export function WritingProgressModal({
   // Eltelt idő frissítése másodpercenként
   useEffect(() => {
     if (!startTime) return;
-    if (status !== "writing" && status !== "generating_outline" && status !== "completed") return;
-    
-    // Completed esetén ne frissítsünk tovább
-    if (status === "completed") return;
+    if (status !== "writing" && status !== "generating_outline") return;
     
     const interval = setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
@@ -140,20 +159,17 @@ export function WritingProgressModal({
 
   const sceneLabel = isNonFiction ? "szekció" : "jelenet";
 
-  // Becsült hátralevő idő kalkuláció - kombináljuk a wizard becslését a valós adatokkal
+  // Becsült hátralevő idő kalkuláció
   const estimatedRemainingSeconds = (() => {
     if (completedScenes === 0 && initialTotalSeconds) {
-      // Még nem kezdtünk el - használjuk a wizard becslését
       return initialTotalSeconds;
     }
     
-    // Ha kapunk server-side átlagot, használjuk azt
     if (avgSecondsPerScene && avgSecondsPerScene > 0) {
       const remainingScenes = totalScenes - completedScenes - failedScenes - skippedScenes;
       return Math.round(remainingScenes * avgSecondsPerScene);
     }
     
-    // Fallback: dinamikus kalkuláció
     const avgSecs = completedScenes > 0 
       ? elapsedSeconds / completedScenes 
       : (initialTotalSeconds && totalScenes > 0 ? initialTotalSeconds / totalScenes : 45);
@@ -162,12 +178,20 @@ export function WritingProgressModal({
     return Math.round(remainingScenes * avgSecs);
   })();
 
-  const isCompleted = status === "completed";
+  // Kredit használat százalék
+  const creditUsagePercent = monthlyWordLimit > 0 
+    ? Math.min((monthlyWordsUsed / monthlyWordLimit) * 100, 100)
+    : 0;
 
-  // Ne jelenjen meg ha idle, paused vagy error
-  if (status === "idle" || status === "paused" || status === "error") {
+  // Csak idle státuszban tűnik el - minden más esetben látható
+  if (status === "idle") {
     return null;
   }
+
+  const isCompleted = status === "completed";
+  const isPaused = status === "paused";
+  const isError = status === "error";
+  const isWriting = status === "writing" || status === "generating_outline";
 
   return (
     <Dialog open={open}>
@@ -197,9 +221,22 @@ export function WritingProgressModal({
               <p className="text-lg text-muted-foreground mb-2">
                 {totalWords.toLocaleString()} szó • {completedScenes} {sceneLabel}
               </p>
-              <p className="text-sm text-muted-foreground mb-8">
+              <p className="text-sm text-muted-foreground mb-4">
                 Írás időtartama: {formatTime(elapsedSeconds)}
               </p>
+              
+              {/* Session kredit összesítés */}
+              <div className="bg-muted/40 rounded-lg p-3 mb-6 mx-auto max-w-xs">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Coins className="w-4 h-4" />
+                    Felhasznált kredit
+                  </span>
+                  <span className="font-medium text-primary">
+                    {usedWordsThisSession.toLocaleString()} szó
+                  </span>
+                </div>
+              </div>
               
               {onOpenEditor && (
                 <Button onClick={onOpenEditor} size="lg" className="gap-2">
@@ -208,6 +245,75 @@ export function WritingProgressModal({
                 </Button>
               )}
             </motion.div>
+          </div>
+        ) : isPaused ? (
+          /* Szüneteltetve képernyő */
+          <div className="text-center py-10 px-6">
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6"
+            >
+              <Pause className="w-10 h-10 text-amber-500" />
+            </motion.div>
+            
+            <h3 className="text-xl font-bold mb-2">Írás szüneteltetve</h3>
+            <p className="text-muted-foreground mb-2">
+              {completedScenes} / {totalScenes} {sceneLabel} elkészült
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              {totalWords.toLocaleString()} szó • Eltelt: {formatTime(elapsedSeconds)}
+            </p>
+            
+            {/* Kredit panel szüneteltetéskor */}
+            <CreditPanel 
+              usedWordsThisSession={usedWordsThisSession}
+              monthlyWordsUsed={monthlyWordsUsed}
+              monthlyWordLimit={monthlyWordLimit}
+              extraWordsBalance={extraWordsBalance}
+              creditUsagePercent={creditUsagePercent}
+            />
+            
+            {onResume && (
+              <Button onClick={onResume} size="lg" className="gap-2 mt-6">
+                <Play className="w-5 h-5" />
+                Folytatás
+              </Button>
+            )}
+          </div>
+        ) : isError ? (
+          /* Hiba képernyő */
+          <div className="text-center py-10 px-6">
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-6"
+            >
+              <AlertCircle className="w-10 h-10 text-destructive" />
+            </motion.div>
+            
+            <h3 className="text-xl font-bold mb-2">Hiba történt</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-xs mx-auto">
+              {error || "Ismeretlen hiba az írás közben"}
+            </p>
+            <p className="text-xs text-muted-foreground mb-6">
+              {completedScenes} / {totalScenes} {sceneLabel} készült el eddig
+            </p>
+            
+            <div className="flex gap-3 justify-center flex-wrap">
+              {onResume && (
+                <Button variant="outline" onClick={onResume} className="gap-2">
+                  <Play className="w-4 h-4" />
+                  Újrapróbálás
+                </Button>
+              )}
+              {onRestartFailed && (failedScenes > 0 || skippedScenes > 0) && (
+                <Button onClick={onRestartFailed} className="gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Hibás jelenetek ({failedScenes + skippedScenes})
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           /* Írás közbeni tartalom */
@@ -279,10 +385,8 @@ export function WritingProgressModal({
             {/* 3D Animált Progress Bar */}
             <div className="mb-4">
               <div className="relative h-6 w-full overflow-hidden rounded-full bg-muted/60 border border-border shadow-inner">
-                {/* Háttér textúra */}
                 <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/10" />
                 
-                {/* Fő progress sáv */}
                 <motion.div
                   className="h-full rounded-full relative overflow-hidden"
                   style={{ 
@@ -293,10 +397,8 @@ export function WritingProgressModal({
                   animate={{ width: `${progressPercent}%` }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
                 >
-                  {/* 3D hatás - felső highlight */}
                   <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-black/20 rounded-full" />
                   
-                  {/* Csillogó shimmer animáció */}
                   <motion.div
                     className="absolute inset-0"
                     style={{
@@ -312,11 +414,9 @@ export function WritingProgressModal({
                     }}
                   />
                   
-                  {/* Belső fény csík */}
                   <div className="absolute inset-x-0 top-0.5 h-1 mx-1 bg-gradient-to-r from-transparent via-white/50 to-transparent rounded-full" />
                 </motion.div>
                 
-                {/* Százalék jelző */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-xs font-bold text-foreground drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]">
                     {progressPercent}%
@@ -338,7 +438,7 @@ export function WritingProgressModal({
             </div>
 
             {/* Jelenet és szószám */}
-            <div className="flex justify-between text-xs text-muted-foreground mb-5 px-1">
+            <div className="flex justify-between text-xs text-muted-foreground mb-4 px-1">
               <div className="flex gap-2">
                 <span>{completedScenes}/{totalScenes} {sceneLabel} kész</span>
                 {failedScenes > 0 && <span className="text-destructive">{failedScenes} hibás</span>}
@@ -346,6 +446,15 @@ export function WritingProgressModal({
               </div>
               <span>{totalWords.toLocaleString()} szó</span>
             </div>
+
+            {/* Kredit információk panel */}
+            <CreditPanel 
+              usedWordsThisSession={usedWordsThisSession}
+              monthlyWordsUsed={monthlyWordsUsed}
+              monthlyWordLimit={monthlyWordLimit}
+              extraWordsBalance={extraWordsBalance}
+              creditUsagePercent={creditUsagePercent}
+            />
 
             {/* Footer */}
             <div className="flex items-center justify-between pt-4 border-t border-border/50">
@@ -362,5 +471,51 @@ export function WritingProgressModal({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Kredit panel komponens
+function CreditPanel({
+  usedWordsThisSession,
+  monthlyWordsUsed,
+  monthlyWordLimit,
+  extraWordsBalance,
+  creditUsagePercent,
+}: {
+  usedWordsThisSession: number;
+  monthlyWordsUsed: number;
+  monthlyWordLimit: number;
+  extraWordsBalance: number;
+  creditUsagePercent: number;
+}) {
+  return (
+    <div className="bg-muted/40 rounded-lg p-3 mb-4 border border-border/50">
+      <div className="flex items-center justify-between text-sm mb-2">
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Coins className="w-4 h-4" />
+          Kredit felhasználás
+        </span>
+        <span className="font-medium text-primary">
+          -{usedWordsThisSession.toLocaleString()} szó
+        </span>
+      </div>
+      
+      {/* Progress bar a havi limithez */}
+      <div className="h-2 bg-background rounded-full overflow-hidden">
+        <div 
+          className="h-full bg-primary/70 transition-all duration-500"
+          style={{ width: `${creditUsagePercent}%` }}
+        />
+      </div>
+      
+      <div className="flex justify-between mt-1.5 text-xs text-muted-foreground">
+        <span>
+          {monthlyWordsUsed.toLocaleString()} / {monthlyWordLimit === -1 ? "∞" : monthlyWordLimit.toLocaleString()} havi
+        </span>
+        {extraWordsBalance > 0 && (
+          <span className="text-green-500">+{extraWordsBalance.toLocaleString()} extra</span>
+        )}
+      </div>
+    </div>
   );
 }
