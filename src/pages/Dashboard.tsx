@@ -375,45 +375,43 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Writing Stats Panel */}
+          {/* Projects section + Usage Panel */}
           <div className="mb-8 grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <WritingStatsPanel />
+              <h2 className="mb-4 text-lg font-semibold text-foreground">
+                {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
+              </h2>
+
+              {isLoading ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="h-48 animate-pulse rounded-xl bg-muted"
+                    />
+                  ))}
+                </div>
+              ) : nonArchivedProjectCount === 0 ? (
+                <EmptyState onCreateProject={handleNewProject} />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {recentProjects.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      onOpen={handleProjectOpen}
+                      onDelete={handleProjectDeleteRequest}
+                      onArchive={handleArchiveProject}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
             <UsagePanel />
           </div>
 
-          {/* Projects section */}
-          <div>
-            <h2 className="mb-4 text-lg font-semibold text-foreground">
-              {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
-            </h2>
-
-            {isLoading ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-48 animate-pulse rounded-xl bg-muted"
-                  />
-                ))}
-              </div>
-            ) : nonArchivedProjectCount === 0 ? (
-              <EmptyState onCreateProject={handleNewProject} />
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recentProjects.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    onOpen={handleProjectOpen}
-                    onDelete={handleProjectDeleteRequest}
-                    onArchive={handleArchiveProject}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Writing Stats Panel - at the bottom */}
+          <WritingStatsPanel />
         </div>
       </main>
 
