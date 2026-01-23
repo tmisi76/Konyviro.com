@@ -525,10 +525,22 @@ ${projectTone ? `Hangnem: ${projectTone}.` : ""}
                         "rounded-lg p-3 text-sm",
                         msg.role === "user"
                           ? "bg-primary/10 text-foreground ml-4"
-                          : "bg-muted text-foreground mr-4"
+                          : "bg-muted text-foreground mr-4 prose prose-sm dark:prose-invert max-w-none"
                       )}
                     >
-                      {msg.content || (msg.isStreaming && (
+                      {msg.content ? (
+                        msg.role === "assistant" ? (
+                          <div 
+                            dangerouslySetInnerHTML={{ 
+                              __html: msg.content
+                                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                                .replace(/\n/g, '<br />')
+                            }} 
+                          />
+                        ) : msg.content
+                      ) : (msg.isStreaming && (
                         <span className="animate-pulse">▊</span>
                       ))}
                     </div>
