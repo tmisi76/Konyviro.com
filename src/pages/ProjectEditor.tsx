@@ -302,7 +302,8 @@ export default function ProjectEditor() {
     if (!lastSaved) return null;
     const now = new Date();
     const diff = now.getTime() - lastSaved.getTime();
-    if (diff < 60000) return "Most mentve";
+    if (diff < 10000) return "Most mentve";
+    if (diff < 60000) return `${Math.floor(diff / 1000)} mp-e mentve`;
     if (diff < 3600000) return `${Math.floor(diff / 60000)} perce mentve`;
     return lastSaved.toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit" });
   };

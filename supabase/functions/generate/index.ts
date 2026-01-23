@@ -44,7 +44,7 @@ serve(async (req) => {
     }
 
     const systemPrompt = `${SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction}\n\n${ACTION_PROMPTS[action] || ACTION_PROMPTS.chat}${context?.bookDescription ? `\n\nKönyv: ${context.bookDescription}` : ""}${stylePrompt}`;
-    const maxTokens = settings?.length === "long" ? 6000 : settings?.length === "medium" ? 2000 : 500;
+    const maxTokens = settings?.length === "long" ? 8000 : settings?.length === "medium" ? 4000 : 1500;
 
     const messages = [];
     if (context?.chapterContent) { messages.push({ role: "user", content: `Kontextus:\n${context.chapterContent}` }); messages.push({ role: "assistant", content: "Megértettem." }); }

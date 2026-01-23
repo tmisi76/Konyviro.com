@@ -78,16 +78,17 @@ export function EditorBlock({
 
   // Handle keyboard events
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    // Enter key handling: Shift+Enter = new line in block, Enter = new block
+    // Enter key handling
     if (e.key === "Enter") {
+      // Shift+Enter: insert line break within block (allow default behavior)
       if (e.shiftKey) {
-        // Shift+Enter: Allow default behavior (new line within block)
-        return;
+        return; // Default browser behavior: insert <br>
       }
-      // Enter: Create new block
+      // Regular Enter: create new block below
       e.preventDefault();
+      e.stopPropagation();
       setShowSlashMenu(false);
-      onCreateAfter();
+      onCreateAfter("paragraph");
       return;
     }
 
@@ -248,8 +249,13 @@ export function EditorBlock({
           <GripVertical className="h-4 w-4" />
         </button>
         <button
-          onClick={() => onCreateAfter()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCreateAfter("paragraph");
+          }}
           className="rounded p-1 text-muted-foreground hover:bg-muted"
+          title="Új bekezdés hozzáadása"
         >
           <Plus className="h-4 w-4" />
         </button>
