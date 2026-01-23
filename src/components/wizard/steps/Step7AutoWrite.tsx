@@ -65,7 +65,7 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProgressRef = useRef(0);
 
-  const { getRemainingWords, canGenerateWords, isLoading: subscriptionLoading } = useSubscription();
+  const { getRemainingWords, canGenerateWords, isLoading: subscriptionLoading, subscription, usage } = useSubscription();
   const { saveProgress, clearProgress, loadProgress, hasSavedProgress } = useWritingPersistence(projectId);
   const { celebrate } = useCompletionCelebration();
 
@@ -580,21 +580,34 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
         onOpenChange={setShowBuyCreditModal} 
       />
 
-      {/* Real-time writing progress modal */}
+      {/* Real-time writing progress modal - látható minden nem-idle státuszban */}
       <WritingProgressModal
-        open={progress.status === "writing" || progress.status === "generating_outline" || progress.status === "completed"}
+        open={progress.status !== "idle"}
         status={progress.status}
         currentChapter={chapters[progress.currentChapterIndex]?.title || ""}
-        currentScene={chapters[progress.currentChapterIndex]?.scenesTotal > 0 
+        currentScene={progress.currentSceneTitle || (chapters[progress.currentChapterIndex]?.scenesTotal > 0 
           ? `${isNonFiction ? "Szekció" : "Jelenet"} ${progress.currentSceneIndex + 1}/${chapters[progress.currentChapterIndex]?.scenesTotal || 0}` 
-          : ""}
+          : "")}
         completedScenes={progress.completedScenes}
         totalScenes={progress.totalScenes}
         streamingText={streamingText || currentContent.slice(-500)}
         totalWords={progress.totalWords}
         isNonFiction={isNonFiction}
         initialEstimatedMinutes={estimatedMinutes}
+        failedScenes={progress.failedScenes}
+        skippedScenes={progress.skippedScenes}
+        avgSecondsPerScene={progress.avgSecondsPerScene}
+        error={progress.error}
+        // Kredit adatok
+        remainingWords={remainingWords}
+        usedWordsThisSession={progress.totalWords}
+        extraWordsBalance={subscription?.extraWordsBalance || 0}
+        monthlyWordLimit={subscription?.monthlyWordLimit || 0}
+        monthlyWordsUsed={usage?.wordsGenerated || 0}
+        // Callbacks
         onPause={pause}
+        onResume={resume}
+        onRestartFailed={restartFailedScenes}
         onOpenEditor={handleGoToEditor}
       />
 
