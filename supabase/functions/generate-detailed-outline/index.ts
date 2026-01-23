@@ -22,24 +22,31 @@ serve(async (req) => {
     if (storyStructure) userPrompt += `\nKONTEXTUS: ${JSON.stringify(storyStructure)}`;
     if (characters) userPrompt += `\nKARAKTEREK: ${characters}`;
 
-    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
-    const maxRetries = 5;
-    let response: Response | null = null;
+    // Retry logic exponenciális backoff-al (429/502/503 + üres válasz kezelés)
+    const maxRetries = 7;
+    let content = "";
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
-        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        console.log(`AI request attempt ${attempt}/${maxRetries}`);
+
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt }], max_tokens: 6000 }),
+          body: JSON.stringify({ 
+            model: "google/gemini-3-flash-preview", 
+            messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt }], 
+            max_tokens: 6000 
+          }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
+        // Retry on transient errors
         if (response.status === 429 || response.status === 502 || response.status === 503) {
           console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
@@ -47,8 +54,35 @@ serve(async (req) => {
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
+          if (response.status === 429) {
+            return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+          throw new Error("AI szolgáltatás nem elérhető");
         }
+
+        if (!response.ok) {
+          console.error(`Response not ok: ${response.status}`);
+          throw new Error("AI hiba");
+        }
+
+        const data = await response.json();
+        content = data.choices?.[0]?.message?.content || "";
+
+        // Retry on empty response
+        if (!content || content.trim().length < 10) {
+          console.warn(`Empty or too short AI response (attempt ${attempt}/${maxRetries}), length: ${content?.length || 0}`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(3000 * Math.pow(2, attempt - 1), 30000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw new Error("Az AI nem tudott választ generálni, próbáld újra");
+        }
+
+        // Success - exit retry loop
+        console.log(`AI response received, length: ${content.length}`);
         break;
+
       } catch (fetchError) {
         console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
         if (attempt < maxRetries) {
@@ -58,18 +92,6 @@ serve(async (req) => {
         }
         throw fetchError;
       }
-    }
-
-    if (!response || !response.ok) {
-      if (response?.status === 429) return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      throw new Error("AI hiba");
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    
-    if (!content) {
-      throw new Error("Üres AI válasz");
     }
 
     console.log("Raw AI response length:", content.length);
