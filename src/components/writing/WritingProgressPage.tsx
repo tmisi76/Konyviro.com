@@ -30,6 +30,8 @@ export interface WritingProgressPageProps {
   skippedScenes?: number;
   avgSecondsPerScene?: number;
   error?: string;
+  // Új: célzott szószám a reális időbecsléshez
+  targetWordCount?: number;
   // Kredit adatok
   usedWordsThisSession?: number;
   extraWordsBalance?: number;
@@ -92,6 +94,7 @@ export function WritingProgressPage({
   skippedScenes = 0,
   avgSecondsPerScene,
   error,
+  targetWordCount = 0,
   usedWordsThisSession = 0,
   extraWordsBalance = 0,
   monthlyWordLimit = 0,
@@ -151,23 +154,31 @@ export function WritingProgressPage({
 
   const sceneLabel = isNonFiction ? "szekció" : "jelenet";
 
-  // Becsült hátralevő idő kalkuláció
+  // Becsült hátralevő idő kalkuláció - reális becslés a könyv hossza alapján
   const estimatedRemainingSeconds = (() => {
-    if (completedScenes === 0 && initialTotalSeconds) {
-      return initialTotalSeconds;
-    }
+    const remainingScenes = totalScenes - completedScenes - failedScenes - skippedScenes;
     
-    if (avgSecondsPerScene && avgSecondsPerScene > 0) {
-      const remainingScenes = totalScenes - completedScenes - failedScenes - skippedScenes;
+    // 1. Ha már van valós átlag sebesség, használjuk azt (legpontosabb)
+    if (completedScenes >= 2 && avgSecondsPerScene && avgSecondsPerScene > 0 && avgSecondsPerScene < 300) {
       return Math.round(remainingScenes * avgSecondsPerScene);
     }
     
-    const avgSecs = completedScenes > 0 
-      ? elapsedSeconds / completedScenes 
-      : (initialTotalSeconds && totalScenes > 0 ? initialTotalSeconds / totalScenes : 45);
+    // 2. Ha van targetWordCount, abból becsülünk (500 szó/perc, 1.5x overhead)
+    // Ez reálisabb, mint a wizard becslés
+    if (targetWordCount && targetWordCount > 0) {
+      const baseMinutes = (targetWordCount / 500) * 1.5;
+      const progressRatio = totalScenes > 0 ? remainingScenes / totalScenes : 1;
+      return Math.round(baseMinutes * progressRatio * 60);
+    }
     
-    const remainingScenes = totalScenes - completedScenes - failedScenes - skippedScenes;
-    return Math.round(remainingScenes * avgSecs);
+    // 3. Ha van wizard becslés, azt használjuk
+    if (initialTotalSeconds && initialTotalSeconds > 0) {
+      const progressRatio = totalScenes > 0 ? remainingScenes / totalScenes : 1;
+      return Math.round(initialTotalSeconds * progressRatio);
+    }
+    
+    // 4. Fallback: 45 sec/jelenet (konzervatív)
+    return Math.round(remainingScenes * 45);
   })();
 
   // Kredit használat százalék

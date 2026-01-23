@@ -563,11 +563,43 @@ export function useAutoWrite({
         generation_status: (ch.generation_status as ChapterWithScenes["generation_status"]) || "pending",
       }));
 
-      // Check if any chapters need outlines generated
-      const chaptersWithoutOutline = chaptersData.filter(c => c.scene_outline.length === 0);
-      if (chaptersWithoutOutline.length > 0) {
+      // Check if any chapters need outlines generated OR have empty outlines
+      const chaptersNeedingOutline = chaptersData.filter(c => 
+        !c.scene_outline || c.scene_outline.length === 0
+      );
+      
+      if (chaptersNeedingOutline.length > 0) {
         setProgress(prev => ({ ...prev, status: "generating_outline" }));
-        await generateAllOutlines();
+        
+        // Generate outlines for each chapter that needs it
+        for (const chapter of chaptersNeedingOutline) {
+          console.log(`Chapter "${chapter.title}" needs outline, generating...`);
+          
+          // Build previous summary
+          const previousIndex = chaptersData.findIndex(c => c.id === chapter.id);
+          const previousSummary = chaptersData
+            .slice(0, previousIndex)
+            .map(c => {
+              const sceneDescriptions = (c.scene_outline || [])
+                .filter(s => s != null && s.description)
+                .map(s => s.description)
+                .join(". ");
+              return `${c.title}: ${sceneDescriptions}`;
+            })
+            .join("\n");
+          
+          const nextChapterTitle = chaptersData[previousIndex + 1]?.title;
+          
+          try {
+            await generateOutlineForChapter(chapter, previousSummary, nextChapterTitle);
+          } catch (outlineError) {
+            console.error(`Outline generation failed for chapter ${chapter.title}:`, outlineError);
+            // Continue with next chapter
+          }
+          
+          // Small delay between outline generations
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
         
         // Re-fetch after outline generation
         const { data: updatedChapters, error: refetchError } = await supabase

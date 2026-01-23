@@ -31,6 +31,7 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
   const [currentContent, setCurrentContent] = useState("");
   const [streamingText, setStreamingText] = useState("");
   const [storyStructure, setStoryStructure] = useState<Record<string, unknown> | undefined>();
+  const [targetWordCount, setTargetWordCount] = useState<number>(0);
   const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
   const [creditCheckDone, setCreditCheckDone] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
@@ -82,18 +83,21 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
     }
   }, [progress.status, progress.completedScenes, resume]);
 
-  // Fetch project info
+  // Fetch project info including target_word_count
   useEffect(() => {
     const fetchProject = async () => {
       const { data } = await supabase
         .from("projects")
-        .select("title, story_structure")
+        .select("title, story_structure, target_word_count")
         .eq("id", projectId)
         .single();
 
       if (data) {
         if (data.story_structure) {
           setStoryStructure(data.story_structure as Record<string, unknown>);
+        }
+        if (data.target_word_count) {
+          setTargetWordCount(data.target_word_count);
         }
       }
     };
@@ -262,6 +266,7 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
         failedScenes={progress.failedScenes}
         skippedScenes={progress.skippedScenes}
         avgSecondsPerScene={progress.avgSecondsPerScene}
+        targetWordCount={targetWordCount}
         error={
           creditCheckDone && !hasCredits && progress.status === "idle"
             ? `Nincs elég kredit! ${remainingWords === 0 ? "Elfogytak a szavaid erre a hónapra." : `Csak ${remainingWords.toLocaleString()} szó maradt.`}`
