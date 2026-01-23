@@ -12,3 +12,5 @@ export type { OpenTicket } from "./useOpenTickets";
 
 export { useRevenueChart } from "./useRevenueChart";
 export type { ChartDataPoint } from "./useRevenueChart";
+
+export { useAdminUsers } from "./useAdminUsers";
