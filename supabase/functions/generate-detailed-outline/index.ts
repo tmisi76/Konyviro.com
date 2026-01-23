@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { repairAndParseJSON, validateSceneOutline } from "../_shared/json-utils.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -28,12 +29,12 @@ serve(async (req) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
         response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt }], max_tokens: 4000 }),
+          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt }], max_tokens: 6000 }),
           signal: controller.signal,
         });
 
@@ -65,17 +66,35 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    let content = data.choices?.[0]?.message?.content || "";
-    content = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const sceneOutline = JSON.parse(content);
+    const content = data.choices?.[0]?.message?.content || "";
+    
+    if (!content) {
+      throw new Error("Üres AI válasz");
+    }
 
-    if (!Array.isArray(sceneOutline)) throw new Error("Érvénytelen formátum");
+    console.log("Raw AI response length:", content.length);
+
+    // Use robust JSON parsing with repair capability
+    let parsedOutline;
+    try {
+      parsedOutline = repairAndParseJSON(content);
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError);
+      console.error("Content preview:", content.substring(0, 1000));
+      throw new Error("Nem sikerült feldolgozni az AI válaszát");
+    }
+
+    // Validate and normalize the outline
+    const sceneOutline = validateSceneOutline(parsedOutline);
+
+    console.log("Successfully parsed", sceneOutline.length, "scenes");
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     await supabase.from("chapters").update({ scene_outline: sceneOutline, generation_status: "pending" }).eq("id", chapterId);
 
     return new Response(JSON.stringify({ sceneOutline }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
+    console.error("Function error:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
