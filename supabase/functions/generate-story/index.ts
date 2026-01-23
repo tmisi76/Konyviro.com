@@ -5,7 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `Te egy bestseller könyvek szerzője és történetírás szakértő vagy. A felhasználó ad neked egy egyszerű sztori ötletet, és te ebből készítesz egy részletes, izgalmas történet vázlatot.
+// ============= FICTION SYSTEM PROMPT =============
+const FICTION_SYSTEM_PROMPT = `Te egy bestseller könyvek szerzője és történetírás szakértő vagy. A felhasználó ad neked egy egyszerű sztori ötletet, és te ebből készítesz egy részletes, izgalmas történet vázlatot.
 
 KÖVETELMÉNYEK:
 1. **Izgalmas nyitás** - Hook ami azonnal megfogja az olvasót
@@ -87,13 +88,72 @@ EROTIKUS TARTALOM IRÁNYELVEK:
 - Figyelj a beleegyezés és tisztelet ábrázolására
 - Az explicit tartalom szolgálja a karakter-fejlődést`;
 
+// ============= NONFICTION SYSTEM PROMPT =============
+const NONFICTION_SYSTEM_PROMPT = `Te egy bestseller szakkönyvek ghostwritere vagy, aki a "Million Dollar Book Method" és Russell Brunson "DotComSecrets" stílusában ír.
+
+A SZAKKÖNYV CÉLJA:
+- Az olvasónak KONKRÉT, HASZNÁLHATÓ tudást adni
+- Lépésről-lépésre útmutatót nyújtani
+- Valós eredményeket és transzformációt ígérni
+
+KÖTELEZŐ SZAKKÖNYV STRUKTÚRA:
+1. NAGY ÍGÉRET - Konkrét, mérhető eredmény amit az olvasó elér (pl. "7 számjegyű bevétel", "100 ügyfél 90 nap alatt", "megszabadulsz a szorongástól")
+2. CÉLKÖZÖNSÉG - Pontosan kinek szól és milyen problémával küzd
+3. EGYEDI MÓDSZERTAN - Brandelhető keretrendszer/módszer neve és lényege (pl. "Bio-Logic Keretrendszer", "Revenue Blueprint")
+4. FEJEZETEK - Logikus felépítés: Probléma → Módszer → Implementáció → Eredmények
+
+STÍLUS SZABÁLYOK (KÖTELEZŐ):
+- Első személy narratíva ("Én", "Az én tapasztalatom szerint...")
+- Közvetlen megszólítás ("Te", "Neked", "Ha te is...")
+- Rövid bekezdések (max 3-4 mondat)
+- ZERO fluff - minden mondat értéket ad
+- Konkrét számok, statisztikák, példák
+- Személyes történetek a hitelesség érdekében
+
+ABSZOLÚT TILTOTT ELEMEK (SOHA NE HASZNÁLD SZAKKÖNYVNÉL):
+❌ Fiktív karakterek nevei (pl. "Mark Sullivan", "Elena Vance", "Julian Thorne")
+❌ Regény-szerű cselekménypontok (Opening Hook, Climax, Resolution, Dark Night of Soul)
+❌ Antagonista vagy konfliktus karakter
+❌ "Helyszín és időszak" szekció
+❌ Karakterív vagy belső konfliktus
+❌ Szinopszis fiktív történettel
+❌ Bármilyen regény/fikció elem
+
+A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN:
+{
+  "title": "Könyv címe a nagy ígérettel",
+  "promise": "A konkrét eredmény amit az olvasó elér - egy erős mondat (pl. 'Megtanulod, hogyan építs 7 számjegyű online vállalkozást 12 hónap alatt a bizonyított Revenue Blueprint módszerrel.')",
+  "targetReader": "Pontosan kinek szól: [célközönség] akik [probléma/kihívás] és szeretnék [vágyott eredmény]",
+  "methodology": {
+    "name": "A módszertan/keretrendszer brandelhető neve (pl. 'A 90 Napos Áttörés Rendszer')",
+    "description": "A módszer lényege 2-3 mondatban - mit csinál és miért működik",
+    "keySteps": ["1. lépés rövid leírása", "2. lépés rövid leírása", "3. lépés rövid leírása", "4. lépés rövid leírása"]
+  },
+  "chapters": [
+    {"number": 1, "title": "Bevezetés: Az Ígéret", "summary": "Mit fog elérni az olvasó és miért működik ez a módszer"},
+    {"number": 2, "title": "A Probléma Gyökere", "summary": "Miért nem működnek a hagyományos megközelítések"},
+    {"number": 3, "title": "A [Módszer Neve] Alapjai", "summary": "A keretrendszer bemutatása és alapelvei"},
+    {"number": 4, "title": "Implementáció", "summary": "Lépésről-lépésre útmutató a gyakorlati alkalmazáshoz"},
+    {"number": 5, "title": "Záró Gondolatok", "summary": "Összefoglalás és következő lépések"}
+  ],
+  "authorCredibility": "Miért higgyenek neked - rövid szerzői hitelesség (opcionális, max 2 mondat)",
+  "callToAction": "Mit tegyen az olvasó a könyv elolvasása után - konkrét első lépés"
+}
+
+FONTOS:
+- 5-8 fejezet, logikus szakkönyv felépítéssel
+- Minden fejezet TUDÁST és MEGOLDÁST nyújtson, NE történetet
+- A válasz CSAK a JSON legyen, semmi más szöveg
+- Magyar nyelven válaszolj
+- NE generálj karaktereket, antagonistát, vagy cselekménypontokat!`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { storyIdea, genre, tone, targetAudience } = await req.json();
+    const { storyIdea, genre, tone, targetAudience, authorProfile } = await req.json();
 
     if (!storyIdea || storyIdea.trim().length < 10) {
       return new Response(
@@ -110,45 +170,88 @@ serve(async (req) => {
       );
     }
 
+    // Determine if this is a nonfiction book (handle both accented and unaccented versions)
+    const isNonfiction = genre === "szakkonyv" || genre === "szakkönyv";
+
     // Build the system prompt based on genre
-    let systemPrompt = SYSTEM_PROMPT;
-    if (genre === "erotikus") {
-      systemPrompt += EROTIC_ADDON;
+    let systemPrompt: string;
+    if (isNonfiction) {
+      systemPrompt = NONFICTION_SYSTEM_PROMPT;
+    } else if (genre === "erotikus") {
+      systemPrompt = FICTION_SYSTEM_PROMPT + EROTIC_ADDON;
+    } else {
+      systemPrompt = FICTION_SYSTEM_PROMPT;
     }
 
     // Build context for the prompt
     const contextParts: string[] = [];
-    if (genre) {
+    if (genre && !isNonfiction) {
       const genreNames: Record<string, string> = {
         fiction: "Szépirodalmi regény",
         erotikus: "Erotikus regény",
-        szakkonyv: "Szakkönyv"
+        thriller: "Thriller",
+        krimi: "Krimi",
+        romantikus: "Romantikus regény",
+        scifi: "Sci-Fi",
+        fantasy: "Fantasy",
+        horror: "Horror",
+        drama: "Dráma",
+        kaland: "Kaland",
+        tortenelmi: "Történelmi regény"
       };
       contextParts.push(`Műfaj: ${genreNames[genre] || genre}`);
     }
+    
     if (tone) {
       const toneNames: Record<string, string> = {
         formal: "Formális",
         direct: "Közvetlen",
         friendly: "Barátságos",
-        provocative: "Provokatív"
+        provocative: "Provokatív",
+        light: "Könnyed",
+        professional: "Professzionális",
+        dramatic: "Drámai",
+        humorous: "Humoros",
+        dark: "Sötét",
+        suspenseful: "Feszült",
+        inspiring: "Inspiráló"
       };
       contextParts.push(`Hangnem: ${toneNames[tone] || tone}`);
     }
+    
     if (targetAudience) {
-      const audienceNames: Record<string, string> = {
-        beginner: "Kezdő olvasók",
-        intermediate: "Átlagos olvasók",
-        expert: "Tapasztalt olvasók",
-        general: "Általános közönség"
-      };
-      contextParts.push(`Célközönség: ${audienceNames[targetAudience] || targetAudience}`);
+      contextParts.push(`Célközönség: ${targetAudience}`);
     }
 
-    const userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}SZTORI ÖTLET:
+    // Add author profile context for nonfiction
+    let authorContext = "";
+    if (isNonfiction && authorProfile) {
+      const formality = authorProfile.formality === "tegez" ? "tegezés (közvetlen)" : "magázás (formális)";
+      authorContext = `
+SZERZŐ PROFIL (használd ezt a koncepció személyre szabásához):
+- Szerző neve: ${authorProfile.authorName || "Nincs megadva"}
+- Megszólítás stílusa: ${formality}
+- Háttér és szakértelem: ${authorProfile.authorBackground || "Nincs megadva"}
+- Személyes történetek: ${authorProfile.personalStories || "Nincs megadva"}
+- Fő ígéret az olvasóknak: ${authorProfile.mainPromise || "Nincs megadva"}
+`;
+    }
+
+    // Build user prompt based on book type
+    let userPrompt: string;
+    if (isNonfiction) {
+      userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}${authorContext}
+KÖNYV ÖTLET/TÉMA:
+${storyIdea}
+
+Készíts ebből egy professzionális SZAKKÖNYV koncepciót a megadott JSON formátumban!
+FONTOS: Ez egy SZAKKÖNYV, NEM regény! Ne használj fiktív karaktereket, antagonistát, vagy regény cselekménypontokat!`;
+    } else {
+      userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}SZTORI ÖTLET:
 ${storyIdea}
 
 Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a megadott JSON formátumban!`;
+    }
 
     // Retry logic exponenciális backoff-al (429/502/503 kezelés)
     const maxRetries = 7;
@@ -338,18 +441,42 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
       } catch (retryError) {
         console.error("JSON retry parse error:", retryError);
         return new Response(
-          JSON.stringify({ error: "Nem sikerült feldolgozni a generált sztorit. Próbáld újra." }),
+          JSON.stringify({ error: "Nem sikerült feldolgozni a generált koncepciót. Próbáld újra." }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }
 
-    // Validate required fields
-    if (!storyData.title || !storyData.synopsis || !storyData.chapters) {
-      return new Response(
-        JSON.stringify({ error: "Hiányos sztori generálás. Próbáld újra." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Validate required fields based on book type
+    if (isNonfiction) {
+      // Nonfiction validation
+      if (!storyData.title || !storyData.promise || !storyData.chapters) {
+        return new Response(
+          JSON.stringify({ error: "Hiányos szakkönyv koncepció. Próbáld újra." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // FORCE CHECK: If fiction elements are present in nonfiction, reject and ask for retry
+      if (storyData.protagonist || storyData.antagonist || storyData.plotPoints || storyData.synopsis) {
+        console.error("FICTION ELEMENTS DETECTED IN NONFICTION RESPONSE - forcing regeneration");
+        return new Response(
+          JSON.stringify({ error: "Hibás formátum generálva. Kérlek próbáld újra." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Add a flag to indicate this is nonfiction for frontend handling
+      storyData._type = "nonfiction";
+    } else {
+      // Fiction validation
+      if (!storyData.title || !storyData.synopsis || !storyData.chapters) {
+        return new Response(
+          JSON.stringify({ error: "Hiányos sztori generálás. Próbáld újra." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      storyData._type = "fiction";
     }
 
     return new Response(

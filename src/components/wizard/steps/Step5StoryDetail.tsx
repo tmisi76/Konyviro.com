@@ -20,6 +20,43 @@ interface Step5StoryDetailProps {
   fictionStyle?: FictionStyleSettings | null;
 }
 
+// Type for nonfiction response
+interface NonfictionResponse {
+  _type: "nonfiction";
+  title: string;
+  promise: string;
+  targetReader: string;
+  methodology: {
+    name: string;
+    description: string;
+    keySteps: string[];
+  };
+  chapters: Array<{ number: number; title: string; summary: string }>;
+  authorCredibility?: string;
+  callToAction?: string;
+}
+
+// Type for fiction response
+interface FictionResponse {
+  _type?: "fiction";
+  title?: string;
+  synopsis?: string;
+  protagonist?: {
+    name: string;
+    description?: string;
+    innerConflict?: string;
+    arc?: string;
+  };
+  antagonist?: {
+    name: string;
+    description?: string;
+  };
+  setting?: string;
+  themes?: string[];
+  plotPoints?: Array<{ beat: string; description: string }>;
+  chapters?: Array<{ number?: number; title: string; summary: string }>;
+}
+
 export function Step5StoryDetail({
   genre,
   subcategory,
@@ -33,6 +70,9 @@ export function Step5StoryDetail({
   const [concept, setConcept] = useState(existingConcept);
   const [isGenerating, setIsGenerating] = useState(false);
   const [lastIdeaId, setLastIdeaId] = useState<string | null>(null);
+
+  // Check if this is a nonfiction book
+  const isNonfiction = genre === "szakkonyv";
 
   // Generate on mount or when selected idea changes
   useEffect(() => {
@@ -55,47 +95,97 @@ export function Step5StoryDetail({
       const { data, error } = await supabase.functions.invoke("generate-story", {
         body: {
           storyIdea: `${selectedIdea.title}\n\n${selectedIdea.synopsis}\n\nKulcselemek: ${selectedIdea.mainElements.join(", ")}\n\nEgyedi vonás: ${selectedIdea.uniqueSellingPoint}`,
-          genre: genre === "fiction" ? subcategory : "szakkonyv",
+          // CRITICAL: Pass "szakkonyv" for nonfiction to trigger the correct prompt
+          genre: isNonfiction ? "szakkonyv" : (genre === "fiction" ? subcategory : genre),
           tone,
           targetAudience: "general",
-          authorProfile: authorProfile || undefined,
+          // Pass author profile for nonfiction personalization
+          authorProfile: isNonfiction ? authorProfile : undefined,
         },
       });
 
       if (error) throw error;
       
-      // Build detailed concept from response
       let detailedConcept = "";
       
-      if (data.synopsis) {
-        detailedConcept += `## Szinopszis\n\n${data.synopsis}\n\n`;
-      }
-      
-      if (data.protagonist) {
-        detailedConcept += `## Főszereplő: ${data.protagonist.name}\n`;
-        if (data.protagonist.description) detailedConcept += `${data.protagonist.description}\n`;
-        if (data.protagonist.innerConflict) detailedConcept += `\n**Belső konfliktus:** ${data.protagonist.innerConflict}\n`;
-        if (data.protagonist.arc) detailedConcept += `**Karakterív:** ${data.protagonist.arc}\n`;
-        detailedConcept += "\n";
-      }
-      
-      if (data.antagonist) {
-        detailedConcept += `## Antagonista: ${data.antagonist.name}\n${data.antagonist.description}\n\n`;
-      }
-      
-      if (data.setting) {
-        detailedConcept += `## Helyszín és időszak\n${data.setting}\n\n`;
-      }
-      
-      if (data.themes && data.themes.length > 0) {
-        detailedConcept += `## Témák\n${data.themes.map((t: string) => `- ${t}`).join("\n")}\n\n`;
-      }
-      
-      if (data.plotPoints && data.plotPoints.length > 0) {
-        detailedConcept += `## Cselekménypontok\n`;
-        data.plotPoints.forEach((point: { beat: string; description: string }) => {
-          detailedConcept += `\n### ${point.beat}\n${point.description}\n`;
-        });
+      // Handle response based on book type
+      if (isNonfiction || data._type === "nonfiction") {
+        // === NONFICTION CONCEPT FORMAT ===
+        const nonfictionData = data as NonfictionResponse;
+        
+        if (nonfictionData.title) {
+          detailedConcept += `# ${nonfictionData.title}\n\n`;
+        }
+        
+        if (nonfictionData.promise) {
+          detailedConcept += `## Nagy Ígéret\n\n${nonfictionData.promise}\n\n`;
+        }
+        
+        if (nonfictionData.targetReader) {
+          detailedConcept += `## Célközönség\n\n${nonfictionData.targetReader}\n\n`;
+        }
+        
+        if (nonfictionData.methodology) {
+          detailedConcept += `## Módszertan: ${nonfictionData.methodology.name}\n\n`;
+          detailedConcept += `${nonfictionData.methodology.description}\n\n`;
+          
+          if (nonfictionData.methodology.keySteps?.length) {
+            detailedConcept += `**Kulcs lépések:**\n\n`;
+            nonfictionData.methodology.keySteps.forEach((step, i) => {
+              detailedConcept += `${i + 1}. ${step}\n`;
+            });
+            detailedConcept += "\n";
+          }
+        }
+        
+        if (nonfictionData.chapters?.length) {
+          detailedConcept += `## Fejezet Áttekintés\n\n`;
+          nonfictionData.chapters.forEach((ch) => {
+            detailedConcept += `**${ch.number}. ${ch.title}**\n${ch.summary}\n\n`;
+          });
+        }
+        
+        if (nonfictionData.authorCredibility) {
+          detailedConcept += `## Szerzői Hitelesség\n\n${nonfictionData.authorCredibility}\n\n`;
+        }
+        
+        if (nonfictionData.callToAction) {
+          detailedConcept += `## Felhívás Cselekvésre\n\n${nonfictionData.callToAction}\n\n`;
+        }
+      } else {
+        // === FICTION CONCEPT FORMAT ===
+        const fictionData = data as FictionResponse;
+        
+        if (fictionData.synopsis) {
+          detailedConcept += `## Szinopszis\n\n${fictionData.synopsis}\n\n`;
+        }
+        
+        if (fictionData.protagonist) {
+          detailedConcept += `## Főszereplő: ${fictionData.protagonist.name}\n`;
+          if (fictionData.protagonist.description) detailedConcept += `${fictionData.protagonist.description}\n`;
+          if (fictionData.protagonist.innerConflict) detailedConcept += `\n**Belső konfliktus:** ${fictionData.protagonist.innerConflict}\n`;
+          if (fictionData.protagonist.arc) detailedConcept += `**Karakterív:** ${fictionData.protagonist.arc}\n`;
+          detailedConcept += "\n";
+        }
+        
+        if (fictionData.antagonist) {
+          detailedConcept += `## Antagonista: ${fictionData.antagonist.name}\n${fictionData.antagonist.description}\n\n`;
+        }
+        
+        if (fictionData.setting) {
+          detailedConcept += `## Helyszín és időszak\n${fictionData.setting}\n\n`;
+        }
+        
+        if (fictionData.themes && fictionData.themes.length > 0) {
+          detailedConcept += `## Témák\n${fictionData.themes.map((t) => `- ${t}`).join("\n")}\n\n`;
+        }
+        
+        if (fictionData.plotPoints && fictionData.plotPoints.length > 0) {
+          detailedConcept += `## Cselekménypontok\n`;
+          fictionData.plotPoints.forEach((point) => {
+            detailedConcept += `\n### ${point.beat}\n${point.description}\n`;
+          });
+        }
       }
       
       setConcept(detailedConcept);
@@ -126,10 +216,13 @@ export function Step5StoryDetail({
         className="text-center mb-6"
       >
         <h1 className="text-3xl md:text-4xl font-bold mb-4">
-          {genre === "fiction" ? "Történet kidolgozása" : "Könyv koncepció"}
+          {isNonfiction ? "Könyv koncepció" : "Történet kidolgozása"}
         </h1>
         <p className="text-muted-foreground text-lg">
-          Tekintsd át és szerkeszd a részletes koncepciót
+          {isNonfiction 
+            ? "Tekintsd át és szerkeszd a szakkönyv struktúráját" 
+            : "Tekintsd át és szerkeszd a részletes koncepciót"
+          }
         </p>
       </motion.div>
 
@@ -143,7 +236,7 @@ export function Step5StoryDetail({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="w-4 h-4 text-primary" />
-            <span>AI által generált koncepció</span>
+            <span>AI által generált {isNonfiction ? "szakkönyv koncepció" : "koncepció"}</span>
           </div>
           <Button
             variant="outline"
@@ -171,7 +264,10 @@ export function Step5StoryDetail({
           <Textarea
             value={concept}
             onChange={(e) => handleChange(e.target.value)}
-            placeholder="A részletes koncepció itt jelenik meg..."
+            placeholder={isNonfiction 
+              ? "A szakkönyv koncepció itt jelenik meg..." 
+              : "A részletes koncepció itt jelenik meg..."
+            }
             className="min-h-[400px] font-mono text-sm leading-relaxed resize-y"
           />
         )}
