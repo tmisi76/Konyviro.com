@@ -21,11 +21,12 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAutoWrite } from "@/hooks/useAutoWrite";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWritingPersistence } from "@/hooks/useWritingPersistence";
+import { useCompletionCelebration } from "@/hooks/useCompletionCelebration";
 import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
 import { WritingProgressModal } from "@/components/writing/WritingProgressModal";
 import type { Genre } from "@/types/wizard";
 import type { ChapterWithScenes, SceneOutline } from "@/types/autowrite";
-import confetti from "canvas-confetti";
 
 interface Step7AutoWriteProps {
   projectId: string;
@@ -60,6 +61,8 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
   const lastProgressRef = useRef(0);
 
   const { getRemainingWords, canGenerateWords, isLoading: subscriptionLoading } = useSubscription();
+  const { saveProgress, clearProgress, loadProgress } = useWritingPersistence(projectId);
+  const { celebrate } = useCompletionCelebration();
 
   const {
     progress,
@@ -208,16 +211,32 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
     }
   }, [currentContent, streamingText]);
 
-  // Celebrate on completion
+  // Save progress to localStorage whenever it changes
   useEffect(() => {
-    if (progress.status === "completed") {
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 }
+    if (progress.status === "writing" || progress.status === "paused" || progress.status === "generating_outline") {
+      saveProgress({
+        status: progress.status,
+        currentChapterIndex: progress.currentChapterIndex,
+        completedScenes: progress.completedScenes,
+        totalScenes: progress.totalScenes,
+        totalWords: progress.totalWords,
       });
     }
-  }, [progress.status]);
+  }, [progress, saveProgress]);
+
+  // Clear localStorage when completed
+  useEffect(() => {
+    if (progress.status === "completed") {
+      clearProgress();
+    }
+  }, [progress.status, clearProgress]);
+
+  // Celebrate on completion with sound + confetti
+  useEffect(() => {
+    if (progress.status === "completed") {
+      celebrate();
+    }
+  }, [progress.status, celebrate]);
 
   const progressPercent = progress.totalScenes > 0 
     ? Math.round((progress.completedScenes / progress.totalScenes) * 100) 
