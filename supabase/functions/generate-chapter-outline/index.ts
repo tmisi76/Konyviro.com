@@ -12,15 +12,25 @@ serve(async (req) => {
   }
 
   try {
-    const { genre, length, concept } = await req.json();
+    const { genre, length, concept, targetWordCount } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const chapterCount = length === "short" ? 10 : length === "medium" ? 18 : 28;
-    const wordsPerChapter = length === "short" ? 3000 : length === "medium" ? 3500 : 4000;
+    // Use targetWordCount (number) if provided, otherwise fall back to legacy length string
+    const wordTarget = typeof targetWordCount === "number" && targetWordCount > 0 
+      ? targetWordCount 
+      : (length === "short" ? 10000 : length === "medium" ? 25000 : 50000);
+    
+    // Calculate chapter count based on word target (aim for 2000-4000 words per chapter)
+    // Minimum 3 chapters, maximum 30 chapters
+    const idealWordsPerChapter = wordTarget < 15000 ? 2000 : wordTarget < 30000 ? 2500 : 3500;
+    const chapterCount = Math.max(3, Math.min(30, Math.round(wordTarget / idealWordsPerChapter)));
+    const wordsPerChapter = Math.round(wordTarget / chapterCount);
+    
+    console.log(`Generating ${chapterCount} chapters for ${wordTarget} words (${wordsPerChapter} words/chapter)`);
     
     const isFiction = genre === "fiction";
 
