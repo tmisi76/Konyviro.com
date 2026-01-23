@@ -571,34 +571,40 @@ export function useAutoWrite({
       if (chaptersNeedingOutline.length > 0) {
         setProgress(prev => ({ ...prev, status: "generating_outline" }));
         
-        // Generate outlines for each chapter that needs it
-        for (const chapter of chaptersNeedingOutline) {
-          console.log(`Chapter "${chapter.title}" needs outline, generating...`);
+        // PARALLEL outline generation (3 at a time for speed)
+        const PARALLEL_OUTLINE_LIMIT = 3;
+        
+        for (let i = 0; i < chaptersNeedingOutline.length; i += PARALLEL_OUTLINE_LIMIT) {
+          const batch = chaptersNeedingOutline.slice(i, i + PARALLEL_OUTLINE_LIMIT);
           
-          // Build previous summary
-          const previousIndex = chaptersData.findIndex(c => c.id === chapter.id);
-          const previousSummary = chaptersData
-            .slice(0, previousIndex)
-            .map(c => {
-              const sceneDescriptions = (c.scene_outline || [])
-                .filter(s => s != null && s.description)
-                .map(s => s.description)
-                .join(". ");
-              return `${c.title}: ${sceneDescriptions}`;
-            })
-            .join("\n");
+          console.log(`Generating outlines batch ${Math.floor(i / PARALLEL_OUTLINE_LIMIT) + 1}: ${batch.map(c => c.title).join(", ")}`);
           
-          const nextChapterTitle = chaptersData[previousIndex + 1]?.title;
+          await Promise.all(batch.map(async (chapter) => {
+            const previousIndex = chaptersData.findIndex(c => c.id === chapter.id);
+            const previousSummary = chaptersData
+              .slice(0, previousIndex)
+              .map(c => {
+                const sceneDescriptions = (c.scene_outline || [])
+                  .filter(s => s != null && s.description)
+                  .map(s => s.description)
+                  .join(". ");
+                return `${c.title}: ${sceneDescriptions}`;
+              })
+              .join("\n");
+            
+            const nextChapterTitle = chaptersData[previousIndex + 1]?.title;
+            
+            try {
+              await generateOutlineForChapter(chapter, previousSummary, nextChapterTitle);
+            } catch (outlineError) {
+              console.error(`Outline generation failed for chapter ${chapter.title}:`, outlineError);
+            }
+          }));
           
-          try {
-            await generateOutlineForChapter(chapter, previousSummary, nextChapterTitle);
-          } catch (outlineError) {
-            console.error(`Outline generation failed for chapter ${chapter.title}:`, outlineError);
-            // Continue with next chapter
+          // Short delay between batches to avoid rate limiting
+          if (i + PARALLEL_OUTLINE_LIMIT < chaptersNeedingOutline.length) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
           }
-          
-          // Small delay between outline generations
-          await new Promise(resolve => setTimeout(resolve, 2000));
         }
         
         // Re-fetch after outline generation
@@ -754,8 +760,8 @@ export function useAutoWrite({
           // Notify parent
           onChapterUpdated?.(chapter.id);
 
-          // Longer delay to avoid rate limiting (8 seconds between scenes)
-          await new Promise(resolve => setTimeout(resolve, 8000));
+          // Reduced delay between scenes (3 seconds - was 8s)
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
         allPreviousContent += "\n\n" + chapterContent;
