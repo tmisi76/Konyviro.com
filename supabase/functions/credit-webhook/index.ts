@@ -10,21 +10,14 @@ serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
   const webhookSecret = Deno.env.get("STRIPE_CREDIT_WEBHOOK_SECRET");
 
-  if (!signature) {
-    return new Response("No signature", { status: 400 });
+  if (!signature || !webhookSecret) {
+    console.error("Missing signature or webhook secret");
+    return new Response("Missing signature or webhook secret", { status: 400 });
   }
 
   try {
     const body = await req.text();
-    
-    let event: Stripe.Event;
-    
-    if (webhookSecret) {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } else {
-      // In development, parse without verification
-      event = JSON.parse(body) as Stripe.Event;
-    }
+    const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
