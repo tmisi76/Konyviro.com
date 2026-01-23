@@ -97,7 +97,8 @@ export function Step6ChapterOutline({
       const { data, error } = await supabase.functions.invoke("generate-chapter-outline", {
         body: {
           genre,
-          length,
+          length, // legacy fallback
+          targetWordCount: length, // Now length is a number (1000-50000)
           concept: detailedConcept,
         },
       });
