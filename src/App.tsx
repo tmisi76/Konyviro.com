@@ -41,6 +41,7 @@ const AdminTicketDetail = lazy(() => import("./pages/admin/AdminTicketDetail"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics"));
 const AdminActivityLogs = lazy(() => import("./pages/admin/AdminActivityLogs"));
+const AdminIssues = lazy(() => import("./pages/admin/AdminIssues"));
 import { AdminLayout } from "@/layouts/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -278,6 +279,18 @@ function AppContent() {
               <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
                 <AdminLayout>
                   <AdminActivityLogs />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/issues"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminIssues />
                 </AdminLayout>
               </Suspense>
             </ProtectedRoute>

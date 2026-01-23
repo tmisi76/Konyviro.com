@@ -60,6 +60,34 @@ export function useProjects() {
     }
   };
 
+  const deleteMultipleProjects = async (projectIds: string[]): Promise<{ success: number; failed: number }> => {
+    let success = 0;
+    let failed = 0;
+
+    for (const id of projectIds) {
+      try {
+        const { error } = await supabase
+          .from("projects")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          failed++;
+        } else {
+          success++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+
+    if (success > 0) {
+      setProjects((prev) => prev.filter((p) => !projectIds.includes(p.id)));
+    }
+
+    return { success, failed };
+  };
+
   const archiveProject = async (projectId: string): Promise<boolean> => {
     try {
       const { error: archiveError } = await supabase
@@ -112,6 +140,7 @@ export function useProjects() {
     error,
     refetch: fetchProjects,
     deleteProject,
+    deleteMultipleProjects,
     archiveProject,
     unarchiveProject,
   };

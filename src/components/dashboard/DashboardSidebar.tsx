@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -12,12 +13,14 @@ import {
   Archive,
   ArchiveRestore,
   Trash2,
-  Lock
+  Lock,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAdmin } from "@/hooks/useAdmin";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,6 +66,7 @@ export function DashboardSidebar({
   projectLimitReached = false,
 }: DashboardSidebarProps) {
   const { user, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     active: true,
     completed: false,
@@ -115,8 +119,26 @@ export function DashboardSidebar({
         </div>
       </div>
 
+      {/* Admin link - only for admins */}
+      {isAdmin && (
+        <div className={cn("px-4 pb-2", isCollapsed && "flex justify-center")}>
+          <Link to="/admin" className="w-full">
+            <Button
+              variant="outline"
+              className={cn(
+                "w-full border-primary/50 text-primary hover:bg-primary/10",
+                isCollapsed && "w-10 p-0"
+              )}
+            >
+              <Shield className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+              {!isCollapsed && "Admin"}
+            </Button>
+          </Link>
+        </div>
+      )}
+
       {/* New project button */}
-      <div className={cn("p-4", isCollapsed && "flex justify-center")}>
+      <div className={cn("p-4 pt-2", isCollapsed && "flex justify-center")}>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

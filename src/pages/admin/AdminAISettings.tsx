@@ -12,14 +12,17 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSystemSettings, useUpdateSystemSettings } from "@/hooks/admin/useSystemSettings";
 
-// Available AI models from Lovable AI Gateway
+// Available AI models from Lovable AI Gateway (verified list)
 const AI_MODELS = [
-  { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Legerősebb a komplex feladatokhoz" },
-  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Kiegyensúlyozott sebesség és minőség" },
+  { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Legjobb képi+szöveges, komplex feladatokhoz" },
+  { id: "google/gemini-3-pro-preview", name: "Gemini 3 Pro Preview", description: "Következő generációs Gemini modell" },
+  { id: "google/gemini-3-flash-preview", name: "Gemini 3 Flash Preview", description: "Gyors előnézet, kiegyensúlyozott teljesítmény" },
+  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Gyors multimodális modell" },
   { id: "google/gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite", description: "Leggyorsabb, egyszerű feladatokhoz" },
-  { id: "openai/gpt-5", name: "GPT-5", description: "OpenAI legerősebb modellje" },
-  { id: "openai/gpt-5-mini", name: "GPT-5 Mini", description: "Költséghatékony alternatíva" },
-  { id: "openai/gpt-5-nano", name: "GPT-5 Nano", description: "Leggyorsabb OpenAI modell" },
+  { id: "openai/gpt-5", name: "GPT-5", description: "OpenAI legerősebb modellje, kiváló következtetés" },
+  { id: "openai/gpt-5-mini", name: "GPT-5 Mini", description: "Költséghatékony, erős teljesítmény" },
+  { id: "openai/gpt-5-nano", name: "GPT-5 Nano", description: "Leggyorsabb, nagy volumenű feladatokhoz" },
+  { id: "openai/gpt-5.2", name: "GPT-5.2", description: "OpenAI legújabb, továbbfejlesztett modell" },
 ];
 
 const SUBSCRIPTION_TIERS = ['free', 'hobby', 'writer', 'pro'] as const;
