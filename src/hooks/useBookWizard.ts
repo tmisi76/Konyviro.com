@@ -85,7 +85,7 @@ export function useBookWizard() {
     title: string;
     targetAudience: string;
     tone: Tone;
-    length: BookLength;
+    length: number;
     additionalInstructions: string;
   }) => {
     setData(prev => ({
@@ -192,7 +192,7 @@ export function useBookWizard() {
         subcategory: data.subcategory,
         target_audience: data.targetAudience || null,
         tone: data.tone,
-        target_word_count: data.length === "short" ? 30000 : data.length === "medium" ? 60000 : 100000,
+        target_word_count: data.length || 25000,
         additional_instructions: data.additionalInstructions || null,
         selected_story_idea: data.selectedStoryIdea ? JSON.parse(JSON.stringify(data.selectedStoryIdea)) : null,
         generated_story: data.detailedConcept || null,
