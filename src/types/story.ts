@@ -22,6 +22,20 @@ export interface ChapterOutline {
   summary: string;
 }
 
+export interface StoryCharacter {
+  name: string;
+  role: "protagonist" | "antagonist" | "supporting";
+  age?: number;
+  gender?: string;
+  occupation?: string;
+  appearance?: string;
+  positiveTraits?: string[];
+  negativeTraits?: string[];
+  backstory?: string;
+  motivation?: string;
+  speechStyle?: string;
+}
+
 export interface GeneratedStory {
   title: string;
   logline: string;
@@ -32,6 +46,7 @@ export interface GeneratedStory {
   themes: string[];
   plotPoints: PlotPoint[];
   chapters: ChapterOutline[];
+  characters?: StoryCharacter[];
 }
 
 export interface StoryStructure {
@@ -41,4 +56,5 @@ export interface StoryStructure {
   themes?: string[];
   plotPoints?: PlotPoint[];
   chapters?: ChapterOutline[];
+  characters?: StoryCharacter[];
 }

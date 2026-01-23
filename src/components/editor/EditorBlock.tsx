@@ -78,10 +78,17 @@ export function EditorBlock({
 
   // Handle keyboard events
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Enter key handling: Shift+Enter = new line in block, Enter = new block
+    if (e.key === "Enter") {
+      if (e.shiftKey) {
+        // Shift+Enter: Allow default behavior (new line within block)
+        return;
+      }
+      // Enter: Create new block
       e.preventDefault();
       setShowSlashMenu(false);
       onCreateAfter();
+      return;
     }
 
     if (e.key === "Backspace" && contentRef.current?.innerText === "") {

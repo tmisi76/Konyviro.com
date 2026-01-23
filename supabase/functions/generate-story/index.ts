@@ -52,11 +52,27 @@ A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN (és semmi más):
   ],
   "chapters": [
     {"number": 1, "title": "Fejezet címe", "summary": "Max 15 szavas összefoglaló"}
+  ],
+  "characters": [
+    {
+      "name": "Karakter neve",
+      "role": "protagonist | antagonist | supporting",
+      "age": 30,
+      "gender": "férfi vagy nő",
+      "occupation": "Foglalkozás",
+      "appearance": "Rövid kinézet leírás (haj, szem, testalkat, jellegzetes vonások)",
+      "positiveTraits": ["pozitív vonás 1", "pozitív vonás 2"],
+      "negativeTraits": ["negatív vonás 1"],
+      "backstory": "Rövid háttértörténet (max 2 mondat)",
+      "motivation": "Mi hajtja a karaktert",
+      "speechStyle": "Hogyan beszél (pl. formális, szlenges, tömör)"
+    }
   ]
 }
 
 FONTOS:
 - Maximum 6-8 fejezetet javasolj RÖVID összefoglalókkal (max 15 szó/fejezet)
+- Generálj legalább 3-5 karaktert a történethez (főszereplő, antagonista, mellékszereplők)
 - A synopsis legyen tömör (max 3 bekezdés)
 - Minden fejezet címe legyen kreatív és utaljon a tartalomra
 - A válasz CSAK a JSON legyen, semmi más szöveg

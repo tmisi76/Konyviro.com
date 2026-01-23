@@ -50,7 +50,9 @@ interface AIAssistantPanelProps {
   charactersContext?: string;
   sourcesContext?: string;
   selectedText?: string;
+  cursorPosition?: { blockId: string; offset: number } | null;
   onInsertText?: (text: string) => void;
+  onInsertTextAtCursor?: (text: string, position: { blockId: string; offset: number }) => void;
 }
 
 type QuickAction = {
@@ -91,7 +93,9 @@ export function AIAssistantPanel({
   charactersContext,
   sourcesContext,
   selectedText,
+  cursorPosition,
   onInsertText,
+  onInsertTextAtCursor,
 }: AIAssistantPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -258,9 +262,15 @@ ${projectTone ? `Hangnem: ${projectTone}.` : ""}
   };
 
   const handleInsert = () => {
-    if (generatedText && onInsertText) {
-      onInsertText(generatedText);
-      toast.success("Szöveg beillesztve!");
+    if (generatedText) {
+      // If we have cursor position, insert at cursor
+      if (cursorPosition && onInsertTextAtCursor) {
+        onInsertTextAtCursor(generatedText, cursorPosition);
+        toast.success("Szöveg beillesztve a kurzor pozíciójára!");
+      } else if (onInsertText) {
+        onInsertText(generatedText);
+        toast.success("Szöveg beillesztve!");
+      }
     }
   };
 

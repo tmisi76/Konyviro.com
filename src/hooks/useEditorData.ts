@@ -363,6 +363,17 @@ export function useEditorData(projectId: string) {
     }
   }, [activeChapterId, fetchBlocks]);
 
+  // Auto-save interval every 5 seconds
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      if (pendingChangesRef.current.size > 0) {
+        flushPendingChanges();
+      }
+    }, 5000);
+
+    return () => clearInterval(autoSaveInterval);
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {

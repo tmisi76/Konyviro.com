@@ -277,6 +277,59 @@ export function useBookWizard() {
     }
   }, [data.chapterOutline]);
 
+  // Save characters from generated story to database
+  const saveCharactersFromStory = useCallback(async (projectId: string, characters: Array<{
+    name: string;
+    role: string;
+    age?: number;
+    gender?: string;
+    occupation?: string;
+    appearance?: string;
+    positiveTraits?: string[];
+    negativeTraits?: string[];
+    backstory?: string;
+    motivation?: string;
+    speechStyle?: string;
+  }>): Promise<boolean> => {
+    if (!characters || characters.length === 0) return true;
+
+    try {
+      // Delete existing characters first
+      await supabase
+        .from("characters")
+        .delete()
+        .eq("project_id", projectId);
+
+      // Map characters to DB format
+      const charactersToInsert = characters.map(char => ({
+        project_id: projectId,
+        name: char.name,
+        role: char.role === "protagonist" ? "foszereploő" 
+            : char.role === "antagonist" ? "antagonista" 
+            : "mellekszereploő",
+        age: char.age || null,
+        gender: char.gender || null,
+        occupation: char.occupation || null,
+        appearance_description: char.appearance || null,
+        positive_traits: char.positiveTraits || [],
+        negative_traits: char.negativeTraits || [],
+        backstory: char.backstory || null,
+        motivations: char.motivation ? [char.motivation] : [],
+        speech_style: char.speechStyle || null,
+      }));
+
+      const { error } = await supabase
+        .from("characters")
+        .insert(charactersToInsert);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error("Error saving characters:", error);
+      return false;
+    }
+  }, []);
+
   const reset = useCallback(() => {
     setData({
       genre: null,
@@ -364,6 +417,7 @@ export function useBookWizard() {
     goToStep,
     saveProject,
     saveChapterOutline,
+    saveCharactersFromStory,
     reset,
     startWriting,
     startSemiAutomatic,
