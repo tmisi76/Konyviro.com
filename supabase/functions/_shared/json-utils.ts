@@ -38,7 +38,40 @@ export function repairAndParseJSON<T = unknown>(content: string): T {
     // Continue with more repairs
   }
 
-  // Step 5: Balance brackets for truncated JSON
+  // Step 5: Fix unterminated strings (critical for truncated responses)
+  // Count unescaped quotes to detect unterminated strings
+  const quoteMatches = cleaned.match(/(?<!\\)"/g) || [];
+  if (quoteMatches.length % 2 !== 0) {
+    // Odd number of quotes = unterminated string
+    // Find the last quote and close the string, then truncate the incomplete object
+    const lastQuoteIndex = cleaned.lastIndexOf('"');
+    if (lastQuoteIndex > 0) {
+      // Check if we're inside a string value (last quote opened a value)
+      const beforeLastQuote = cleaned.substring(0, lastQuoteIndex);
+      const colonBeforeQuote = beforeLastQuote.lastIndexOf(':');
+      const commaBeforeQuote = beforeLastQuote.lastIndexOf(',');
+      
+      if (colonBeforeQuote > commaBeforeQuote) {
+        // We're in a value string that was truncated - close it and remove incomplete object
+        const lastCompleteComma = beforeLastQuote.lastIndexOf(',');
+        const lastOpenBrace = beforeLastQuote.lastIndexOf('{');
+        
+        if (lastCompleteComma > lastOpenBrace) {
+          // Remove everything after the last comma (incomplete field)
+          cleaned = beforeLastQuote.substring(0, lastCompleteComma);
+        } else if (lastOpenBrace > 0) {
+          // Remove the entire incomplete object
+          const beforeBrace = cleaned.substring(0, lastOpenBrace);
+          const prevComma = beforeBrace.lastIndexOf(',');
+          if (prevComma > 0) {
+            cleaned = beforeBrace.substring(0, prevComma);
+          }
+        }
+      }
+    }
+  }
+
+  // Step 6: Balance brackets for truncated JSON
   const openBrackets = (cleaned.match(/\[/g) || []).length;
   const closeBrackets = (cleaned.match(/\]/g) || []).length;
   const openBraces = (cleaned.match(/\{/g) || []).length;
@@ -65,10 +98,10 @@ export function repairAndParseJSON<T = unknown>(content: string): T {
     cleaned = cleaned.substring(0, lastValidIndex);
   }
 
-  // Step 6: Remove trailing commas before closing brackets
+  // Step 7: Remove trailing commas before closing brackets
   cleaned = cleaned.replace(/,\s*([}\]])/g, "$1");
 
-  // Step 7: Add missing closing brackets
+  // Step 8: Add missing closing brackets
   const newOpenBrackets = (cleaned.match(/\[/g) || []).length;
   const newCloseBrackets = (cleaned.match(/\]/g) || []).length;
   const newOpenBraces = (cleaned.match(/\{/g) || []).length;
