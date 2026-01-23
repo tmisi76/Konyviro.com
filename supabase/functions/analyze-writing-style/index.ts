@@ -95,25 +95,74 @@ Válaszolj pontosan ebben a JSON formátumban:
 
 Csak a JSON-t add vissza, semmi mást!`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban." },
-          { role: "user", content: analysisPrompt },
-        ],
-        max_tokens: 1500,
-      }),
-    });
+    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
+    const maxRetries = 7;
+    let response: Response | null = null;
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      logStep("AI gateway error", { status: response.status, error: errorData });
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban." },
+              { role: "user", content: analysisPrompt },
+            ],
+            max_tokens: 1500,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 429 || response.status === 502 || response.status === 503) {
+          logStep(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          if (response.status === 429) {
+            return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 429,
+            });
+          }
+        }
+        break;
+      } catch (fetchError) {
+        logStep(`Fetch error (attempt ${attempt}/${maxRetries})`, { error: String(fetchError) });
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          return new Response(JSON.stringify({ error: "Időtúllépés" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 504,
+          });
+        }
+        if (attempt < maxRetries) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+
+    if (!response || !response.ok) {
+      const errorData = response ? await response.text() : "No response";
+      logStep("AI gateway error", { status: response?.status, error: errorData });
       throw new Error("AI elemzési hiba");
     }
 

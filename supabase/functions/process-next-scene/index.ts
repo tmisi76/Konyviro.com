@@ -159,28 +159,76 @@ Kulcsesemények: ${(scene.key_events || []).join(", ")}
 Cél: ~${scene.target_words || 1000} szó
 ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
-    // Generate scene content
+    // Generate scene content with retry logic
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { 
-        Authorization: `Bearer ${LOVABLE_API_KEY}`, 
-        "Content-Type": "application/json" 
-      },
-      body: JSON.stringify({ 
-        model: "google/gemini-3-flash-preview", 
-        messages: [
-          { role: "system", content: PROMPTS[genre] }, 
-          { role: "user", content: prompt }
-        ], 
-        max_tokens: Math.min((scene.target_words || 1000) * 2, 8000) 
-      }),
-    });
+    const maxRetries = 7;
+    let res: Response | null = null;
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error("AI API error:", res.status, errorText);
-      throw new Error(`API: ${res.status}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+        res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { 
+            Authorization: `Bearer ${LOVABLE_API_KEY}`, 
+            "Content-Type": "application/json" 
+          },
+          body: JSON.stringify({ 
+            model: "google/gemini-3-flash-preview", 
+            messages: [
+              { role: "system", content: PROMPTS[genre] }, 
+              { role: "user", content: prompt }
+            ], 
+            max_tokens: Math.min((scene.target_words || 1000) * 2, 8000) 
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (res.status === 429 || res.status === 502 || res.status === 503) {
+          console.error(`Status ${res.status} (attempt ${attempt}/${maxRetries})`);
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          if (res.status === 429) {
+            return new Response(
+              JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), 
+              { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+        break;
+      } catch (fetchError) {
+        console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          if (attempt < maxRetries) {
+            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          return new Response(
+            JSON.stringify({ error: "Időtúllépés" }), 
+            { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (attempt < maxRetries) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw fetchError;
+      }
+    }
+
+    if (!res || !res.ok) {
+      const errorText = res ? await res.text() : "No response";
+      console.error("AI API error:", res?.status, errorText);
+      throw new Error(`API: ${res?.status}`);
     }
     
     const d = await res.json();
