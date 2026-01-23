@@ -21,10 +21,11 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAutoWrite } from "@/hooks/useAutoWrite";
 import { useSubscription } from "@/hooks/useSubscription";
-import { useWritingPersistence } from "@/hooks/useWritingPersistence";
+import { useWritingPersistence, PersistedWritingState } from "@/hooks/useWritingPersistence";
 import { useCompletionCelebration } from "@/hooks/useCompletionCelebration";
 import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
 import { WritingProgressModal } from "@/components/writing/WritingProgressModal";
+import { ResumeWritingDialog } from "@/components/wizard/ResumeWritingDialog";
 import type { Genre } from "@/types/wizard";
 import type { ChapterWithScenes, SceneOutline } from "@/types/autowrite";
 
@@ -55,13 +56,16 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
   const [storyStructure, setStoryStructure] = useState<Record<string, unknown> | undefined>();
   const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
   const [creditCheckDone, setCreditCheckDone] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [savedState, setSavedState] = useState<PersistedWritingState | null>(null);
+  const [resumeDecisionMade, setResumeDecisionMade] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const hasStartedRef = useRef(false);
   const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProgressRef = useRef(0);
 
   const { getRemainingWords, canGenerateWords, isLoading: subscriptionLoading } = useSubscription();
-  const { saveProgress, clearProgress, loadProgress } = useWritingPersistence(projectId);
+  const { saveProgress, clearProgress, loadProgress, hasSavedProgress } = useWritingPersistence(projectId);
   const { celebrate } = useCompletionCelebration();
 
   const {
@@ -167,10 +171,39 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
   const hasCredits = canGenerateWords(estimatedWordsNeeded);
   const remainingWords = getRemainingWords();
 
-  // Auto-start writing when component mounts (only if has credits)
+  // Check for saved progress on mount
+  useEffect(() => {
+    if (subscriptionLoading || resumeDecisionMade) return;
+    
+    const saved = loadProgress();
+    if (saved && saved.status !== "completed" && saved.completedScenes > 0) {
+      setSavedState(saved);
+      setShowResumeDialog(true);
+    } else {
+      setResumeDecisionMade(true);
+    }
+  }, [subscriptionLoading, loadProgress, resumeDecisionMade]);
+
+  // Handle resume decision
+  const handleResume = () => {
+    setShowResumeDialog(false);
+    setResumeDecisionMade(true);
+    // The auto-start will kick in after this
+  };
+
+  const handleRestart = () => {
+    setShowResumeDialog(false);
+    setResumeDecisionMade(true);
+    clearProgress();
+    // The auto-start will kick in after this
+  };
+
+  // Auto-start writing when component mounts (only if has credits and resume decision made)
   useEffect(() => {
     if (subscriptionLoading) return;
     setCreditCheckDone(true);
+    
+    if (!resumeDecisionMade) return;
     
     if (!hasStartedRef.current && projectId && storyStructure !== undefined && hasCredits) {
       hasStartedRef.current = true;
@@ -179,7 +212,7 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
         startAutoWrite();
       }, 500);
     }
-  }, [projectId, storyStructure, startAutoWrite, subscriptionLoading, hasCredits]);
+  }, [projectId, storyStructure, startAutoWrite, subscriptionLoading, hasCredits, resumeDecisionMade]);
 
   // Poll for content updates
   useEffect(() => {
@@ -535,6 +568,20 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
         onPause={pause}
         onOpenEditor={handleGoToEditor}
       />
+
+      {/* Resume writing dialog */}
+      {savedState && (
+        <ResumeWritingDialog
+          open={showResumeDialog}
+          savedProgress={{
+            completedScenes: savedState.completedScenes,
+            totalScenes: savedState.totalScenes,
+            totalWords: savedState.totalWords,
+          }}
+          onResume={handleResume}
+          onRestart={handleRestart}
+        />
+      )}
     </div>
   );
 }
