@@ -27,6 +27,9 @@ interface WritingProgressModalProps {
   totalWords: number;
   isNonFiction?: boolean;
   initialEstimatedMinutes?: number;
+  failedScenes?: number;
+  skippedScenes?: number;
+  avgSecondsPerScene?: number;
   onPause: () => void;
   onOpenEditor?: () => void;
 }
@@ -78,6 +81,9 @@ export function WritingProgressModal({
   totalWords,
   isNonFiction = false,
   initialEstimatedMinutes,
+  failedScenes = 0,
+  skippedScenes = 0,
+  avgSecondsPerScene,
   onPause,
   onOpenEditor,
 }: WritingProgressModalProps) {
@@ -141,13 +147,19 @@ export function WritingProgressModal({
       return initialTotalSeconds;
     }
     
-    // Ha már van adat, használjuk a dinamikus kalkulációt
-    const avgSecondsPerScene = completedScenes > 0 
+    // Ha kapunk server-side átlagot, használjuk azt
+    if (avgSecondsPerScene && avgSecondsPerScene > 0) {
+      const remainingScenes = totalScenes - completedScenes - failedScenes - skippedScenes;
+      return Math.round(remainingScenes * avgSecondsPerScene);
+    }
+    
+    // Fallback: dinamikus kalkuláció
+    const avgSecs = completedScenes > 0 
       ? elapsedSeconds / completedScenes 
       : (initialTotalSeconds && totalScenes > 0 ? initialTotalSeconds / totalScenes : 45);
     
-    const remainingScenes = totalScenes - completedScenes;
-    return Math.round(remainingScenes * avgSecondsPerScene);
+    const remainingScenes = totalScenes - completedScenes - failedScenes - skippedScenes;
+    return Math.round(remainingScenes * avgSecs);
   })();
 
   const isCompleted = status === "completed";
@@ -327,7 +339,11 @@ export function WritingProgressModal({
 
             {/* Jelenet és szószám */}
             <div className="flex justify-between text-xs text-muted-foreground mb-5 px-1">
-              <span>{completedScenes}/{totalScenes} {sceneLabel} kész</span>
+              <div className="flex gap-2">
+                <span>{completedScenes}/{totalScenes} {sceneLabel} kész</span>
+                {failedScenes > 0 && <span className="text-destructive">{failedScenes} hibás</span>}
+                {skippedScenes > 0 && <span className="text-amber-500">{skippedScenes} kihagyva</span>}
+              </div>
               <span>{totalWords.toLocaleString()} szó</span>
             </div>
 

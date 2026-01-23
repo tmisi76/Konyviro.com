@@ -35,6 +35,7 @@ const SCENE_STATUS_COLORS: Record<SceneOutline["status"], string> = {
   writing: "bg-primary text-primary-foreground animate-pulse",
   done: "bg-success text-success-foreground",
   failed: "bg-destructive text-destructive-foreground",
+  skipped: "bg-warning text-warning-foreground",
 };
 
 // Section type labels for non-fiction

@@ -11,7 +11,10 @@ interface UseBackgroundWritePollerOptions {
 interface SceneProgress {
   total: number;
   completed: number;
+  failed: number;
+  skipped: number;
   currentChapter?: string;
+  currentScene?: string;
 }
 
 interface OutlineProgress {
@@ -22,6 +25,10 @@ interface OutlineProgress {
 
 type Phase = "outlines" | "writing" | "idle";
 
+// Auto-recovery configuration
+const MAX_RETRIES = 10;
+const RECOVERY_DELAY_MS = 30000; // 30 seconds before auto-recovery
+
 export function useBackgroundWritePoller({
   projectId,
   writingStatus,
@@ -30,12 +37,18 @@ export function useBackgroundWritePoller({
 }: UseBackgroundWritePollerOptions) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [sceneProgress, setSceneProgress] = useState<SceneProgress>({ total: 0, completed: 0 });
+  const [sceneProgress, setSceneProgress] = useState<SceneProgress>({ 
+    total: 0, 
+    completed: 0, 
+    failed: 0, 
+    skipped: 0 
+  });
   const [outlineProgress, setOutlineProgress] = useState<OutlineProgress>({ total: 0, completed: 0 });
   const retryCountRef = useRef(0);
   const isProcessingRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recoveryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchProgress = useCallback(async () => {
     if (!projectId) return { phase: "idle" as Phase, outlinesComplete: false };
@@ -65,32 +78,49 @@ export function useBackgroundWritePoller({
       // Calculate scene progress (only for chapters with outlines)
       let totalScenes = 0;
       let completedScenes = 0;
+      let failedScenes = 0;
+      let skippedScenes = 0;
       let currentChapter: string | undefined;
+      let currentScene: string | undefined;
 
       for (const chapter of chaptersWithOutlines) {
-        const outline = chapter.scene_outline as Array<{ status?: string }>;
-        totalScenes += outline.length;
-        const chapterCompletedScenes = outline.filter((s) => s.status === "completed" || s.status === "done").length;
-        completedScenes += chapterCompletedScenes;
-
-        if (!currentChapter && chapterCompletedScenes < outline.length) {
-          currentChapter = chapter.title;
+        const outline = chapter.scene_outline as Array<{ status?: string; title?: string }>;
+        
+        for (const scene of outline) {
+          if (!scene) continue;
+          totalScenes++;
+          
+          if (scene.status === "completed" || scene.status === "done") {
+            completedScenes++;
+          } else if (scene.status === "failed") {
+            failedScenes++;
+          } else if (scene.status === "skipped") {
+            skippedScenes++;
+          } else if (!currentChapter && (scene.status === "pending" || scene.status === "writing")) {
+            currentChapter = chapter.title;
+            currentScene = scene.title;
+          }
         }
       }
 
       setSceneProgress({
         total: totalScenes,
         completed: completedScenes,
+        failed: failedScenes,
+        skipped: skippedScenes,
         currentChapter,
+        currentScene,
       });
 
       // Determine phase
       const outlinesComplete = chaptersWithOutlines.length >= chapters.length;
+      const allScenesProcessed = completedScenes + failedScenes + skippedScenes >= totalScenes;
+      
       let currentPhase: Phase;
       
       if (!outlinesComplete) {
         currentPhase = "outlines";
-      } else if (completedScenes < totalScenes) {
+      } else if (!allScenesProcessed) {
         currentPhase = "writing";
       } else {
         currentPhase = "idle";
@@ -117,7 +147,14 @@ export function useBackgroundWritePoller({
       if (error) {
         console.error("Error generating outline:", error);
         retryCountRef.current++;
-        return retryCountRef.current < 3;
+        
+        // Auto-recovery: don't stop after max retries, just delay and try again
+        if (retryCountRef.current >= MAX_RETRIES) {
+          console.log(`Max retries (${MAX_RETRIES}) reached for outline, will retry after delay`);
+          retryCountRef.current = 0;
+          return true; // Continue but with delay
+        }
+        return true; // Retry
       }
 
       retryCountRef.current = 0;
@@ -147,7 +184,7 @@ export function useBackgroundWritePoller({
     } catch (error) {
       console.error("Error in processNextOutline:", error);
       retryCountRef.current++;
-      return retryCountRef.current < 3;
+      return retryCountRef.current < MAX_RETRIES;
     }
   }, [projectId, onUpdate]);
 
@@ -165,8 +202,16 @@ export function useBackgroundWritePoller({
         console.error("Error processing scene:", error);
         retryCountRef.current++;
         
-        if (retryCountRef.current >= 5) {
-          console.error("Max retries reached, stopping");
+        // Auto-recovery: don't stop completely, delay and retry
+        if (retryCountRef.current >= MAX_RETRIES) {
+          console.log(`Max retries (${MAX_RETRIES}) reached for scene, scheduling recovery`);
+          // Don't return false - schedule recovery instead
+          recoveryTimeoutRef.current = setTimeout(() => {
+            console.log("Auto-recovery: restarting after max retries");
+            retryCountRef.current = 0;
+            isProcessingRef.current = false;
+            runProcessingLoop();
+          }, RECOVERY_DELAY_MS);
           return false;
         }
         
@@ -181,8 +226,20 @@ export function useBackgroundWritePoller({
         return true;
       }
 
-      if (data?.status === "completed" || data?.status === "stopped" || data?.status === "failed") {
+      // Handle failed/skipped scenes - continue processing
+      if (data?.status === "scene_failed" || data?.status === "scene_skipped") {
+        console.log(`Scene ${data.status}, continuing to next...`);
+        return true; // Continue with next scene
+      }
+
+      if (data?.status === "completed" || data?.status === "stopped") {
         console.log(`Writing finished with status: ${data.status}`);
+        return false;
+      }
+
+      if (data?.status === "failed") {
+        console.log("Writing failed, but may have partial progress");
+        // Don't completely stop - let the UI handle restart
         return false;
       }
 
@@ -190,7 +247,18 @@ export function useBackgroundWritePoller({
     } catch (error) {
       console.error("Error in processNextScene:", error);
       retryCountRef.current++;
-      return retryCountRef.current < 5;
+      
+      if (retryCountRef.current >= MAX_RETRIES) {
+        // Schedule auto-recovery
+        recoveryTimeoutRef.current = setTimeout(() => {
+          console.log("Auto-recovery after error");
+          retryCountRef.current = 0;
+          isProcessingRef.current = false;
+        }, RECOVERY_DELAY_MS);
+        return false;
+      }
+      
+      return true;
     }
   }, [projectId, onUpdate]);
 
@@ -235,6 +303,13 @@ export function useBackgroundWritePoller({
       }
     } catch (error) {
       console.error("Error in processing loop:", error);
+      
+      // Auto-recovery on unexpected errors
+      recoveryTimeoutRef.current = setTimeout(() => {
+        console.log("Auto-recovery from processing loop error");
+        isProcessingRef.current = false;
+        runProcessingLoop();
+      }, RECOVERY_DELAY_MS);
     } finally {
       isProcessingRef.current = false;
       setIsProcessing(false);
@@ -268,6 +343,9 @@ export function useBackgroundWritePoller({
       }
       if (processingTimeoutRef.current) {
         clearTimeout(processingTimeoutRef.current);
+      }
+      if (recoveryTimeoutRef.current) {
+        clearTimeout(recoveryTimeoutRef.current);
       }
       isProcessingRef.current = false;
     };

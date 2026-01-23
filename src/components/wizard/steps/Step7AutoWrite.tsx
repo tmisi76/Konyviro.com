@@ -16,7 +16,8 @@ import {
   FileEdit,
   Download,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAutoWrite } from "@/hooks/useAutoWrite";
@@ -73,6 +74,7 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
     startAutoWrite,
     pause,
     resume,
+    restartFailedScenes,
   } = useAutoWrite({
     projectId,
     genre,
@@ -305,6 +307,11 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
                 ? "Hiba történt"
                 : `${progress.completedScenes}/${progress.totalScenes} ${sceneLabel} kész`
               }
+              {progress.status === "writing" && progress.currentSceneTitle && (
+                <span className="block text-xs text-primary/80 italic truncate mt-0.5">
+                  Most íródik: "{progress.currentSceneTitle}"
+                </span>
+              )}
             </p>
           </div>
           
@@ -349,9 +356,17 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
         <Progress value={progressPercent} className="h-2" />
         <div className="flex justify-between mt-1 text-xs text-muted-foreground">
           <span>{progressPercent}% kész</span>
-          <span>
-            {progress.completedScenes} / {progress.totalScenes} {sceneLabel}
-          </span>
+          <div className="flex gap-2">
+            <span>
+              {progress.completedScenes} / {progress.totalScenes} {sceneLabel}
+            </span>
+            {progress.failedScenes > 0 && (
+              <span className="text-destructive">{progress.failedScenes} hibás</span>
+            )}
+            {progress.skippedScenes > 0 && (
+              <span className="text-amber-500">{progress.skippedScenes} kihagyva</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -469,13 +484,27 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
                   <span className="text-4xl">😕</span>
                 </div>
                 <h2 className="text-2xl font-bold mb-2">Hiba történt</h2>
-                <p className="text-muted-foreground mb-6">
+                <p className="text-muted-foreground mb-4">
                   {progress.error || "Ismeretlen hiba történt az írás közben."}
                 </p>
-                <Button onClick={resume}>
-                  <Play className="w-4 h-4 mr-2" />
-                  Újrapróbálás
-                </Button>
+                {(progress.failedScenes > 0 || progress.skippedScenes > 0) && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {progress.failedScenes + progress.skippedScenes} jelenet sikertelen
+                  </p>
+                )}
+                <div className="flex gap-3 justify-center">
+                  <Button variant="outline" onClick={resume}>
+                    <Play className="w-4 h-4 mr-2" />
+                    Folytatás
+                  </Button>
+                  <Button 
+                    onClick={restartFailedScenes}
+                    disabled={progress.failedScenes === 0 && progress.skippedScenes === 0}
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Hibás jelenetek újragenerálása
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
