@@ -219,7 +219,7 @@ serve(async (req) => {
   }
 
   try {
-    const { projectId, chapterId, sceneNumber, sceneOutline, previousContent, characters, storyStructure, genre, chapterTitle, subcategory, targetSceneWords } = await req.json();
+    const { projectId, chapterId, sceneNumber, sceneOutline, previousContent, characters, storyStructure, genre, chapterTitle, subcategory, targetSceneWords, characterHistory } = await req.json();
     
     if (!projectId || !chapterId || !sceneOutline) {
       return new Response(JSON.stringify({ error: "Hiányzó mezők" }), {
@@ -277,6 +277,16 @@ serve(async (req) => {
     // Dynamic max_tokens based on target (Hungarian: ~1.3 tokens per word)
     const dynamicMaxTokens = Math.min(Math.max(effectiveTargetWords * 2, 1024), 8192);
 
+    // Build character history context if available
+    let characterHistoryContext = "";
+    if (characterHistory && typeof characterHistory === "object" && Object.keys(characterHistory).length > 0) {
+      characterHistoryContext = "\n\n--- KARAKTER ELŐZMÉNYEK ---\nAz alábbi karakterek mit csináltak az előző fejezetekben:\n" +
+        Object.entries(characterHistory)
+          .map(([name, actions]) => `**${name}**:\n${(actions as string[]).slice(-5).map(a => `- ${a}`).join("\n")}`)
+          .join("\n\n") +
+        "\n\nFONTOS: Tartsd szem előtt ezeket az előzményeket! A karakterek NE ismételjék meg, amit már megtettek, és NE mutatkozzanak be újra!\n---";
+    }
+
     const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"
 
 FONTOS: Ez a jelenet MAXIMUM ${effectiveTargetWords} szó legyen! Ne írj többet!
@@ -285,7 +295,7 @@ POV: ${sceneOutline.pov}
 Helyszín: ${sceneOutline.location}
 Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
-Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
+Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${characterHistoryContext}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
