@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Send, Eye, Code, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Send, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import DOMPurify from "dompurify";
 
 import {
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Form,
@@ -40,9 +39,9 @@ import {
 
 import { useSaveEmailTemplate, type EmailTemplate } from "@/hooks/admin/useEmailTemplates";
 import { VariableInserter } from "./VariableInserter";
-import { EmailToolbar } from "./EmailToolbar";
 import { TestEmailModal } from "./TestEmailModal";
 import { replaceVariablesWithTestData } from "@/constants/emailVariables";
+import { RichTextEditor } from "./RichTextEditor";
 
 const formSchema = z.object({
   name: z.string().min(1, "Név megadása kötelező"),
@@ -72,7 +71,7 @@ export function EmailTemplateEditor({
   const [preview, setPreview] = useState(false);
   const [testModalOpen, setTestModalOpen] = useState(false);
   const [variablesOpen, setVariablesOpen] = useState(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<{ insertVariable: (name: string) => void } | null>(null);
   const saveTemplate = useSaveEmailTemplate();
   const isNew = !template?.id;
 
@@ -103,51 +102,57 @@ export function EmailTemplateEditor({
     }
   }, [template, form]);
 
-  const insertAtCursor = (text: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentValue = form.getValues("body_html");
-    const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
+  const handleInsertVariable = useCallback((variableName: string) => {
+    // Get the rich text editor element and insert variable
+    const editorDiv = document.querySelector('[data-rich-editor]') as HTMLDivElement;
+    const sourceEditor = document.querySelector('[data-source-editor]') as HTMLTextAreaElement;
     
-    form.setValue("body_html", newValue);
-    
-    // Focus and set cursor position after the inserted text
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + text.length, start + text.length);
-    }, 0);
-  };
-
-  const insertTagAtCursor = (openTag: string, closeTag: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentValue = form.getValues("body_html");
-    const selectedText = currentValue.slice(start, end);
-    const newValue = 
-      currentValue.slice(0, start) + 
-      openTag + selectedText + closeTag + 
-      currentValue.slice(end);
-    
-    form.setValue("body_html", newValue);
-    
-    // Position cursor between tags if no selection, or after if there was selection
-    setTimeout(() => {
-      textarea.focus();
-      if (selectedText) {
-        const newPosition = start + openTag.length + selectedText.length + closeTag.length;
-        textarea.setSelectionRange(newPosition, newPosition);
-      } else {
-        const newPosition = start + openTag.length;
-        textarea.setSelectionRange(newPosition, newPosition);
+    if (sourceEditor) {
+      // Source view mode - insert into textarea
+      const start = sourceEditor.selectionStart;
+      const end = sourceEditor.selectionEnd;
+      const text = sourceEditor.value;
+      const variableText = `{{${variableName}}}`;
+      const newValue = text.substring(0, start) + variableText + text.substring(end);
+      form.setValue("body_html", newValue);
+      
+      setTimeout(() => {
+        sourceEditor.focus();
+        sourceEditor.setSelectionRange(start + variableText.length, start + variableText.length);
+      }, 0);
+    } else if (editorDiv) {
+      // WYSIWYG mode - insert styled span
+      editorDiv.focus();
+      
+      const selection = window.getSelection();
+      if (!selection) return;
+      
+      // Create a styled span for the variable
+      const variableSpan = document.createElement('span');
+      variableSpan.className = 'inline-block bg-primary/10 text-primary px-1.5 py-0.5 rounded text-sm font-mono mx-0.5';
+      variableSpan.contentEditable = 'false';
+      variableSpan.textContent = `{{${variableName}}}`;
+      
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(variableSpan);
+        
+        // Add a space after and move cursor there
+        const space = document.createTextNode('\u00A0');
+        range.setStartAfter(variableSpan);
+        range.insertNode(space);
+        range.setStartAfter(space);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
       }
-    }, 0);
-  };
+      
+      // Trigger onChange
+      const event = new Event('input', { bubbles: true });
+      editorDiv.dispatchEvent(event);
+    }
+  }, [form]);
 
   async function onSubmit(data: FormData) {
     try {
@@ -279,34 +284,16 @@ export function EmailTemplateEditor({
                 <div className="col-span-2 space-y-2">
                   <div className="flex items-center justify-between">
                     <FormLabel>Email tartalom</FormLabel>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant={!preview ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setPreview(false)}
-                      >
-                        <Code className="h-4 w-4 mr-1" />
-                        Szerkesztés
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={preview ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setPreview(true)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Előnézet
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant={preview ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreview(!preview)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      {preview ? "Szerkesztés" : "Előnézet"}
+                    </Button>
                   </div>
-
-                  {!preview && (
-                    <EmailToolbar 
-                      onInsertTag={insertTagAtCursor}
-                      onInsertSingleTag={insertAtCursor}
-                    />
-                  )}
 
                   {!preview ? (
                     <FormField
@@ -315,11 +302,10 @@ export function EmailTemplateEditor({
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Textarea
-                              {...field}
-                              ref={textareaRef}
-                              className="font-mono min-h-[350px] text-sm"
-                              placeholder="<h1>Szia {{user_name}}!</h1>..."
+                            <RichTextEditor
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Kezdj el írni vagy szúrj be változókat..."
                             />
                           </FormControl>
                         </FormItem>
@@ -348,7 +334,7 @@ export function EmailTemplateEditor({
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <VariableInserter 
-                        onInsert={insertAtCursor}
+                        onInsert={handleInsertVariable}
                         className="mt-2"
                       />
                     </CollapsibleContent>
