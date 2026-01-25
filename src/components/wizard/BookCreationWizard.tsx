@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ function StepLoader() {
 export function BookCreationWizard() {
   const navigate = useNavigate();
   const { isProjectLimitReached, isLoading: isSubscriptionLoading } = useSubscription();
+  const [checkpointMode, setCheckpointMode] = useState(false);
   const {
     currentStep,
     data,
@@ -56,6 +57,7 @@ export function BookCreationWizard() {
     prevStep,
     saveProject,
     saveChapterOutline,
+    saveCharactersFromStory,
     reset,
     startWriting,
     startSemiAutomatic,
@@ -124,6 +126,12 @@ export function BookCreationWizard() {
       return await saveChapterOutline(projectId);
     }
     return false;
+  };
+
+  // Handle writing mode with checkpoint option
+  const handleStartWriting = (isCheckpoint?: boolean) => {
+    setCheckpointMode(!!isCheckpoint);
+    startWriting();
   };
 
   const renderStep = () => {
@@ -219,7 +227,7 @@ export function BookCreationWizard() {
               projectId={data.projectId}
               onOutlineChange={setChapterOutline}
               onSave={handleSaveOutline}
-              onStartWriting={startWriting}
+              onStartWriting={handleStartWriting}
               onStartSemiAutomatic={startSemiAutomatic}
               onEstimatedMinutesChange={setEstimatedWritingMinutes}
               isSaving={isSaving}
@@ -235,6 +243,7 @@ export function BookCreationWizard() {
               projectId={data.projectId!}
               genre={data.genre!}
               estimatedMinutes={data.estimatedWritingMinutes || undefined}
+              checkpointMode={checkpointMode}
               onComplete={() => navigate(`/project/${data.projectId}`)}
             />
           </Suspense>
