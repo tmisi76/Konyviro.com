@@ -57,6 +57,12 @@ verify_jwt = false
 [functions.switch-subscription]
 verify_jwt = false
 
+[functions.cancel-subscription]
+verify_jwt = false
+
+[functions.admin-cancel-subscription]
+verify_jwt = false
+
 [functions.analyze-writing-style]
 verify_jwt = false
 

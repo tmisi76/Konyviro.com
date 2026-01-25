@@ -407,7 +407,7 @@ export function SubscriptionSettings() {
         open={isCancelOpen}
         onOpenChange={setIsCancelOpen}
         subscriptionEnd={stripeData.subscriptionEnd}
-        onCancel={handleOpenPortal}
+        onSuccess={refresh}
       />
     </div>
   );

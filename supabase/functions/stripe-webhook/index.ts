@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import Stripe from "https://esm.sh/stripe@18.5.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+
+const logStep = (step: string, details?: unknown) => {
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,28 +25,42 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-    apiVersion: "2023-10-16",
+  logStep("Webhook received");
+
+  const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+  if (!stripeKey) {
+    logStep("ERROR: STRIPE_SECRET_KEY not set");
+    return new Response("Server configuration error", { status: 500 });
+  }
+
+  const stripe = new Stripe(stripeKey, {
+    apiVersion: "2025-08-27.basil",
   });
 
   const signature = req.headers.get("stripe-signature");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
-  if (!signature || !webhookSecret) {
-    return new Response("Missing signature or webhook secret", { status: 400 });
+  if (!signature) {
+    logStep("ERROR: Missing stripe-signature header");
+    return new Response("Missing signature", { status: 400 });
+  }
+  
+  if (!webhookSecret) {
+    logStep("ERROR: STRIPE_WEBHOOK_SECRET not set");
+    return new Response("Server configuration error", { status: 500 });
   }
 
   try {
     const body = await req.text();
     const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
 
+    logStep("Event verified", { type: event.type, id: event.id });
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
-
-    console.log(`Processing webhook event: ${event.type}`);
 
     switch (event.type) {
       case "checkout.session.completed": {
@@ -96,17 +115,37 @@ serve(async (req) => {
           }
         }
 
-        console.log(`Successfully activated ${tier} subscription for user ${userId}`);
+        logStep("Subscription activated", { userId, tier, isFounder });
         break;
       }
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.supabase_user_id;
+        logStep("Processing subscription update", { 
+          subscriptionId: subscription.id, 
+          status: subscription.status,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end 
+        });
+        
+        let targetUserId = subscription.metadata?.supabase_user_id;
 
-        if (!userId) {
-          console.error("Missing user_id in subscription metadata");
-          break;
+        if (!targetUserId) {
+          // Try to find user by customer id
+          const customerId = subscription.customer as string;
+          logStep("No user_id in metadata, looking up by customer", { customerId });
+          
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("user_id")
+            .eq("stripe_customer_id", customerId)
+            .single();
+          
+          if (!profile) {
+            logStep("Could not find user for subscription");
+            break;
+          }
+          
+          targetUserId = profile.user_id;
         }
 
         let status: string;
@@ -132,19 +171,29 @@ serve(async (req) => {
               subscription.current_period_end * 1000
             ).toISOString(),
           })
-          .eq("user_id", userId);
+          .eq("user_id", targetUserId);
 
-        console.log(`Updated subscription status to ${status} for user ${userId}`);
+        logStep("Subscription status updated", { userId: targetUserId, status });
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata?.supabase_user_id;
+        let deletedUserId = subscription.metadata?.supabase_user_id;
 
-        if (!userId) {
-          console.error("Missing user_id in subscription metadata");
-          break;
+        if (!deletedUserId) {
+          const customerId = subscription.customer as string;
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("user_id")
+            .eq("stripe_customer_id", customerId)
+            .single();
+          
+          if (!profile) {
+            logStep("Could not find user for deleted subscription");
+            break;
+          }
+          deletedUserId = profile.user_id;
         }
 
         // Reset to free tier
@@ -155,11 +204,12 @@ serve(async (req) => {
             subscription_status: "expired",
             subscription_end_date: new Date().toISOString(),
             project_limit: 1,
-            monthly_word_limit: 5000,
+            monthly_word_limit: 1000,
+            stripe_subscription_id: null,
           })
-          .eq("user_id", userId);
+          .eq("user_id", deletedUserId);
 
-        console.log(`Subscription expired for user ${userId}`);
+        logStep("Subscription expired, reset to free tier", { userId: deletedUserId });
         break;
       }
 
@@ -180,7 +230,7 @@ serve(async (req) => {
             .update({ subscription_status: "past_due" })
             .eq("user_id", profile.user_id);
 
-          console.log(`Payment failed for user ${profile.user_id}`);
+          logStep("Payment failed, status set to past_due", { userId: profile.user_id });
         }
         break;
       }
