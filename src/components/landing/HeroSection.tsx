@@ -70,22 +70,7 @@ export function HeroSection() {
             </Button>
           </div>
 
-          {/* Social proof */}
-          <div className="mt-12 flex flex-col items-center gap-4 text-sm text-muted-foreground sm:flex-row sm:justify-center">
-            <div className="flex -space-x-2">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium"
-                >
-                  {String.fromCharCode(64 + i)}
-                </div>
-              ))}
-            </div>
-            <span>
-              Már <strong className="text-foreground">100+</strong> író csatlakozott
-            </span>
-          </div>
+          {/* Social proof - hidden */}
         </div>
 
         {/* Hero Image/Screenshot placeholder */}
