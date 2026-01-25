@@ -50,6 +50,7 @@ interface AIAssistantPanelProps {
   characterCount?: number;
   charactersContext?: string;
   sourcesContext?: string;
+  previousChaptersSummaries?: string;
   selectedText?: string;
   cursorPosition?: { blockId: string; offset: number } | null;
   onInsertText?: (text: string) => void;
@@ -93,6 +94,7 @@ export function AIAssistantPanel({
   characterCount = 0,
   charactersContext,
   sourcesContext,
+  previousChaptersSummaries,
   selectedText,
   cursorPosition,
   onInsertText,
@@ -163,6 +165,11 @@ export function AIAssistantPanel({
     
     // Include current chapter title for AI context
     if (currentChapterTitle) context.currentChapterTitle = currentChapterTitle;
+    
+    // Include previous chapters summaries for narrative consistency
+    if (previousChaptersSummaries) {
+      context.previousChapters = previousChaptersSummaries;
+    }
     
     // Include last ~2000 characters of chapter content
     if (currentChapterContent) {

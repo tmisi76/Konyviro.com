@@ -86,6 +86,24 @@ export default function ProjectEditor() {
     }).join('\n\n');
   }, [characters]);
 
+  // Build previous chapters summaries for AI context (narrative consistency)
+  const previousChaptersSummaries = useMemo(() => {
+    if (!activeChapterId || !chapters.length) return undefined;
+    
+    const currentIndex = chapters.findIndex(c => c.id === activeChapterId);
+    if (currentIndex <= 0) return undefined; // First chapter has no previous context
+    
+    // Get up to 5 most recent previous chapters with summaries
+    const previousChapters = chapters.slice(Math.max(0, currentIndex - 5), currentIndex);
+    
+    const summaries = previousChapters
+      .filter(c => c.summary && c.summary.trim().length > 0)
+      .map(c => `**${c.title}**: ${c.summary}`)
+      .join('\n\n');
+    
+    return summaries.length > 0 ? summaries : undefined;
+  }, [chapters, activeChapterId]);
+
   // Check if project supports characters (fiction or erotic)
   const supportsCharacters = project?.genre === "fiction" || project?.genre === "erotikus";
   // Check if project supports research (non-fiction)
@@ -520,6 +538,7 @@ export default function ProjectEditor() {
               currentChapterContent={blocks.map((b) => b.content).join("\n")}
               characterCount={characters.length}
               charactersContext={charactersContext}
+              previousChaptersSummaries={previousChaptersSummaries}
               selectedText={globalSelectedText}
               cursorPosition={cursorPosition}
               onInsertText={(text) => {
