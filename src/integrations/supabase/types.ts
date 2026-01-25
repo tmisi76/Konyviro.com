@@ -274,10 +274,13 @@ export type Database = {
           id: string
           key_points: string[] | null
           project_id: string
+          quality_issues: Json | null
+          quality_score: number | null
           scene_outline: Json | null
           sort_order: number
           status: string
           summary: string | null
+          tension_level: string | null
           title: string
           updated_at: string
           word_count: number
@@ -288,10 +291,13 @@ export type Database = {
           id?: string
           key_points?: string[] | null
           project_id: string
+          quality_issues?: Json | null
+          quality_score?: number | null
           scene_outline?: Json | null
           sort_order?: number
           status?: string
           summary?: string | null
+          tension_level?: string | null
           title?: string
           updated_at?: string
           word_count?: number
@@ -302,10 +308,13 @@ export type Database = {
           id?: string
           key_points?: string[] | null
           project_id?: string
+          quality_issues?: Json | null
+          quality_score?: number | null
           scene_outline?: Json | null
           sort_order?: number
           status?: string
           summary?: string | null
+          tension_level?: string | null
           title?: string
           updated_at?: string
           word_count?: number
@@ -370,6 +379,7 @@ export type Database = {
           backstory: string | null
           body_type: string | null
           created_at: string
+          development_arc: Json | null
           distinguishing_features: string | null
           eye_color: string | null
           fears: string[] | null
@@ -396,6 +406,7 @@ export type Database = {
           backstory?: string | null
           body_type?: string | null
           created_at?: string
+          development_arc?: Json | null
           distinguishing_features?: string | null
           eye_color?: string | null
           fears?: string[] | null
@@ -422,6 +433,7 @@ export type Database = {
           backstory?: string | null
           body_type?: string | null
           created_at?: string
+          development_arc?: Json | null
           distinguishing_features?: string | null
           eye_color?: string | null
           fears?: string[] | null
@@ -760,9 +772,11 @@ export type Database = {
       projects: {
         Row: {
           additional_instructions: string | null
+          audience_level: string | null
           author_profile: Json | null
           background_error: string | null
           background_started_at: string | null
+          book_type: string | null
           complexity: number | null
           created_at: string
           description: string | null
@@ -772,6 +786,7 @@ export type Database = {
           id: string
           selected_story_idea: Json | null
           status: string
+          story_arc: Json | null
           story_idea: string | null
           story_structure: Json | null
           style_action: boolean | null
@@ -788,12 +803,15 @@ export type Database = {
           word_count: number
           writing_mode: string | null
           writing_status: string | null
+          writing_style: string | null
         }
         Insert: {
           additional_instructions?: string | null
+          audience_level?: string | null
           author_profile?: Json | null
           background_error?: string | null
           background_started_at?: string | null
+          book_type?: string | null
           complexity?: number | null
           created_at?: string
           description?: string | null
@@ -803,6 +821,7 @@ export type Database = {
           id?: string
           selected_story_idea?: Json | null
           status?: string
+          story_arc?: Json | null
           story_idea?: string | null
           story_structure?: Json | null
           style_action?: boolean | null
@@ -819,12 +838,15 @@ export type Database = {
           word_count?: number
           writing_mode?: string | null
           writing_status?: string | null
+          writing_style?: string | null
         }
         Update: {
           additional_instructions?: string | null
+          audience_level?: string | null
           author_profile?: Json | null
           background_error?: string | null
           background_started_at?: string | null
+          book_type?: string | null
           complexity?: number | null
           created_at?: string
           description?: string | null
@@ -834,6 +856,7 @@ export type Database = {
           id?: string
           selected_story_idea?: Json | null
           status?: string
+          story_arc?: Json | null
           story_idea?: string | null
           story_structure?: Json | null
           style_action?: boolean | null
@@ -850,6 +873,7 @@ export type Database = {
           word_count?: number
           writing_mode?: string | null
           writing_status?: string | null
+          writing_style?: string | null
         }
         Relationships: []
       }
