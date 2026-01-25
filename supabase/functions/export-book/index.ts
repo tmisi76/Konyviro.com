@@ -28,6 +28,18 @@ const LINE_SPACINGS: Record<string, string> = {
   "1.8": "1.9",
 };
 
+// Margin settings in mm
+function getMargins(marginStyle: string): { top: number; bottom: number; left: number; right: number } {
+  switch (marginStyle) {
+    case "wide":
+      return { top: 25, bottom: 25, left: 20, right: 20 };
+    case "narrow":
+      return { top: 10, bottom: 10, left: 10, right: 10 };
+    default: // normal
+      return { top: 20, bottom: 20, left: 15, right: 15 };
+  }
+}
+
 function generateBookCSS(settings: any): string {
   const fontFamily = settings.fontFamily || "Merriweather";
   const fontSize = FONT_SIZES[settings.fontSize] || "1em";
@@ -37,13 +49,19 @@ function generateBookCSS(settings: any): string {
   return `
     @import url('${fontImport}');
     
+    * {
+      box-sizing: border-box;
+    }
+    
     body {
       font-family: '${fontFamily}', Georgia, serif;
       font-size: ${fontSize};
       line-height: ${lineHeight};
       text-align: justify;
-      margin: 1em;
+      margin: 0;
+      padding: 1em;
       color: #1a1a1a;
+      background: #fff;
     }
     
     h1 {
@@ -57,6 +75,7 @@ function generateBookCSS(settings: any): string {
     h2 {
       font-size: 1.4em;
       margin-top: 1.5em;
+      text-align: center;
     }
     
     p {
@@ -68,10 +87,20 @@ function generateBookCSS(settings: any): string {
       text-indent: 0;
     }
     
+    .chapter {
+      page-break-before: always;
+    }
+    
+    .chapter:first-of-type {
+      page-break-before: avoid;
+    }
+    
     .chapter-title {
       font-size: 2em;
       text-align: center;
       margin: 3em 0 2em 0;
+      page-break-before: always;
+      page-break-after: avoid;
     }
     
     blockquote {
@@ -84,6 +113,7 @@ function generateBookCSS(settings: any): string {
     .title-page {
       text-align: center;
       padding-top: 30%;
+      page-break-after: always;
     }
     
     .title-page h1 {
@@ -108,7 +138,46 @@ function generateBookCSS(settings: any): string {
       font-size: 0.9em;
       color: #888;
     }
+    
+    .toc {
+      page-break-after: always;
+      padding: 2em 0;
+    }
+    
+    .toc h2 {
+      font-size: 1.8em;
+      margin-bottom: 1.5em;
+    }
+    
+    .toc ul {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .toc li {
+      margin: 0.8em 0;
+      font-size: 1.1em;
+    }
+    
+    .toc a {
+      color: #1a1a1a;
+      text-decoration: none;
+    }
+    
+    .toc a:hover {
+      text-decoration: underline;
+    }
   `;
+}
+
+function escapeHtml(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function generateTitlePageHTML(metadata: any): string {
@@ -125,13 +194,17 @@ function generateTitlePageHTML(metadata: any): string {
   `;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+function generateTableOfContents(chapters: { title: string }[]): string {
+  return `
+    <div class="toc">
+      <h2>Tartalomjegyzék</h2>
+      <ul>
+        ${chapters.map((ch, i) => `
+          <li>${i + 1}. ${escapeHtml(ch.title)}</li>
+        `).join("")}
+      </ul>
+    </div>
+  `;
 }
 
 function blocksToHtml(blocks: any[]): string {
@@ -153,6 +226,61 @@ function blocksToHtml(blocks: any[]): string {
     .join("\n");
 }
 
+function generateCompleteBookHtml(options: {
+  metadata: any;
+  settings: any;
+  chapters: { title: string; content: string }[];
+  css: string;
+}): string {
+  const { metadata, settings, chapters, css } = options;
+  
+  let html = `<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="${escapeHtml(metadata.author || "")}">
+  <meta name="description" content="${escapeHtml(metadata.description || "")}">
+  <title>${escapeHtml(metadata.title)}</title>
+  <style>${css}</style>
+</head>
+<body>`;
+
+  // Title page
+  if (settings.includeTitlePage) {
+    html += generateTitlePageHTML(metadata);
+  }
+
+  // Table of contents
+  if (settings.includeTableOfContents) {
+    html += generateTableOfContents(chapters);
+  }
+
+  // Chapters
+  for (const chapter of chapters) {
+    html += `
+    <div class="chapter">
+      <h1 class="chapter-title">${escapeHtml(chapter.title)}</h1>
+      ${chapter.content}
+    </div>`;
+  }
+
+  html += `</body></html>`;
+  
+  return html;
+}
+
+// UTF-8 safe base64 encoding
+function utf8ToBase64(str: string): string {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(str);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -169,7 +297,16 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const cloudConvertApiKey = Deno.env.get("CLOUDCONVERT_API_KEY");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check CloudConvert API key
+    if (!cloudConvertApiKey) {
+      return new Response(JSON.stringify({ error: "CloudConvert not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Verify user
     const token = authHeader.replace("Bearer ", "");
@@ -183,6 +320,15 @@ serve(async (req) => {
     const userId = claimsData.claims.sub;
 
     const { projectId, format, settings, metadata, useCover, coverUrl } = await req.json();
+
+    // Validate format
+    const validFormats = ["epub", "pdf", "mobi", "docx"];
+    if (!validFormats.includes(format)) {
+      return new Response(JSON.stringify({ error: `Invalid format: ${format}` }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Verify project ownership
     const { data: project, error: projectError } = await supabase
@@ -227,80 +373,13 @@ serve(async (req) => {
       })
     );
 
-    // Generate ePub content
+    // Generate complete book HTML
     const bookCSS = generateBookCSS(settings);
-    const epubChapters = [];
-
-    // Title page
-    if (settings.includeTitlePage) {
-      epubChapters.push({
-        title: "Címoldal",
-        data: generateTitlePageHTML(metadata),
-      });
-    }
-
-    // Add chapters
-    for (const chapter of chaptersWithContent) {
-      epubChapters.push({
-        title: chapter.title,
-        data: `<h1 class="chapter-title">${escapeHtml(chapter.title)}</h1>\n${chapter.content}`,
-      });
-    }
-
-    // For ePub format, generate and return directly
-    if (format === "epub") {
-      // Use a simple ePub generator approach
-      const epubContent = await generateSimpleEpub({
-        title: metadata.title,
-        author: metadata.author || "",
-        publisher: metadata.publisher || "KönyvÍró AI",
-        description: metadata.description || "",
-        css: bookCSS,
-        chapters: epubChapters,
-        coverUrl: useCover ? coverUrl : undefined,
-      });
-
-      // Create export record
-      await supabase.from("exports").insert({
-        project_id: projectId,
-        user_id: userId,
-        format: "epub",
-        settings: { ...settings, ...metadata },
-        status: "completed",
-        file_size: epubContent.byteLength,
-        completed_at: new Date().toISOString(),
-      });
-
-      // Encode filename for non-ASCII characters (RFC 5987)
-      const safeFilename = encodeURIComponent(metadata.title).replace(/['()]/g, escape);
-      
-      return new Response(epubContent, {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/epub+zip",
-          "Content-Disposition": `attachment; filename*=UTF-8''${safeFilename}.epub`,
-        },
-      });
-    }
-
-    // For other formats, use CloudConvert
-    const cloudConvertApiKey = Deno.env.get("CLOUDCONVERT_API_KEY");
-    if (!cloudConvertApiKey) {
-      return new Response(JSON.stringify({ error: "CloudConvert not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // First generate ePub
-    const epubContent = await generateSimpleEpub({
-      title: metadata.title,
-      author: metadata.author || "",
-      publisher: metadata.publisher || "KönyvÍró AI",
-      description: metadata.description || "",
+    const fullBookHtml = generateCompleteBookHtml({
+      metadata,
+      settings,
+      chapters: chaptersWithContent,
       css: bookCSS,
-      chapters: epubChapters,
-      coverUrl: useCover ? coverUrl : undefined,
     });
 
     // Create export record
@@ -320,7 +399,30 @@ serve(async (req) => {
       throw new Error("Failed to create export record");
     }
 
-    // Create CloudConvert job
+    // Build CloudConvert conversion options based on format
+    const conversionOptions: Record<string, any> = {
+      operation: "convert",
+      input: "import-html",
+      input_format: "html",
+      output_format: format,
+    };
+
+    // Format-specific options
+    if (format === "pdf") {
+      const margins = getMargins(settings.marginStyle);
+      conversionOptions.page_size = settings.pageSize?.toLowerCase() || "a5";
+      conversionOptions.margin_top = margins.top;
+      conversionOptions.margin_bottom = margins.bottom;
+      conversionOptions.margin_left = margins.left;
+      conversionOptions.margin_right = margins.right;
+      conversionOptions.print_background = true;
+    } else if (format === "epub") {
+      conversionOptions.epub_title = metadata.title;
+      conversionOptions.epub_author = metadata.author || "";
+      conversionOptions.epub_publisher = metadata.publisher || "KönyvÍró AI";
+    }
+
+    // Create CloudConvert job - HTML to target format
     const jobResponse = await fetch("https://api.cloudconvert.com/v2/jobs", {
       method: "POST",
       headers: {
@@ -329,24 +431,12 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         tasks: {
-          "import-epub": {
+          "import-html": {
             operation: "import/base64",
-            file: btoa(String.fromCharCode(...new Uint8Array(epubContent))),
-            filename: "book.epub",
+            file: utf8ToBase64(fullBookHtml),
+            filename: "book.html",
           },
-          "convert": {
-            operation: "convert",
-            input: "import-epub",
-            input_format: "epub",
-            output_format: format,
-            ...(format === "pdf" && {
-              page_size: settings.pageSize?.toLowerCase() || "a5",
-              margin_top: settings.marginStyle === "wide" ? 25 : settings.marginStyle === "narrow" ? 10 : 20,
-              margin_bottom: settings.marginStyle === "wide" ? 25 : settings.marginStyle === "narrow" ? 10 : 20,
-              margin_left: settings.marginStyle === "wide" ? 20 : settings.marginStyle === "narrow" ? 10 : 15,
-              margin_right: settings.marginStyle === "wide" ? 20 : settings.marginStyle === "narrow" ? 10 : 15,
-            }),
-          },
+          "convert": conversionOptions,
           "export": {
             operation: "export/url",
             input: "convert",
@@ -358,10 +448,22 @@ serve(async (req) => {
     if (!jobResponse.ok) {
       const errorText = await jobResponse.text();
       console.error("CloudConvert error:", errorText);
+      
+      // Update export record with error
+      await supabase
+        .from("exports")
+        .update({
+          status: "failed",
+          error_message: "Failed to start conversion",
+        })
+        .eq("id", exportRecord.id);
+
       throw new Error("Failed to create conversion job");
     }
 
     const jobData = await jobResponse.json();
+
+    console.log(`Export job created: ${jobData.data.id} for format: ${format}`);
 
     return new Response(
       JSON.stringify({
@@ -380,38 +482,3 @@ serve(async (req) => {
     });
   }
 });
-
-// Simple ePub generator
-async function generateSimpleEpub(options: {
-  title: string;
-  author: string;
-  publisher: string;
-  description: string;
-  css: string;
-  chapters: { title: string; data: string }[];
-  coverUrl?: string;
-}): Promise<ArrayBuffer> {
-  const { title, author, publisher, description, css, chapters, coverUrl } = options;
-
-  // We'll use JSZip-like approach with basic zip structure
-  // For now, return a simple HTML wrapped as pseudo-ePub
-  // In production, use a proper ePub library
-  
-  const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${escapeHtml(title)}</title>
-  <style>${css}</style>
-</head>
-<body>
-  ${chapters.map(ch => ch.data).join("\n<hr/>\n")}
-</body>
-</html>
-  `;
-
-  // Convert to ArrayBuffer
-  const encoder = new TextEncoder();
-  return encoder.encode(htmlContent).buffer;
-}
