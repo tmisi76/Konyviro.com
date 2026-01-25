@@ -13,6 +13,9 @@ import {
   Bot,
   Download,
   DollarSign,
+  Gift,
+  Heart,
+  Percent,
 } from "lucide-react";
 import {
   Card,
@@ -32,6 +35,7 @@ import {
   useRecentProjects,
   useOpenTickets,
   useRevenueChart,
+  useRetentionStats,
 } from "@/hooks/admin";
 import {
   ResponsiveContainer,
@@ -53,6 +57,7 @@ export default function AdminDashboard() {
   const { data: recentProjects } = useRecentProjects(5);
   const { data: openTickets } = useOpenTickets(5);
   const { data: revenueData } = useRevenueChart(30);
+  const { data: retentionStats } = useRetentionStats();
   const [chartType, setChartType] = useState<"revenue" | "users" | "projects">("users");
 
   if (isLoading) {
@@ -359,6 +364,54 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
+      {/* Retention Stats Card */}
+      {retentionStats && (
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-primary" />
+              Retention Ajánlatok
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <RetentionStatItem
+                icon={Gift}
+                label="Ajánlatok megjelenítve"
+                value={retentionStats.offersShown}
+              />
+              <RetentionStatItem
+                icon={Heart}
+                label="Elfogadva"
+                value={retentionStats.offersAccepted}
+                highlight
+              />
+              <RetentionStatItem
+                icon={Percent}
+                label="Elfogadási arány"
+                value={`${retentionStats.acceptanceRate}%`}
+              />
+              <RetentionStatItem
+                icon={Activity}
+                label="Aktív kedvezmények"
+                value={retentionStats.activeDiscounts}
+              />
+              <RetentionStatItem
+                icon={DollarSign}
+                label="Megmentett bevétel"
+                value={`${retentionStats.estimatedRevenueSaved.toLocaleString("hu-HU")} Ft`}
+                highlight
+              />
+              <RetentionStatItem
+                icon={TrendingUp}
+                label="Átlag/felhasználó"
+                value={`${retentionStats.averageSavingsPerUser.toLocaleString("hu-HU")} Ft`}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* System Status */}
       <Card>
         <CardHeader>
@@ -469,6 +522,32 @@ function SystemStatusItem({ name, status, latency, usage }: SystemStatusItemProp
         <p className="text-sm font-medium">{name}</p>
         <p className="text-xs text-muted-foreground">{latency || usage}</p>
       </div>
+    </div>
+  );
+}
+
+interface RetentionStatItemProps {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  highlight?: boolean;
+}
+
+function RetentionStatItem({ icon: Icon, label, value, highlight }: RetentionStatItemProps) {
+  return (
+    <div className={cn(
+      "p-4 rounded-lg text-center",
+      highlight ? "bg-primary/10" : "bg-muted/50"
+    )}>
+      <Icon className={cn(
+        "h-5 w-5 mx-auto mb-2",
+        highlight ? "text-primary" : "text-muted-foreground"
+      )} />
+      <p className={cn(
+        "text-xl font-bold",
+        highlight && "text-primary"
+      )}>{value}</p>
+      <p className="text-xs text-muted-foreground mt-1">{label}</p>
     </div>
   );
 }
