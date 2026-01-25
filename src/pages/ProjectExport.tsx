@@ -23,9 +23,10 @@ import {
 import {
   EXPORT_FORMATS,
   DEFAULT_EXPORT_SETTINGS,
-  type ExportFormat,
   type ExportSettings,
 } from "@/types/export";
+
+type LegacyExportFormat = "docx" | "pdf" | "epub" | "txt";
 import type { Chapter, Block } from "@/types/editor";
 import type { Character } from "@/types/character";
 import type { Source } from "@/types/research";
@@ -50,7 +51,7 @@ export default function ProjectExport() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
 
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("docx");
+  const [selectedFormat, setSelectedFormat] = useState<LegacyExportFormat>("docx");
   const [settings, setSettings] = useState<ExportSettings>(DEFAULT_EXPORT_SETTINGS);
 
   // Fetch project data

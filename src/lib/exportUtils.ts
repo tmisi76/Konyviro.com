@@ -9,9 +9,26 @@ import {
 } from "docx";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { saveAs } from "file-saver";
-import type { ExportSettings, ExportFormat } from "@/types/export";
 import type { Chapter } from "@/types/editor";
 import type { Character } from "@/types/character";
+
+// Local types for legacy export utils
+type LegacyExportFormat = "docx" | "pdf" | "epub" | "txt";
+type LegacyLineSpacing = "1.0" | "1.2" | "1.5" | "1.8" | "2.0";
+type LegacyFontFamily = "Merriweather" | "Georgia" | "Times New Roman" | "PT Serif" | "Literata" | "Open Sans";
+type LegacyFontSize = "11pt" | "12pt" | "14pt";
+type LegacyPageSize = "A4" | "A5" | "Letter";
+
+interface LegacyExportSettings {
+  includeTitlePage: boolean;
+  includeTableOfContents: boolean;
+  fontFamily: LegacyFontFamily;
+  fontSize: LegacyFontSize;
+  pageSize: LegacyPageSize;
+  lineSpacing: LegacyLineSpacing;
+  includeChapterNumbers?: boolean;
+  marginStyle?: string;
+}
 import type { Source } from "@/types/research";
 
 interface ExportData {
@@ -19,7 +36,7 @@ interface ExportData {
   authorName?: string;
   chapters: Chapter[];
   chapterContents: Record<string, string>;
-  settings: ExportSettings;
+  settings: LegacyExportSettings;
   characters?: Character[];
   sources?: Source[];
 }
@@ -487,7 +504,7 @@ export async function exportBibliography(
 
 // ============ Main Export Function ============
 export async function exportBook(
-  format: ExportFormat,
+  format: LegacyExportFormat,
   data: ExportData
 ): Promise<void> {
   let blob: Blob;

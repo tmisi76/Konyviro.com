@@ -578,6 +578,56 @@ export type Database = {
         }
         Relationships: []
       }
+      exports: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          file_size: number | null
+          file_url: string | null
+          format: string
+          id: string
+          project_id: string
+          settings: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          format: string
+          id?: string
+          project_id: string
+          settings?: Json | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_size?: number | null
+          file_url?: string | null
+          format?: string
+          id?: string
+          project_id?: string
+          settings?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       founder_spots: {
         Row: {
           created_at: string
