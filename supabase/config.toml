@@ -59,3 +59,9 @@ verify_jwt = false
 
 [functions.analyze-writing-style]
 verify_jwt = false
+
+[functions.send-admin-email]
+verify_jwt = false
+
+[functions.send-bulk-email]
+verify_jwt = false
