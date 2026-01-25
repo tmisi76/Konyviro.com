@@ -2,12 +2,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import type { ExportSettings, FontFamily, FontSize, PageSize, LineSpacing, ExportFormat } from "@/types/export";
+import type { ExportSettings, FontFamily, FontSize, PageSize, LineSpacing } from "@/types/export";
 
 interface ExportSettingsPanelProps {
   settings: ExportSettings;
   onSettingsChange: (settings: ExportSettings) => void;
-  selectedFormat: ExportFormat;
+  selectedFormat: string;
 }
 
 export function ExportSettingsPanel({

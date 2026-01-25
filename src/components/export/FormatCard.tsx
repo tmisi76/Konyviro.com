@@ -1,14 +1,25 @@
 import { FileText, FileType, BookOpen, File, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ExportFormatOption } from "@/types/export";
+
+interface FormatOption {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  recommended?: boolean;
+}
 
 interface FormatCardProps {
-  format: ExportFormatOption;
+  format: FormatOption;
   isSelected: boolean;
   onSelect: () => void;
 }
 
 const iconMap: Record<string, React.ReactNode> = {
+  "📱": <BookOpen className="h-8 w-8" />,
+  "📄": <FileText className="h-8 w-8" />,
+  "📖": <BookOpen className="h-8 w-8" />,
+  "📝": <File className="h-8 w-8" />,
   FileText: <FileText className="h-8 w-8" />,
   FileType: <FileType className="h-8 w-8" />,
   BookOpen: <BookOpen className="h-8 w-8" />,

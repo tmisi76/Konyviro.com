@@ -21,12 +21,40 @@ import {
 } from "@/lib/exportUtils";
 
 import {
-  EXPORT_FORMATS,
   DEFAULT_EXPORT_SETTINGS,
   type ExportSettings,
 } from "@/types/export";
 
 type LegacyExportFormat = "docx" | "pdf" | "epub" | "txt";
+
+// Legacy format cards for this page (supports txt, not mobi)
+const LEGACY_EXPORT_FORMATS = [
+  {
+    id: "epub" as const,
+    name: "ePub",
+    description: "E-könyv olvasókhoz (Kobo, Apple Books)",
+    icon: "📱",
+    recommended: true,
+  },
+  {
+    id: "pdf" as const,
+    name: "PDF",
+    description: "Nyomtatásra kész, fix elrendezés",
+    icon: "📄",
+  },
+  {
+    id: "docx" as const,
+    name: "Word",
+    description: "Szerkeszthető dokumentum",
+    icon: "📝",
+  },
+  {
+    id: "txt" as const,
+    name: "Szöveges",
+    description: "Egyszerű szöveges fájl",
+    icon: "📄",
+  },
+];
 import type { Chapter, Block } from "@/types/editor";
 import type { Character } from "@/types/character";
 import type { Source } from "@/types/research";
@@ -268,7 +296,7 @@ export default function ProjectExport() {
             <div className="space-y-3">
               <h3 className="text-sm font-medium text-foreground">Formátum</h3>
               <div className="grid grid-cols-2 gap-3">
-                {EXPORT_FORMATS.map((format) => (
+                {LEGACY_EXPORT_FORMATS.map((format) => (
                   <FormatCard
                     key={format.id}
                     format={format}
