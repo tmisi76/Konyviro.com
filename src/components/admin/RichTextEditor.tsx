@@ -179,11 +179,6 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
             "[&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4",
             "[&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground"
           )}
-          style={{ 
-            direction: 'ltr',
-            textAlign: 'left',
-            unicodeBidi: 'plaintext'
-          }}
           data-placeholder={placeholder || "Kezdj el írni..."}
           dangerouslySetInnerHTML={{ __html: value || '' }}
         />
