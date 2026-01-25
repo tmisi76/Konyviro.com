@@ -12,6 +12,34 @@ serve(async (req) => {
   }
 
   try {
+    // ========== AUTHENTICATION CHECK ==========
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Nincs jogosultság" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const authClient = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: userData, error: userError } = await authClient.auth.getUser(token);
+    
+    if (userError || !userData?.user) {
+      return new Response(
+        JSON.stringify({ error: "Érvénytelen vagy lejárt token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = userData.user.id;
+    console.log(`Authenticated user: ${userId}`);
+    // ========== END AUTHENTICATION CHECK ==========
+
     const { projectId } = await req.json();
 
     if (!projectId) {
@@ -21,14 +49,12 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get project details
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select("id, title, genre, writing_status, generated_story, target_audience")
+      .select("id, title, genre, writing_status, generated_story, target_audience, user_id")
       .eq("id", projectId)
       .single();
 
@@ -38,6 +64,15 @@ serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ========== OWNERSHIP VERIFICATION ==========
+    if (project.user_id !== userId) {
+      return new Response(
+        JSON.stringify({ error: "Nincs jogosultságod ehhez a projekthez" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    // ========== END OWNERSHIP VERIFICATION ==========
 
     // Check if still in background_writing mode
     if (project.writing_status !== "background_writing") {
