@@ -31,3 +31,6 @@ export { useAnalytics } from "./useAnalytics";
 export type { AnalyticsData } from "./useAnalytics";
 export { useActivityLogs, useLogActivity } from "./useActivityLogs";
 export type { ActivityLog } from "./useActivityLogs";
+
+export { useRetentionStats } from "./useRetentionStats";
+export type { RetentionStats } from "./useRetentionStats";
