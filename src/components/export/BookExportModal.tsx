@@ -188,30 +188,17 @@ export function BookExportModal({
         throw new Error(errorData.error || "Export failed");
       }
 
-      // For ePub, we get the file directly
-      if (selectedFormat === "epub") {
-        setExportProgress({ state: "processing", message: "Könyv formázása...", progress: 50 });
-        
-        const blob = await response.blob();
-        const fileName = `${projectTitle.replace(/[^a-zA-Z0-9áéíóöőúüű\s]/gi, "")}.epub`;
-        const url = URL.createObjectURL(blob);
-
-        setExportProgress({
-          state: "completed",
-          message: "Exportálás kész!",
-          fileUrl: url,
-          fileSize: blob.size,
-          fileName,
-        });
-      } else {
-        // For other formats, we get a job ID and poll for completion
-        const { jobId, exportId } = await response.json();
-        
-        setExportProgress({ state: "processing", message: "Konvertálás folyamatban...", progress: 30 });
-        
-        // Poll for completion
-        await pollExportStatus(exportId, jobId);
-      }
+      // All formats use CloudConvert - get job ID and poll for completion
+      const { jobId, exportId } = await response.json();
+      
+      setExportProgress({ 
+        state: "processing", 
+        message: "Konvertálás folyamatban...", 
+        progress: 30 
+      });
+      
+      // Poll for completion (works for epub, pdf, mobi, docx)
+      await pollExportStatus(exportId, jobId);
     } catch (error: any) {
       console.error("Export error:", error);
       setExportProgress({
