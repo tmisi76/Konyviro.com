@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Gift, Clock, Heart, X, AlertTriangle, Sparkles } from "lucide-react";
+import { useState, useEffect, forwardRef } from "react";
+import { Gift, Clock, Heart, AlertTriangle, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -39,12 +39,8 @@ interface RetentionOfferModalProps {
 
 type Step = "loading" | "offer" | "feedback" | "confirming";
 
-export function RetentionOfferModal({
-  open,
-  onOpenChange,
-  subscriptionEnd,
-  onSuccess,
-}: RetentionOfferModalProps) {
+export const RetentionOfferModal = forwardRef<HTMLDivElement, RetentionOfferModalProps>(
+  function RetentionOfferModal({ open, onOpenChange, subscriptionEnd, onSuccess }, ref) {
   const [step, setStep] = useState<Step>("loading");
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [feedbackText, setFeedbackText] = useState("");
@@ -114,7 +110,7 @@ export function RetentionOfferModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent ref={ref} className="sm:max-w-md">
         {step === "loading" && (
           <div className="flex flex-col items-center justify-center py-8">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -262,4 +258,4 @@ export function RetentionOfferModal({
       </DialogContent>
     </Dialog>
   );
-}
+});
