@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.export-status]
 verify_jwt = false
+
+[functions.generate-chapter-summary]
+verify_jwt = false

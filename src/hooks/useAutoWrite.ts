@@ -26,6 +26,9 @@ const WRITE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/write-scene
 
 // URLs for non-fiction (sections)
 const SECTION_OUTLINE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-section-outline`;
+
+// URL for chapter summary
+const SUMMARY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-chapter-summary`;
 const WRITE_SECTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/write-section`;
 
 // Client-side timeout (longer than edge function timeout to account for network latency)
@@ -69,11 +72,11 @@ export function useAutoWrite({
   const pendingApprovalRef = useRef(false);
   const resumeFromChapterRef = useRef<number | null>(null);
 
-  // Fetch chapters with scene outlines
+  // Fetch chapters with scene outlines and character appearances
   const fetchChapters = useCallback(async () => {
     const { data, error } = await supabase
       .from("chapters")
-      .select("id, title, sort_order, scene_outline, generation_status, word_count")
+      .select("id, title, sort_order, scene_outline, generation_status, word_count, summary, character_appearances")
       .eq("project_id", projectId)
       .order("sort_order");
 
@@ -279,6 +282,7 @@ export function useAutoWrite({
     chapter: ChapterWithScenes,
     sceneIndex: number,
     previousContent: string,
+    characterHistory?: Record<string, string[]>,
     retryCount = 0
   ): Promise<string> => {
     const MAX_RETRIES = 7;
@@ -328,6 +332,7 @@ export function useAutoWrite({
           genre,
           chapterTitle: chapter.title,
           targetSceneWords,
+          characterHistory, // Pass character history to edge function
         };
 
     try {
@@ -354,7 +359,7 @@ export function useAutoWrite({
         toast.info(`AI válaszra várakozás... ${Math.ceil(delay / 1000)} másodperc`, { duration: delay });
         
         await new Promise(resolve => setTimeout(resolve, delay));
-        return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
+        return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
       }
       
       // Handle transient server errors with retry
@@ -368,7 +373,7 @@ export function useAutoWrite({
         toast.info(`Szerver hiba, újrapróbálás ${Math.ceil(delay / 1000)} mp múlva...`, { duration: delay });
         
         await new Promise(resolve => setTimeout(resolve, delay));
-        return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
+        return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
       }
 
       if (!response.ok) {
@@ -392,7 +397,7 @@ export function useAutoWrite({
           const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
           console.log(`JSON parse error. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
+          return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
         }
         throw new Error("Jelenet válasz feldolgozási hiba");
       }
@@ -405,7 +410,7 @@ export function useAutoWrite({
           const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
           console.log(`Response too short (${fullText.length} chars). Retrying in ${delay / 1000}s`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
+          return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
         }
         throw new Error("Az AI válasz túl rövid volt");
       }
@@ -436,7 +441,7 @@ export function useAutoWrite({
           console.log(`Timeout. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
           toast.info(`Időtúllépés, újrapróbálás...`, { duration: delay });
           await new Promise(resolve => setTimeout(resolve, delay));
-          return writeScene(chapter, sceneIndex, previousContent, retryCount + 1);
+          return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
         }
         throw new Error("Időtúllépés a jelenet írása közben");
       }
@@ -668,6 +673,9 @@ export function useAutoWrite({
       let failedCount = 0;
       let skippedCount = 0;
 
+      // Build cumulative character history from previous chapters
+      const characterHistory: Record<string, string[]> = {};
+
       for (let chapterIndex = 0; chapterIndex < chaptersData.length; chapterIndex++) {
         if (isPausedRef.current) {
           setProgress(prev => ({ ...prev, status: "paused" }));
@@ -762,7 +770,8 @@ export function useAutoWrite({
             sceneText = await writeScene(
               chapter,
               sceneIndex,
-              allPreviousContent + "\n\n" + chapterContent
+              allPreviousContent + "\n\n" + chapterContent,
+              Object.keys(characterHistory).length > 0 ? characterHistory : undefined
             );
           } catch (sceneError) {
             // Graceful error recovery: mark failed and continue
@@ -825,6 +834,46 @@ export function useAutoWrite({
 
         // Calculate chapter word count
         const chapterWordCount = chapterContent.split(/\s+/).filter(w => w.length > 0).length;
+
+        // Generate chapter summary automatically (non-blocking)
+        const { data: { session } } = await supabase.auth.getSession();
+        fetch(SUMMARY_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            chapterId: chapter.id,
+            chapterContent,
+            chapterTitle: chapter.title,
+            genre,
+            characters: charactersContext,
+          }),
+        }).then(async (response) => {
+          // After summary is generated, update character history from response
+          if (response.ok) {
+            try {
+              const summaryData = await response.json();
+              if (summaryData.characterAppearances) {
+                for (const appearance of summaryData.characterAppearances) {
+                  if (!characterHistory[appearance.name]) {
+                    characterHistory[appearance.name] = [];
+                  }
+                  characterHistory[appearance.name].push(
+                    ...appearance.actions.map((a: string) => `${chapter.title}: ${a}`)
+                  );
+                  // Keep only last 10 actions per character
+                  if (characterHistory[appearance.name].length > 10) {
+                    characterHistory[appearance.name] = characterHistory[appearance.name].slice(-10);
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("Failed to parse summary response:", e);
+            }
+          }
+        }).catch(err => console.error("Summary generation failed:", err));
 
         // Notify about chapter completion
         onChapterComplete?.(chapter.id, chapter.title, chapterWordCount);

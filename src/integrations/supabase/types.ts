@@ -269,6 +269,7 @@ export type Database = {
       }
       chapters: {
         Row: {
+          character_appearances: Json | null
           created_at: string
           generation_status: string | null
           id: string
@@ -286,6 +287,7 @@ export type Database = {
           word_count: number
         }
         Insert: {
+          character_appearances?: Json | null
           created_at?: string
           generation_status?: string | null
           id?: string
@@ -303,6 +305,7 @@ export type Database = {
           word_count?: number
         }
         Update: {
+          character_appearances?: Json | null
           created_at?: string
           generation_status?: string | null
           id?: string
