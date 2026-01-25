@@ -194,15 +194,34 @@ ${projectTone ? `Hangnem: ${projectTone}.` : ""}
         return "Folytasd a szöveget természetesen, megtartva a stílust.";
       case "rewrite":
         return selectedText 
-          ? `Írd át ezt a szöveget jobban, megtartva az értelmét:\n\n"${selectedText}"`
+          ? `Írd át az alábbi szöveget.
+KRITIKUS SZABÁLYOK:
+- CSAK az idézőjelek közötti szöveget írd át
+- A válaszod PONTOSAN ugyanannyi vagy kevesebb szóból álljon
+- NE adj hozzá semmilyen magyarázatot, bevezetést vagy kontextust
+- NE folytasd a szöveget, NE bővítsd ki
+- Azonnal kezdd az átírt szöveggel, semmi mással
+
+Átírandó szöveg: "${selectedText}"`
           : "Nincs kijelölt szöveg az átíráshoz.";
       case "shorten":
         return selectedText
-          ? `Tömörítsd ezt a szöveget, megtartva a lényeget:\n\n"${selectedText}"`
+          ? `Tömörítsd az alábbi szöveget a felére vagy rövidebbre.
+KRITIKUS SZABÁLYOK:
+- Válaszod RÖVIDEBB legyen mint az eredeti
+- NE adj hozzá bevezetést vagy magyarázatot
+- Azonnal a tömörített szöveggel kezdj
+
+Tömörítendő szöveg: "${selectedText}"`
           : "Nincs kijelölt szöveg a rövidítéshez.";
       case "expand":
         return selectedText
-          ? `Bővítsd ki ezt a szöveget részletesebb leírásokkal:\n\n"${selectedText}"`
+          ? `Bővítsd ki az alábbi szöveget kb. kétszeres hosszúságúra.
+SZABÁLYOK:
+- Csak az adott szöveget bővítsd, ne írj új szakaszokat
+- Azonnal a bővített szöveggel kezdj
+
+Bővítendő szöveg: "${selectedText}"`
           : "Nincs kijelölt szöveg a bővítéshez.";
       case "dialogue":
         return "Írj természetes párbeszédet a karakterek között a jelenlegi kontextus alapján.";
