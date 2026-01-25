@@ -8,13 +8,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { StoryIdea, Genre, Subcategory, Tone, AuthorProfile, FictionStyleSettings } from "@/types/wizard";
 
+// Character type from AI response
+interface GeneratedCharacter {
+  name: string;
+  role: "protagonist" | "antagonist" | "supporting";
+  age?: number;
+  gender?: string;
+  occupation?: string;
+  appearance?: string;
+  positiveTraits?: string[];
+  negativeTraits?: string[];
+  backstory?: string;
+  motivation?: string;
+  speechStyle?: string;
+}
+
 interface Step5StoryDetailProps {
   genre: Genre;
   subcategory: Subcategory;
   tone: Tone;
   selectedIdea: StoryIdea;
   existingConcept: string;
-  onConceptGenerated: (concept: string) => void;
+  onConceptGenerated: (concept: string, characters?: GeneratedCharacter[]) => void;
   onAccept: () => void;
   authorProfile?: AuthorProfile | null;
   fictionStyle?: FictionStyleSettings | null;
@@ -55,6 +70,7 @@ interface FictionResponse {
   themes?: string[];
   plotPoints?: Array<{ beat: string; description: string }>;
   chapters?: Array<{ number?: number; title: string; summary: string }>;
+  characters?: GeneratedCharacter[];
 }
 
 export function Step5StoryDetail({
@@ -107,6 +123,7 @@ export function Step5StoryDetail({
       if (error) throw error;
       
       let detailedConcept = "";
+      let generatedCharacters: GeneratedCharacter[] = [];
       
       // Handle response based on book type
       if (isNonfiction || data._type === "nonfiction") {
@@ -156,6 +173,11 @@ export function Step5StoryDetail({
         // === FICTION CONCEPT FORMAT ===
         const fictionData = data as FictionResponse;
         
+        // Gather generated characters
+        if (fictionData.characters && fictionData.characters.length > 0) {
+          generatedCharacters = fictionData.characters;
+        }
+        
         if (fictionData.synopsis) {
           detailedConcept += `## Szinopszis\n\n${fictionData.synopsis}\n\n`;
         }
@@ -189,7 +211,7 @@ export function Step5StoryDetail({
       }
       
       setConcept(detailedConcept);
-      onConceptGenerated(detailedConcept);
+      onConceptGenerated(detailedConcept, generatedCharacters.length > 0 ? generatedCharacters : undefined);
     } catch (error) {
       console.error("Error generating concept:", error);
       const errorMessage = error instanceof Error ? error.message : "";

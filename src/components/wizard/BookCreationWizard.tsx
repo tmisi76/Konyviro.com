@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,26 @@ function StepLoader() {
   );
 }
 
+// Type for generated character from AI
+interface GeneratedCharacter {
+  name: string;
+  role: "protagonist" | "antagonist" | "supporting";
+  age?: number;
+  gender?: string;
+  occupation?: string;
+  appearance?: string;
+  positiveTraits?: string[];
+  negativeTraits?: string[];
+  backstory?: string;
+  motivation?: string;
+  speechStyle?: string;
+}
+
 export function BookCreationWizard() {
   const navigate = useNavigate();
   const { isProjectLimitReached, isLoading: isSubscriptionLoading } = useSubscription();
+  const [checkpointMode, setCheckpointMode] = useState(false);
+  const [pendingCharacters, setPendingCharacters] = useState<GeneratedCharacter[]>([]);
   const {
     currentStep,
     data,
@@ -56,6 +73,7 @@ export function BookCreationWizard() {
     prevStep,
     saveProject,
     saveChapterOutline,
+    saveCharactersFromStory,
     reset,
     startWriting,
     startSemiAutomatic,
@@ -114,16 +132,35 @@ export function BookCreationWizard() {
     nextStep();
   };
 
-  const handleConceptAccept = () => {
+  const handleConceptGenerated = async (concept: string, characters?: GeneratedCharacter[]) => {
+    setDetailedConcept(concept);
+    if (characters && characters.length > 0) {
+      setPendingCharacters(characters);
+    }
+  };
+
+  const handleConceptAccept = async () => {
+    // Save characters when concept is accepted (project will be created in saveProject)
     nextStep();
   };
 
   const handleSaveOutline = async () => {
     const projectId = await saveProject();
     if (projectId) {
+      // Save pending characters to the project
+      if (pendingCharacters.length > 0) {
+        await saveCharactersFromStory(projectId, pendingCharacters);
+        setPendingCharacters([]); // Clear after saving
+      }
       return await saveChapterOutline(projectId);
     }
     return false;
+  };
+
+  // Handle writing mode with checkpoint option
+  const handleStartWriting = (isCheckpoint?: boolean) => {
+    setCheckpointMode(!!isCheckpoint);
+    startWriting();
   };
 
   const renderStep = () => {
@@ -200,7 +237,7 @@ export function BookCreationWizard() {
               tone={data.tone!}
               selectedIdea={data.selectedStoryIdea!}
               existingConcept={data.detailedConcept}
-              onConceptGenerated={setDetailedConcept}
+              onConceptGenerated={handleConceptGenerated}
               onAccept={handleConceptAccept}
               authorProfile={data.authorProfile}
               fictionStyle={data.fictionStyle}
@@ -219,7 +256,7 @@ export function BookCreationWizard() {
               projectId={data.projectId}
               onOutlineChange={setChapterOutline}
               onSave={handleSaveOutline}
-              onStartWriting={startWriting}
+              onStartWriting={handleStartWriting}
               onStartSemiAutomatic={startSemiAutomatic}
               onEstimatedMinutesChange={setEstimatedWritingMinutes}
               isSaving={isSaving}
@@ -235,6 +272,7 @@ export function BookCreationWizard() {
               projectId={data.projectId!}
               genre={data.genre!}
               estimatedMinutes={data.estimatedWritingMinutes || undefined}
+              checkpointMode={checkpointMode}
               onComplete={() => navigate(`/project/${data.projectId}`)}
             />
           </Suspense>
