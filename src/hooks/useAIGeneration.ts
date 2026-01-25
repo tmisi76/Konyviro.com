@@ -57,6 +57,7 @@ export interface AIContext {
   characters?: string;
   sources?: string;
   currentChapterTitle?: string;
+  previousChapters?: string;
 }
 
 interface UseAIGenerationOptions {
