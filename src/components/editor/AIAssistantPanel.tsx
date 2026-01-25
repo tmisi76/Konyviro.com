@@ -161,6 +161,9 @@ export function AIAssistantPanel({
     if (projectDescription) context.bookDescription = projectDescription;
     if (projectTone && useProjectStyle) context.tone = projectTone;
     
+    // Include current chapter title for AI context
+    if (currentChapterTitle) context.currentChapterTitle = currentChapterTitle;
+    
     // Include last ~2000 characters of chapter content
     if (currentChapterContent) {
       const maxChars = 2000;
@@ -191,7 +194,21 @@ Műfaj: ${projectGenre}.
 ${projectTone ? `Hangnem: ${projectTone}.` : ""}
 Írj legalább 500 szavas, jól strukturált fejezetet bekezdésekkel.`;
       case "continue":
-        return "Folytasd a szöveget természetesen, megtartva a stílust.";
+        // Check if the chapter is empty or has very little content
+        const hasContent = currentChapterContent && currentChapterContent.trim().length > 100;
+        
+        if (!hasContent) {
+          // EMPTY CHAPTER - Start writing based on chapter title and context
+          return `Kezd el írni a "${currentChapterTitle}" című fejezetet.
+${projectDescription ? `A könyv témája: ${projectDescription}.` : ""}
+Műfaj: ${projectGenre}.
+${projectTone ? `Hangnem: ${projectTone}.` : ""}
+Kezdd a fejezet tartalmát közvetlenül, bevezető mondat nélkül.
+Írj kb. 300-500 szót a fejezet elejéből, a cím által sugallt tartalommal.`;
+        }
+        
+        // NORMAL CONTINUATION - chapter has content
+        return `Folytasd a szöveget természetesen a "${currentChapterTitle}" fejezetben, megtartva a stílust és hangulatot.`;
       case "rewrite":
         return selectedText 
           ? `Írd át az alábbi szöveget.

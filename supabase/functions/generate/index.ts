@@ -94,7 +94,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = `${SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction}\n\n${ACTION_PROMPTS[action] || ACTION_PROMPTS.chat}${context?.bookDescription ? `\n\nKönyv: ${context.bookDescription}` : ""}${stylePrompt}`;
+    const systemPrompt = `${SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction}\n\n${ACTION_PROMPTS[action] || ACTION_PROMPTS.chat}${context?.bookDescription ? `\n\nKönyv: ${context.bookDescription}` : ""}${context?.currentChapterTitle ? `\n\nAktuális fejezet: ${context.currentChapterTitle}` : ""}${stylePrompt}`;
     const maxTokens = getMaxTokens(action, prompt, settings);
 
     const messages = [];
