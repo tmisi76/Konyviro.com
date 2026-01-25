@@ -171,6 +171,8 @@ export function Step5StoryDetail({
         }
       } else {
         // === FICTION CONCEPT FORMAT ===
+        const fictionData = data as FictionResponse;
+        
         // Gather generated characters
         if (fictionData.characters && fictionData.characters.length > 0) {
           generatedCharacters = fictionData.characters;
