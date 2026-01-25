@@ -16,22 +16,45 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
   const editorRef = useRef<HTMLDivElement>(null);
   const [isSourceView, setIsSourceView] = useState(false);
   const [sourceValue, setSourceValue] = useState(value);
+  
+  // Track if the change is internal (from typing) or external (from props)
+  const isInternalUpdate = useRef(false);
+  const lastExternalValue = useRef(value);
+  const isInitialized = useRef(false);
 
-  // Sync external value changes to editor
+  // Initialize editor content on mount
   useEffect(() => {
-    if (editorRef.current && !isSourceView) {
-      const currentHtml = editorRef.current.innerHTML;
-      if (currentHtml !== value) {
-        editorRef.current.innerHTML = value || '';
-      }
+    if (editorRef.current && !isInitialized.current) {
+      editorRef.current.innerHTML = value || '';
+      isInitialized.current = true;
+      lastExternalValue.current = value;
     }
+  }, []);
+
+  // Handle external value changes (e.g., loading a template)
+  useEffect(() => {
+    // Skip if this is an internal update from typing
+    if (isInternalUpdate.current) {
+      isInternalUpdate.current = false;
+      return;
+    }
+    
+    // Only update if value changed externally and we're initialized
+    if (editorRef.current && !isSourceView && isInitialized.current && value !== lastExternalValue.current) {
+      editorRef.current.innerHTML = value || '';
+      lastExternalValue.current = value;
+    }
+    
     setSourceValue(value);
   }, [value, isSourceView]);
 
   const handleInput = useCallback(() => {
     if (editorRef.current) {
       const html = editorRef.current.innerHTML;
-      onChange(html === '<br>' ? '' : html);
+      const cleanHtml = html === '<br>' ? '' : html;
+      isInternalUpdate.current = true; // Mark as internal update
+      lastExternalValue.current = cleanHtml;
+      onChange(cleanHtml);
     }
   }, [onChange]);
 
@@ -180,7 +203,6 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
             "[&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground"
           )}
           data-placeholder={placeholder || "Kezdj el írni..."}
-          dangerouslySetInnerHTML={{ __html: value || '' }}
         />
       )}
       
