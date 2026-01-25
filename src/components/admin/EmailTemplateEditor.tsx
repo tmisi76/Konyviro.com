@@ -103,6 +103,8 @@ export function EmailTemplateEditor({
   }, [template, form]);
 
   const handleInsertVariable = useCallback((variableName: string) => {
+    const variableText = `{{${variableName}}}`;
+    
     // Get the rich text editor element and insert variable
     const editorDiv = document.querySelector('[data-rich-editor]') as HTMLDivElement;
     const sourceEditor = document.querySelector('[data-source-editor]') as HTMLTextAreaElement;
@@ -112,41 +114,19 @@ export function EmailTemplateEditor({
       const start = sourceEditor.selectionStart;
       const end = sourceEditor.selectionEnd;
       const text = sourceEditor.value;
-      const variableText = `{{${variableName}}}`;
       const newValue = text.substring(0, start) + variableText + text.substring(end);
-      form.setValue("body_html", newValue);
+      form.setValue("body_html", newValue, { shouldDirty: true });
       
       setTimeout(() => {
         sourceEditor.focus();
         sourceEditor.setSelectionRange(start + variableText.length, start + variableText.length);
       }, 0);
     } else if (editorDiv) {
-      // WYSIWYG mode - insert styled span
+      // WYSIWYG mode - insert as simple text using execCommand
       editorDiv.focus();
       
-      const selection = window.getSelection();
-      if (!selection) return;
-      
-      // Create a styled span for the variable
-      const variableSpan = document.createElement('span');
-      variableSpan.className = 'inline-block bg-primary/10 text-primary px-1.5 py-0.5 rounded text-sm font-mono mx-0.5';
-      variableSpan.contentEditable = 'false';
-      variableSpan.textContent = `{{${variableName}}}`;
-      
-      if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(variableSpan);
-        
-        // Add a space after and move cursor there
-        const space = document.createTextNode('\u00A0');
-        range.setStartAfter(variableSpan);
-        range.insertNode(space);
-        range.setStartAfter(space);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
+      // Use execCommand to insert text at cursor position
+      document.execCommand('insertText', false, variableText);
       
       // Trigger onChange
       const event = new Event('input', { bubbles: true });

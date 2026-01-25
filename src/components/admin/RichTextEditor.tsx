@@ -55,63 +55,48 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
     setIsSourceView(!isSourceView);
   }, [isSourceView, sourceValue]);
 
-  const formatText = useCallback((command: string, value?: string) => {
-    editorRef.current?.focus();
-    document.execCommand(command, false, value);
-    handleInput();
-  }, [handleInput]);
-
-  const handleInsertTag = useCallback((openTag: string, closeTag: string) => {
-    editorRef.current?.focus();
+  // Format text using execCommand
+  const handleFormat = useCallback((command: string, value?: string) => {
+    if (!editorRef.current || isSourceView) return;
     
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
+    editorRef.current.focus();
     
-    const range = selection.getRangeAt(0);
-    const selectedText = range.toString() || 'szöveg';
-    
-    // Create a temporary container to parse the HTML
-    const temp = document.createElement('div');
-    temp.innerHTML = `${openTag}${selectedText}${closeTag}`;
-    
-    range.deleteContents();
-    
-    // Insert the parsed nodes
-    const fragment = document.createDocumentFragment();
-    while (temp.firstChild) {
-      fragment.appendChild(temp.firstChild);
-    }
-    range.insertNode(fragment);
-    
-    // Move cursor to end
-    selection.collapseToEnd();
-    handleInput();
-  }, [handleInput]);
-
-  const handleInsertSingleTag = useCallback((tag: string) => {
-    editorRef.current?.focus();
-    
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    
-    const range = selection.getRangeAt(0);
-    
-    // Create element from tag
-    const temp = document.createElement('div');
-    temp.innerHTML = tag;
-    
-    const fragment = document.createDocumentFragment();
-    while (temp.firstChild) {
-      fragment.appendChild(temp.firstChild);
+    if (command === 'formatBlock' && value) {
+      document.execCommand(command, false, `<${value}>`);
+    } else {
+      document.execCommand(command, false, value);
     }
     
-    range.deleteContents();
-    range.insertNode(fragment);
-    selection.collapseToEnd();
     handleInput();
-  }, [handleInput]);
+  }, [handleInput, isSourceView]);
+
+  // Handle link insertion
+  const handleLink = useCallback(() => {
+    if (!editorRef.current || isSourceView) return;
+    
+    const url = prompt('Add meg a link URL-t:', 'https://');
+    if (url) {
+      editorRef.current.focus();
+      document.execCommand('createLink', false, url);
+      handleInput();
+    }
+  }, [handleInput, isSourceView]);
+
+  // Handle image insertion
+  const handleImage = useCallback(() => {
+    if (!editorRef.current || isSourceView) return;
+    
+    const url = prompt('Add meg a kép URL-t:', 'https://');
+    if (url) {
+      editorRef.current.focus();
+      document.execCommand('insertImage', false, url);
+      handleInput();
+    }
+  }, [handleInput, isSourceView]);
 
   const insertVariable = useCallback((variableName: string) => {
+    const variableText = `{{${variableName}}}`;
+    
     if (isSourceView) {
       // Insert into textarea at cursor position
       const textarea = document.querySelector('[data-source-editor]') as HTMLTextAreaElement;
@@ -119,7 +104,6 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
         const text = textarea.value;
-        const variableText = `{{${variableName}}}`;
         const newValue = text.substring(0, start) + variableText + text.substring(end);
         handleSourceChange(newValue);
         
@@ -132,31 +116,12 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
       return;
     }
 
-    editorRef.current?.focus();
+    if (!editorRef.current) return;
     
-    const selection = window.getSelection();
-    if (!selection) return;
+    editorRef.current.focus();
     
-    // Create a styled span for the variable
-    const variableSpan = document.createElement('span');
-    variableSpan.className = 'inline-block bg-primary/10 text-primary px-1.5 py-0.5 rounded text-sm font-mono mx-0.5';
-    variableSpan.contentEditable = 'false';
-    variableSpan.textContent = `{{${variableName}}}`;
-    
-    if (selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(variableSpan);
-      
-      // Add a space after and move cursor there
-      const space = document.createTextNode('\u00A0');
-      range.setStartAfter(variableSpan);
-      range.insertNode(space);
-      range.setStartAfter(space);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
+    // Simply insert as text at cursor position
+    document.execCommand('insertText', false, variableText);
     
     handleInput();
   }, [isSourceView, handleInput, handleSourceChange]);
@@ -169,20 +134,25 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
   }, [handleInput]);
 
   return (
-    <div className={cn("border rounded-md overflow-hidden", className)}>
-      <div className="flex items-center justify-between border-b bg-muted/30 p-1">
+    <div className={cn("border rounded-md overflow-hidden bg-background", className)}>
+      <div className="flex items-center justify-between border-b bg-muted/30 p-2">
         <EmailToolbar 
-          onInsertTag={handleInsertTag}
-          onInsertSingleTag={handleInsertSingleTag}
+          onFormat={handleFormat}
+          onLink={handleLink}
+          onImage={handleImage}
         />
         <Button
           type="button"
           variant={isSourceView ? "secondary" : "ghost"}
           size="sm"
-          onClick={toggleSourceView}
-          className="h-8 px-2 ml-2"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSourceView();
+          }}
+          className="h-8 px-2 ml-2 gap-1"
         >
-          <Code className="h-4 w-4 mr-1" />
+          <Code className="h-4 w-4" />
           HTML
         </Button>
       </div>
@@ -209,6 +179,11 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
             "[&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4",
             "[&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-foreground"
           )}
+          style={{ 
+            direction: 'ltr',
+            textAlign: 'left',
+            unicodeBidi: 'plaintext'
+          }}
           data-placeholder={placeholder || "Kezdj el írni..."}
           dangerouslySetInnerHTML={{ __html: value || '' }}
         />

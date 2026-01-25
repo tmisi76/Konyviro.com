@@ -43,6 +43,13 @@ export function VariableInserter({ onInsert, className }: VariableInserterProps)
     return acc;
   }, {} as Record<string, EmailVariable[]>);
 
+  const handleInsert = (variable: EmailVariable, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only send the variable name, the wrapper {{}} will be added by the editor
+    onInsert(variable.name);
+  };
+
   return (
     <div className={cn("border rounded-lg bg-muted/30", className)}>
       <div className="p-3 border-b">
@@ -89,13 +96,13 @@ export function VariableInserter({ onInsert, className }: VariableInserterProps)
                     {EMAIL_VARIABLE_CATEGORIES[category as keyof typeof EMAIL_VARIABLE_CATEGORIES]?.label}
                   </div>
                   {variables.map((v) => (
-                    <VariableButton key={v.name} variable={v} onInsert={onInsert} />
+                    <VariableButton key={v.name} variable={v} onInsert={handleInsert} />
                   ))}
                 </div>
               ))
             ) : (
               filteredVariables.map((v) => (
-                <VariableButton key={v.name} variable={v} onInsert={onInsert} />
+                <VariableButton key={v.name} variable={v} onInsert={handleInsert} />
               ))
             )}
             {filteredVariables.length === 0 && (
@@ -110,13 +117,20 @@ export function VariableInserter({ onInsert, className }: VariableInserterProps)
   );
 }
 
-function VariableButton({ variable, onInsert }: { variable: EmailVariable; onInsert: (v: string) => void }) {
+function VariableButton({ 
+  variable, 
+  onInsert 
+}: { 
+  variable: EmailVariable; 
+  onInsert: (v: EmailVariable, e: React.MouseEvent) => void;
+}) {
   return (
     <Button
+      type="button"
       variant="ghost"
       size="sm"
       className="w-full justify-start h-auto py-2 px-2 text-left"
-      onClick={() => onInsert(`{{${variable.name}}}`)}
+      onClick={(e) => onInsert(variable, e)}
     >
       <div className="flex flex-col items-start gap-0.5">
         <code className="text-xs font-mono text-primary">{`{{${variable.name}}}`}</code>
