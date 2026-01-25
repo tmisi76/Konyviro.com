@@ -780,6 +780,7 @@ export type Database = {
           background_error: string | null
           background_started_at: string | null
           book_type: string | null
+          book_type_data: Json | null
           complexity: number | null
           created_at: string
           description: string | null
@@ -787,6 +788,7 @@ export type Database = {
           generated_story: string | null
           genre: string
           id: string
+          nonfiction_book_type: string | null
           selected_story_idea: Json | null
           status: string
           story_arc: Json | null
@@ -815,6 +817,7 @@ export type Database = {
           background_error?: string | null
           background_started_at?: string | null
           book_type?: string | null
+          book_type_data?: Json | null
           complexity?: number | null
           created_at?: string
           description?: string | null
@@ -822,6 +825,7 @@ export type Database = {
           generated_story?: string | null
           genre: string
           id?: string
+          nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
           status?: string
           story_arc?: Json | null
@@ -850,6 +854,7 @@ export type Database = {
           background_error?: string | null
           background_started_at?: string | null
           book_type?: string | null
+          book_type_data?: Json | null
           complexity?: number | null
           created_at?: string
           description?: string | null
@@ -857,6 +862,7 @@ export type Database = {
           generated_story?: string | null
           genre?: string
           id?: string
+          nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
           status?: string
           story_arc?: Json | null
