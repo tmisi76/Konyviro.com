@@ -3,10 +3,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
+const NO_MARKDOWN_RULE = `
+
+FORMÁZÁSI SZABÁLY (KÖTELEZŐ):
+- NE használj markdown jelölőket (**, ##, ***, ---, \`\`\`, stb.)
+- Címsorokhoz írj normál nagybetűs szöveget új sorban
+- Kiemeléshez egyszerűen hangsúlyos szavakat használj, jelölés nélkül
+- Listákhoz használj gondolatjelet (–) és új sort
+- Az olvasó tiszta, folyamatos prózát kapjon
+`;
+
 const SYSTEM_PROMPTS: Record<string, string> = {
-  szakkonyv: "Te egy szakkönyv író asszisztens vagy. Strukturált, didaktikus stílusban írj. Magyar nyelven válaszolj.",
-  fiction: "Te egy kreatív író asszisztens vagy. Narratív, leíró stílusban írj. Magyar nyelven válaszolj.",
-  erotikus: "Te egy felnőtt tartalom író asszisztens vagy. Érzéki, intim stílusban írj. Magyar nyelven válaszolj.",
+  szakkonyv: `Te egy szakkönyv író asszisztens vagy. Strukturált, didaktikus stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}`,
+  fiction: `Te egy kreatív író asszisztens vagy. Narratív, leíró stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}`,
+  erotikus: `Te egy felnőtt tartalom író asszisztens vagy. Érzéki, intim stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}`,
 };
 
 const ACTION_PROMPTS: Record<string, string> = {

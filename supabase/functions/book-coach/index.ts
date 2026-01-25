@@ -3,7 +3,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
-const SZAKKOENYV_PROMPT = `Te egy tapasztalt szakkönyv-írási coach vagy. Magyarul beszélsz, barátságosan de professzionálisan.
+const NO_MARKDOWN_COACH = `
+FORMÁZÁSI SZABÁLY (KÖTELEZŐ):
+- NE használj markdown jelölőket (**, ##, ***, ---, stb.) a szöveges válaszokban
+- Írj egyszerű, folyamatos prózát
+- A JSON összefoglalót pontosan a megadott formátumban add vissza
+- Listákhoz használj gondolatjelet (–), NE csillagot vagy kötőjelet
+`;
+
+const SZAKKOENYV_PROMPT = `Te egy tapasztalt szakkönyv-írási coach vagy. Magyarul beszélsz, barátságosan de professzionálisan.${NO_MARKDOWN_COACH}
 
 CÉLOD: Strukturált kérdésekkel segíts a felhasználónak megtervezni a szakkönyvét. Kérdezz egyenként, ne egyszerre mindent!
 

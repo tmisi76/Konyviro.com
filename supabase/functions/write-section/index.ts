@@ -15,6 +15,14 @@ const SECTION_PROMPTS: Record<string, string> = {
 
 const NONFICTION_SYSTEM_PROMPT = `Te egy bestseller szakkönyv ghostwriter vagy.
 
+FORMÁZÁS (KRITIKUS - KÖTELEZŐ):
+- NE HASZNÁLJ markdown jelölőket (**bold**, ## címsor, --- elválasztó, \`\`\` kód, stb.)
+- Alcímekhez írd NAGYBETŰVEL a szöveget új sorban, de NE használj # jelet
+- Listákhoz használj gondolatjelet (–) és új sort, NE használj * vagy - jelet
+- Számozott lépéseknél egyszerűen írd: "1. Első lépés", NE használj markdown formátumot
+- Kiemelésekhez NE használj csillagokat - írd egyszerűen a szöveget
+- Az eredmény tiszta, olvasható prózaszöveg legyen, semmilyen markdown jelöléssel
+
 STÍLUS SZABÁLYOK (KÖTELEZŐ):
 1. Első személy narratíva - "Én", "Mi", "Az én tapasztalatom szerint..."
 2. Közvetlen megszólítás - "Te", "Neked", "Ha te is..."
