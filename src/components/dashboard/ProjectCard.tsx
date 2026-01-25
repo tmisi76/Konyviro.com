@@ -1,16 +1,19 @@
 import { useState, useEffect } from "react";
-import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
+import { BookExportModal } from "@/components/export/BookExportModal";
 
 export interface Project {
   id: string;
@@ -75,6 +78,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
   const [liveWordCount, setLiveWordCount] = useState(project.wordCount);
   const [liveStatus, setLiveStatus] = useState(project.writingStatus);
   const [sceneProgress, setSceneProgress] = useState({ total: 0, completed: 0, currentChapter: "" });
+  const [showExportModal, setShowExportModal] = useState(false);
   
   const isBackgroundWriting = liveStatus === "background_writing";
   const isCompleted = liveStatus === "completed";
@@ -202,12 +206,17 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
               <Pencil className="mr-2 h-4 w-4" />
               Szerkesztés
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowExportModal(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              Exportálás
+            </DropdownMenuItem>
             {onArchive && (
               <DropdownMenuItem onClick={() => onArchive(project.id)}>
                 <Archive className="mr-2 h-4 w-4" />
                 Archiválás
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => onDelete(project.id)}
               className="text-destructive focus:text-destructive"
@@ -285,6 +294,14 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
           isHovered && "opacity-100"
         )}
         aria-label="Megnyitás"
+      />
+
+      {/* Export Modal */}
+      <BookExportModal
+        open={showExportModal}
+        onOpenChange={setShowExportModal}
+        projectId={project.id}
+        projectTitle={project.title}
       />
     </div>
   );

@@ -86,3 +86,9 @@ verify_jwt = false
 
 [functions.apply-retention-discount]
 verify_jwt = false
+
+[functions.export-book]
+verify_jwt = false
+
+[functions.export-status]
+verify_jwt = false
