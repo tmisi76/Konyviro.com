@@ -295,7 +295,7 @@ export function useEditorData(projectId: string) {
       }
     }
 
-    // Update chapter word count
+    // Update chapter word count and project total
     if (activeChapterId) {
       const totalWords = blocks.reduce((sum, block) => {
         const words = block.content.trim().split(/\s+/).filter(Boolean).length;
@@ -312,6 +312,21 @@ export function useEditorData(projectId: string) {
           c.id === activeChapterId ? { ...c, word_count: totalWords } : c
         )
       );
+
+      // Update project total word count from all chapters
+      const { data: allChapters } = await supabase
+        .from("chapters")
+        .select("word_count")
+        .eq("project_id", projectId);
+
+      const projectTotalWords = allChapters?.reduce(
+        (sum, ch) => sum + (ch.word_count || 0), 0
+      ) || 0;
+
+      await supabase
+        .from("projects")
+        .update({ word_count: projectTotalWords })
+        .eq("id", projectId);
     }
 
     setIsSaving(false);
