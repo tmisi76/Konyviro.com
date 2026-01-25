@@ -60,6 +60,15 @@ verify_jwt = false
 [functions.cancel-subscription]
 verify_jwt = false
 
+[functions.admin-create-user]
+verify_jwt = false
+
+[functions.admin-reset-password]
+verify_jwt = false
+
+[functions.admin-update-subscription]
+verify_jwt = false
+
 [functions.admin-cancel-subscription]
 verify_jwt = false
 

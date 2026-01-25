@@ -604,9 +604,11 @@ export type Database = {
       }
       profiles: {
         Row: {
+          admin_notes: string | null
           adult_content_verified: boolean
           adult_verified_at: string | null
           avatar_url: string | null
+          billing_period: string | null
           bio: string | null
           created_at: string
           display_name: string | null
@@ -615,7 +617,9 @@ export type Database = {
           full_name: string | null
           id: string
           is_founder: boolean
+          manual_subscription: boolean | null
           monthly_word_limit: number
+          payment_method: string | null
           project_limit: number
           retention_discount_active: boolean | null
           retention_discount_expires_at: string | null
@@ -634,9 +638,11 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          admin_notes?: string | null
           adult_content_verified?: boolean
           adult_verified_at?: string | null
           avatar_url?: string | null
+          billing_period?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -645,7 +651,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_founder?: boolean
+          manual_subscription?: boolean | null
           monthly_word_limit?: number
+          payment_method?: string | null
           project_limit?: number
           retention_discount_active?: boolean | null
           retention_discount_expires_at?: string | null
@@ -664,9 +672,11 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          admin_notes?: string | null
           adult_content_verified?: boolean
           adult_verified_at?: string | null
           avatar_url?: string | null
+          billing_period?: string | null
           bio?: string | null
           created_at?: string
           display_name?: string | null
@@ -675,7 +685,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_founder?: boolean
+          manual_subscription?: boolean | null
           monthly_word_limit?: number
+          payment_method?: string | null
           project_limit?: number
           retention_discount_active?: boolean | null
           retention_discount_expires_at?: string | null
