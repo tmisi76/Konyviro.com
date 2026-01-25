@@ -617,6 +617,10 @@ export type Database = {
           is_founder: boolean
           monthly_word_limit: number
           project_limit: number
+          retention_discount_active: boolean | null
+          retention_discount_expires_at: string | null
+          retention_offer_accepted_at: string | null
+          retention_offer_shown_at: string | null
           social_instagram: string | null
           social_twitter: string | null
           stripe_customer_id: string | null
@@ -643,6 +647,10 @@ export type Database = {
           is_founder?: boolean
           monthly_word_limit?: number
           project_limit?: number
+          retention_discount_active?: boolean | null
+          retention_discount_expires_at?: string | null
+          retention_offer_accepted_at?: string | null
+          retention_offer_shown_at?: string | null
           social_instagram?: string | null
           social_twitter?: string | null
           stripe_customer_id?: string | null
@@ -669,6 +677,10 @@ export type Database = {
           is_founder?: boolean
           monthly_word_limit?: number
           project_limit?: number
+          retention_discount_active?: boolean | null
+          retention_discount_expires_at?: string | null
+          retention_offer_accepted_at?: string | null
+          retention_offer_shown_at?: string | null
           social_instagram?: string | null
           social_twitter?: string | null
           stripe_customer_id?: string | null
