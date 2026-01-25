@@ -411,16 +411,46 @@ export function useBookWizard() {
       projectIdToUse = savedProjectId;
     }
     
-    // Update writing status
+    // DYNAMIC step count based on genre (9 for nonfiction, 8 for fiction)
+    const finalStep = data.genre === "szakkonyv" ? 9 : 8;
+    
+    // Build story_structure with all relevant data for AI generation
+    const storyStructure = {} as Record<string, unknown>;
+    
+    if (data.genre === "szakkonyv" && data.bookTypeSpecificData) {
+      // Nonfiction: include book type data
+      storyStructure.bookType = data.nonfictionBookType;
+      storyStructure.bookTypeData = data.bookTypeSpecificData;
+      storyStructure.mainTopic = data.selectedStoryIdea?.title || data.title;
+      storyStructure.learningObjectives = data.selectedStoryIdea?.synopsis;
+    } else if (data.selectedStoryIdea) {
+      // Fiction: include story idea data
+      storyStructure.title = data.selectedStoryIdea.title;
+      storyStructure.synopsis = data.selectedStoryIdea.synopsis;
+      storyStructure.mainElements = data.selectedStoryIdea.mainElements;
+      storyStructure.uniqueSellingPoint = data.selectedStoryIdea.uniqueSellingPoint;
+    }
+    
+    // Add common fields
+    storyStructure.detailedConcept = data.detailedConcept;
+    storyStructure.targetAudience = data.targetAudience;
+    storyStructure.tone = data.tone;
+    storyStructure.subcategory = data.subcategory;
+    
+    // Update writing status with story_structure
     await supabase
       .from("projects")
-      .update({ writing_status: "in_progress", wizard_step: 8 })
+      .update({ 
+        writing_status: "in_progress", 
+        wizard_step: finalStep,
+        story_structure: storyStructure as unknown as Record<string, never>,
+      })
       .eq("id", projectIdToUse);
 
-    // Navigate to step 8 within the wizard
+    // Navigate to final step within the wizard
     setData(prev => ({ ...prev, projectId: projectIdToUse }));
-    setCurrentStep(8);
-  }, [data.projectId, saveProject]);
+    setCurrentStep(finalStep);
+  }, [data.projectId, data.genre, data.bookTypeSpecificData, data.nonfictionBookType, data.selectedStoryIdea, data.title, data.detailedConcept, data.targetAudience, data.tone, data.subcategory, saveProject]);
 
   const startSemiAutomatic = useCallback(async () => {
     let projectIdToUse = data.projectId;
