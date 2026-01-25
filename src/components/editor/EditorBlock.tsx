@@ -87,15 +87,15 @@ export const EditorBlock = forwardRef<HTMLDivElement, EditorBlockProps>(
     const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
       // Enter key handling
       if (e.key === "Enter") {
-        // Shift+Enter: insert line break within block (allow default behavior)
-        if (e.shiftKey) {
-          return; // Default browser behavior: insert <br>
+        // Ctrl/Cmd+Enter: create new block below
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          setShowSlashMenu(false);
+          onCreateAfter("paragraph");
+          return;
         }
-        // Regular Enter: create new block below
-        e.preventDefault();
-        e.stopPropagation();
-        setShowSlashMenu(false);
-        onCreateAfter("paragraph");
+        // Regular Enter or Shift+Enter: allow default line break behavior
         return;
       }
 
