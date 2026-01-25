@@ -196,9 +196,9 @@ export function Step6ChapterOutline({
       onEstimatedMinutesChange(estimatedMinutes);
     }
 
-    if (mode === "automatic" || mode === "checkpoint") {
+    if (mode === "automatic") {
       setShowModeDialog(false);
-      onStartWriting(mode === "checkpoint");
+      onStartWriting(false);
     } else if (mode === "semiAutomatic" && onStartSemiAutomatic) {
       setShowModeDialog(false);
       setIsStartingBackground(true);
