@@ -271,11 +271,14 @@ serve(async (req) => {
         completed_at: new Date().toISOString(),
       });
 
+      // Encode filename for non-ASCII characters (RFC 5987)
+      const safeFilename = encodeURIComponent(metadata.title).replace(/['()]/g, escape);
+      
       return new Response(epubContent, {
         headers: {
           ...corsHeaders,
           "Content-Type": "application/epub+zip",
-          "Content-Disposition": `attachment; filename="${metadata.title}.epub"`,
+          "Content-Disposition": `attachment; filename*=UTF-8''${safeFilename}.epub`,
         },
       });
     }
