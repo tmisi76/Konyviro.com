@@ -13,7 +13,8 @@ import type {
   ChapterOutlineItem,
   AuthorProfile,
   FictionStyleSettings,
-  INITIAL_WIZARD_DATA 
+  NonfictionBookType,
+  BookTypeSpecificData,
 } from "@/types/wizard";
 
 const STORAGE_KEY = "book-wizard-data";
@@ -25,6 +26,8 @@ export function useBookWizard() {
   const [data, setData] = useState<WizardData>({
     genre: null,
     subcategory: null,
+    nonfictionBookType: null,
+    bookTypeSpecificData: null,
     title: "",
     targetAudience: "",
     tone: null,
@@ -78,8 +81,43 @@ export function useBookWizard() {
   }, [updateData]);
 
   const setSubcategory = useCallback((subcategory: Subcategory) => {
-    updateData("subcategory", subcategory);
-  }, [updateData]);
+    setData(prev => ({
+      ...prev,
+      subcategory,
+      // Reset book type when subcategory changes for nonfiction
+      nonfictionBookType: null,
+      bookTypeSpecificData: null,
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const setNonfictionBookType = useCallback((bookType: NonfictionBookType) => {
+    setData(prev => ({
+      ...prev,
+      nonfictionBookType: bookType,
+      // Clear downstream data
+      bookTypeSpecificData: null,
+      storyIdeas: [],
+      selectedStoryIdea: null,
+      detailedConcept: "",
+      chapterOutline: [],
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const setBookTypeSpecificData = useCallback((typeData: BookTypeSpecificData, length?: number) => {
+    setData(prev => ({
+      ...prev,
+      bookTypeSpecificData: typeData,
+      length: length || prev.length,
+      // Clear downstream data
+      storyIdeas: [],
+      selectedStoryIdea: null,
+      detailedConcept: "",
+      chapterOutline: [],
+    }));
+    setIsDirty(true);
+  }, []);
 
   const setBasicInfo = useCallback((info: {
     title: string;
@@ -151,22 +189,24 @@ export function useBookWizard() {
     updateData("estimatedWritingMinutes", minutes);
   }, [updateData]);
 
-  // Fiction has 8 steps, szakkonyv has 8 steps too
-  const maxSteps = 8;
+  // Fiction has 8 steps, szakkönyv has 9 steps (extra BookType step)
+  const maxSteps = data.genre === "szakkonyv" ? 9 : 8;
 
   const nextStep = useCallback(() => {
-    setCurrentStep(prev => Math.min(prev + 1, maxSteps));
-  }, []);
+    const max = data.genre === "szakkonyv" ? 9 : 8;
+    setCurrentStep(prev => Math.min(prev + 1, max));
+  }, [data.genre]);
 
   const prevStep = useCallback(() => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   }, []);
 
   const goToStep = useCallback((step: number) => {
-    if (step >= 1 && step <= maxSteps) {
+    const max = data.genre === "szakkonyv" ? 9 : 8;
+    if (step >= 1 && step <= max) {
       setCurrentStep(step);
     }
-  }, []);
+  }, [data.genre]);
 
   // Create or update project in Supabase
   const saveProject = useCallback(async (): Promise<string | null> => {
@@ -200,6 +240,8 @@ export function useBookWizard() {
         writing_status: "draft",
         author_profile: data.authorProfile ? JSON.parse(JSON.stringify(data.authorProfile)) : null,
         fiction_style: data.fictionStyle ? JSON.parse(JSON.stringify(data.fictionStyle)) : null,
+        nonfiction_book_type: data.nonfictionBookType || null,
+        book_type_data: data.bookTypeSpecificData ? JSON.parse(JSON.stringify(data.bookTypeSpecificData)) : null,
       };
 
       if (data.projectId) {
@@ -339,6 +381,8 @@ export function useBookWizard() {
     setData({
       genre: null,
       subcategory: null,
+      nonfictionBookType: null,
+      bookTypeSpecificData: null,
       title: "",
       targetAudience: "",
       tone: null,
@@ -405,11 +449,14 @@ export function useBookWizard() {
 
   return {
     currentStep,
+    maxSteps,
     data,
     isSaving,
     isDirty,
     setGenre,
     setSubcategory,
+    setNonfictionBookType,
+    setBookTypeSpecificData,
     setBasicInfo,
     setAuthorProfile,
     setFictionStyle,

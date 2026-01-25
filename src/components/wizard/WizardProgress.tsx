@@ -20,17 +20,7 @@ interface WizardProgressProps {
 const FICTION_STEPS = [
   { id: 1, label: "Műfaj", icon: BookOpen },
   { id: 2, label: "Kategória", icon: Tags },
-  { id: 3, label: "Adatok", icon: FileText },
-  { id: 4, label: "Ötletek", icon: Lightbulb },
-  { id: 5, label: "Koncepció", icon: Edit },
-  { id: 6, label: "Fejezetek", icon: List },
-  { id: 7, label: "Írás", icon: PenTool },
-];
-
-const NONFICTION_STEPS = [
-  { id: 1, label: "Műfaj", icon: BookOpen },
-  { id: 2, label: "Kategória", icon: Tags },
-  { id: 3, label: "Szerző", icon: FileText },
+  { id: 3, label: "Stílus", icon: FileText },
   { id: 4, label: "Adatok", icon: FileText },
   { id: 5, label: "Ötletek", icon: Lightbulb },
   { id: 6, label: "Koncepció", icon: Edit },
@@ -38,9 +28,21 @@ const NONFICTION_STEPS = [
   { id: 8, label: "Írás", icon: PenTool },
 ];
 
-export function WizardProgress({ currentStep, completedSteps = [], totalSteps = 7 }: WizardProgressProps) {
-  // Choose steps based on totalSteps
-  const STEPS = totalSteps === 8 ? NONFICTION_STEPS : FICTION_STEPS;
+const NONFICTION_STEPS = [
+  { id: 1, label: "Műfaj", icon: BookOpen },
+  { id: 2, label: "Kategória", icon: Tags },
+  { id: 3, label: "Típus", icon: FileText },
+  { id: 4, label: "Szerző", icon: FileText },
+  { id: 5, label: "Adatok", icon: FileText },
+  { id: 6, label: "Ötletek", icon: Lightbulb },
+  { id: 7, label: "Koncepció", icon: Edit },
+  { id: 8, label: "Fejezetek", icon: List },
+  { id: 9, label: "Írás", icon: PenTool },
+];
+
+export function WizardProgress({ currentStep, completedSteps = [], totalSteps = 8 }: WizardProgressProps) {
+  // Choose steps based on totalSteps (9 for nonfiction, 8 for fiction)
+  const STEPS = totalSteps === 9 ? NONFICTION_STEPS : FICTION_STEPS;
   
   return (
     <div className="w-full py-6 px-4">

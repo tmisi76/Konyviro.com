@@ -2,6 +2,102 @@
 
 export type Genre = "szakkonyv" | "fiction";
 
+// Non-fiction book types
+export type NonfictionBookType = 
+  | "how-to" 
+  | "thought-leadership" 
+  | "case-study" 
+  | "framework" 
+  | "self-help" 
+  | "storytelling-business" 
+  | "interview" 
+  | "workbook" 
+  | "reference" 
+  | "memoir";
+
+export interface NonfictionBookTypeInfo {
+  id: NonfictionBookType;
+  icon: string;
+  title: string;
+  description: string;
+  example: string;
+}
+
+export const NONFICTION_BOOK_TYPES: NonfictionBookTypeInfo[] = [
+  { id: "how-to", icon: "📘", title: "How-To Útmutató", description: "Lépésről lépésre tanít egy konkrét skillt", example: "Facebook hirdetések alapjai, Excel tippek" },
+  { id: "thought-leadership", icon: "💡", title: "Thought Leadership", description: "Új szemléletet, gondolkodásmódot ad", example: "Start With Why, A kék óceán stratégia" },
+  { id: "case-study", icon: "📊", title: "Esettanulmány alapú", description: "Sikertörténetekből von le tanulságokat", example: "Good to Great, A milliárdos kódja" },
+  { id: "framework", icon: "🔧", title: "Framework / Módszertan", description: "Egy komplett rendszert/keretrendszert tanít", example: "Lean Startup, Getting Things Done" },
+  { id: "self-help", icon: "🧠", title: "Önfejlesztő", description: "Személyes változást, szokásokat épít", example: "Atomic Habits, Az 5 szeretetnyelv" },
+  { id: "storytelling-business", icon: "📖", title: "Storytelling üzleti", description: "Történetbe ágyazott üzleti tanítás", example: "A cél (The Goal), Ki vitte el a sajtomat" },
+  { id: "interview", icon: "🎤", title: "Interjú / Beszélgetések", description: "Szakértők bölcsességeinek gyűjteménye", example: "Tools of Titans, Tribe of Mentors" },
+  { id: "workbook", icon: "✍️", title: "Workbook / Munkafüzet", description: "Gyakorlatok, feladatok, kitöltős részek", example: "The Artist's Way, Tervezd meg az életed" },
+  { id: "reference", icon: "📚", title: "Kézikönyv / Referencia", description: "Átfogó tudástár, amit újra elővehetnek", example: "Marketing kézikönyv, HR vezető kézikönyve" },
+  { id: "memoir", icon: "🎬", title: "Memoir + Tanulságok", description: "Személyes vállalkozói történet leckékkel", example: "Shoe Dog, Az Amazon története" },
+];
+
+// Type-specific data interfaces
+export interface BookTypeSpecificData {
+  // How-To
+  skillOutcome?: string;
+  audienceLevel?: "beginner" | "intermediate" | "advanced";
+  prerequisites?: string;
+  bookDepth?: "quick" | "comprehensive" | "full-course";
+  
+  // Thought Leadership
+  bigIdea?: string;
+  currentProblem?: string;
+  leadershipTone?: "provocative" | "inspiring" | "scientific";
+  
+  // Case Study
+  caseStudyCount?: "3-5" | "6-10" | "10+";
+  storyTypes?: "success" | "mixed" | "turnaround";
+  industryFocus?: string;
+  thesisToProve?: string;
+  
+  // Framework
+  methodologyName?: string;
+  elementCount?: 3 | 4 | 5 | 6;
+  frameworkElements?: string[];
+  problemSolved?: string;
+  
+  // Self-Help
+  promisedChange?: string;
+  obstacleToOvercome?: string;
+  exerciseFrequency?: "every-chapter" | "some" | "theory-focused";
+  programTimeframe?: "7-day" | "30-day" | "90-day" | "none";
+  
+  // Storytelling Business
+  protagonistType?: "fictional" | "self" | "real-anonymous";
+  startingSituation?: string;
+  mainTransformation?: string;
+  storyTone?: "inspiring" | "dramatic" | "humorous";
+  
+  // Interview
+  expertCount?: "5-10" | "10-20" | "20+";
+  expertType?: "real" | "ai-generated";
+  unifyingTheme?: string;
+  recurringQuestions?: string[];
+  
+  // Workbook
+  workbookGoal?: string;
+  moduleCount?: "5-7" | "8-12" | "12+";
+  exerciseTypes?: string[];
+  processingTimeframe?: "1-week" | "30-day" | "self-paced";
+  
+  // Reference
+  coverageArea?: string;
+  referenceAudience?: "beginners" | "professionals" | "both";
+  referenceStructure?: "a-z" | "thematic" | "problem-based";
+  referenceLength?: "short" | "medium" | "comprehensive";
+  
+  // Memoir
+  timePeriod?: string;
+  turningPoints?: string[];
+  mainLesson?: string;
+  memoirTone?: "raw" | "inspiring" | "humorous";
+}
+
 // Author profile for non-fiction books
 export interface AuthorProfile {
   authorName: string;
@@ -122,6 +218,9 @@ export interface ChapterOutlineItem {
 export interface WizardData {
   genre: Genre | null;
   subcategory: Subcategory | null;
+  // Non-fiction specific book type (9 step flow)
+  nonfictionBookType: NonfictionBookType | null;
+  bookTypeSpecificData: BookTypeSpecificData | null;
   title: string;
   targetAudience: string;
   tone: Tone | null;
@@ -143,6 +242,8 @@ export interface WizardData {
 export const INITIAL_WIZARD_DATA: WizardData = {
   genre: null,
   subcategory: null,
+  nonfictionBookType: null,
+  bookTypeSpecificData: null,
   title: "",
   targetAudience: "",
   tone: null,
