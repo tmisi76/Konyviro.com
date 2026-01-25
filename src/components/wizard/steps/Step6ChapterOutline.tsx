@@ -29,7 +29,7 @@ interface Step6ChapterOutlineProps {
   projectId: string | null;
   onOutlineChange: (outline: ChapterOutlineItem[]) => void;
   onSave: () => Promise<boolean>;
-  onStartWriting: () => void;
+  onStartWriting: (checkpointMode?: boolean) => void;
   onStartSemiAutomatic?: () => Promise<void>;
   onEstimatedMinutesChange?: (minutes: number) => void;
   isSaving: boolean;
@@ -196,9 +196,9 @@ export function Step6ChapterOutline({
       onEstimatedMinutesChange(estimatedMinutes);
     }
 
-    if (mode === "automatic") {
+    if (mode === "automatic" || mode === "checkpoint") {
       setShowModeDialog(false);
-      onStartWriting();
+      onStartWriting(mode === "checkpoint");
     } else if (mode === "semiAutomatic" && onStartSemiAutomatic) {
       setShowModeDialog(false);
       setIsStartingBackground(true);

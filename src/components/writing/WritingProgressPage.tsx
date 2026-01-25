@@ -13,11 +13,14 @@ import {
   FileEdit,
   AlertCircle,
   RefreshCw,
-  Coins
+  Coins,
+  Check,
+  Edit3,
+  RotateCcw
 } from "lucide-react";
 
 export interface WritingProgressPageProps {
-  status: "idle" | "generating_outline" | "writing" | "paused" | "error" | "completed";
+  status: "idle" | "generating_outline" | "writing" | "paused" | "error" | "completed" | "awaiting_approval";
   currentChapter: string;
   currentScene: string;
   completedScenes: number;
@@ -37,11 +40,18 @@ export interface WritingProgressPageProps {
   extraWordsBalance?: number;
   monthlyWordLimit?: number;
   monthlyWordsUsed?: number;
+  // Checkpoint mód adatok
+  pendingApprovalChapterTitle?: string;
+  pendingApprovalChapterWords?: number;
   // Callbacks
   onPause: () => void;
   onResume?: () => void;
   onRestartFailed?: () => void;
   onOpenEditor?: () => void;
+  // Checkpoint callbacks
+  onApproveChapter?: () => void;
+  onEditChapter?: () => void;
+  onRegenerateChapter?: () => void;
 }
 
 // Rotáló státusz üzenetek
@@ -99,10 +109,15 @@ export function WritingProgressPage({
   extraWordsBalance = 0,
   monthlyWordLimit = 0,
   monthlyWordsUsed = 0,
+  pendingApprovalChapterTitle,
+  pendingApprovalChapterWords = 0,
   onPause,
   onResume,
   onRestartFailed,
   onOpenEditor,
+  onApproveChapter,
+  onEditChapter,
+  onRegenerateChapter,
 }: WritingProgressPageProps) {
   const [messageIndex, setMessageIndex] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -191,6 +206,7 @@ export function WritingProgressPage({
   const isError = status === "error";
   const isWriting = status === "writing" || status === "generating_outline";
   const isIdle = status === "idle";
+  const isAwaitingApproval = status === "awaiting_approval";
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6">
@@ -203,6 +219,73 @@ export function WritingProgressPage({
             </div>
             <h3 className="text-lg font-semibold mb-2">Előkészítés...</h3>
             <p className="text-sm text-muted-foreground">Az írás hamarosan elkezdődik</p>
+          </div>
+        ) : isAwaitingApproval ? (
+          /* Jóváhagyás képernyő - Checkpoint mód */
+          <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-6 text-center">
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6"
+            >
+              <BookOpen className="w-10 h-10 text-primary" />
+            </motion.div>
+            
+            <h3 className="text-xl font-bold mb-2">Fejezet elkészült!</h3>
+            <p className="text-lg font-medium text-primary mb-1">
+              {pendingApprovalChapterTitle || "Fejezet"}
+            </p>
+            <p className="text-muted-foreground mb-4">
+              {pendingApprovalChapterWords?.toLocaleString() || 0} szó • {completedScenes} / {totalScenes} {sceneLabel}
+            </p>
+            
+            {/* Kredit panel */}
+            <CreditPanel 
+              usedWordsThisSession={usedWordsThisSession}
+              monthlyWordsUsed={monthlyWordsUsed}
+              monthlyWordLimit={monthlyWordLimit}
+              extraWordsBalance={extraWordsBalance}
+              creditUsagePercent={creditUsagePercent}
+            />
+            
+            <div className="space-y-3 mt-6">
+              <p className="text-sm text-muted-foreground mb-4">
+                Ellenőrizd a fejezetet, majd válaszd ki a következő lépést:
+              </p>
+              
+              <div className="flex flex-col gap-2">
+                {onApproveChapter && (
+                  <Button onClick={onApproveChapter} size="lg" className="gap-2 w-full">
+                    <Check className="w-5 h-5" />
+                    Jóváhagyás és folytatás
+                  </Button>
+                )}
+                
+                <div className="flex gap-2">
+                  {onEditChapter && (
+                    <Button 
+                      variant="outline" 
+                      onClick={onEditChapter} 
+                      className="gap-2 flex-1"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      Szerkesztés
+                    </Button>
+                  )}
+                  
+                  {onRegenerateChapter && (
+                    <Button 
+                      variant="outline" 
+                      onClick={onRegenerateChapter} 
+                      className="gap-2 flex-1"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Újragenerálás
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         ) : isCompleted ? (
           /* Befejező képernyő */

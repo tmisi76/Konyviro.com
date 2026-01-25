@@ -28,6 +28,7 @@ const STATUS_LABELS: Record<AutoWriteProgress["status"], string> = {
   paused: "Szüneteltetve",
   completed: "Befejezve",
   error: "Hiba",
+  awaiting_approval: "Jóváhagyásra vár",
 };
 
 const SCENE_STATUS_COLORS: Record<SceneOutline["status"], string> = {
