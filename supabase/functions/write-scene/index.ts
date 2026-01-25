@@ -18,6 +18,13 @@ const UNIVERSAL_FICTION_RULES = `
 - A szereplők NEM tökéletesek - legyenek hibáik, belső konfliktusaik
 - Kerüld a klisés fordulatokat és a kiszámítható megoldásokat
 - Minden fejezetnek legyen "hook"-ja a végén, ami tovább viszi az olvasót
+
+## FORMÁZÁS (KRITIKUS - KÖTELEZŐ):
+- NE HASZNÁLJ markdown szintaxist (**, ##, ***, ---, \`\`\`, stb.)
+- Írj tiszta, formázatlan prózát jelölések nélkül
+- Párbeszédeknél használj magyar idézőjeleket: „szöveg"
+- Gondolatjel: – (nem -)
+- A szöveg folyamatos, olvasható próza legyen, semmilyen jelöléssel
 `;
 
 // Genre-specific prompts
