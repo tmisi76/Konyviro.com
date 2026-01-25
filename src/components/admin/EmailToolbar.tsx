@@ -1,83 +1,97 @@
-import { Bold, Italic, Link, Image, List, ListOrdered, Heading1, Heading2 } from "lucide-react";
+import { Type, Bold, Italic, Link, Image, List, ListOrdered, Heading1, Heading2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface EmailToolbarProps {
-  onInsertTag: (openTag: string, closeTag: string) => void;
-  onInsertSingleTag: (tag: string) => void;
+  onFormat: (command: string, value?: string) => void;
+  onLink: () => void;
+  onImage: () => void;
 }
 
 const tools = [
   { 
+    icon: Type, 
+    label: 'Normál szöveg', 
+    command: 'formatBlock',
+    value: 'p',
+    type: 'format'
+  },
+  { 
     icon: Heading1, 
     label: 'Címsor 1', 
-    openTag: '<h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: bold;">', 
-    closeTag: '</h1>',
-    type: 'pair'
+    command: 'formatBlock',
+    value: 'h1',
+    type: 'format'
   },
   { 
     icon: Heading2, 
     label: 'Címsor 2', 
-    openTag: '<h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: bold;">', 
-    closeTag: '</h2>',
-    type: 'pair'
+    command: 'formatBlock',
+    value: 'h2',
+    type: 'format'
   },
   { type: 'separator' },
   { 
     icon: Bold, 
     label: 'Félkövér', 
-    openTag: '<strong>', 
-    closeTag: '</strong>',
-    type: 'pair'
+    command: 'bold',
+    type: 'format'
   },
   { 
     icon: Italic, 
     label: 'Dőlt', 
-    openTag: '<em>', 
-    closeTag: '</em>',
-    type: 'pair'
+    command: 'italic',
+    type: 'format'
   },
   { type: 'separator' },
   { 
     icon: Link, 
     label: 'Link', 
-    openTag: '<a href="URL" style="color: #6366f1; text-decoration: underline;">', 
-    closeTag: '</a>',
-    type: 'pair'
+    type: 'link'
   },
   { 
     icon: Image, 
     label: 'Kép', 
-    tag: '<img src="URL" alt="Leírás" style="max-width: 100%; height: auto;" />',
-    type: 'single'
+    type: 'image'
   },
   { type: 'separator' },
   { 
     icon: List, 
     label: 'Lista', 
-    openTag: '<ul style="margin: 0 0 16px 0; padding-left: 20px;">\n  <li>', 
-    closeTag: '</li>\n</ul>',
-    type: 'pair'
+    command: 'insertUnorderedList',
+    type: 'format'
   },
   { 
     icon: ListOrdered, 
     label: 'Számozott lista', 
-    openTag: '<ol style="margin: 0 0 16px 0; padding-left: 20px;">\n  <li>', 
-    closeTag: '</li>\n</ol>',
-    type: 'pair'
+    command: 'insertOrderedList',
+    type: 'format'
   },
 ] as const;
 
-export function EmailToolbar({ onInsertTag, onInsertSingleTag }: EmailToolbarProps) {
+export function EmailToolbar({ onFormat, onLink, onImage }: EmailToolbarProps) {
   return (
-    <div className="flex items-center gap-1 p-1 border rounded-md bg-muted/30 flex-wrap">
+    <div className="flex items-center gap-1 flex-wrap">
       {tools.map((tool, index) => {
         if (tool.type === 'separator') {
           return <Separator key={index} orientation="vertical" className="h-6 mx-1" />;
         }
 
         const Icon = tool.icon;
+        
+        const handleClick = (e: React.MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          if (tool.type === 'link') {
+            onLink();
+          } else if (tool.type === 'image') {
+            onImage();
+          } else if (tool.type === 'format' && 'command' in tool) {
+            onFormat(tool.command, 'value' in tool ? tool.value : undefined);
+          }
+        };
         
         return (
           <Tooltip key={index}>
@@ -87,13 +101,7 @@ export function EmailToolbar({ onInsertTag, onInsertSingleTag }: EmailToolbarPro
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0"
-                onClick={() => {
-                  if (tool.type === 'single' && 'tag' in tool) {
-                    onInsertSingleTag(tool.tag);
-                  } else if (tool.type === 'pair' && 'openTag' in tool && 'closeTag' in tool) {
-                    onInsertTag(tool.openTag, tool.closeTag);
-                  }
-                }}
+                onClick={handleClick}
               >
                 <Icon className="h-4 w-4" />
               </Button>
