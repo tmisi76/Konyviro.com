@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { hu } from "date-fns/locale";
@@ -16,6 +17,7 @@ import {
   RefreshCcw,
   RotateCcw,
   XCircle,
+  Loader2,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,17 +41,34 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { useBillingStats } from "@/hooks/admin/useBillingStats";
 import { useAdminSubscriptions } from "@/hooks/admin/useAdminSubscriptions";
 import { useRecentInvoices } from "@/hooks/admin/useRecentInvoices";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminBilling() {
+  const queryClient = useQueryClient();
   const { data: billingStats, isLoading: statsLoading } = useBillingStats();
   const { data: subscriptions, isLoading: subsLoading } = useAdminSubscriptions();
   const { data: recentInvoices, isLoading: invoicesLoading } = useRecentInvoices(10);
+  
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{ id: string; email: string } | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const viewInStripe = (subscriptionId: string | null) => {
     if (subscriptionId) {
@@ -71,8 +90,35 @@ export default function AdminBilling() {
     toast.info("Visszatérítés funkció hamarosan...");
   };
 
-  const cancelSubscription = (userId: string) => {
-    toast.info("Előfizetés lemondás funkció hamarosan...");
+  const openCancelDialog = (userId: string, email: string) => {
+    setSelectedUser({ id: userId, email });
+    setCancelDialogOpen(true);
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!selectedUser) return;
+    
+    setIsCancelling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-cancel-subscription", {
+        body: { 
+          userId: selectedUser.id,
+          cancelImmediately: false 
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`${selectedUser.email} előfizetése lemondva. A jelenlegi időszak végéig aktív marad.`);
+      setCancelDialogOpen(false);
+      setSelectedUser(null);
+      queryClient.invalidateQueries({ queryKey: ['admin-subscriptions'] });
+    } catch (error) {
+      console.error("Cancel subscription error:", error);
+      toast.error("Hiba történt a lemondás során");
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   return (
@@ -377,7 +423,7 @@ export default function AdminBilling() {
                             Visszatérítés
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => cancelSubscription(sub.id)}
+                            onClick={() => openCancelDialog(sub.user_id, sub.user_email)}
                             className="text-red-500"
                           >
                             <XCircle className="h-4 w-4 mr-2" />
@@ -393,6 +439,36 @@ export default function AdminBilling() {
           )}
         </CardContent>
       </Card>
+
+      {/* Cancel Subscription Dialog */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Előfizetés lemondása</AlertDialogTitle>
+            <AlertDialogDescription>
+              Biztosan le szeretnéd mondani <strong>{selectedUser?.email}</strong> előfizetését?
+              Az előfizetés a jelenlegi időszak végéig aktív marad.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Mégsem</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelSubscription}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Lemondás...
+                </>
+              ) : (
+                "Lemondás"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
