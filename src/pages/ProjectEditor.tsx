@@ -102,21 +102,25 @@ export default function ProjectEditor() {
   useEffect(() => {
     const handleSelectionChange = () => {
       const sel = window.getSelection();
-      if (sel && sel.toString().length > 0) {
+      if (!sel || sel.rangeCount === 0) return;
+      
+      const range = sel.getRangeAt(0);
+      const container = range.startContainer.parentElement?.closest('[data-block-id]');
+      
+      // Only update if we're inside the editor
+      if (!container) return;
+      
+      const blockId = container.getAttribute('data-block-id');
+      if (!blockId) return;
+      
+      // Update selected text if there's a selection
+      if (sel.toString().length > 0) {
         setGlobalSelectedText(sel.toString());
-        
-        // Track cursor position
-        if (sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          const container = range.startContainer.parentElement?.closest('[data-block-id]');
-          if (container) {
-            const blockId = container.getAttribute('data-block-id');
-            if (blockId) {
-              setCursorPosition({ blockId, offset: range.startOffset });
-            }
-          }
-        }
       }
+      
+      // Use focusOffset for more accurate cursor position
+      const offset = sel.isCollapsed ? range.startOffset : range.endOffset;
+      setCursorPosition({ blockId, offset });
     };
 
     document.addEventListener("selectionchange", handleSelectionChange);
@@ -546,21 +550,72 @@ export default function ProjectEditor() {
                 }
               }}
               onInsertTextAtCursor={(text, position) => {
+                // Check if block still exists
                 const block = blocks.find(b => b.id === position.blockId);
-                if (block) {
-                  const before = block.content.substring(0, position.offset);
-                  const after = block.content.substring(position.offset);
-                  const newContent = before + text + after;
-                  updateBlock(position.blockId, { content: newContent });
-                  
-                  // Sync DOM
-                  setTimeout(() => {
-                    const blockEl = document.querySelector(`[data-block-id="${position.blockId}"] [contenteditable="true"]`) as HTMLElement;
-                    if (blockEl) {
-                      blockEl.innerText = newContent;
-                    }
-                  }, 0);
+                if (!block) {
+                  // Fallback: append to last block
+                  if (blocks.length > 0) {
+                    const lastBlock = blocks[blocks.length - 1];
+                    const newContent = lastBlock.content ? lastBlock.content + "\n\n" + text : text;
+                    updateBlock(lastBlock.id, { content: newContent });
+                    
+                    requestAnimationFrame(() => {
+                      const blockEl = document.querySelector(`[data-block-id="${lastBlock.id}"] [contenteditable="true"]`) as HTMLElement;
+                      if (blockEl) {
+                        blockEl.innerText = newContent;
+                        blockEl.focus();
+                      }
+                    });
+                  }
+                  return;
                 }
+                
+                // Get the actual DOM element and its current content
+                const blockEl = document.querySelector(
+                  `[data-block-id="${position.blockId}"] [contenteditable="true"]`
+                ) as HTMLElement;
+                
+                if (!blockEl) {
+                  // Fallback: use state content
+                  const newContent = block.content ? block.content + "\n\n" + text : text;
+                  updateBlock(position.blockId, { content: newContent });
+                  return;
+                }
+                
+                // Use DOM content for accuracy (it may differ from React state)
+                const currentContent = blockEl.innerText || "";
+                const safeOffset = Math.min(position.offset, currentContent.length);
+                
+                const before = currentContent.substring(0, safeOffset);
+                const after = currentContent.substring(safeOffset);
+                const newContent = before + text + after;
+                
+                // Update React state
+                updateBlock(position.blockId, { content: newContent });
+                
+                // Sync DOM and restore cursor position
+                requestAnimationFrame(() => {
+                  blockEl.innerText = newContent;
+                  
+                  // Position cursor at the end of inserted text
+                  const range = document.createRange();
+                  const sel = window.getSelection();
+                  
+                  if (blockEl.firstChild) {
+                    const insertEnd = safeOffset + text.length;
+                    try {
+                      range.setStart(blockEl.firstChild, Math.min(insertEnd, newContent.length));
+                      range.collapse(true);
+                      sel?.removeAllRanges();
+                      sel?.addRange(range);
+                    } catch (e) {
+                      // If positioning fails, just focus the element
+                      console.warn("Cursor positioning failed:", e);
+                    }
+                  }
+                  
+                  blockEl.focus();
+                });
               }}
             />
           )}
