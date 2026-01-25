@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/table";
 import { useStripeSubscription } from "@/hooks/useStripeSubscription";
 import { useSubscription } from "@/hooks/useSubscription";
-import { CancelSubscriptionModal } from "./CancelSubscriptionModal";
+import { RetentionOfferModal } from "./RetentionOfferModal";
 import { PlanComparisonModal } from "./PlanComparisonModal";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -402,8 +402,8 @@ export function SubscriptionSettings() {
         </p>
       </div>
 
-      {/* Cancel Modal */}
-      <CancelSubscriptionModal
+      {/* Cancel Modal with Retention Offer */}
+      <RetentionOfferModal
         open={isCancelOpen}
         onOpenChange={setIsCancelOpen}
         subscriptionEnd={stripeData.subscriptionEnd}

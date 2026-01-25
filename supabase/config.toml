@@ -71,3 +71,9 @@ verify_jwt = false
 
 [functions.send-bulk-email]
 verify_jwt = false
+
+[functions.check-retention-eligibility]
+verify_jwt = false
+
+[functions.apply-retention-discount]
+verify_jwt = false
