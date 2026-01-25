@@ -13,9 +13,11 @@ interface UseAutoWriteOptions {
   bookTopic?: string;
   targetAudience?: string;
   targetWordCount?: number;
+  checkpointMode?: boolean; // Pause after each chapter for approval
   onBlockCreated?: (chapterId: string, block: Block) => void;
   onChapterUpdated?: (chapterId: string) => void;
   onStreamingUpdate?: (text: string) => void;
+  onChapterComplete?: (chapterId: string, chapterTitle: string, wordCount: number) => void;
 }
 
 // URLs for fiction (scenes)
@@ -37,9 +39,11 @@ export function useAutoWrite({
   bookTopic,
   targetAudience,
   targetWordCount = 50000,
+  checkpointMode = false,
   onBlockCreated,
   onChapterUpdated,
   onStreamingUpdate,
+  onChapterComplete,
 }: UseAutoWriteOptions) {
   // Determine if this is a non-fiction project
   const isNonFiction = genre === "szakkonyv";
@@ -62,6 +66,8 @@ export function useAutoWrite({
   const isRunningRef = useRef(false);
   const sceneStartTimeRef = useRef<number>(0);
   const sceneDurationsRef = useRef<number[]>([]);
+  const pendingApprovalRef = useRef(false);
+  const resumeFromChapterRef = useRef<number | null>(null);
 
   // Fetch chapters with scene outlines
   const fetchChapters = useCallback(async () => {
@@ -816,6 +822,29 @@ export function useAutoWrite({
           .from("chapters")
           .update({ generation_status: "completed", status: "done" })
           .eq("id", chapter.id);
+
+        // Calculate chapter word count
+        const chapterWordCount = chapterContent.split(/\s+/).filter(w => w.length > 0).length;
+
+        // Notify about chapter completion
+        onChapterComplete?.(chapter.id, chapter.title, chapterWordCount);
+
+        // CHECKPOINT MODE: Pause after each chapter for approval (except the last one)
+        if (checkpointMode && chapterIndex < chaptersData.length - 1) {
+          pendingApprovalRef.current = true;
+          resumeFromChapterRef.current = chapterIndex + 1;
+          
+          setProgress(prev => ({ 
+            ...prev, 
+            status: "awaiting_approval",
+            pendingApprovalChapterId: chapter.id,
+            pendingApprovalChapterTitle: chapter.title,
+            pendingApprovalChapterWords: chapterWordCount,
+          }));
+          
+          isRunningRef.current = false;
+          return; // Stop here, will resume when user approves
+        }
       }
 
       setProgress(prev => ({ 
@@ -874,6 +903,8 @@ export function useAutoWrite({
 
   const reset = useCallback(() => {
     isPausedRef.current = true;
+    pendingApprovalRef.current = false;
+    resumeFromChapterRef.current = null;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -890,6 +921,62 @@ export function useAutoWrite({
     });
   }, []);
 
+  // Checkpoint mode: Approve chapter and continue writing
+  const approveChapter = useCallback(async () => {
+    if (!pendingApprovalRef.current) return;
+    
+    pendingApprovalRef.current = false;
+    
+    // Resume from next chapter
+    await fetchChapters();
+    setTimeout(() => {
+      startAutoWrite();
+    }, 100);
+  }, [fetchChapters, startAutoWrite]);
+
+  // Checkpoint mode: Regenerate the current chapter
+  const regenerateChapter = useCallback(async () => {
+    if (!progress.pendingApprovalChapterId) return;
+    
+    const chapterId = progress.pendingApprovalChapterId;
+    
+    // Delete all blocks for this chapter
+    await supabase
+      .from("blocks")
+      .delete()
+      .eq("chapter_id", chapterId);
+    
+    // Reset scene statuses to pending
+    const chapter = chapters.find(c => c.id === chapterId);
+    if (chapter) {
+      const resetScenes = chapter.scene_outline.map(s => ({
+        ...s,
+        status: "pending" as const
+      }));
+      
+      await supabase
+        .from("chapters")
+        .update({ 
+          scene_outline: JSON.parse(JSON.stringify(resetScenes)),
+          generation_status: "pending",
+          word_count: 0
+        })
+        .eq("id", chapterId);
+    }
+    
+    // Reset pending approval state
+    pendingApprovalRef.current = false;
+    resumeFromChapterRef.current = progress.currentChapterIndex;
+    
+    // Recalculate progress
+    await fetchChapters();
+    
+    // Restart from current chapter
+    setTimeout(() => {
+      startAutoWrite();
+    }, 100);
+  }, [progress.pendingApprovalChapterId, progress.currentChapterIndex, chapters, fetchChapters, startAutoWrite]);
+
   return {
     chapters,
     progress,
@@ -900,5 +987,8 @@ export function useAutoWrite({
     reset,
     fetchChapters,
     restartFailedScenes,
+    // Checkpoint mode functions
+    approveChapter,
+    regenerateChapter,
   };
 }

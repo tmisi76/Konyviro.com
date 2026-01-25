@@ -31,7 +31,7 @@ export interface AutoWriteProgress {
   targetWords: number;
   currentChapterIndex: number;
   currentSceneIndex: number;
-  status: "idle" | "generating_outline" | "writing" | "paused" | "completed" | "error";
+  status: "idle" | "generating_outline" | "writing" | "paused" | "completed" | "error" | "awaiting_approval";
   error?: string;
   // Enhanced progress tracking
   currentSceneTitle?: string;
@@ -41,6 +41,10 @@ export interface AutoWriteProgress {
   avgSecondsPerScene?: number;
   estimatedRemainingSeconds?: number;
   startTime?: number;
+  // Checkpoint mode tracking
+  pendingApprovalChapterId?: string;
+  pendingApprovalChapterTitle?: string;
+  pendingApprovalChapterWords?: number;
 }
 
 export interface ChapterWithScenes {

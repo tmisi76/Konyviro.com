@@ -15,6 +15,7 @@ interface Step7AutoWriteProps {
   projectId: string;
   genre: Genre;
   estimatedMinutes?: number;
+  checkpointMode?: boolean;
   onComplete: () => void;
 }
 
@@ -25,7 +26,7 @@ interface ChapterDisplay {
   scenesCompleted: number;
 }
 
-export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete }: Step7AutoWriteProps) {
+export function Step7AutoWrite({ projectId, genre, estimatedMinutes, checkpointMode = false, onComplete }: Step7AutoWriteProps) {
   const navigate = useNavigate();
   const [chapters, setChapters] = useState<ChapterDisplay[]>([]);
   const [currentContent, setCurrentContent] = useState("");
@@ -51,11 +52,14 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
     pause,
     resume,
     restartFailedScenes,
+    approveChapter,
+    regenerateChapter,
   } = useAutoWrite({
     projectId,
     genre,
     storyStructure,
     targetWordCount,
+    checkpointMode,
     onChapterUpdated: () => {
       fetchChapters();
     },
@@ -237,7 +241,7 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
   };
 
   // Map internal status to page status
-  const mapStatus = (): "idle" | "generating_outline" | "writing" | "paused" | "error" | "completed" => {
+  const mapStatus = (): "idle" | "generating_outline" | "writing" | "paused" | "error" | "completed" | "awaiting_approval" => {
     // Show credit error screen if no credits and idle
     if (creditCheckDone && !hasCredits && progress.status === "idle") {
       return "error";
@@ -277,10 +281,15 @@ export function Step7AutoWrite({ projectId, genre, estimatedMinutes, onComplete 
         extraWordsBalance={subscription?.extraWordsBalance || 0}
         monthlyWordLimit={subscription?.monthlyWordLimit || 0}
         monthlyWordsUsed={usage?.wordsGenerated || 0}
+        pendingApprovalChapterTitle={progress.pendingApprovalChapterTitle}
+        pendingApprovalChapterWords={progress.pendingApprovalChapterWords}
         onPause={pause}
         onResume={resume}
         onRestartFailed={restartFailedScenes}
         onOpenEditor={handleGoToEditor}
+        onApproveChapter={approveChapter}
+        onEditChapter={handleGoToEditor}
+        onRegenerateChapter={regenerateChapter}
       />
 
       <BuyCreditModal 
