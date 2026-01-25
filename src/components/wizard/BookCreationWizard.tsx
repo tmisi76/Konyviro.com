@@ -11,11 +11,11 @@ import { Step2Subcategory } from "./steps/Step2Subcategory";
 import { Step3BasicInfo } from "./steps/Step3BasicInfo";
 import { Step3AuthorInfo } from "./steps/Step3AuthorInfo";
 import { Step3FictionStyle } from "./steps/Step3FictionStyle";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
-import type { AuthorProfile, FictionStyleSettings, NonfictionBookType, BookTypeSpecificData } from "@/types/wizard";
 import { Step3BookType } from "./steps/Step3BookType";
 import { Step5BookTypeData } from "./steps/Step5BookTypeData";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import type { AuthorProfile, FictionStyleSettings, NonfictionBookType, BookTypeSpecificData, Subcategory, StoryIdea } from "@/types/wizard";
 
 const Step4StoryIdeas = lazy(() => import("./steps/Step4StoryIdeas").then(m => ({ default: m.Step4StoryIdeas })));
 const Step5StoryDetail = lazy(() => import("./steps/Step5StoryDetail").then(m => ({ default: m.Step5StoryDetail })));
@@ -36,7 +36,6 @@ function StepLoader() {
   );
 }
 
-// Type for generated character from AI
 interface GeneratedCharacter {
   name: string;
   role: "protagonist" | "antagonist" | "supporting";
@@ -84,10 +83,8 @@ export function BookCreationWizard() {
     startSemiAutomatic,
   } = useBookWizard();
 
-  // Check if this is a non-fiction book (szakkönyv)
   const isNonFiction = data.genre === "szakkonyv";
 
-  // Check project limit on mount
   useEffect(() => {
     if (!isSubscriptionLoading && isProjectLimitReached()) {
       toast.error("Elérted a projekt limitet. Frissíts a csomagodra!");
@@ -112,7 +109,7 @@ export function BookCreationWizard() {
     setTimeout(() => nextStep(), 250);
   };
 
-  const handleSubcategorySelect = (subcategory: any) => {
+  const handleSubcategorySelect = (subcategory: Subcategory) => {
     setSubcategory(subcategory);
     setTimeout(() => nextStep(), 250);
   };
@@ -132,7 +129,7 @@ export function BookCreationWizard() {
     nextStep();
   };
 
-  const handleBasicInfoSubmit = (info: any) => {
+  const handleBasicInfoSubmit = (info: Parameters<typeof setBasicInfo>[0]) => {
     setBasicInfo(info);
     nextStep();
   };
@@ -142,7 +139,7 @@ export function BookCreationWizard() {
     nextStep();
   };
 
-  const handleStoryIdeaSelect = (idea: any) => {
+  const handleStoryIdeaSelect = (idea: StoryIdea) => {
     selectStoryIdea(idea);
     nextStep();
   };
@@ -175,7 +172,6 @@ export function BookCreationWizard() {
     startWriting();
   };
 
-  // Nonfiction has 9 steps, fiction has 8
   const totalSteps = maxSteps;
   const isLastStep = currentStep === totalSteps;
 
@@ -209,135 +205,7 @@ export function BookCreationWizard() {
       default: return null;
     }
   };
-    startWriting();
-  };
 
-  const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return <Step1Genre selected={data.genre} onSelect={handleGenreSelect} />;
-      case 2:
-        return data.genre && (
-          <Step2Subcategory
-            genre={data.genre}
-            selected={data.subcategory}
-            onSelect={handleSubcategorySelect}
-          />
-        );
-      case 3:
-        // For non-fiction: show author info step
-        // For fiction: show fiction style step (NEW)
-        if (isNonFiction) {
-          return (
-            <Step3AuthorInfo
-              initialData={data.authorProfile}
-              onSubmit={handleAuthorProfileSubmit}
-            />
-          );
-        }
-        return (
-          <Step3FictionStyle
-            subcategory={data.subcategory}
-            initialData={data.fictionStyle}
-            onSubmit={handleFictionStyleSubmit}
-          />
-        );
-      case 4:
-        // For both: show basic info step
-        return (
-          <Step3BasicInfo
-            genre={data.genre!}
-            initialData={{
-              title: data.title,
-              targetAudience: data.targetAudience,
-              tone: data.tone,
-              length: data.length,
-              additionalInstructions: data.additionalInstructions,
-            }}
-            onSubmit={handleBasicInfoSubmit}
-          />
-        );
-      case 5:
-        // For both: show story/book ideas
-        return (
-          <Suspense fallback={<StepLoader />}>
-            <Step4StoryIdeas
-              genre={data.genre!}
-              subcategory={data.subcategory!}
-              tone={data.tone!}
-              length={data.length!}
-              targetAudience={data.targetAudience}
-              additionalInstructions={data.additionalInstructions}
-              existingIdeas={data.storyIdeas}
-              onIdeasGenerated={setStoryIdeas}
-              onSelect={handleStoryIdeaSelect}
-              authorProfile={data.authorProfile}
-              fictionStyle={data.fictionStyle}
-            />
-          </Suspense>
-        );
-      case 6:
-        // For both: show story detail/concept
-        return (
-          <Suspense fallback={<StepLoader />}>
-            <Step5StoryDetail
-              genre={data.genre!}
-              subcategory={data.subcategory!}
-              tone={data.tone!}
-              selectedIdea={data.selectedStoryIdea!}
-              existingConcept={data.detailedConcept}
-              onConceptGenerated={handleConceptGenerated}
-              onAccept={handleConceptAccept}
-              authorProfile={data.authorProfile}
-              fictionStyle={data.fictionStyle}
-            />
-          </Suspense>
-        );
-      case 7:
-        // For both: show chapter outline
-        return (
-          <Suspense fallback={<StepLoader />}>
-            <Step6ChapterOutline
-              genre={data.genre!}
-              length={data.length!}
-              detailedConcept={data.detailedConcept}
-              existingOutline={data.chapterOutline}
-              projectId={data.projectId}
-              onOutlineChange={setChapterOutline}
-              onSave={handleSaveOutline}
-              onStartWriting={handleStartWriting}
-              onStartSemiAutomatic={startSemiAutomatic}
-              onEstimatedMinutesChange={setEstimatedWritingMinutes}
-              isSaving={isSaving}
-              isDirty={isDirty}
-            />
-          </Suspense>
-        );
-      case 8:
-        // For both: show auto-write
-        return (
-          <Suspense fallback={<StepLoader />}>
-            <Step7AutoWrite
-              projectId={data.projectId!}
-              genre={data.genre!}
-              estimatedMinutes={data.estimatedWritingMinutes || undefined}
-              checkpointMode={checkpointMode}
-              onComplete={() => navigate(`/project/${data.projectId}`)}
-            />
-          </Suspense>
-        );
-      default:
-        return null;
-    }
-  };
-
-  // Both fiction and non-fiction now have 8 steps
-  const totalSteps = 8;
-
-  // Hide header in last step for full-screen experience
-  const isLastStep = currentStep === 8;
-
-  // Hide header in last step for full-screen experience
   if (isLastStep) {
     return (
       <div className="min-h-screen bg-background">
@@ -358,7 +226,6 @@ export function BookCreationWizard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
         <div className="flex items-center justify-between px-4 py-3">
           <Button
@@ -377,7 +244,6 @@ export function BookCreationWizard() {
         </div>
       </header>
 
-      {/* Content */}
       <main className="container max-w-6xl mx-auto pb-20">
         <AnimatePresence mode="wait">
           <motion.div
