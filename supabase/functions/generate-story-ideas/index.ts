@@ -40,8 +40,8 @@ serve(async (req) => {
 
     const { genre, subcategory, tone, length, targetAudience, additionalInstructions, authorProfile, previousIdeas } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -154,26 +154,25 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: prompt },
-            ],
+            model: "claude-sonnet-4-20250514",
             max_tokens: 2000,
+            system: systemPrompt,
+            messages: [{ role: "user", content: prompt }],
           }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        if (response.status === 429 || response.status === 502 || response.status === 503) {
+        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 529) {
           console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
@@ -200,7 +199,7 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
     }
 
     const aiData = await response.json();
-    let content = aiData.choices?.[0]?.message?.content || "";
+    let content = aiData.content?.[0]?.text || "";
     
     if (content.startsWith("```json")) content = content.slice(7);
     if (content.startsWith("```")) content = content.slice(3);

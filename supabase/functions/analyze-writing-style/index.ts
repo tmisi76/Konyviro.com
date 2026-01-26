@@ -25,8 +25,8 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       throw new Error("AI nincs konfigurálva");
     }
 
@@ -72,7 +72,7 @@ serve(async (req) => {
 
     logStep("Prepared text for analysis", { wordCount: totalWords });
 
-    // Analyze with Lovable AI
+    // Analyze with Anthropic Claude
     const analysisPrompt = `Elemezd az alábbi magyar nyelvű szövegmintákat és készíts részletes stílusprofilt. A válaszodat JSON formátumban add meg.
 
 Elemzendő szöveg:
@@ -104,26 +104,25 @@ Csak a JSON-t add vissza, semmi mást!`;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "system", content: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban." },
-              { role: "user", content: analysisPrompt },
-            ],
+            model: "claude-sonnet-4-20250514",
             max_tokens: 1500,
+            system: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban.",
+            messages: [{ role: "user", content: analysisPrompt }],
           }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        if (response.status === 429 || response.status === 502 || response.status === 503) {
+        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 529) {
           logStep(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
@@ -167,7 +166,7 @@ Csak a JSON-t add vissza, semmi mást!`;
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content || "";
+    const content = aiResponse.content?.[0]?.text || "";
     logStep("AI response received", { length: content.length });
 
     // Parse the JSON response

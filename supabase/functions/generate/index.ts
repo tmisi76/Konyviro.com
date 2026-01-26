@@ -80,8 +80,8 @@ serve(async (req) => {
     const { action, prompt, context, genre, settings, projectId, chapterId } = await req.json();
     if (!prompt) return new Response(JSON.stringify({ error: "Prompt szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     let stylePrompt = "";
     const authHeader = req.headers.get("Authorization");
@@ -97,8 +97,11 @@ serve(async (req) => {
     const systemPrompt = `${SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction}\n\n${ACTION_PROMPTS[action] || ACTION_PROMPTS.chat}${context?.bookDescription ? `\n\nKönyv: ${context.bookDescription}` : ""}${context?.previousChapters ? `\n\n--- ELŐZŐ FEJEZETEK ---\n${context.previousChapters}` : ""}${context?.currentChapterTitle ? `\n\nAKTUÁLIS FEJEZET: ${context.currentChapterTitle}` : ""}${stylePrompt}`;
     const maxTokens = getMaxTokens(action, prompt, settings);
 
-    const messages = [];
-    if (context?.chapterContent) { messages.push({ role: "user", content: `Kontextus:\n${context.chapterContent}` }); messages.push({ role: "assistant", content: "Megértettem." }); }
+    const messages: Array<{role: string; content: string}> = [];
+    if (context?.chapterContent) { 
+      messages.push({ role: "user", content: `Kontextus:\n${context.chapterContent}` }); 
+      messages.push({ role: "assistant", content: "Megértettem." }); 
+    }
     messages.push({ role: "user", content: prompt });
 
     // Retry logic exponenciális backoff-al (429/502/503 kezelés)
@@ -110,16 +113,26 @@ serve(async (req) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, ...messages], max_tokens: maxTokens, stream: true }),
+          headers: { 
+            "x-api-key": ANTHROPIC_API_KEY, 
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json" 
+          },
+          body: JSON.stringify({ 
+            model: "claude-sonnet-4-20250514", 
+            max_tokens: maxTokens,
+            stream: true,
+            system: systemPrompt,
+            messages: messages
+          }),
           signal: controller.signal,
         });
 
         clearTimeout(timeoutId);
 
-        if (response.status === 429 || response.status === 502 || response.status === 503) {
+        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 529) {
           console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
@@ -154,7 +167,36 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "AI hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    return new Response(response.body, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
+    // Transform Anthropic SSE to OpenAI-compatible SSE for frontend compatibility
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'content_block_delta' && data.delta?.text) {
+                // Transform to OpenAI format
+                const openAIFormat = {
+                  choices: [{
+                    delta: { content: data.delta.text }
+                  }]
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+              } else if (data.type === 'message_stop') {
+                controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    });
+
+    return new Response(response.body?.pipeThrough(transformStream), { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
