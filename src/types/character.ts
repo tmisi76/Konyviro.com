@@ -27,6 +27,9 @@ export interface Character {
   negative_traits: string[];
   speech_style: string | null;
   
+  // Character Voice (AI generated)
+  character_voice: string | null;
+  
   // Backstory
   backstory: string | null;
   key_events: KeyEvent[];
