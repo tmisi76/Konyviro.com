@@ -931,6 +931,47 @@ export type Database = {
         }
         Relationships: []
       }
+      quality_issues: {
+        Row: {
+          chapter_id: string
+          created_at: string
+          description: string
+          id: string
+          issue_type: string
+          location_text: string | null
+          severity: string
+          suggestion: string | null
+        }
+        Insert: {
+          chapter_id: string
+          created_at?: string
+          description: string
+          id?: string
+          issue_type: string
+          location_text?: string | null
+          severity?: string
+          suggestion?: string | null
+        }
+        Update: {
+          chapter_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          issue_type?: string
+          location_text?: string | null
+          severity?: string
+          suggestion?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_issues_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sources: {
         Row: {
           author: string | null
