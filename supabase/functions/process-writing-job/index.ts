@@ -356,6 +356,11 @@ async function updateProjectProgress(supabase: any, projectId: string) {
   // Projekt frissítése
   const isCompleted = pendingCount === 0;
   
+  // Ha most fejeződött be, küldjünk email értesítést
+  if (isCompleted) {
+    await sendCompletionEmail(supabase, projectId);
+  }
+  
   await supabase.from("projects").update({
     completed_scenes: completedCount || 0,
     total_scenes: totalCount || 0,
@@ -364,4 +369,54 @@ async function updateProjectProgress(supabase: any, projectId: string) {
     writing_completed_at: isCompleted ? new Date().toISOString() : null,
     last_activity_at: new Date().toISOString()
   }).eq("id", projectId);
+}
+
+// Email küldése a könyv befejezésekor
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function sendCompletionEmail(supabase: any, projectId: string) {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Projekt és user adatok lekérése
+    const { data: project } = await supabase
+      .from("projects")
+      .select("title, user_id")
+      .eq("id", projectId)
+      .single();
+    
+    if (!project?.user_id) {
+      console.error("Project or user not found for email");
+      return;
+    }
+    
+    // User email lekérése az auth.users táblából
+    const { data: userData } = await supabase.auth.admin.getUserById(project.user_id);
+    
+    if (!userData?.user?.email) {
+      console.error("User email not found");
+      return;
+    }
+    
+    // Email küldése
+    console.log(`Sending completion email to ${userData.user.email} for project "${project.title}"`);
+    
+    await fetch(`${supabaseUrl}/functions/v1/send-completion-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseKey}`
+      },
+      body: JSON.stringify({
+        email: userData.user.email,
+        projectTitle: project.title,
+        projectId: projectId
+      })
+    });
+    
+    console.log("Completion email sent successfully");
+  } catch (error) {
+    // Ne dobjunk hibát, csak loggoljuk - az email küldés nem kritikus
+    console.error("Failed to send completion email:", error);
+  }
 }
