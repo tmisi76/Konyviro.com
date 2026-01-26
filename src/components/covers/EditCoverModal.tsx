@@ -11,8 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Paintbrush, Eraser, RotateCcw } from 'lucide-react';
+import { Loader2, Paintbrush, Eraser, RotateCcw, Zap, Lock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useSubscription } from '@/hooks/useSubscription';
+import { COVER_EDIT_COST } from '@/constants/credits';
 
 interface Cover {
   id: string;
@@ -42,6 +44,11 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
   const [brushSize, setBrushSize] = useState([30]);
   const [tool, setTool] = useState<'brush' | 'eraser'>('brush');
   const [canvasReady, setCanvasReady] = useState(false);
+
+  // Subscription data for credit check
+  const { canGenerateWords, getRemainingWords, refetch: refetchSubscription } = useSubscription();
+  const hasEnoughCredits = canGenerateWords(COVER_EDIT_COST);
+  const remainingWords = getRemainingWords();
 
   // Initialize canvas when modal opens
   useEffect(() => {
@@ -209,17 +216,20 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['covers', cover?.project_id] });
+      refetchSubscription(); // Refresh credit display
+      const creditsUsed = data?.credits_used || COVER_EDIT_COST;
       toast({
         title: 'Borító szerkesztve!',
-        description: 'Az új változat sikeresen létrejött.',
+        description: `Az új változat sikeresen létrejött. ${creditsUsed.toLocaleString()} szó kredit levonva.`,
       });
       onOpenChange(false);
     },
     onError: (error: Error) => {
+      const isInsufficientCredits = error.message.includes('kredit');
       toast({
-        title: 'Hiba',
+        title: isInsufficientCredits ? 'Nincs elég kredit' : 'Hiba',
         description: error.message,
         variant: 'destructive',
       });
@@ -232,6 +242,14 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
       toast({
         title: 'Hiányzó leírás',
         description: 'Kérlek írd le, mit szeretnél változtatni.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!hasEnoughCredits) {
+      toast({
+        title: 'Nincs elég kredit',
+        description: `A borító szerkesztés ${COVER_EDIT_COST.toLocaleString()} szó kreditet igényel. Vásárolj extra kreditet vagy válts nagyobb csomagra.`,
         variant: 'destructive',
       });
       return;
@@ -344,6 +362,18 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
             />
           </div>
 
+          {/* Credit cost info */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+            <Zap className="h-4 w-4 text-amber-500" />
+            <span>
+              Költség: <strong className="text-foreground">{COVER_EDIT_COST.toLocaleString()} szó</strong>
+              {' • '}
+              Maradék: <strong className={remainingWords < COVER_EDIT_COST ? 'text-destructive' : 'text-foreground'}>
+                {remainingWords === Infinity ? '∞' : remainingWords.toLocaleString()} szó
+              </strong>
+            </span>
+          </div>
+
           {/* Submit Button */}
           <div className="flex justify-end gap-2">
             <Button
@@ -353,11 +383,16 @@ export const EditCoverModal: React.FC<EditCoverModalProps> = ({
             >
               Mégse
             </Button>
-            <Button type="submit" disabled={editMutation.isPending}>
+            <Button type="submit" disabled={editMutation.isPending || !hasEnoughCredits}>
               {editMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Feldolgozás...
+                </>
+              ) : !hasEnoughCredits ? (
+                <>
+                  <Lock className="mr-2 h-4 w-4" />
+                  Nincs elég kredit
                 </>
               ) : (
                 'Szerkesztés Mentése'

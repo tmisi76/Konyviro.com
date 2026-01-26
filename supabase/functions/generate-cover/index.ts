@@ -6,6 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const COVER_GENERATION_COST = 2000;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -25,6 +27,12 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } }
+    );
+
+    // Create service role client for RPC calls
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     // Validate JWT and get user
@@ -67,6 +75,48 @@ serve(async (req) => {
         JSON.stringify({ error: "Access denied" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Check user credits
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("monthly_word_limit, extra_words_balance")
+      .eq("user_id", userId)
+      .single();
+
+    if (profileError || !profile) {
+      return new Response(
+        JSON.stringify({ error: "Profile not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const { data: usageData } = await supabaseAdmin
+      .from("user_usage")
+      .select("words_generated")
+      .eq("user_id", userId)
+      .eq("month", currentMonth)
+      .maybeSingle();
+
+    const monthlyLimit = profile.monthly_word_limit || 5000;
+    const wordsUsed = usageData?.words_generated || 0;
+    const extraBalance = profile.extra_words_balance || 0;
+
+    // Unlimited plan check
+    if (monthlyLimit !== -1) {
+      const remainingMonthly = Math.max(0, monthlyLimit - wordsUsed);
+      const totalAvailable = remainingMonthly + extraBalance;
+
+      if (totalAvailable < COVER_GENERATION_COST) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Nincs elég kredit. A borító generálás 2000 szó kreditet igényel. Vásárolj extra kreditet vagy válts nagyobb csomagra.",
+            code: "INSUFFICIENT_CREDITS"
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -183,8 +233,44 @@ The cover should be vertical (portrait orientation), suitable for a book. Includ
 
     console.log("Cover created:", coverRecord.id);
 
+    // Deduct credits after successful generation
+    if (monthlyLimit === -1) {
+      // Unlimited plan - still track usage for analytics
+      await supabaseAdmin.rpc("increment_words_generated", {
+        p_user_id: userId,
+        p_word_count: COVER_GENERATION_COST,
+      });
+    } else {
+      const remainingMonthly = Math.max(0, monthlyLimit - wordsUsed);
+      
+      if (COVER_GENERATION_COST <= remainingMonthly) {
+        // Deduct from monthly quota
+        await supabaseAdmin.rpc("increment_words_generated", {
+          p_user_id: userId,
+          p_word_count: COVER_GENERATION_COST,
+        });
+      } else {
+        // Mixed: use remaining monthly + extra credits
+        if (remainingMonthly > 0) {
+          await supabaseAdmin.rpc("increment_words_generated", {
+            p_user_id: userId,
+            p_word_count: remainingMonthly,
+          });
+        }
+        const fromExtra = COVER_GENERATION_COST - remainingMonthly;
+        if (fromExtra > 0) {
+          await supabaseAdmin.rpc("use_extra_credits", {
+            p_user_id: userId,
+            p_word_count: fromExtra,
+          });
+        }
+      }
+    }
+
+    console.log("Credits deducted:", COVER_GENERATION_COST);
+
     return new Response(
-      JSON.stringify(coverRecord),
+      JSON.stringify({ ...coverRecord, credits_used: COVER_GENERATION_COST }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
