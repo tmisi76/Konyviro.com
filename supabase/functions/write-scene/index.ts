@@ -228,8 +228,8 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -310,19 +310,18 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
 
         console.log(`AI request attempt ${attempt}/${maxRetries} for scene ${sceneNumber}`);
 
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: prompt },
-            ],
-            max_tokens: dynamicMaxTokens, // Dynamic based on target words
+            model: "claude-sonnet-4-20250514",
+            max_tokens: dynamicMaxTokens,
+            system: systemPrompt,
+            messages: [{ role: "user", content: prompt }],
           }),
           signal: controller.signal,
         });
@@ -330,7 +329,7 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
         clearTimeout(timeoutId);
 
         // Handle rate limit (429), gateway errors (502/503/504)
-        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) {
+        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504 || response.status === 529) {
           const statusText = response.status === 429 ? "Rate limit" : `Gateway ${response.status}`;
           console.error(`${statusText} (attempt ${attempt}/${maxRetries})`);
           
@@ -391,7 +390,7 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
           throw new Error("Hibás API válasz formátum");
         }
 
-        content = aiData.choices?.[0]?.message?.content || "";
+        content = aiData.content?.[0]?.text || "";
 
         // Retry on empty or too short response (minimum 100 chars for a valid scene)
         if (!content || content.trim().length < 100) {

@@ -62,8 +62,8 @@ serve(async (req) => {
     const { projectId, chapterId, chapterTitle, chapterSummary, bookTopic, targetAudience, genre, chapterType } = await req.json();
     if (!projectId || !chapterId) return new Response(JSON.stringify({ error: "projectId és chapterId szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const isFiction = genre === "fiction";
     const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
@@ -94,10 +94,19 @@ KÖTELEZŐ SZEKCIÓK:
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 6000 }),
+          headers: { 
+            "x-api-key": ANTHROPIC_API_KEY, 
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json" 
+          },
+          body: JSON.stringify({ 
+            model: "claude-sonnet-4-20250514", 
+            max_tokens: 6000,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }]
+          }),
           signal: controller.signal,
         });
 
@@ -114,7 +123,7 @@ KÖTELEZŐ SZEKCIÓK:
         }
 
         // Handle server errors with retry
-        if (response.status === 502 || response.status === 503 || response.status === 500) {
+        if (response.status === 502 || response.status === 503 || response.status === 500 || response.status === 529) {
           console.error(`Server error ${response.status} (attempt ${attempt}/${MAX_RETRIES})`);
           const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -128,7 +137,7 @@ KÖTELEZŐ SZEKCIÓK:
         }
 
         const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || "";
+        const content = data.content?.[0]?.text || "";
 
         // Check for empty or too short response - BE EXTREMELY PATIENT
         if (!content || content.trim().length < 50) {
