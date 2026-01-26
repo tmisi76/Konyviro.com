@@ -212,7 +212,13 @@ Cél: ~${scene.target_words || 1000} szó
 ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
     // Generate scene content with rock-solid retry logic
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "AI nincs konfigurálva" }), 
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const maxRetries = 7;
     const MAX_TIMEOUT = 120000; // 2 minutes
     let sceneText = "";
@@ -224,19 +230,18 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
         console.log(`AI request attempt ${attempt}/${maxRetries} for scene ${targetSceneIndex + 1}`);
 
-        const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { 
-            Authorization: `Bearer ${LOVABLE_API_KEY}`, 
+            "x-api-key": ANTHROPIC_API_KEY, 
+            "anthropic-version": "2023-06-01",
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "google/gemini-3-flash-preview", 
-            messages: [
-              { role: "system", content: PROMPTS[genre] }, 
-              { role: "user", content: prompt }
-            ], 
-            max_tokens: 8192 // INCREASED for maximum response length
+            model: "claude-sonnet-4-20250514", 
+            max_tokens: 8192,
+            system: PROMPTS[genre],
+            messages: [{ role: "user", content: prompt }]
           }),
           signal: controller.signal,
         });
@@ -244,7 +249,7 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
         clearTimeout(timeoutId);
 
         // Handle rate limit and gateway errors
-        if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+        if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504 || res.status === 529) {
           console.error(`Status ${res.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
@@ -290,7 +295,7 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
           throw new Error("Hibás API válasz formátum");
         }
 
-        sceneText = d.choices?.[0]?.message?.content || "";
+        sceneText = d.content?.[0]?.text || "";
         
         // Retry on empty or too short response
         if (!sceneText || sceneText.trim().length < 100) {

@@ -41,8 +41,8 @@ serve(async (req) => {
 
     const { genre, length, concept, targetWordCount } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -157,13 +157,18 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
 
         console.log(`AI request attempt ${attempt}/${maxRetries}`);
 
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          headers: { 
+            "x-api-key": ANTHROPIC_API_KEY, 
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json" 
+          },
           body: JSON.stringify({ 
-            model: "google/gemini-3-flash-preview", 
-            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: prompt }], 
-            max_tokens: 8192 // INCREASED for maximum response length
+            model: "claude-sonnet-4-20250514", 
+            max_tokens: 8192,
+            system: systemPrompt,
+            messages: [{ role: "user", content: prompt }]
           }),
           signal: controller.signal,
         });
@@ -171,7 +176,7 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
         clearTimeout(timeoutId);
 
         // Handle rate limit and gateway errors
-        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) {
+        if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504 || response.status === 529) {
           console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
           if (attempt < maxRetries) {
             const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
@@ -211,7 +216,7 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
           throw new Error("Hibás API válasz formátum");
         }
 
-        content = aiData.choices?.[0]?.message?.content || "";
+        content = aiData.content?.[0]?.text || "";
 
         // Retry on empty or too short response (minimum 50 chars for valid chapters)
         if (!content || content.trim().length < 50) {
