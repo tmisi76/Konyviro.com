@@ -156,6 +156,47 @@ export function useProjects() {
     fetchProjects();
   }, [user]);
 
+  // Real-time subscription a projektek változásaihoz (writing_status frissítések)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('projects-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'projects',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          const updatedProject = payload.new as Project;
+          setProjects((prev) =>
+            prev.map((p) => (p.id === updatedProject.id ? { ...p, ...updatedProject } : p))
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'projects',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          // Új projekt létrehozásakor újra lekérdezzük
+          fetchProjects();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   return {
     projects,
     isLoading,
