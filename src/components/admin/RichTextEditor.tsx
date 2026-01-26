@@ -4,6 +4,37 @@ import { EmailToolbar } from "./EmailToolbar";
 import { Button } from "@/components/ui/button";
 import { Code } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import DOMPurify from "dompurify";
+
+// Configure DOMPurify for email-safe HTML
+const sanitizeConfig = {
+  ALLOWED_TAGS: [
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'p', 'br', 'hr',
+    'strong', 'b', 'em', 'i', 'u', 's', 'strike',
+    'ul', 'ol', 'li',
+    'a', 'img',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'div', 'span',
+    'blockquote', 'pre', 'code'
+  ],
+  ALLOWED_ATTR: [
+    'href', 'target', 'rel',
+    'src', 'alt', 'width', 'height',
+    'style', 'class',
+    'align', 'valign',
+    'colspan', 'rowspan',
+    'border', 'cellpadding', 'cellspacing'
+  ],
+  ALLOW_DATA_ATTR: false,
+  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
+  FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
+};
+
+// Sanitize HTML content for safe rendering
+const sanitizeHtml = (html: string): string => {
+  return DOMPurify.sanitize(html, sanitizeConfig) as string;
+};
 
 interface RichTextEditorProps {
   value: string;
@@ -25,7 +56,7 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
   // Initialize editor content on mount
   useEffect(() => {
     if (editorRef.current && !isInitialized.current) {
-      editorRef.current.innerHTML = value || '';
+      editorRef.current.innerHTML = sanitizeHtml(value || '');
       isInitialized.current = true;
       lastExternalValue.current = value;
     }
@@ -41,7 +72,7 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
     
     // Only update if value changed externally and we're initialized
     if (editorRef.current && !isSourceView && isInitialized.current && value !== lastExternalValue.current) {
-      editorRef.current.innerHTML = value || '';
+      editorRef.current.innerHTML = sanitizeHtml(value || '');
       lastExternalValue.current = value;
     }
     
@@ -52,22 +83,26 @@ export function RichTextEditor({ value, onChange, className, placeholder }: Rich
     if (editorRef.current) {
       const html = editorRef.current.innerHTML;
       const cleanHtml = html === '<br>' ? '' : html;
+      // Sanitize output to ensure clean HTML is stored
+      const sanitizedHtml = sanitizeHtml(cleanHtml);
       isInternalUpdate.current = true; // Mark as internal update
-      lastExternalValue.current = cleanHtml;
-      onChange(cleanHtml);
+      lastExternalValue.current = sanitizedHtml;
+      onChange(sanitizedHtml);
     }
   }, [onChange]);
 
   const handleSourceChange = useCallback((newValue: string) => {
-    setSourceValue(newValue);
-    onChange(newValue);
+    // Sanitize HTML when switching from source view
+    const sanitizedValue = sanitizeHtml(newValue);
+    setSourceValue(newValue); // Keep raw value for source view
+    onChange(sanitizedValue); // But pass sanitized version to parent
   }, [onChange]);
 
   const toggleSourceView = useCallback(() => {
     if (isSourceView) {
-      // Switching from source to WYSIWYG
+      // Switching from source to WYSIWYG - sanitize the HTML
       if (editorRef.current) {
-        editorRef.current.innerHTML = sourceValue;
+        editorRef.current.innerHTML = sanitizeHtml(sourceValue);
       }
     } else {
       // Switching from WYSIWYG to source
