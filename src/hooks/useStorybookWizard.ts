@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,14 @@ export function useStorybookWizard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+
+  // Ref to track current pages - avoids stale closure issues
+  const pagesRef = useRef<StorybookPage[]>([]);
+
+  // Sync ref with state
+  useEffect(() => {
+    pagesRef.current = data.pages;
+  }, [data.pages]);
 
   // Total steps for storybook wizard
   const maxSteps = 7;
@@ -255,13 +263,17 @@ export function useStorybookWizard() {
   }, [user, data, updateData]);
 
   // Generate illustration for a page
-  const generateIllustration = useCallback(async (pageId: string): Promise<boolean> => {
+  const generateIllustration = useCallback(async (
+    pageId: string,
+    pageData?: StorybookPage // Optional: pass page data directly to avoid closure issues
+  ): Promise<boolean> => {
     if (!user) {
       toast.error("Be kell jelentkezned");
       return false;
     }
 
-    const page = data.pages.find(p => p.id === pageId);
+    // Use passed page data or find from ref (not from stale closure)
+    const page = pageData || pagesRef.current.find(p => p.id === pageId);
     if (!page) return false;
 
     updatePage(pageId, { isGenerating: true });
@@ -293,20 +305,23 @@ export function useStorybookWizard() {
       updatePage(pageId, { isGenerating: false });
       return false;
     }
-  }, [user, data, updatePage]);
+  }, [user, data.illustrationStyle, data.characters, updatePage]);
 
   // Generate all illustrations with progress callback
   const generateAllIllustrations = useCallback(async (
     onProgress?: (current: number, total: number) => void
   ): Promise<boolean> => {
-    const pagesToGenerate = data.pages.filter(p => !p.illustrationUrl);
+    // Get current pages from ref to avoid stale closure
+    const currentPages = pagesRef.current;
+    const pagesToGenerate = currentPages.filter(p => !p.illustrationUrl);
     const total = pagesToGenerate.length;
     
     for (let i = 0; i < pagesToGenerate.length; i++) {
       const page = pagesToGenerate[i];
       onProgress?.(i + 1, total);
       
-      const success = await generateIllustration(page.id);
+      // Pass page data directly to avoid closure issues
+      const success = await generateIllustration(page.id, page);
       if (!success) return false;
       
       // Small delay between generations to avoid rate limiting
@@ -315,7 +330,7 @@ export function useStorybookWizard() {
       }
     }
     return true;
-  }, [data.pages, generateIllustration]);
+  }, [generateIllustration]);
 
   // Save project to database
   const saveProject = useCallback(async (): Promise<string | null> => {
