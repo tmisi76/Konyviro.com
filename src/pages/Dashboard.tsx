@@ -251,6 +251,24 @@ export default function Dashboard() {
                 />
               </div>
 
+              {/* Aktív írások mobil nézeten */}
+              {activeWritingProjects.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="mb-3 text-lg font-semibold text-foreground">
+                    Folyamatban lévő írások
+                  </h2>
+                  <div className="mobile-card-stack">
+                    {activeWritingProjects.map((project) => (
+                      <WritingStatusCard
+                        key={project.id}
+                        projectId={project.id}
+                        projectTitle={project.title}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Projects section */}
               <div>
                 <h2 className="mb-4 text-lg font-semibold text-foreground">
