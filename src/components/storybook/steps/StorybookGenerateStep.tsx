@@ -11,15 +11,21 @@ import {
   ArrowRight,
   RefreshCw,
   AlertCircle,
+  Coins,
 } from "lucide-react";
 import { StorybookData, StorybookPage, AGE_GROUPS } from "@/types/storybook";
 import { toast } from "sonner";
+import { useSubscription } from "@/hooks/useSubscription";
+import { 
+  STORYBOOK_TEXT_COST, 
+  STORYBOOK_ILLUSTRATION_COST 
+} from "@/constants/credits";
 
 interface StorybookGenerateStepProps {
   data: StorybookData;
   isGenerating: boolean;
   onGenerateStory: () => Promise<boolean>;
-  onGenerateIllustrations: () => Promise<boolean>;
+  onGenerateIllustrations: (onProgress?: (current: number, total: number) => void) => Promise<boolean>;
   onComplete: () => void;
   setPages: (pages: StorybookPage[]) => void;
 }
@@ -37,24 +43,39 @@ export function StorybookGenerateStep({
   const [phase, setPhase] = useState<GenerationPhase>("idle");
   const [progress, setProgress] = useState(0);
   const [currentIllustration, setCurrentIllustration] = useState(0);
+  const [totalIllustrations, setTotalIllustrations] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [creditsUsed, setCreditsUsed] = useState(0);
   const hasStarted = useRef(false);
+  
+  const { subscription, usage, getRemainingWords } = useSubscription();
 
   const ageGroup = data.ageGroup ? AGE_GROUPS.find(g => g.id === data.ageGroup) : null;
   const totalPages = ageGroup?.pageCount || 12;
+  const wordsPerPage = ageGroup?.wordCountPerPage || 30;
 
-  // Auto-start generation when component mounts (only once)
-  useEffect(() => {
-    if (!hasStarted.current && phase === "idle" && data.pages.length === 0) {
-      hasStarted.current = true;
-      handleStartGeneration();
-    }
-  }, []);
+  // Calculate estimated costs
+  const estimatedTextCost = STORYBOOK_TEXT_COST;
+  const estimatedIllustrationCost = totalPages * STORYBOOK_ILLUSTRATION_COST;
+  const estimatedTotalCost = estimatedTextCost + estimatedIllustrationCost;
+  
+  // Calculate available credits
+  const totalAvailable = getRemainingWords();
+  const hasEnoughCredits = totalAvailable >= estimatedTotalCost;
 
   const handleStartGeneration = async () => {
+    // Check credits first
+    if (!hasEnoughCredits) {
+      toast.error("Nincs elég kredit a mesekönyv generálásához.");
+      setError("Nincs elég kredit. Vásárolj krediteket vagy válassz kisebb korosztályt (kevesebb oldal).");
+      setPhase("error");
+      return;
+    }
+
     setError(null);
     setPhase("story");
     setProgress(0);
+    setCreditsUsed(0);
 
     try {
       // Story generation with progress simulation
@@ -70,26 +91,28 @@ export function StorybookGenerateStep({
       }
 
       setProgress(50);
+      setCreditsUsed(STORYBOOK_TEXT_COST);
       setPhase("illustrations");
 
-      // Generate illustrations one by one
+      // Generate illustrations with real progress tracking
       const pagesCount = data.pages.length || totalPages;
-      
-      for (let i = 0; i < pagesCount; i++) {
-        setCurrentIllustration(i + 1);
-        setProgress(50 + ((i + 1) / pagesCount) * 45);
-        
-        // Wait for illustration progress animation
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      setTotalIllustrations(pagesCount);
+      setCurrentIllustration(0);
 
-      const illustrationsSuccess = await onGenerateIllustrations();
+      const illustrationsSuccess = await onGenerateIllustrations((current, total) => {
+        setCurrentIllustration(current);
+        setTotalIllustrations(total);
+        const illustrationProgress = 50 + (current / total) * 45;
+        setProgress(illustrationProgress);
+        setCreditsUsed(STORYBOOK_TEXT_COST + (current * STORYBOOK_ILLUSTRATION_COST));
+      });
       
       if (!illustrationsSuccess) {
         throw new Error("Néhány illusztráció nem készült el. Az előnézetben újragenerálhatod őket.");
       }
 
       setProgress(100);
+      setCreditsUsed(STORYBOOK_TEXT_COST + (pagesCount * STORYBOOK_ILLUSTRATION_COST));
       setPhase("complete");
       toast.success("A mesekönyv elkészült!");
     } catch (err) {
@@ -106,16 +129,16 @@ export function StorybookGenerateStep({
     setProgress(0);
     setCurrentIllustration(0);
     setError(null);
-    // Short delay before restarting
-    setTimeout(() => {
-      hasStarted.current = true;
-      handleStartGeneration();
-    }, 100);
+    setCreditsUsed(0);
   };
 
   const handleContinueWithErrors = () => {
     // Allow user to continue even if some illustrations failed
     setPhase("complete");
+  };
+
+  const formatCredits = (credits: number) => {
+    return credits.toLocaleString("hu-HU");
   };
 
   const renderPhaseContent = () => {
@@ -136,7 +159,51 @@ export function StorybookGenerateStep({
             <p className="text-muted-foreground mb-6">
               Az AI most elkészíti a személyre szabott mesekönyvedet
             </p>
-            <Button onClick={handleStartGeneration} size="lg" className="gap-2">
+
+            {/* Credit estimation panel */}
+            <div className="max-w-md mx-auto mb-8 p-4 rounded-xl bg-card border border-border">
+              <div className="flex items-center gap-2 mb-3">
+                <Coins className="w-5 h-5 text-amber-500" />
+                <h3 className="font-semibold">Becsült költség</h3>
+              </div>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Szöveg generálás:</span>
+                  <span>{formatCredits(estimatedTextCost)} kredit</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Illusztrációk ({totalPages} db × {STORYBOOK_ILLUSTRATION_COST}):</span>
+                  <span>{formatCredits(estimatedIllustrationCost)} kredit</span>
+                </div>
+                <div className="border-t border-border my-2" />
+                <div className="flex justify-between font-semibold">
+                  <span>Összesen:</span>
+                  <span className={hasEnoughCredits ? "text-primary" : "text-destructive"}>
+                    ~{formatCredits(estimatedTotalCost)} kredit
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Elérhető kredit:</span>
+                  <span className={hasEnoughCredits ? "text-green-600 dark:text-green-400" : "text-destructive"}>
+                    {formatCredits(totalAvailable)}
+                  </span>
+                </div>
+              </div>
+
+              {!hasEnoughCredits && (
+                <div className="mt-3 p-2 rounded-lg bg-destructive/10 text-destructive text-sm">
+                  Nincs elég kredit. Vásárolj krediteket a folytatáshoz.
+                </div>
+              )}
+            </div>
+
+            <Button 
+              onClick={handleStartGeneration} 
+              size="lg" 
+              className="gap-2"
+              disabled={!hasEnoughCredits}
+            >
               <Sparkles className="w-4 h-4" />
               Generálás indítása
             </Button>
@@ -157,6 +224,13 @@ export function StorybookGenerateStep({
               Hiba történt
             </h2>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">{error}</p>
+            
+            {creditsUsed > 0 && (
+              <p className="text-sm text-muted-foreground mb-4">
+                Eddig felhasznált kredit: {formatCredits(creditsUsed)}
+              </p>
+            )}
+            
             <div className="flex gap-3 justify-center">
               <Button variant="outline" onClick={handleContinueWithErrors}>
                 Folytatás az előnézethez
@@ -240,13 +314,13 @@ export function StorybookGenerateStep({
             <div className="max-w-md mx-auto space-y-2">
               <Progress value={progress} className="h-3" />
               <p className="text-sm text-muted-foreground">
-                {currentIllustration}. kép / {data.pages.length || totalPages} oldal... {Math.round(progress)}%
+                {currentIllustration}. kép / {totalIllustrations || data.pages.length || totalPages} oldal... {Math.round(progress)}%
               </p>
             </div>
 
             {/* Illustration preview grid */}
             <div className="mt-8 grid grid-cols-4 gap-2 max-w-md mx-auto">
-              {Array.from({ length: data.pages.length || totalPages }).map((_, i) => (
+              {Array.from({ length: totalIllustrations || data.pages.length || totalPages }).map((_, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, scale: 0.8 }}
@@ -265,6 +339,11 @@ export function StorybookGenerateStep({
                   )}
                 </motion.div>
               ))}
+            </div>
+
+            {/* Credit usage */}
+            <div className="mt-6 text-sm text-muted-foreground">
+              Felhasznált kredit: {formatCredits(creditsUsed)}
             </div>
           </motion.div>
         );
@@ -319,6 +398,16 @@ export function StorybookGenerateStep({
                 <div className="text-3xl font-bold text-primary">{data.characters.length}</div>
                 <div className="text-sm text-muted-foreground">szereplő</div>
               </div>
+            </motion.div>
+
+            {/* Credits used */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
+              className="mb-8 text-sm text-muted-foreground"
+            >
+              Felhasznált kredit: <span className="font-semibold text-foreground">{formatCredits(creditsUsed)}</span>
             </motion.div>
 
             <motion.div

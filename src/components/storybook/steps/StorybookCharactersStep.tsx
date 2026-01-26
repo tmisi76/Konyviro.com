@@ -88,13 +88,21 @@ export function StorybookCharactersStep({
     }
   }, [characters, onUploadPhoto, onAddCharacter]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
     onDrop,
     accept: {
-      "image/*": [".jpeg", ".jpg", ".png", ".webp"],
+      "image/jpeg": [".jpeg", ".jpg"],
+      "image/png": [".png"],
+      "image/webp": [".webp"],
     },
     maxFiles: 1,
     disabled: isUploading || characters.length >= 3,
+    onDropRejected: (rejections) => {
+      const rejection = rejections[0];
+      if (rejection?.errors?.some(e => e.code === 'file-invalid-type')) {
+        toast.error("Ez a képformátum nem támogatott. Kérlek használj JPG, PNG vagy WebP formátumot.");
+      }
+    },
   });
 
   const handleContinue = () => {

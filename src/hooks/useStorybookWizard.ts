@@ -164,6 +164,9 @@ export function useStorybookWizard() {
     sessionStorage.removeItem(STORAGE_KEY);
   }, []);
 
+  // Supported image formats
+  const SUPPORTED_FORMATS = ['image/jpeg', 'image/png', 'image/webp'];
+
   // Upload character photo to Supabase Storage
   const uploadCharacterPhoto = useCallback(async (file: File): Promise<string | null> => {
     if (!user) {
@@ -171,8 +174,20 @@ export function useStorybookWizard() {
       return null;
     }
 
+    // Validate file format
+    if (!SUPPORTED_FORMATS.includes(file.type)) {
+      toast.error("Ez a képformátum nem támogatott. Kérlek használj JPG, PNG vagy WebP formátumot.");
+      return null;
+    }
+
     try {
-      const fileExt = file.name.split('.').pop();
+      // Determine file extension from MIME type
+      const extMap: Record<string, string> = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+      };
+      const fileExt = extMap[file.type] || 'jpg';
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
@@ -280,13 +295,22 @@ export function useStorybookWizard() {
     }
   }, [user, data, updatePage]);
 
-  // Generate all illustrations
-  const generateAllIllustrations = useCallback(async (): Promise<boolean> => {
-    for (const page of data.pages) {
-      if (!page.illustrationUrl) {
-        const success = await generateIllustration(page.id);
-        if (!success) return false;
-        // Small delay between generations to avoid rate limiting
+  // Generate all illustrations with progress callback
+  const generateAllIllustrations = useCallback(async (
+    onProgress?: (current: number, total: number) => void
+  ): Promise<boolean> => {
+    const pagesToGenerate = data.pages.filter(p => !p.illustrationUrl);
+    const total = pagesToGenerate.length;
+    
+    for (let i = 0; i < pagesToGenerate.length; i++) {
+      const page = pagesToGenerate[i];
+      onProgress?.(i + 1, total);
+      
+      const success = await generateIllustration(page.id);
+      if (!success) return false;
+      
+      // Small delay between generations to avoid rate limiting
+      if (i < pagesToGenerate.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
