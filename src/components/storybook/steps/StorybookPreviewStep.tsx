@@ -15,6 +15,7 @@ import {
   Loader2,
   BookOpen,
   Maximize2,
+  ImageOff,
 } from "lucide-react";
 import { StorybookData, StorybookPage } from "@/types/storybook";
 import { StorybookExport } from "../StorybookExport";
@@ -24,6 +25,7 @@ interface StorybookPreviewStepProps {
   data: StorybookData;
   onUpdatePage: (pageId: string, updates: Partial<StorybookPage>) => void;
   onRegenerateIllustration: (pageId: string) => Promise<boolean>;
+  onRegenerateMissingIllustrations?: () => Promise<boolean>;
   onSave: () => Promise<string | null>;
   onExport: () => void;
   isSaving: boolean;
@@ -33,6 +35,7 @@ export function StorybookPreviewStep({
   data,
   onUpdatePage,
   onRegenerateIllustration,
+  onRegenerateMissingIllustrations,
   onSave,
   onExport,
   isSaving,
@@ -42,11 +45,15 @@ export function StorybookPreviewStep({
   const [editText, setEditText] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [regeneratingPage, setRegeneratingPage] = useState<string | null>(null);
+  const [isRegeneratingAll, setIsRegeneratingAll] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
 
   const pages = data.pages;
   const totalPages = pages.length;
   const page = pages[currentPage];
+  
+  // Count missing illustrations
+  const missingIllustrations = pages.filter(p => !p.illustrationUrl).length;
 
   const goToPage = (index: number) => {
     if (index >= 0 && index < totalPages) {
@@ -79,6 +86,13 @@ export function StorybookPreviewStep({
     setRegeneratingPage(page.id);
     await onRegenerateIllustration(page.id);
     setRegeneratingPage(null);
+  };
+
+  const handleRegenerateMissingIllustrations = async () => {
+    if (!onRegenerateMissingIllustrations) return;
+    setIsRegeneratingAll(true);
+    await onRegenerateMissingIllustrations();
+    setIsRegeneratingAll(false);
   };
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -254,6 +268,24 @@ export function StorybookPreviewStep({
       <div className="flex items-center justify-between p-4 border-b">
         <h2 className="text-xl font-bold">{data.title}</h2>
         <div className="flex items-center gap-2">
+          {/* Missing illustrations warning button */}
+          {missingIllustrations > 0 && onRegenerateMissingIllustrations && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRegenerateMissingIllustrations}
+              disabled={isRegeneratingAll || regeneratingPage !== null}
+              className="gap-2 border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+            >
+              {isRegeneratingAll ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ImageOff className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Hiányzó képek ({missingIllustrations})</span>
+              <span className="sm:hidden">{missingIllustrations}</span>
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -265,7 +297,7 @@ export function StorybookPreviewStep({
             variant="outline"
             size="sm"
             onClick={handleRegenerateIllustration}
-            disabled={regeneratingPage !== null}
+            disabled={regeneratingPage !== null || isRegeneratingAll}
           >
             <RefreshCw className={cn("w-4 h-4", regeneratingPage && "animate-spin")} />
           </Button>

@@ -125,16 +125,20 @@ export function useStorybookWizard() {
   }, []);
 
   const setPages = useCallback((pages: StorybookPage[]) => {
+    // Immediately sync ref to avoid race conditions
+    pagesRef.current = pages;
     updateData("pages", pages);
   }, [updateData]);
 
   const updatePage = useCallback((pageId: string, updates: Partial<StorybookPage>) => {
-    setData(prev => ({
-      ...prev,
-      pages: prev.pages.map(p => 
+    setData(prev => {
+      const nextPages = prev.pages.map(p => 
         p.id === pageId ? { ...p, ...updates } : p
-      ),
-    }));
+      );
+      // Immediately sync ref to avoid race conditions
+      pagesRef.current = nextPages;
+      return { ...prev, pages: nextPages };
+    });
     setIsDirty(true);
   }, []);
 
@@ -246,6 +250,9 @@ export function useStorybookWizard() {
         updateData("generatedStory", response.story);
       }
       if (response.pages) {
+        // CRITICAL: Immediately sync ref BEFORE state update to ensure
+        // generateAllIllustrations() sees the new pages right away
+        pagesRef.current = response.pages;
         updateData("pages", response.pages);
       }
       if (response.title && !data.title) {
@@ -313,8 +320,20 @@ export function useStorybookWizard() {
   ): Promise<boolean> => {
     // Get current pages from ref to avoid stale closure
     const currentPages = pagesRef.current;
+    
+    // Guard: if no pages exist, fail early instead of silently "succeeding"
+    if (currentPages.length === 0) {
+      toast.error("Nem találok oldalakat a képgeneráláshoz. Kérlek próbáld újra.");
+      return false;
+    }
+    
     const pagesToGenerate = currentPages.filter(p => !p.illustrationUrl);
     const total = pagesToGenerate.length;
+    
+    // If no pages need generation (all have URLs), that's fine
+    if (total === 0) {
+      return true;
+    }
     
     for (let i = 0; i < pagesToGenerate.length; i++) {
       const page = pagesToGenerate[i];
