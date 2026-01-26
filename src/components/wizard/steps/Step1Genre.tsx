@@ -20,6 +20,12 @@ const GENRES: { id: Genre; icon: string; title: string; description: string }[] 
     title: "Fiction",
     description: "Regények, novellák, kreatív történetek",
   },
+  {
+    id: "mesekonyv",
+    icon: "🧸",
+    title: "Mesekönyv",
+    description: "Személyre szabott gyerekkönyvek fotókkal",
+  },
 ];
 
 export function Step1Genre({ selected, onSelect }: Step1GenreProps) {
@@ -38,7 +44,7 @@ export function Step1Genre({ selected, onSelect }: Step1GenreProps) {
         </p>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
         {GENRES.map((genre, index) => (
           <motion.button
             key={genre.id}
@@ -54,7 +60,8 @@ export function Step1Genre({ selected, onSelect }: Step1GenreProps) {
               "flex flex-col items-center text-center gap-4",
               selected === genre.id
                 ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                : "border-border hover:border-primary/50"
+                : "border-border hover:border-primary/50",
+              genre.id === "mesekonyv" && "ring-2 ring-amber-400/30"
             )}
           >
             {/* Gradient glow effect */}
@@ -64,6 +71,18 @@ export function Step1Genre({ selected, onSelect }: Step1GenreProps) {
               "group-hover:opacity-100",
               selected === genre.id && "opacity-100"
             )} />
+
+            {/* New badge for storybook */}
+            {genre.id === "mesekonyv" && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.5, type: "spring" }}
+                className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full"
+              >
+                ÚJ!
+              </motion.div>
+            )}
 
             <span className="text-6xl relative z-10">{genre.icon}</span>
             <div className="relative z-10">

@@ -104,7 +104,12 @@ export function BookCreationWizard() {
     }
   };
 
-  const handleGenreSelect = (genre: "szakkonyv" | "fiction") => {
+  const handleGenreSelect = (genre: "szakkonyv" | "fiction" | "mesekonyv") => {
+    // Redirect to storybook wizard if mesekonyv is selected
+    if (genre === "mesekonyv") {
+      navigate("/create-storybook");
+      return;
+    }
     setGenre(genre);
     setTimeout(() => nextStep(), 250);
   };

@@ -1,0 +1,316 @@
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Loader2, 
+  Sparkles, 
+  BookOpen, 
+  Image, 
+  CheckCircle2,
+  ArrowRight,
+  RefreshCw,
+} from "lucide-react";
+import { StorybookData, StorybookPage, AGE_GROUPS } from "@/types/storybook";
+import { toast } from "sonner";
+
+interface StorybookGenerateStepProps {
+  data: StorybookData;
+  isGenerating: boolean;
+  onGenerateStory: () => Promise<boolean>;
+  onGenerateIllustrations: () => Promise<boolean>;
+  onComplete: () => void;
+  setPages: (pages: StorybookPage[]) => void;
+}
+
+type GenerationPhase = "idle" | "story" | "illustrations" | "complete";
+
+export function StorybookGenerateStep({
+  data,
+  isGenerating,
+  onGenerateStory,
+  onGenerateIllustrations,
+  onComplete,
+  setPages,
+}: StorybookGenerateStepProps) {
+  const [phase, setPhase] = useState<GenerationPhase>("idle");
+  const [progress, setProgress] = useState(0);
+  const [currentIllustration, setCurrentIllustration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const ageGroup = data.ageGroup ? AGE_GROUPS.find(g => g.id === data.ageGroup) : null;
+  const totalPages = ageGroup?.pageCount || 12;
+
+  // Auto-start generation when component mounts
+  useEffect(() => {
+    if (phase === "idle" && data.pages.length === 0) {
+      handleStartGeneration();
+    }
+  }, []);
+
+  const handleStartGeneration = async () => {
+    setError(null);
+    setPhase("story");
+    setProgress(0);
+
+    try {
+      // Simulate story generation progress
+      const progressInterval = setInterval(() => {
+        setProgress(prev => Math.min(prev + 5, 40));
+      }, 500);
+
+      const storySuccess = await onGenerateStory();
+      clearInterval(progressInterval);
+
+      if (!storySuccess) {
+        throw new Error("Hiba a történet generálása során");
+      }
+
+      setProgress(50);
+      setPhase("illustrations");
+
+      // Generate illustrations
+      const totalIllustrations = data.pages.length || totalPages;
+      for (let i = 0; i < totalIllustrations; i++) {
+        setCurrentIllustration(i + 1);
+        setProgress(50 + ((i + 1) / totalIllustrations) * 50);
+        
+        // Simulate illustration generation (actual generation happens in parent)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
+      const illustrationsSuccess = await onGenerateIllustrations();
+      
+      if (!illustrationsSuccess) {
+        throw new Error("Hiba az illusztrációk generálása során");
+      }
+
+      setProgress(100);
+      setPhase("complete");
+      toast.success("A mesekönyv elkészült!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ismeretlen hiba történt");
+      setPhase("idle");
+    }
+  };
+
+  const handleRetry = () => {
+    handleStartGeneration();
+  };
+
+  const renderPhaseContent = () => {
+    switch (phase) {
+      case "idle":
+        return (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center"
+          >
+            {error ? (
+              <>
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                  <span className="text-4xl">😢</span>
+                </div>
+                <h2 className="text-2xl font-bold mb-4 text-red-600 dark:text-red-400">
+                  Hiba történt
+                </h2>
+                <p className="text-muted-foreground mb-6">{error}</p>
+                <Button onClick={handleRetry} className="gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Újrapróbálás
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Sparkles className="w-10 h-10 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold mb-4">
+                  Készen állsz a varázslatra?
+                </h2>
+                <p className="text-muted-foreground mb-6">
+                  Az AI most elkészíti a személyre szabott mesekönyvedet
+                </p>
+                <Button onClick={handleStartGeneration} size="lg" className="gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  Generálás indítása
+                </Button>
+              </>
+            )}
+          </motion.div>
+        );
+
+      case "story":
+        return (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
+          >
+            <div className="w-24 h-24 mx-auto mb-6 relative">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 rounded-full border-4 border-primary/20 border-t-primary"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <BookOpen className="w-10 h-10 text-primary" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">
+              A történet készül...
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              Az AI most írja meg a személyre szabott mesét
+            </p>
+            
+            <div className="max-w-md mx-auto space-y-2">
+              <Progress value={progress} className="h-3" />
+              <p className="text-sm text-muted-foreground">
+                Történet generálása... {Math.round(progress)}%
+              </p>
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="mt-8 p-4 rounded-lg bg-primary/5 max-w-md mx-auto"
+            >
+              <p className="text-sm italic text-muted-foreground">
+                "Egyszer volt, hol nem volt..."
+              </p>
+            </motion.div>
+          </motion.div>
+        );
+
+      case "illustrations":
+        return (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
+          >
+            <div className="w-24 h-24 mx-auto mb-6 relative">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 rounded-full border-4 border-amber-400/20 border-t-amber-400"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Image className="w-10 h-10 text-amber-500" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">
+              Illusztrációk készülnek...
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              Az AI most rajzolja meg a mesekönyv képeit
+            </p>
+            
+            <div className="max-w-md mx-auto space-y-2">
+              <Progress value={progress} className="h-3" />
+              <p className="text-sm text-muted-foreground">
+                {currentIllustration}. kép / {totalPages} oldal... {Math.round(progress)}%
+              </p>
+            </div>
+
+            {/* Illustration preview grid */}
+            <div className="mt-8 grid grid-cols-4 gap-2 max-w-md mx-auto">
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ 
+                    opacity: i < currentIllustration ? 1 : 0.3,
+                    scale: i < currentIllustration ? 1 : 0.9,
+                  }}
+                  className={`aspect-square rounded-lg ${
+                    i < currentIllustration 
+                      ? "bg-gradient-to-br from-amber-400 to-orange-500" 
+                      : "bg-muted"
+                  } flex items-center justify-center`}
+                >
+                  {i < currentIllustration && (
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        );
+
+      case "complete":
+        return (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", delay: 0.2 }}
+              className="w-24 h-24 mx-auto mb-6 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center"
+            >
+              <CheckCircle2 className="w-12 h-12 text-green-600 dark:text-green-400" />
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <h2 className="text-3xl font-bold mb-2">
+                🎉 A mesekönyv elkészült!
+              </h2>
+              <p className="text-muted-foreground mb-8">
+                "{data.title}" készen áll az olvasásra
+              </p>
+            </motion.div>
+
+            {/* Quick stats */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="flex justify-center gap-8 mb-8"
+            >
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary">{totalPages}</div>
+                <div className="text-sm text-muted-foreground">oldal</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary">{totalPages}</div>
+                <div className="text-sm text-muted-foreground">illusztráció</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary">{data.characters.length}</div>
+                <div className="text-sm text-muted-foreground">szereplő</div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8 }}
+            >
+              <Button onClick={onComplete} size="lg" className="gap-2">
+                Mesekönyv megtekintése
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </motion.div>
+          </motion.div>
+        );
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
+      <AnimatePresence mode="wait">
+        {renderPhaseContent()}
+      </AnimatePresence>
+    </div>
+  );
+}

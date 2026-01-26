@@ -1,6 +1,6 @@
 // Wizard step types and interfaces
 
-export type Genre = "szakkonyv" | "fiction";
+export type Genre = "szakkonyv" | "fiction" | "mesekonyv";
 
 // Non-fiction book types
 export type NonfictionBookType = 

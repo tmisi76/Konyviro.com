@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    allowedHosts: ["localhost", ".manus.computer"],
   },
   plugins: [
     react(),
