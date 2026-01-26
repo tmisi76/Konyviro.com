@@ -536,6 +536,54 @@ export type Database = {
           },
         ]
       }
+      covers: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string | null
+          is_selected: boolean
+          parent_cover_id: string | null
+          project_id: string
+          prompt: string
+          style: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_selected?: boolean
+          parent_cover_id?: string | null
+          project_id: string
+          prompt: string
+          style: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_selected?: boolean
+          parent_cover_id?: string | null
+          project_id?: string
+          prompt?: string
+          style?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "covers_parent_cover_id_fkey"
+            columns: ["parent_cover_id"]
+            isOneToOne: false
+            referencedRelation: "covers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "covers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_purchases: {
         Row: {
           amount: number
