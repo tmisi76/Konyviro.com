@@ -38,6 +38,7 @@ export interface Chapter {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  content?: string | null;
 }
 
 export interface BlockTypeOption {

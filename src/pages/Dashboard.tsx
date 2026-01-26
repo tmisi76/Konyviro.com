@@ -88,11 +88,11 @@ export default function Dashboard() {
     }));
   }, [projects]);
 
-  // Aktív és befejezett írások (writing_status nem idle)
+  // Aktív írások (csak folyamatban lévők, nem completed/failed/idle)
   const activeWritingProjects = useMemo(() => {
     return projects.filter(p => 
       p.writing_status && 
-      p.writing_status !== 'idle'
+      !['idle', 'completed', 'failed'].includes(p.writing_status)
     );
   }, [projects]);
 
