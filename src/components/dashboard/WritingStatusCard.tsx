@@ -27,6 +27,7 @@ const statusConfig: Record<WritingStatus, { label: string; color: string; icon: 
   queued: { label: "Sorban áll", color: "bg-yellow-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
   generating_outlines: { label: "Vázlatok készítése", color: "bg-blue-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
   writing: { label: "Írás folyamatban", color: "bg-green-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
+  in_progress: { label: "Írás folyamatban", color: "bg-green-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
   paused: { label: "Szüneteltetve", color: "bg-orange-500", icon: <Pause className="h-3 w-3" /> },
   completed: { label: "Elkészült", color: "bg-emerald-500", icon: <CheckCircle className="h-3 w-3" /> },
   failed: { label: "Hiba történt", color: "bg-destructive", icon: <AlertCircle className="h-3 w-3" /> },
