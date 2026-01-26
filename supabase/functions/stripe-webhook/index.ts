@@ -15,8 +15,8 @@ const corsHeaders = {
 
 // Tier configuration
 const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: number }> = {
-  hobby: { projectLimit: 1, monthlyWordLimit: 50000 },
-  writer: { projectLimit: 5, monthlyWordLimit: 200000 },
+  hobby: { projectLimit: 5, monthlyWordLimit: 100000 },
+  writer: { projectLimit: 50, monthlyWordLimit: 1000000 },
   pro: { projectLimit: -1, monthlyWordLimit: -1 }, // -1 means unlimited
 };
 
