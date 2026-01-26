@@ -14,8 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, Sparkles, Image as ImageIcon, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, Sparkles, Image as ImageIcon, Check, Pencil } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { EditCoverModal } from '@/components/covers/EditCoverModal';
 
 const STYLE_OPTIONS = [
   { value: 'photorealistic', label: 'Fotórealisztikus' },
@@ -48,6 +49,10 @@ const CoverDesigner: React.FC = () => {
   const [author, setAuthor] = useState('');
   const [style, setStyle] = useState('photorealistic');
   const [prompt, setPrompt] = useState('');
+  
+  // Edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [coverToEdit, setCoverToEdit] = useState<Cover | null>(null);
 
   // Fetch project data
   const { data: project, isLoading: projectLoading } = useQuery({
@@ -184,6 +189,12 @@ const CoverDesigner: React.FC = () => {
       return;
     }
     generateMutation.mutate();
+  };
+
+  const handleEditClick = (cover: Cover, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCoverToEdit(cover);
+    setEditModalOpen(true);
   };
 
   if (projectLoading) {
@@ -335,9 +346,30 @@ const CoverDesigner: React.FC = () => {
                         </div>
                       )}
                       
-                      {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-                        <p className="text-white text-xs line-clamp-2">
+                      {/* Hover overlay with buttons */}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={(e) => handleEditClick(cover, e)}
+                          className="w-full"
+                        >
+                          <Pencil className="h-4 w-4 mr-1" />
+                          Szerkesztés
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={cover.is_selected ? 'default' : 'outline'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectMutation.mutate(cover.id);
+                          }}
+                          className="w-full"
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          {cover.is_selected ? 'Kiválasztva' : 'Kiválasztás'}
+                        </Button>
+                        <p className="text-white text-xs line-clamp-2 mt-2">
                           {cover.prompt}
                         </p>
                       </div>
@@ -357,6 +389,13 @@ const CoverDesigner: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Edit Cover Modal */}
+      <EditCoverModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        cover={coverToEdit}
+      />
     </div>
   );
 };

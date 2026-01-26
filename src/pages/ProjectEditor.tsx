@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
@@ -335,6 +335,17 @@ export default function ProjectEditor() {
               )}
             </TabsList>
           </Tabs>
+          
+          {/* Cover Designer Link */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-4 gap-2"
+            onClick={() => navigate(`/project/${projectId}/cover`)}
+          >
+            <ImageIcon className="h-4 w-4" />
+            Borító Tervező
+          </Button>
         </div>
 
         {/* Content based on view mode */}
