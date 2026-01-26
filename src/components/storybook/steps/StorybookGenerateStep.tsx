@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ArrowRight,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { StorybookData, StorybookPage, AGE_GROUPS } from "@/types/storybook";
 import { toast } from "sonner";
@@ -23,7 +24,7 @@ interface StorybookGenerateStepProps {
   setPages: (pages: StorybookPage[]) => void;
 }
 
-type GenerationPhase = "idle" | "story" | "illustrations" | "complete";
+type GenerationPhase = "idle" | "story" | "illustrations" | "complete" | "error";
 
 export function StorybookGenerateStep({
   data,
@@ -37,13 +38,15 @@ export function StorybookGenerateStep({
   const [progress, setProgress] = useState(0);
   const [currentIllustration, setCurrentIllustration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const hasStarted = useRef(false);
 
   const ageGroup = data.ageGroup ? AGE_GROUPS.find(g => g.id === data.ageGroup) : null;
   const totalPages = ageGroup?.pageCount || 12;
 
-  // Auto-start generation when component mounts
+  // Auto-start generation when component mounts (only once)
   useEffect(() => {
-    if (phase === "idle" && data.pages.length === 0) {
+    if (!hasStarted.current && phase === "idle" && data.pages.length === 0) {
+      hasStarted.current = true;
       handleStartGeneration();
     }
   }, []);
@@ -54,48 +57,65 @@ export function StorybookGenerateStep({
     setProgress(0);
 
     try {
-      // Simulate story generation progress
+      // Story generation with progress simulation
       const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 5, 40));
-      }, 500);
+        setProgress(prev => Math.min(prev + 2, 45));
+      }, 300);
 
       const storySuccess = await onGenerateStory();
       clearInterval(progressInterval);
 
       if (!storySuccess) {
-        throw new Error("Hiba a történet generálása során");
+        throw new Error("Hiba a történet generálása során. Kérlek próbáld újra.");
       }
 
       setProgress(50);
       setPhase("illustrations");
 
-      // Generate illustrations
-      const totalIllustrations = data.pages.length || totalPages;
-      for (let i = 0; i < totalIllustrations; i++) {
+      // Generate illustrations one by one
+      const pagesCount = data.pages.length || totalPages;
+      
+      for (let i = 0; i < pagesCount; i++) {
         setCurrentIllustration(i + 1);
-        setProgress(50 + ((i + 1) / totalIllustrations) * 50);
+        setProgress(50 + ((i + 1) / pagesCount) * 45);
         
-        // Simulate illustration generation (actual generation happens in parent)
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait for illustration progress animation
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       const illustrationsSuccess = await onGenerateIllustrations();
       
       if (!illustrationsSuccess) {
-        throw new Error("Hiba az illusztrációk generálása során");
+        throw new Error("Néhány illusztráció nem készült el. Az előnézetben újragenerálhatod őket.");
       }
 
       setProgress(100);
       setPhase("complete");
       toast.success("A mesekönyv elkészült!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ismeretlen hiba történt");
-      setPhase("idle");
+      const errorMessage = err instanceof Error ? err.message : "Ismeretlen hiba történt";
+      setError(errorMessage);
+      setPhase("error");
+      toast.error(errorMessage);
     }
   };
 
   const handleRetry = () => {
-    handleStartGeneration();
+    hasStarted.current = false;
+    setPhase("idle");
+    setProgress(0);
+    setCurrentIllustration(0);
+    setError(null);
+    // Short delay before restarting
+    setTimeout(() => {
+      hasStarted.current = true;
+      handleStartGeneration();
+    }, 100);
+  };
+
+  const handleContinueWithErrors = () => {
+    // Allow user to continue even if some illustrations failed
+    setPhase("complete");
   };
 
   const renderPhaseContent = () => {
@@ -107,37 +127,45 @@ export function StorybookGenerateStep({
             animate={{ opacity: 1, scale: 1 }}
             className="text-center"
           >
-            {error ? (
-              <>
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
-                  <span className="text-4xl">😢</span>
-                </div>
-                <h2 className="text-2xl font-bold mb-4 text-red-600 dark:text-red-400">
-                  Hiba történt
-                </h2>
-                <p className="text-muted-foreground mb-6">{error}</p>
-                <Button onClick={handleRetry} className="gap-2">
-                  <RefreshCw className="w-4 h-4" />
-                  Újrapróbálás
-                </Button>
-              </>
-            ) : (
-              <>
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Sparkles className="w-10 h-10 text-primary" />
-                </div>
-                <h2 className="text-2xl font-bold mb-4">
-                  Készen állsz a varázslatra?
-                </h2>
-                <p className="text-muted-foreground mb-6">
-                  Az AI most elkészíti a személyre szabott mesekönyvedet
-                </p>
-                <Button onClick={handleStartGeneration} size="lg" className="gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  Generálás indítása
-                </Button>
-              </>
-            )}
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
+              <Sparkles className="w-10 h-10 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold mb-4">
+              Készen állsz a varázslatra?
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              Az AI most elkészíti a személyre szabott mesekönyvedet
+            </p>
+            <Button onClick={handleStartGeneration} size="lg" className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              Generálás indítása
+            </Button>
+          </motion.div>
+        );
+
+      case "error":
+        return (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center"
+          >
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertCircle className="w-10 h-10 text-destructive" />
+            </div>
+            <h2 className="text-2xl font-bold mb-4 text-destructive">
+              Hiba történt
+            </h2>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">{error}</p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" onClick={handleContinueWithErrors}>
+                Folytatás az előnézethez
+              </Button>
+              <Button onClick={handleRetry} className="gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Újrapróbálás
+              </Button>
+            </div>
           </motion.div>
         );
 
@@ -212,13 +240,13 @@ export function StorybookGenerateStep({
             <div className="max-w-md mx-auto space-y-2">
               <Progress value={progress} className="h-3" />
               <p className="text-sm text-muted-foreground">
-                {currentIllustration}. kép / {totalPages} oldal... {Math.round(progress)}%
+                {currentIllustration}. kép / {data.pages.length || totalPages} oldal... {Math.round(progress)}%
               </p>
             </div>
 
             {/* Illustration preview grid */}
             <div className="mt-8 grid grid-cols-4 gap-2 max-w-md mx-auto">
-              {Array.from({ length: totalPages }).map((_, i) => (
+              {Array.from({ length: data.pages.length || totalPages }).map((_, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, scale: 0.8 }}
@@ -278,11 +306,13 @@ export function StorybookGenerateStep({
               className="flex justify-center gap-8 mb-8"
             >
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">{totalPages}</div>
+                <div className="text-3xl font-bold text-primary">{data.pages.length || totalPages}</div>
                 <div className="text-sm text-muted-foreground">oldal</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">{totalPages}</div>
+                <div className="text-3xl font-bold text-primary">
+                  {data.pages.filter(p => p.illustrationUrl).length || totalPages}
+                </div>
                 <div className="text-sm text-muted-foreground">illusztráció</div>
               </div>
               <div className="text-center">
@@ -303,14 +333,21 @@ export function StorybookGenerateStep({
             </motion.div>
           </motion.div>
         );
+
+      default:
+        return null;
     }
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
       <AnimatePresence mode="wait">
-        {renderPhaseContent()}
+        <motion.div key={phase}>
+          {renderPhaseContent()}
+        </motion.div>
       </AnimatePresence>
     </div>
   );
 }
+
+export default StorybookGenerateStep;
