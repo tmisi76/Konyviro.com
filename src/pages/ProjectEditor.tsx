@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { CharacterList } from "@/components/characters/CharacterList";
 import { ResearchView } from "@/components/research/ResearchView";
 import { CitationPanel } from "@/components/research/CitationPanel";
 import { useEditorData } from "@/hooks/useEditorData";
+import { useEditorState, ViewMode } from "@/hooks/useEditorState";
 import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useCharacters } from "@/hooks/useCharacters";
 import { useSources, useCitations } from "@/hooks/useResearch";
@@ -22,23 +23,35 @@ import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
 import { ROLE_LABELS } from "@/types/character";
 
-type ViewMode = "editor" | "outline" | "characters" | "research";
-
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  const [viewMode, setViewMode] = useState<ViewMode>("editor");
-  const [chapterSidebarCollapsed, setChapterSidebarCollapsed] = useState(false);
-  const [aiPanelCollapsed, setAiPanelCollapsed] = useState(false);
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
-  const [isGeneratingOutline, setIsGeneratingOutline] = useState(false);
-  const [showCitationPanel, setShowCitationPanel] = useState(false);
-  const [isInlineGenerating, setIsInlineGenerating] = useState(false);
-  const [inlineGeneratingBlockId, setInlineGeneratingBlockId] = useState<string | null>(null);
-  const [globalSelectedText, setGlobalSelectedText] = useState<string>("");
-  const [cursorPosition, setCursorPosition] = useState<{ blockId: string; offset: number } | null>(null);
+  // UI state from custom hook
+  const {
+    viewMode,
+    setViewMode,
+    chapterSidebarCollapsed,
+    setChapterSidebarCollapsed,
+    aiPanelCollapsed,
+    setAiPanelCollapsed,
+    selectedBlockId,
+    setSelectedBlockId,
+    draggedBlockId,
+    setDraggedBlockId,
+    isGeneratingOutline,
+    setIsGeneratingOutline,
+    showCitationPanel,
+    setShowCitationPanel,
+    isInlineGenerating,
+    setIsInlineGenerating,
+    inlineGeneratingBlockId,
+    setInlineGeneratingBlockId,
+    globalSelectedText,
+    setGlobalSelectedText,
+    cursorPosition,
+    setCursorPosition,
+  } = useEditorState();
 
   const { project, isLoading: projectLoading } = useProjectDetails(projectId || "");
   const {
