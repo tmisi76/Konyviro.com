@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +15,7 @@ const FUNNY_MESSAGES = [
   "Még gyorsan átolvasom a végét...",
 ];
 
-const DURATION_MS = 3000;
-const MESSAGE_INTERVAL_MS = 600;
+const DURATION_MS = 4000;
 
 interface ProjectLoadingScreenProps {
   projectTitle?: string;
@@ -28,17 +27,11 @@ export function ProjectLoadingScreen({ projectTitle, onComplete }: ProjectLoadin
   const [currentMessage, setCurrentMessage] = useState("");
   const [isExiting, setIsExiting] = useState(false);
 
-  // Get random message that's different from current
-  const getRandomMessage = useCallback((excludeMessage: string) => {
-    const availableMessages = FUNNY_MESSAGES.filter((msg) => msg !== excludeMessage);
-    return availableMessages[Math.floor(Math.random() * availableMessages.length)];
-  }, []);
-
   useEffect(() => {
-    // Set initial message
+    // Egyetlen random üzenet beállítása induláskor
     setCurrentMessage(FUNNY_MESSAGES[Math.floor(Math.random() * FUNNY_MESSAGES.length)]);
 
-    // Progress animation
+    // Progress animáció (4 másodperc alatt 0% → 100%)
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         const increment = 100 / (DURATION_MS / 50);
@@ -46,12 +39,7 @@ export function ProjectLoadingScreen({ projectTitle, onComplete }: ProjectLoadin
       });
     }, 50);
 
-    // Message rotation
-    const messageInterval = setInterval(() => {
-      setCurrentMessage((prev) => getRandomMessage(prev));
-    }, MESSAGE_INTERVAL_MS);
-
-    // Complete after duration
+    // Befejezés 4 másodperc után
     const completeTimeout = setTimeout(() => {
       setIsExiting(true);
       setTimeout(onComplete, 300);
@@ -59,10 +47,9 @@ export function ProjectLoadingScreen({ projectTitle, onComplete }: ProjectLoadin
 
     return () => {
       clearInterval(progressInterval);
-      clearInterval(messageInterval);
       clearTimeout(completeTimeout);
     };
-  }, [onComplete, getRandomMessage]);
+  }, [onComplete]);
 
   return (
     <div
