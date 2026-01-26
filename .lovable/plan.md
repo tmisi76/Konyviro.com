@@ -1,74 +1,33 @@
 
-# Javítási terv: Dashboard és Szerkesztő hibák
+# Javítási terv: Üres blokkok kezelése a szerkesztőben
 
-## Azonosított problémák
+## Probléma azonosítása
 
-### 1. A "completed" projektek a "Folyamatban lévő írások" szekcióban jelennek meg
+Az adatbázisban:
+- **7 fejezet van** teljes tartalommal (`chapters.content` - 11-17k karakter)
+- **3 fejezetnek van 1 üres blokk** (`content_length: 0`)
+- **4 fejezetnek nincs blokkja** (ezek helyesen fognak működni)
 
-**Hiba helye:** `src/pages/Dashboard.tsx` (92-97. sor)
-
+A jelenlegi logika:
 ```typescript
-const activeWritingProjects = useMemo(() => {
-  return projects.filter(p => 
-    p.writing_status && 
-    p.writing_status !== 'idle'  // ❌ Ez a 'completed'-et is beleérti!
-  );
-}, [projects]);
+if (!blocksData || blocksData.length === 0) {
+  // Konvertálás...
+}
 ```
 
-**Megoldás:** Szűrjük ki a `completed` és `failed` státuszokat is, és frissítsük a progress bar színét.
+Ez **nem működik** ha van 1 üres blokk - ilyenkor a kód azt hiszi, minden rendben van.
 
-### 2. A szerkesztő nem jeleníti meg a generált tartalmat
+## Megoldás
 
-**Gyökérok:** 
-- Az AI a `chapters.content` TEXT mezőbe menti a teljes szöveget
-- A szerkesztő a `blocks` táblából próbál olvasni
-- A `blocks` tábla üres (mindössze 3 blokk van 7 fejezetre)
+### 1. `src/hooks/useEditorData.ts` - Logika javítása
 
-**Megoldás:** A szerkesztő betöltésekor ellenőrizni kell, hogy:
-1. Ha van `chapters.content` de nincs `blocks` → konvertálni a tartalmat blokkokká
-2. Vagy egyszerűen megjeleníteni a `content`-et egy nagy blokként
-
----
-
-## Technikai változtatások
-
-### 1. `src/pages/Dashboard.tsx` - Szűrés javítása
+A feltételt bővíteni kell: ha a blokkok **mind üresek**, akkor is konvertálni kell a `chapters.content`-et.
 
 ```typescript
-// 92-97. sor módosítása
-const activeWritingProjects = useMemo(() => {
-  return projects.filter(p => 
-    p.writing_status && 
-    !['idle', 'completed', 'failed'].includes(p.writing_status)
-  );
-}, [projects]);
-```
-
-### 2. `src/components/dashboard/WritingStatusCard.tsx` - 100% feletti progress kezelése
-
-A progress bar maximum 100%-ot mutasson, és zöld legyen ha kész.
-
-```typescript
-// A wordProgressPercent-et limitáljuk 100-ra
-const clampedWordProgress = Math.min(wordProgressPercent, 100);
-
-// Progress bar szín módosítása
-<Progress 
-  value={clampedWordProgress} 
-  className={cn("h-2", progress.status === 'completed' && "bg-emerald-500")} 
-/>
-```
-
-### 3. `src/hooks/useEditorData.ts` - Chapter content konvertálása blokkokká
-
-Új logika a `fetchBlocks` függvényben:
-
-```typescript
+// Fetch blocks for active chapter - converts chapter.content to blocks if needed
 const fetchBlocks = useCallback(async () => {
   if (!activeChapterId) return;
 
-  // Először lekérjük a blokkokat
   const { data: blocksData, error } = await supabase
     .from("blocks")
     .select("*")
@@ -80,18 +39,28 @@ const fetchBlocks = useCallback(async () => {
     return;
   }
 
-  // Ha nincs blokk, nézzük meg van-e chapter.content
-  if (!blocksData || blocksData.length === 0) {
-    const chapter = chapters.find(c => c.id === activeChapterId);
-    
+  // Ellenőrizzük, hogy vannak-e valódi tartalommal rendelkező blokkok
+  const hasRealContent = blocksData && blocksData.some(
+    block => block.content && block.content.trim().length > 0
+  );
+
+  // Ha nincsenek blokkok VAGY mind üresek, nézzük meg van-e chapter.content
+  if (!blocksData || blocksData.length === 0 || !hasRealContent) {
     // Lekérjük a chapter content-et közvetlenül
     const { data: chapterData } = await supabase
       .from("chapters")
       .select("content")
       .eq("id", activeChapterId)
-      .single();
+      .maybeSingle();
     
     if (chapterData?.content && chapterData.content.trim().length > 0) {
+      // Töröljük a meglévő üres blokkokat
+      if (blocksData && blocksData.length > 0) {
+        for (const block of blocksData) {
+          await supabase.from("blocks").delete().eq("id", block.id);
+        }
+      }
+      
       // Van content - konvertáljuk blokkokká
       const paragraphs = chapterData.content.split('\n\n').filter(p => p.trim());
       
@@ -118,16 +87,31 @@ const fetchBlocks = useCallback(async () => {
       }
       
       setBlocks(newBlocks);
-      toast.success("Fejezet tartalom betöltve a szerkesztőbe");
+      if (newBlocks.length > 0) {
+        toast.success("Fejezet tartalom betöltve a szerkesztőbe");
+      }
       return;
     }
     
-    // Ha nincs content sem, üres blokk
-    await createBlock("paragraph", "", 0);
+    // Ha nincs content sem, üres blokk létrehozása (ha még nincs)
+    if (!blocksData || blocksData.length === 0) {
+      const newBlock = await createBlock("paragraph", "", 0);
+      if (newBlock) {
+        setBlocks([newBlock]);
+      }
+    } else {
+      // Megjelenítjük a létező üres blokkokat
+      const typedData = blocksData.map(block => ({
+        ...block,
+        type: block.type as BlockType,
+        metadata: (block.metadata || {}) as Block['metadata']
+      }));
+      setBlocks(typedData);
+    }
     return;
   }
 
-  // Normál eset - vannak blokkok
+  // Normál eset - vannak valódi tartalmú blokkok
   const typedData = blocksData.map(block => ({
     ...block,
     type: block.type as BlockType,
@@ -135,59 +119,28 @@ const fetchBlocks = useCallback(async () => {
   }));
 
   setBlocks(typedData);
-}, [activeChapterId, chapters]);
+}, [activeChapterId]);
 ```
-
-### 4. `src/types/editor.ts` - Chapter interface frissítése
-
-```typescript
-export interface Chapter {
-  id: string;
-  project_id: string;
-  title: string;
-  status: ChapterStatus;
-  summary: string | null;
-  key_points: string[];
-  word_count: number;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-  content?: string | null; // ← ÚJ: AI generált tartalom
-}
-```
-
----
-
-## Összefoglaló
-
-| Fájl | Változtatás |
-|------|-------------|
-| `src/pages/Dashboard.tsx` | Szűrés javítása: `completed` ne jelenjen meg |
-| `src/components/dashboard/WritingStatusCard.tsx` | Progress bar limit 100%, zöld szín ha kész |
-| `src/hooks/useEditorData.ts` | Chapter content konvertálása blokkokká |
-| `src/types/editor.ts` | Chapter interface bővítése content mezővel |
 
 ## Működési folyamat a javítás után
 
-```text
-Projekt megnyitása a szerkesztőben
+```
+Fejezet megnyitása
     ↓
-fetchBlocks() lekéri a blocks táblát
+Blokkok lekérése
     ↓
-Ha nincsenek blokkok:
-    ├── Lekéri chapters.content-et
-    ├── Ha van tartalom:
-    │   ├── Paragrafusokra bontja (\n\n)
-    │   └── Blokkokat hoz létre mindegyikből
-    └── Ha nincs: üres paragraph blokk
-    ↓
-A szerkesztő megjeleníti a blokkokat
+Van blokk?
+    ├── Van valódi tartalmú blokk? → Megjelenítés ✅
+    └── Mind üres? → chapters.content ellenőrzése
+                        ├── Van content? → Üres blokkok törlése
+                        │                  → Content konvertálása blokkokká ✅
+                        └── Nincs content? → Üres blokk marad
 ```
 
-## Előnyök
+## Összefoglaló
 
-- A befejezett projektek nem jelennek meg "folyamatban"-ként
-- A 100% feletti progress bar nem furcsa
-- A generált tartalom megjelenik a szerkesztőben
-- A tartalom szerkeszthető lesz (blokk formátumban)
-- Visszafelé kompatibilis: ha már vannak blokkok, azokat használja
+| Módosítás | Fájl |
+|-----------|------|
+| Üres blokkok detektálása | `src/hooks/useEditorData.ts` |
+| Üres blokkok törlése konverzió előtt | `src/hooks/useEditorData.ts` |
+| `hasRealContent` ellenőrzés | `src/hooks/useEditorData.ts` |
