@@ -58,8 +58,13 @@ export function useEditorData(projectId: string) {
       return;
     }
 
-    // Ha nincs blokk, nézzük meg van-e chapter.content
-    if (!blocksData || blocksData.length === 0) {
+    // Ellenőrizzük, hogy vannak-e valódi tartalommal rendelkező blokkok
+    const hasRealContent = blocksData && blocksData.some(
+      block => block.content && block.content.trim().length > 0
+    );
+
+    // Ha nincsenek blokkok VAGY mind üresek, nézzük meg van-e chapter.content
+    if (!blocksData || blocksData.length === 0 || !hasRealContent) {
       // Lekérjük a chapter content-et közvetlenül
       const { data: chapterData } = await supabase
         .from("chapters")
@@ -68,6 +73,13 @@ export function useEditorData(projectId: string) {
         .maybeSingle();
       
       if (chapterData?.content && chapterData.content.trim().length > 0) {
+        // Töröljük a meglévő üres blokkokat
+        if (blocksData && blocksData.length > 0) {
+          for (const block of blocksData) {
+            await supabase.from("blocks").delete().eq("id", block.id);
+          }
+        }
+        
         // Van content - konvertáljuk blokkokká
         const paragraphs = chapterData.content.split('\n\n').filter((p: string) => p.trim());
         
@@ -100,15 +112,25 @@ export function useEditorData(projectId: string) {
         return;
       }
       
-      // Ha nincs content sem, üres blokk létrehozása
-      const newBlock = await createBlock("paragraph", "", 0);
-      if (newBlock) {
-        setBlocks([newBlock]);
+      // Ha nincs content sem, üres blokk létrehozása (ha még nincs)
+      if (!blocksData || blocksData.length === 0) {
+        const newBlock = await createBlock("paragraph", "", 0);
+        if (newBlock) {
+          setBlocks([newBlock]);
+        }
+      } else {
+        // Megjelenítjük a létező üres blokkokat
+        const typedData = blocksData.map(block => ({
+          ...block,
+          type: block.type as BlockType,
+          metadata: (block.metadata || {}) as Block['metadata']
+        }));
+        setBlocks(typedData);
       }
       return;
     }
 
-    // Normál eset - vannak blokkok
+    // Normál eset - vannak valódi tartalmú blokkok
     const typedData = blocksData.map(block => ({
       ...block,
       type: block.type as BlockType,
