@@ -1,99 +1,182 @@
 
 
-# Mesekönyv mentés és képgenerálás javítása
+# Mesekönyv képek nem jelennek meg - Closure probléma javítása
 
-## Azonosított problémák
+## Azonosított probléma
 
-### 1. probléma: Hiányzó `storybook_data` oszlop
+A backend sikeresen generálja és feltölti a képeket (a logok ezt mutatják), de a frontend **nem jeleníti meg** őket. A probléma oka egy **JavaScript closure** hiba.
 
-**Hibakód a konzolban:**
+### Technikai magyarázat
+
+A `generateAllIllustrations` és `generateIllustration` függvényekben a `useCallback` closure a **régi state értékeket** rögzíti:
+
+```typescript
+// 296. sor - ez a sor a RÉGI data.pages-t látja
+}, [user, data, updatePage]);
+
+// 302. sor - ez is a régi értékeket szűri
+const pagesToGenerate = data.pages.filter(p => !p.illustrationUrl);
 ```
-PGRST204: Could not find the 'storybook_data' column of 'projects' in the schema cache
-```
 
-**Oka:** A `saveProject` függvény (`src/hooks/useStorybookWizard.ts`, 336. sor) egy `storybook_data` oszlopba próbál menteni, de ez az oszlop nem létezik a `projects` táblában.
-
-**Megoldás:** Adatbázis migráció szükséges - hozzá kell adni a `storybook_data` oszlopot a `projects` táblához.
-
-### 2. probléma: Képgenerálás nem indul el
-
-A `generate-storybook-illustration` edge function-nek nincs logja, tehát a frontend nem hívja meg. Valószínűleg a mentési hiba vagy az előző lépések megszakítják a folyamatot, mielőtt oda jutna.
+Amikor az `updatePage` meghívódik:
+1. A React state frissül (új `data.pages` létrejön)
+2. DE a folyamatban lévő loop továbbra is a **régi** referenciát használja
+3. A preview komponens megkapja az **új** state-et, de a régi pages-t a closure rögzítette
 
 ---
 
 ## Javítási terv
 
-### 1. lepes: Adatbazis migracio - storybook_data oszlop hozzaadasa
+### 1. lépés: generateIllustration függvény javítása
 
-A `projects` tablat boviteni kell egy `storybook_data` nevu JSONB oszloppal, ami tartalmazza a mesekonyv osszes adatat (tema, korosztaly, karakterek, oldalak, illusztraciok URL-jei stb.)
+A problémát úgy oldjuk meg, hogy a `generateIllustration` függvényben a page-et **közvetlenül paraméterként** kapjuk meg, nem a closure-ból olvassuk:
 
-```sql
-ALTER TABLE projects 
-ADD COLUMN IF NOT EXISTS storybook_data JSONB DEFAULT NULL;
+**Fájl:** `src/hooks/useStorybookWizard.ts`
+
+```typescript
+// Előtte:
+const generateIllustration = useCallback(async (pageId: string): Promise<boolean> => {
+  const page = data.pages.find(p => p.id === pageId);  // ❌ closure issue
+  // ...
+}, [user, data, updatePage]);
+
+// Utána:
+const generateIllustration = useCallback(async (
+  pageId: string, 
+  page: StorybookPage  // ✅ pass page directly
+): Promise<boolean> => {
+  // use page parameter instead of finding in data.pages
+}, [user, data.illustrationStyle, data.characters, updatePage]);
 ```
 
-Ezzel az oszloppal a mesekonyv adatai JSON-kent tarolhatoak, es kesobb visszatolthetok.
+### 2. lépés: generateAllIllustrations javítása
 
-### 2. lepes: RLS policy ellenorzese
+A `generateAllIllustrations`-t módosítjuk, hogy **állapotot használjon** a pages követésére:
 
-Meg kell bizonyosodni arrol, hogy a meglevo RLS policy-k megfeleloen engedik az UPDATE es INSERT muveleteket a `storybook_data` oszlopon is.
+**Fájl:** `src/hooks/useStorybookWizard.ts`
 
-### 3. lepes: Edge function deploy ellenorzese
+```typescript
+// A legegyszerűbb megoldás: ref használata a friss pages eléréséhez
+const pagesRef = useRef(data.pages);
+useEffect(() => {
+  pagesRef.current = data.pages;
+}, [data.pages]);
+```
 
-Az alabbiak deployolasa szukseges:
-- `generate-storybook`
-- `generate-storybook-illustration`
+VAGY a függvényben közvetlenül adjuk át a page objektumokat.
+
+### 3. lépés: A pages lekérdezése a generálás után
+
+Az `onComplete` hívás előtt meg kell győződnünk, hogy a legfrissebb `data.pages` értékeket használjuk.
 
 ---
 
-## Technikai reszletek
+## Részletes kódváltoztatások
 
-### Uj adatbazis oszlop
+### useStorybookWizard.ts módosítások
 
-| Tabla | Oszlop | Tipus | Default | Leiras |
-|-------|--------|-------|---------|--------|
-| `projects` | `storybook_data` | JSONB | NULL | Mesekonyv metaadatok es oldalak tarolasa |
+**1. Ref hozzáadása a pages követéséhez:**
 
-### storybook_data struktura
+A hook elején:
+```typescript
+const pagesRef = useRef<StorybookPage[]>([]);
 
-A `storybook_data` JSON mezoben tarolando adatok:
+// Sync ref with state
+useEffect(() => {
+  pagesRef.current = data.pages;
+}, [data.pages]);
+```
 
-```json
-{
-  "theme": "fantasy",
-  "customThemeDescription": "...",
-  "ageGroup": "3-6",
-  "illustrationStyle": "watercolor",
-  "characters": [
-    { "id": "...", "name": "Anna", "role": "main", "photoUrl": "..." }
-  ],
-  "storyPrompt": "...",
-  "generatedStory": "...",
-  "pages": [
-    {
-      "id": "page-1",
-      "pageNumber": 1,
-      "text": "Egyszer volt...",
-      "illustrationPrompt": "...",
-      "illustrationUrl": "https://..."
+**2. generateIllustration módosítása:**
+
+```typescript
+const generateIllustration = useCallback(async (
+  pageId: string,
+  pageData?: StorybookPage // Optional: pass page data directly
+): Promise<boolean> => {
+  if (!user) {
+    toast.error("Be kell jelentkezned");
+    return false;
+  }
+
+  // Use passed page data or find from ref (not from closure)
+  const page = pageData || pagesRef.current.find(p => p.id === pageId);
+  if (!page) return false;
+
+  updatePage(pageId, { isGenerating: true });
+
+  try {
+    const { data: response, error } = await supabase.functions.invoke("generate-storybook-illustration", {
+      body: {
+        prompt: page.illustrationPrompt,
+        style: data.illustrationStyle,
+        characters: data.characters,
+        pageNumber: page.pageNumber,
+      },
+    });
+
+    if (error) throw error;
+
+    if (response.imageUrl) {
+      updatePage(pageId, { 
+        illustrationUrl: response.imageUrl,
+        isGenerating: false,
+      });
+      return true;
     }
-  ],
-  "coverUrl": "..."
-}
+
+    return false;
+  } catch (error) {
+    console.error("Error generating illustration:", error);
+    toast.error("Hiba az illusztráció generálása során");
+    updatePage(pageId, { isGenerating: false });
+    return false;
+  }
+}, [user, data.illustrationStyle, data.characters, updatePage]);
 ```
 
-### Modositando fajlok
+**3. generateAllIllustrations módosítása:**
 
-| Fajl | Valtozas |
-|------|----------|
-| Adatbazis migracio | `storybook_data` JSONB oszlop hozzaadasa |
-| Edge function deploy | `generate-storybook-illustration` ujra deploy-olasa |
+```typescript
+const generateAllIllustrations = useCallback(async (
+  onProgress?: (current: number, total: number) => void
+): Promise<boolean> => {
+  // Get current pages from ref to avoid stale closure
+  const currentPages = pagesRef.current;
+  const pagesToGenerate = currentPages.filter(p => !p.illustrationUrl);
+  const total = pagesToGenerate.length;
+  
+  for (let i = 0; i < pagesToGenerate.length; i++) {
+    const page = pagesToGenerate[i];
+    onProgress?.(i + 1, total);
+    
+    // Pass page data directly to avoid closure issues
+    const success = await generateIllustration(page.id, page);
+    if (!success) return false;
+    
+    // Small delay between generations to avoid rate limiting
+    if (i < pagesToGenerate.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  return true;
+}, [generateIllustration]);
+```
 
 ---
 
-## Varható eredmeny
+## Módosítandó fájlok összefoglalása
 
-1. A mesekonyv mentese mukodni fog
-2. A kepek generalasa vegigfut minden oldalra
-3. A felhasznalo megtekintheti es exportalhatja az elkeszult mesekönyvet
+| Fájl | Változtatás |
+|------|-------------|
+| `src/hooks/useStorybookWizard.ts` | Ref hozzáadása, generateIllustration és generateAllIllustrations javítása |
+
+---
+
+## Várt eredmény
+
+1. A képek generálása után az `illustrationUrl` helyesen frissül a state-ben
+2. A preview komponens látja és megjeleníti a generált képeket
+3. A mentés tartalmazza a helyes URL-eket
+4. A thumbnail sávban is megjelennek a képek
 
