@@ -71,7 +71,7 @@ export function PricingSection() {
             <span className="text-primary">megfelelő csomagot</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
-            Kezdd ingyenesen, és bővítsd, amikor szükséged van rá
+            Kezdd ingyenesen, és bővíts, amikor több szövegre van szükséged
           </p>
         </div>
 
