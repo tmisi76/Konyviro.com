@@ -278,12 +278,24 @@ async function processOutlineJob(supabase: any, job: any, project: any, chapter:
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processSceneJob(supabase: any, job: any, project: any, chapter: any): Promise<boolean> {
   const sceneIndex = job.scene_index;
-  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${chapter.title}`);
+  
+  // FRISSÍTETT chapter lekérése a legújabb content-tel
+  const { data: currentChapter } = await supabase
+    .from("chapters")
+    .select("*")
+    .eq("id", chapter.id)
+    .single();
+  
+  if (!currentChapter) {
+    throw new Error("Chapter not found");
+  }
+  
+  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${currentChapter.title}`);
   
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   
-  const sceneOutlineArray = chapter.scene_outline || [];
+  const sceneOutlineArray = currentChapter.scene_outline || [];
   
   const response = await fetch(`${supabaseUrl}/functions/v1/write-section`, {
     method: 'POST',
@@ -293,10 +305,10 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
     },
     body: JSON.stringify({
       projectId: project.id,
-      chapterId: chapter.id,
+      chapterId: currentChapter.id,
       sectionOutline: job.scene_outline,
       sectionIndex: sceneIndex,
-      chapterTitle: chapter.title,
+      chapterTitle: currentChapter.title,
       totalSections: sceneOutlineArray.length || 1,
       previousContent: ""
     })
@@ -308,16 +320,26 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
   }
 
   const result = await response.json();
+  const sceneContent = result.content || "";
+  const wordCount = result.wordCount || 0;
   
-  // Fejezet progress frissítése
+  // Hozzáfűzés a meglévő tartalomhoz
+  const existingContent = currentChapter.content || "";
+  const separator = existingContent.length > 0 ? "\n\n" : "";
+  const newContent = existingContent + separator + sceneContent;
+  const totalWords = newContent.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
+  
+  // Fejezet frissítése A TARTALOMMAL
   await supabase.from("chapters")
     .update({ 
-      scenes_completed: (chapter.scenes_completed || 0) + 1,
+      content: newContent,
+      word_count: totalWords,
+      scenes_completed: (currentChapter.scenes_completed || 0) + 1,
       writing_status: 'writing'
     })
-    .eq("id", chapter.id);
+    .eq("id", currentChapter.id);
 
-  console.log(`Scene ${sceneIndex + 1} completed with ${result.wordCount || 0} words`);
+  console.log(`Scene ${sceneIndex + 1} completed with ${wordCount} words, total chapter: ${totalWords} words`);
   return true;
 }
 
@@ -356,9 +378,16 @@ async function updateProjectProgress(supabase: any, projectId: string) {
   // Projekt frissítése
   const isCompleted = pendingCount === 0;
   
-  // Ha most fejeződött be, küldjünk email értesítést
+  // Ha most fejeződött be, küldjünk email értesítést - DE CSAK HA VAN TARTALOM
   if (isCompleted) {
-    await sendCompletionEmail(supabase, projectId);
+    const hasContent = chapters?.some((ch: any) => (ch.word_count || 0) > 0);
+    
+    // Csak akkor küldünk emailt, ha van tényleges tartalom
+    if (hasContent && totalWords > 0) {
+      await sendCompletionEmail(supabase, projectId);
+    } else {
+      console.warn(`Project ${projectId} completed but has no content - skipping email`);
+    }
   }
   
   await supabase.from("projects").update({
