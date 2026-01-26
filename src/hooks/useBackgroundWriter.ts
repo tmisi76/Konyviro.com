@@ -114,6 +114,15 @@ export function useBackgroundWriter(projectId: string | null) {
     if (!projectId) return;
     
     setIsLoading(true);
+    
+    // Optimista UI frissítés - azonnal mutassuk, hogy elindult
+    setProgress(prev => ({
+      ...prev,
+      status: 'queued',
+      error: null,
+      startedAt: new Date().toISOString(),
+    }));
+    
     try {
       const { data, error } = await supabase.functions.invoke('start-book-writing', {
         body: { projectId, action: 'start' }
@@ -128,11 +137,21 @@ export function useBackgroundWriter(projectId: string | null) {
       });
     } catch (error) {
       console.error("Failed to start writing:", error);
+      
+      // Hiba esetén visszaállítjuk idle-re
+      setProgress(prev => ({
+        ...prev,
+        status: 'idle',
+        error: error instanceof Error ? error.message : "Ismeretlen hiba",
+      }));
+      
       toast({
         title: "Hiba",
         description: error instanceof Error ? error.message : "Nem sikerült elindítani a könyvírást.",
         variant: "destructive",
       });
+      
+      throw error; // Re-throw, hogy a hívó is kezelni tudja
     } finally {
       setIsLoading(false);
     }
