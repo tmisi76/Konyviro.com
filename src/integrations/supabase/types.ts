@@ -270,6 +270,7 @@ export type Database = {
       chapters: {
         Row: {
           character_appearances: Json | null
+          content: string | null
           created_at: string
           current_scene_index: number | null
           generation_status: string | null
@@ -292,6 +293,7 @@ export type Database = {
         }
         Insert: {
           character_appearances?: Json | null
+          content?: string | null
           created_at?: string
           current_scene_index?: number | null
           generation_status?: string | null
@@ -314,6 +316,7 @@ export type Database = {
         }
         Update: {
           character_appearances?: Json | null
+          content?: string | null
           created_at?: string
           current_scene_index?: number | null
           generation_status?: string | null
