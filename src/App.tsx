@@ -26,6 +26,7 @@ const Pricing = lazy(() => import("./pages/Pricing"));
 const Install = lazy(() => import("./pages/Install"));
 const CreateBook = lazy(() => import("./pages/CreateBook"));
 const BookCoach = lazy(() => import("./pages/BookCoach"));
+const CoverDesigner = lazy(() => import("./pages/CoverDesigner"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -97,6 +98,16 @@ function AppContent() {
             <ProtectedRoute>
               <Suspense fallback={<FullPageLoader message="Exportálás betöltése..." />}>
                 <ProjectExport />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/project/:projectId/cover"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Borító tervező betöltése..." />}>
+                <CoverDesigner />
               </Suspense>
             </ProtectedRoute>
           }
