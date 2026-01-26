@@ -155,8 +155,15 @@ Deno.serve(async (req) => {
 
     // ========== START ACTION ==========
     if (action === 'start') {
-      // Check if already in progress
-      if (['writing', 'generating_outlines', 'queued'].includes(project.writing_status)) {
+      // Check if there are actually active jobs (not just status)
+      const { count: existingJobs } = await supabase
+        .from("writing_jobs")
+        .select("*", { count: 'exact', head: true })
+        .eq("project_id", projectId)
+        .in("status", ["pending", "processing"]);
+
+      // If there are active jobs, don't allow restart
+      if (existingJobs && existingJobs > 0) {
         return new Response(
           JSON.stringify({ error: "A könyvírás már folyamatban van" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -176,6 +183,8 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      console.log(`Processing ${chapters.length} chapters for project ${projectId}`);
 
       // Delete old jobs if any
       await supabase.from("writing_jobs")
@@ -199,7 +208,9 @@ Deno.serve(async (req) => {
 
       for (const chapter of chapters) {
         const sceneOutline = (chapter.scene_outline as unknown[]) || [];
-        const hasOutline = sceneOutline.length > 0;
+        const hasOutline = Array.isArray(sceneOutline) && sceneOutline.length > 0;
+        
+        console.log(`Chapter "${chapter.title}": has outline = ${hasOutline}, scenes = ${sceneOutline.length}`);
 
         // If no outline, create outline generation job first
         if (!hasOutline) {
@@ -214,23 +225,28 @@ Deno.serve(async (req) => {
           
           // Estimate 5 scenes per chapter without outline
           totalScenes += 5;
-        }
-
-        // Create scene writing jobs (if has outline)
-        for (let i = 0; i < sceneOutline.length; i++) {
-          jobs.push({
-            project_id: projectId,
-            chapter_id: chapter.id,
-            job_type: 'write_scene',
-            status: hasOutline ? 'pending' : 'paused', // Wait for outline
-            scene_index: i,
-            scene_outline: sceneOutline[i],
-            priority: 5,
-            sort_order: sortOrder++,
-          });
-          totalScenes++;
+        } else {
+          // Create scene writing jobs only if has outline
+          for (let i = 0; i < sceneOutline.length; i++) {
+            const scene = sceneOutline[i];
+            if (!scene) continue; // Skip null scenes
+            
+            jobs.push({
+              project_id: projectId,
+              chapter_id: chapter.id,
+              job_type: 'write_scene',
+              status: 'pending',
+              scene_index: i,
+              scene_outline: scene,
+              priority: 5,
+              sort_order: sortOrder++,
+            });
+          }
+          totalScenes += sceneOutline.filter(Boolean).length;
         }
       }
+      
+      console.log(`Total jobs to create: ${jobs.length}, estimated scenes: ${totalScenes}`);
 
       // Insert jobs
       if (jobs.length > 0) {

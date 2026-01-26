@@ -235,7 +235,7 @@ export function useBackgroundWriter(projectId: string | null) {
     : 0;
 
   const isWriting = progress.status === 'writing' || progress.status === 'generating_outlines' || progress.status === 'queued' || progress.status === 'in_progress';
-  const canStart = progress.status === 'idle' || progress.status === 'failed';
+  const canStart = progress.status === 'idle' || progress.status === 'failed' || progress.status === 'in_progress';
   const canPause = isWriting;
   const canResume = progress.status === 'paused';
 
