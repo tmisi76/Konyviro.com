@@ -50,6 +50,11 @@ STÍLUS SZABÁLYOK:
 Válaszolj CSAK JSON tömbként:
 [{"section_number": 1, "title": "...", "type": "intro|concept|example|exercise|summary", "key_points": [...], "examples_needed": 1, "learning_objective": "...", "target_words": 800, "status": "pending"}]`;
 
+// Retry configuration
+const MAX_RETRIES = 10;
+const BASE_DELAY_MS = 8000;
+const MAX_DELAY_MS = 120000;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -79,16 +84,17 @@ KÖTELEZŐ SZEKCIÓK:
 3. Alkalmazás szekció - gyakorlati útmutató
 4. Összefoglaló szekció - kulcspontok listája`;
 
-    // Retry logic exponenciális backoff-al (429/502/503 kezelés)
-    const maxRetries = 7;
-    let response: Response | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Main retry loop - covers EVERYTHING including response parsing
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
+        console.log(`Outline generation attempt ${attempt}/${MAX_RETRIES} for chapter: ${chapterTitle?.substring(0, 50)}...`);
+        
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 6000 }),
@@ -97,101 +103,129 @@ KÖTELEZŐ SZEKCIÓK:
 
         clearTimeout(timeoutId);
 
-        if (response.status === 429 || response.status === 502 || response.status === 503) {
-          console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
-          if (attempt < maxRetries) {
-            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-          if (response.status === 429) {
-            return new Response(JSON.stringify({ error: "Túl sok kérés, próbáld újra később" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-          }
+        // Handle rate limiting - wait WITHOUT counting as retry
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("Retry-After");
+          const delay = retryAfter ? parseInt(retryAfter) * 1000 : Math.min(30000 + Math.random() * 30000, 60000);
+          console.log(`Rate limited (429). Waiting ${Math.ceil(delay/1000)}s (attempt ${attempt} - NOT counting as retry)`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          attempt--; // Don't count rate limit as a retry
+          continue;
         }
-        break;
-      } catch (fetchError) {
-        console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
-        if (fetchError instanceof Error && fetchError.name === "AbortError") {
-          if (attempt < maxRetries) {
-            const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-          return new Response(JSON.stringify({ error: "Időtúllépés" }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-        if (attempt < maxRetries) {
-          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+
+        // Handle server errors with retry
+        if (response.status === 502 || response.status === 503 || response.status === 500) {
+          console.error(`Server error ${response.status} (attempt ${attempt}/${MAX_RETRIES})`);
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
-        throw fetchError;
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Unexpected response ${response.status}: ${errorText}`);
+          throw new Error(`AI hiba: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || "";
+
+        // Check for empty or too short response
+        if (!content || content.trim().length < 50) {
+          console.error(`Empty or too short AI response (length: ${content?.length || 0}), attempt ${attempt}/${MAX_RETRIES}`);
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+          console.log(`Waiting ${Math.ceil(delay/1000)}s before retry for empty response...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        console.log("Raw AI response length:", content.length);
+
+        // Try to parse the JSON
+        let sectionOutline;
+        try {
+          sectionOutline = repairAndParseJSON<unknown[]>(content);
+        } catch (parseError) {
+          console.error("JSON parse error:", parseError);
+          console.error("Content preview:", content.substring(0, 500));
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+          console.log(`Waiting ${Math.ceil(delay/1000)}s before retry for parse error...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        // Validate the parsed result
+        if (!Array.isArray(sectionOutline) || sectionOutline.length === 0) {
+          console.error("Invalid format: empty or not array, attempt", attempt);
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        console.log("Successfully parsed", sectionOutline.length, "sections");
+
+        // Transform to scene outline format
+        const sceneOutline = sectionOutline.map((s: any, index: number) => ({
+          scene_number: s.section_number || s.scene_number || index + 1,
+          title: s.title || `Szekció ${index + 1}`,
+          pov: s.type || s.pov || "concept",
+          location: s.location || `Szekció: ${s.type || "content"}`,
+          time: s.time || "",
+          description: s.learning_objective || s.description || "",
+          key_events: s.key_points || s.key_events || [],
+          emotional_arc: s.emotional_arc || `Példák: ${s.examples_needed || 0}`,
+          target_words: s.target_words || 800,
+          status: "pending",
+        }));
+
+        // Save to database
+        const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+        
+        const { data: updateData, error: updateError } = await supabase
+          .from("chapters")
+          .update({ scene_outline: sceneOutline, generation_status: "pending" })
+          .eq("id", chapterId)
+          .select();
+
+        if (updateError) {
+          console.error("Failed to save outline to DB:", updateError);
+          throw new Error(`Nem sikerült menteni a vázlatot: ${updateError.message}`);
+        }
+
+        if (!updateData || updateData.length === 0) {
+          console.error("Update returned no data - chapter may not exist:", chapterId);
+          throw new Error("Nem sikerült frissíteni a fejezetet - nem található");
+        }
+
+        console.log(`Successfully saved ${sceneOutline.length} scenes to chapter ${chapterId}`);
+
+        return new Response(JSON.stringify({ sceneOutline, sectionOutline }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        
+      } catch (innerError) {
+        console.error(`Attempt ${attempt}/${MAX_RETRIES} failed:`, innerError);
+        lastError = innerError instanceof Error ? innerError : new Error(String(innerError));
+        
+        // Handle abort/timeout errors
+        if (innerError instanceof Error && innerError.name === "AbortError") {
+          console.log("Request timed out, retrying...");
+        }
+        
+        // Wait before next retry (unless it's the last attempt)
+        if (attempt < MAX_RETRIES) {
+          const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+          console.log(`Waiting ${Math.ceil(delay/1000)}s before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
     }
 
-    if (!response || !response.ok) {
-      throw new Error("AI hiba");
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-
-    if (!content) {
-      throw new Error("Üres AI válasz");
-    }
-
-    console.log("Raw AI response length:", content.length);
-
-    // Use robust JSON parsing with repair capability
-    let sectionOutline;
-    try {
-      sectionOutline = repairAndParseJSON<unknown[]>(content);
-    } catch (parseError) {
-      console.error("JSON parse error:", parseError);
-      console.error("Content preview:", content.substring(0, 1000));
-      throw new Error("Nem sikerült feldolgozni az AI válaszát");
-    }
-
-    if (!Array.isArray(sectionOutline) || sectionOutline.length === 0) {
-      throw new Error("Érvénytelen formátum: üres vagy nem tömb");
-    }
-
-    console.log("Successfully parsed", sectionOutline.length, "sections");
-
-    const sceneOutline = sectionOutline.map((s: any, index: number) => ({
-      scene_number: s.section_number || s.scene_number || index + 1,
-      title: s.title || `Szekció ${index + 1}`,
-      pov: s.type || s.pov || "concept",
-      location: s.location || `Szekció: ${s.type || "content"}`,
-      time: s.time || "",
-      description: s.learning_objective || s.description || "",
-      key_events: s.key_points || s.key_events || [],
-      emotional_arc: s.emotional_arc || `Példák: ${s.examples_needed || 0}`,
-      target_words: s.target_words || 800,
-      status: "pending",
-    }));
-
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    // All retries exhausted
+    console.error("All retries exhausted for outline generation");
+    return new Response(
+      JSON.stringify({ error: lastError?.message || "Vázlat generálás sikertelen - próbáld újra később" }), 
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
     
-    // CRITICAL: Add error handling for the database update
-    const { data: updateData, error: updateError } = await supabase
-      .from("chapters")
-      .update({ scene_outline: sceneOutline, generation_status: "pending" })
-      .eq("id", chapterId)
-      .select();
-
-    if (updateError) {
-      console.error("Failed to save outline to DB:", updateError);
-      throw new Error(`Nem sikerült menteni a vázlatot: ${updateError.message}`);
-    }
-
-    if (!updateData || updateData.length === 0) {
-      console.error("Update returned no data - chapter may not exist:", chapterId);
-      throw new Error("Nem sikerült frissíteni a fejezetet - nem található");
-    }
-
-    console.log(`Successfully saved ${sceneOutline.length} scenes to chapter ${chapterId}`);
-
-    return new Response(JSON.stringify({ sceneOutline, sectionOutline }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Function error:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
