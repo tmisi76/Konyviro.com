@@ -396,6 +396,7 @@ export type Database = {
           avatar_url: string | null
           backstory: string | null
           body_type: string | null
+          character_voice: string | null
           created_at: string
           development_arc: Json | null
           distinguishing_features: string | null
@@ -423,6 +424,7 @@ export type Database = {
           avatar_url?: string | null
           backstory?: string | null
           body_type?: string | null
+          character_voice?: string | null
           created_at?: string
           development_arc?: Json | null
           distinguishing_features?: string | null
@@ -450,6 +452,7 @@ export type Database = {
           avatar_url?: string | null
           backstory?: string | null
           body_type?: string | null
+          character_voice?: string | null
           created_at?: string
           development_arc?: Json | null
           distinguishing_features?: string | null
