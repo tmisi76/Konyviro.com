@@ -101,3 +101,9 @@ verify_jwt = false
 
 [functions.book-writer-process]
 verify_jwt = false
+
+[functions.start-book-writing]
+verify_jwt = false
+
+[functions.process-writing-job]
+verify_jwt = false
