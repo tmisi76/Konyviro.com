@@ -849,45 +849,51 @@ export function useAutoWrite({
         // Calculate chapter word count
         const chapterWordCount = chapterContent.split(/\s+/).filter(w => w.length > 0).length;
 
-        // Generate chapter summary automatically (non-blocking)
-        const { data: { session } } = await supabase.auth.getSession();
-        fetch(SUMMARY_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            chapterId: chapter.id,
-            chapterContent,
-            chapterTitle: chapter.title,
-            genre,
-            characters: charactersContext,
-          }),
-        }).then(async (response) => {
-          // After summary is generated, update character history from response
-          if (response.ok) {
-            try {
-              const summaryData = await response.json();
-              if (summaryData.characterAppearances) {
-                for (const appearance of summaryData.characterAppearances) {
-                  if (!characterHistory[appearance.name]) {
-                    characterHistory[appearance.name] = [];
-                  }
-                  characterHistory[appearance.name].push(
-                    ...appearance.actions.map((a: string) => `${chapter.title}: ${a}`)
-                  );
-                  // Keep only last 10 actions per character
-                  if (characterHistory[appearance.name].length > 10) {
-                    characterHistory[appearance.name] = characterHistory[appearance.name].slice(-10);
+        // Generate chapter summary automatically (non-blocking) - only if we have content
+        if (chapterContent && chapterContent.trim().length > 50) {
+          const { data: { session } } = await supabase.auth.getSession();
+          fetch(SUMMARY_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              chapterId: chapter.id,
+              chapterContent,
+              chapterTitle: chapter.title,
+              genre,
+              characters: charactersContext,
+            }),
+          }).then(async (response) => {
+            // After summary is generated, update character history from response
+            if (response.ok) {
+              try {
+                const summaryData = await response.json();
+                if (summaryData.characterAppearances && Array.isArray(summaryData.characterAppearances)) {
+                  for (const appearance of summaryData.characterAppearances) {
+                    // Guard against missing name or actions
+                    if (!appearance?.name || !Array.isArray(appearance?.actions)) {
+                      continue;
+                    }
+                    if (!characterHistory[appearance.name]) {
+                      characterHistory[appearance.name] = [];
+                    }
+                    characterHistory[appearance.name].push(
+                      ...appearance.actions.map((a: string) => `${chapter.title}: ${a}`)
+                    );
+                    // Keep only last 10 actions per character
+                    if (characterHistory[appearance.name].length > 10) {
+                      characterHistory[appearance.name] = characterHistory[appearance.name].slice(-10);
+                    }
                   }
                 }
+              } catch (e) {
+                console.error("Failed to parse summary response:", e);
               }
-            } catch (e) {
-              console.error("Failed to parse summary response:", e);
             }
-          }
-        }).catch(err => console.error("Summary generation failed:", err));
+          }).catch(err => console.error("Summary generation failed:", err));
+        }
 
         // Notify about chapter completion
         onChapterComplete?.(chapter.id, chapter.title, chapterWordCount);
