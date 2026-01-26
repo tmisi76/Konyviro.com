@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,6 +17,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { StorybookData, StorybookPage } from "@/types/storybook";
+import { StorybookExport } from "../StorybookExport";
 import { cn } from "@/lib/utils";
 
 interface StorybookPreviewStepProps {
@@ -40,6 +42,7 @@ export function StorybookPreviewStep({
   const [editText, setEditText] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [regeneratingPage, setRegeneratingPage] = useState<string | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const pages = data.pages;
   const totalPages = pages.length;
@@ -278,12 +281,25 @@ export function StorybookPreviewStep({
               <Save className="w-4 h-4" />
             )}
           </Button>
-          <Button size="sm" onClick={onExport} className="gap-2">
+          <Button size="sm" onClick={() => setShowExportModal(true)} className="gap-2">
             <Download className="w-4 h-4" />
             Exportálás
           </Button>
         </div>
       </div>
+
+      {/* Export Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Mesekönyv exportálása</DialogTitle>
+          </DialogHeader>
+          <StorybookExport 
+            data={data} 
+            projectId={data.projectId || ""} 
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Book preview */}
       <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-gradient-to-b from-amber-50/50 to-orange-50/50 dark:from-amber-950/10 dark:to-orange-950/10">
