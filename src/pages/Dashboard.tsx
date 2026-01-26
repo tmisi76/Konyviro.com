@@ -23,6 +23,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { PullToRefresh } from "@/components/mobile/PullToRefresh";
 import { InstallPWAPrompt } from "@/components/mobile/InstallPWAPrompt";
+import { ProjectLoadingScreen } from "@/components/loading/ProjectLoadingScreen";
 
 import { ContentSkeleton } from "@/components/ui/content-skeleton";
 import { OnboardingTour } from "@/components/ui/onboarding-tour";
@@ -45,10 +46,17 @@ export default function Dashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileTab, setMobileTab] = useState<"home" | "projects" | "settings">("home");
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isOnline, pendingChanges, saveLastProject } = useOfflineSync();
   const { streak, getTodayWords, goals } = useWritingStats();
+
+  // Get the project being loaded for showing its title
+  const loadingProject = useMemo(() => {
+    if (!loadingProjectId) return null;
+    return projects.find((p) => p.id === loadingProjectId);
+  }, [loadingProjectId, projects]);
 
   const handleRefresh = async () => {
     await refetch();
@@ -140,7 +148,14 @@ export default function Dashboard() {
 
   const handleProjectOpen = (id: string) => {
     saveLastProject(id);
-    navigate(`/project/${id}`);
+    setLoadingProjectId(id);
+  };
+
+  const handleLoadingComplete = () => {
+    if (loadingProjectId) {
+      navigate(`/project/${loadingProjectId}`);
+      setLoadingProjectId(null);
+    }
   };
 
   const handleProjectDeleteRequest = (id: string) => {
@@ -204,6 +219,16 @@ export default function Dashboard() {
   const nonArchivedProjectCount = useMemo(() => {
     return projects.filter(p => p.status !== "archived").length;
   }, [projects]);
+
+  // Loading screen (shown for both mobile and desktop)
+  if (loadingProjectId) {
+    return (
+      <ProjectLoadingScreen
+        projectTitle={loadingProject?.title}
+        onComplete={handleLoadingComplete}
+      />
+    );
+  }
 
   // Mobile layout
   if (isMobile) {
