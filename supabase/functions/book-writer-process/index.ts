@@ -160,6 +160,7 @@ Deno.serve(async (req) => {
           console.log(`Generating outline for chapter ${chapterIndex + 1}/${chapters.length}, attempt ${attempt + 1}`);
           
           // Hívjuk a meglévő generate-section-outline edge function-t
+          const isNonFiction = project.genre === 'szakkonyv' || project.genre === 'szakkönyv';
           const outlineResponse = await fetch(`${supabaseUrl}/functions/v1/generate-section-outline`, {
             method: 'POST',
             headers: {
@@ -167,16 +168,14 @@ Deno.serve(async (req) => {
               'Authorization': `Bearer ${supabaseKey}`
             },
             body: JSON.stringify({
+              projectId: projectId,
               chapterId: chapter.id,
               chapterTitle: chapter.title,
               chapterSummary: chapter.summary || chapter.title,
-              projectGenre: project.genre,
-              targetWordCount: Math.floor(project.target_word_count / chapters.length),
-              totalChapters: chapters.length,
-              chapterIndex: chapterIndex,
-              previousChaptersSummary: chapterSummaries.join('\n'),
-              nextChapterTitle: chapters[chapterIndex + 1]?.title || null,
-              isNonFiction: project.genre === 'szakkonyv' || project.genre === 'szakkönyv'
+              bookTopic: project.story_idea || project.title,
+              targetAudience: project.target_audience || 'Általános',
+              genre: isNonFiction ? 'nonfiction' : 'fiction',
+              chapterType: project.nonfiction_book_type || null
             })
           });
 
