@@ -49,10 +49,8 @@ export function WritingStatusCard({ projectId, projectTitle }: WritingStatusCard
 
   const status = statusConfig[progress.status];
 
-  // Ha idle és nem indult el még, ne mutassuk
-  if (progress.status === 'idle' && !progress.startedAt) {
-    return null;
-  }
+  // Ne rejtsd el - mindig mutasd a kártyát, hogy lehessen indítani
+  // A Dashboard szintjén kell szűrni, hogy milyen projektek jelenjenek meg
 
   return (
     <Card className="border-primary/20">
