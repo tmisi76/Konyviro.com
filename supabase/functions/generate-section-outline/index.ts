@@ -50,10 +50,10 @@ STÍLUS SZABÁLYOK:
 Válaszolj CSAK JSON tömbként:
 [{"section_number": 1, "title": "...", "type": "intro|concept|example|exercise|summary", "key_points": [...], "examples_needed": 1, "learning_objective": "...", "target_words": 800, "status": "pending"}]`;
 
-// Retry configuration
-const MAX_RETRIES = 10;
-const BASE_DELAY_MS = 8000;
-const MAX_DELAY_MS = 120000;
+// Retry configuration - EXTREME PATIENCE for empty AI responses
+const MAX_RETRIES = 15;
+const BASE_DELAY_MS = 10000;
+const MAX_DELAY_MS = 600000; // 10 minutes max delay
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -130,13 +130,15 @@ KÖTELEZŐ SZEKCIÓK:
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content || "";
 
-        // Check for empty or too short response
+        // Check for empty or too short response - BE EXTREMELY PATIENT
         if (!content || content.trim().length < 50) {
-          console.error(`Empty or too short AI response (length: ${content?.length || 0}), attempt ${attempt}/${MAX_RETRIES}`);
+          console.error(`Empty/too short AI response (attempt ${attempt}/${MAX_RETRIES}), length: ${content?.length || 0}`);
+          
+          // For empty responses, wait LONGER and be more patient
           const delay = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
-          console.log(`Waiting ${Math.ceil(delay/1000)}s before retry for empty response...`);
+          console.log(`Waiting ${Math.ceil(delay/1000)}s before retry for empty response... (will retry up to ${MAX_RETRIES} times)`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
+          continue; // Retry without incrementing (let the loop do it)
         }
 
         console.log("Raw AI response length:", content.length);
