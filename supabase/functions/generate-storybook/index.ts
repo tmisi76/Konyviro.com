@@ -178,7 +178,7 @@ Válaszolj JSON formátumban:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash",
+        model: "google/gemini-3-flash-preview",
         messages: [
           { 
             role: "system", 
