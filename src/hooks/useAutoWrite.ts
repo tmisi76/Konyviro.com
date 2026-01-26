@@ -711,9 +711,9 @@ export function useAutoWrite({
         }));
 
         // GUARD CLAUSE: Check if chapter has valid scene_outline before writing
+        // CRITICAL: Stop IMMEDIATELY if outline is missing - don't continue to other chapters
         if (!chapter.scene_outline || chapter.scene_outline.length === 0) {
-          console.error(`Chapter "${chapter.title}" (${chapter.id}) has empty scene_outline, marking as failed...`);
-          toast.error(`A "${chapter.title}" fejezet vázlata hiányzik!`);
+          console.error(`CRITICAL: Chapter "${chapter.title}" (${chapter.id}) has empty scene_outline! STOPPING.`);
           
           // Mark chapter as failed generation
           await supabase
@@ -721,8 +721,16 @@ export function useAutoWrite({
             .update({ generation_status: "failed" })
             .eq("id", chapter.id);
           
-          failedCount++;
-          continue; // Skip to next chapter
+          // STOP the entire process - don't continue to other chapters
+          setProgress(prev => ({ 
+            ...prev, 
+            status: "error",
+            error: `A "${chapter.title}" fejezet vázlata hiányzik!\n\nAz outline generálás sikertelen volt. Próbáld újra az automatikus írást!`,
+            failedScenes: prev.failedScenes + 1,
+          }));
+          
+          isRunningRef.current = false;
+          return; // STOP immediately - don't mark as completed
         }
 
         // Get existing blocks for this chapter
@@ -867,11 +875,33 @@ export function useAutoWrite({
 
         allPreviousContent += "\n\n" + chapterContent;
 
-        // Mark chapter as completed
+        // CHAPTER VALIDATION: Verify chapter has content before marking as completed
+        const { data: verifyChapter } = await supabase
+          .from("chapters")
+          .select("word_count")
+          .eq("id", chapter.id)
+          .single();
+        
+        if (!verifyChapter || verifyChapter.word_count === 0) {
+          console.error(`CHAPTER VALIDATION FAILED: "${chapter.title}" has 0 words after writing!`);
+          
+          await supabase
+            .from("chapters")
+            .update({ generation_status: "failed" })
+            .eq("id", chapter.id);
+          
+          failedCount++;
+          // Continue to next chapter - don't stop entirely
+          continue;
+        }
+
+        // Mark chapter as completed (only if it has content)
         await supabase
           .from("chapters")
           .update({ generation_status: "completed", status: "done" })
           .eq("id", chapter.id);
+        
+        console.log(`✅ Chapter "${chapter.title}" completed with ${verifyChapter.word_count} words`);
 
         // Calculate chapter word count
         const chapterWordCount = chapterContent.split(/\s+/).filter(w => w.length > 0).length;
@@ -943,38 +973,51 @@ export function useAutoWrite({
         }
       }
 
-      // CRITICAL: Check for incomplete chapters before marking as completed
+      // CRITICAL: Final validation - check EVERY chapter has content (word_count > 0)
       const finalChaptersCheck = await supabase
         .from("chapters")
-        .select("id, title, word_count, generation_status")
+        .select("id, title, word_count, generation_status, sort_order")
         .eq("project_id", projectId)
         .order("sort_order");
       
-      const incompleteChapters = (finalChaptersCheck.data || []).filter(ch => 
-        ch.word_count === 0 || (ch.generation_status !== "completed" && ch.generation_status !== "done")
-      );
+      const allChapters = finalChaptersCheck.data || [];
+      const chaptersWithContent = allChapters.filter(ch => ch.word_count > 0);
+      const emptyChapters = allChapters.filter(ch => ch.word_count === 0);
       
-      if (incompleteChapters.length > 0 && failedCount === 0 && skippedCount === 0) {
-        // There are incomplete chapters but they weren't tracked as failed/skipped
-        console.error(`Incomplete chapters found: ${incompleteChapters.map(c => c.title).join(", ")}`);
+      // Calculate total words from all chapters
+      const totalProjectWords = allChapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0);
+      
+      // SYNC: Update project-level word count
+      await supabase
+        .from("projects")
+        .update({ word_count: totalProjectWords })
+        .eq("id", projectId);
+      
+      // CRITICAL: Only mark as "completed" if EVERY chapter has content
+      if (emptyChapters.length > 0) {
+        console.error(`COMPLETION BLOCKED: ${emptyChapters.length}/${allChapters.length} chapters are empty!`);
+        console.error(`Empty chapters: ${emptyChapters.map(c => `${c.sort_order + 1}. ${c.title}`).join(", ")}`);
+        
         setProgress(prev => ({ 
           ...prev, 
           status: "error",
-          error: `${incompleteChapters.length} fejezet nem készült el: ${incompleteChapters.map(c => c.title).join(", ")}. Próbáld újra!`,
-          failedScenes: incompleteChapters.length,
+          totalWords: totalProjectWords,
+          error: `${emptyChapters.length} fejezet nem készült el:\n${emptyChapters.map(c => `${c.sort_order + 1}. ${c.title}`).join("\n")}\n\nPróbáld újra az automatikus írást!`,
+          failedScenes: failedCount + emptyChapters.length,
         }));
         return;
       }
-
+      
+      // All chapters have content - mark as completed
+      console.log(`✅ Book completed successfully! ${chaptersWithContent.length}/${allChapters.length} chapters, ${totalProjectWords} words total`);
+      
       setProgress(prev => ({ 
         ...prev, 
         status: "completed",
+        totalWords: totalProjectWords,
         failedScenes: failedCount,
         skippedScenes: skippedCount,
       }));
-      
-      // Completion is shown in modal with celebration, no toast needed
-      console.log(`Book completed! Failed: ${failedCount}, Skipped: ${skippedCount}`);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         setProgress(prev => ({ ...prev, status: "paused" }));
