@@ -865,6 +865,7 @@ export type Database = {
           story_arc: Json | null
           story_idea: string | null
           story_structure: Json | null
+          storybook_data: Json | null
           style_action: boolean | null
           style_descriptive: boolean | null
           style_dialogue: boolean | null
@@ -911,6 +912,7 @@ export type Database = {
           story_arc?: Json | null
           story_idea?: string | null
           story_structure?: Json | null
+          storybook_data?: Json | null
           style_action?: boolean | null
           style_descriptive?: boolean | null
           style_dialogue?: boolean | null
@@ -957,6 +959,7 @@ export type Database = {
           story_arc?: Json | null
           story_idea?: string | null
           story_structure?: Json | null
+          storybook_data?: Json | null
           style_action?: boolean | null
           style_descriptive?: boolean | null
           style_dialogue?: boolean | null
