@@ -1,135 +1,148 @@
 
-# Dashboard Projekt Állapot Frissítés - Terv
+# Javítási terv: A megírt szöveg mentése a fejezetekhez
 
-## Probléma
+## Probléma azonosítása
 
-A Dashboard-on a projektek állapota nem frissül elég gyakran:
-- A real-time subscription csak a `projects` tábla változásaira figyel
-- A szószám aggregálás (chapters táblából) nem frissül automatikusan
-- Ha egy háttérírás befejeződik, a kártya csak a real-time esemény után frissül
+A háttérírás során a `write-section` edge function sikeresen generálja a szöveget, de:
+1. A `processSceneJob` function a `process-writing-job`-ban **nem menti el a content-et** a chapters táblába
+2. Csak a `scenes_completed` számlálót növeli
+3. Ezért a fejezetek `word_count: 0` és `content: null` marad
+4. Az email kiküldésre kerül a "befejezés" után, de a könyv valójában üres
 
-## Megoldás
+## Érintett fájl
 
-Hozzáadunk egy polling mechanizmust a `useProjects` hook-hoz, ami pár másodpercenként frissíti a projektek állapotát, de **csak akkor, ha van aktív háttérírás**.
+### `supabase/functions/process-writing-job/index.ts`
 
----
+A `processSceneJob` function-t kell módosítani (279-321. sorok).
 
-## Technikai részletek
+## Szükséges változtatások
 
-### 1. `src/hooks/useProjects.ts` módosítások
+### 1. A szekció tartalmának mentése a chapter-hez
 
-**Új import:**
+A `write-section` visszaadja a `{ content, wordCount }` objektumot. Ezt a tartalmat hozzá kell fűzni a chapter `content` mezőjéhez.
+
 ```typescript
-import { POLLING_INTERVALS } from "@/constants/timing";
+async function processSceneJob(supabase, job, project, chapter) {
+  const sceneIndex = job.scene_index;
+  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${chapter.title}`);
+  
+  // ... fetch hívás ...
+  
+  const result = await response.json();
+  const sceneContent = result.content || "";
+  const wordCount = result.wordCount || 0;
+  
+  // ÚJ: Fűzzük hozzá a chapter content-hez
+  const existingContent = chapter.content || "";
+  const separator = existingContent.length > 0 ? "\n\n" : "";
+  const newContent = existingContent + separator + sceneContent;
+  
+  // Számoljuk újra a teljes szószámot
+  const totalWords = newContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+  
+  // Fejezet frissítése A TARTALOMMAL
+  await supabase.from("chapters")
+    .update({ 
+      content: newContent,
+      word_count: totalWords,
+      scenes_completed: (chapter.scenes_completed || 0) + 1,
+      writing_status: 'writing'
+    })
+    .eq("id", chapter.id);
+
+  console.log(`Scene ${sceneIndex + 1} completed with ${wordCount} words`);
+  return true;
+}
 ```
 
-**Új polling useEffect hozzáadása (a real-time subscription után):**
+### 2. Fejezet frissített adatainak lekérése minden scene előtt
+
+Mivel a chapter objektum a job feldolgozás elején kerül lekérésre, és a content változik minden scene után, frissítenünk kell a chapter adatokat a `processSceneJob`-ban:
 
 ```typescript
-// Polling aktív írás esetén
-useEffect(() => {
-  if (!user) return;
+async function processSceneJob(supabase, job, project, chapter) {
+  const sceneIndex = job.scene_index;
+  
+  // FRISSÍTETT chapter lekérése a legújabb content-tel
+  const { data: currentChapter } = await supabase
+    .from("chapters")
+    .select("*")
+    .eq("id", chapter.id)
+    .single();
+  
+  if (!currentChapter) {
+    throw new Error("Chapter not found");
+  }
+  
+  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${currentChapter.title}`);
+  
+  // ... fetch hívás a write-section-höz ...
+  
+  const result = await response.json();
+  const sceneContent = result.content || "";
+  const wordCount = result.wordCount || 0;
+  
+  // Hozzáfűzés a meglévő tartalomhoz
+  const existingContent = currentChapter.content || "";
+  const separator = existingContent.length > 0 ? "\n\n" : "";
+  const newContent = existingContent + separator + sceneContent;
+  const totalWords = newContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+  
+  await supabase.from("chapters")
+    .update({ 
+      content: newContent,
+      word_count: totalWords,
+      scenes_completed: (currentChapter.scenes_completed || 0) + 1,
+      writing_status: 'writing'
+    })
+    .eq("id", chapter.id);
 
-  // Ellenőrizzük, van-e aktív írásos projekt
-  const hasActiveWriting = projects.some(p => 
-    p.writing_status && 
-    p.writing_status !== 'idle' && 
-    p.writing_status !== 'completed' &&
-    p.writing_status !== 'failed'
-  );
-
-  // Ha nincs aktív írás, nem kell polling
-  if (!hasActiveWriting) return;
-
-  // Polling indítása
-  const interval = setInterval(() => {
-    fetchProjects();
-  }, POLLING_INTERVALS.PROJECT_STATUS); // 5000ms
-
-  return () => clearInterval(interval);
-}, [user, projects]);
+  console.log(`Scene ${sceneIndex + 1} completed with ${wordCount} words, total chapter: ${totalWords} words`);
+  return true;
+}
 ```
 
----
+### 3. Email küldés validálás - ne küldj emailt, ha nincs tartalom
 
-### 2. `src/constants/timing.ts` - Új konstans (opcionális)
-
-Ha gyorsabb frissítést szeretnénk a Dashboard-on:
+Az `updateProjectProgress` function-ben ellenőrizzük, hogy tényleg van-e tartalom a fejezetekben:
 
 ```typescript
-export const POLLING_INTERVALS = {
-  PROJECT_STATUS: 5000,        // 5s - meglévő
-  PROJECT_STATUS_FAST: 3000,   // 3s - meglévő
-  DASHBOARD_REFRESH: 5000,     // 5s - Dashboard frissítés aktív írás esetén
-  // ...
-} as const;
-```
-
----
-
-### 3. Alternatív megoldás: Gyorsabb real-time
-
-Ha a real-time subscription megbízhatóan működik, a probléma valószínűleg az, hogy a chapter szószámokat külön kell lekérni. Ebben az esetben a `useProjects` hook `fetchProjects` function-ját kellene a real-time callback-ből is meghívni, nem csak a projekt adatokat frissíteni.
-
-**Módosítás a real-time callback-ben:**
-
-```typescript
-.on(
-  'postgres_changes',
-  {
-    event: 'UPDATE',
-    schema: 'public',
-    table: 'projects',
-    filter: `user_id=eq.${user.id}`
-  },
-  (payload) => {
-    const updatedProject = payload.new as Project;
-    // Ha a writing_status változott, frissítsük az egész listát
-    // hogy a chapter word count-ok is frissüljenek
-    if (updatedProject.writing_status === 'writing' || 
-        updatedProject.writing_status === 'completed') {
-      fetchProjects();
-    } else {
-      setProjects((prev) =>
-        prev.map((p) => (p.id === updatedProject.id ? { ...p, ...updatedProject } : p))
-      );
+async function updateProjectProgress(supabase, projectId) {
+  // ... meglévő count lekérések ...
+  
+  const isCompleted = pendingCount === 0;
+  
+  // Ellenőrizzük, hogy tényleg van-e tartalom
+  if (isCompleted) {
+    const { data: chapters } = await supabase
+      .from("chapters")
+      .select("word_count")
+      .eq("project_id", projectId);
+    
+    const hasContent = chapters?.some(ch => (ch.word_count || 0) > 0);
+    
+    // Csak akkor küldünk emailt, ha van tényleges tartalom
+    if (hasContent && totalWords > 0) {
+      await sendCompletionEmail(supabase, projectId);
     }
   }
-)
+  
+  // ... projekt frissítés ...
+}
 ```
 
----
+## Összefoglaló táblázat
 
-## Összefoglaló
+| Probléma | Megoldás |
+|----------|----------|
+| A content nincs mentve | `processSceneJob` frissíti a chapter.content-et |
+| A word_count 0 marad | A chapter.word_count is frissül |
+| Email üres könyvre megy ki | Validáció hozzáadása az email küldés előtt |
+| Régi chapter adat | Frissített chapter lekérése minden scene előtt |
 
-| Fájl | Változtatás |
-|------|-------------|
-| `src/hooks/useProjects.ts` | Új polling useEffect aktív írás esetén |
-| `src/constants/timing.ts` | (opcionális) Új DASHBOARD_REFRESH konstans |
+## Tesztelési terv
 
-## Működési folyamat
-
-```text
-1. Dashboard betöltődik
-2. useProjects lekéri a projekteket
-3. Real-time subscription elindul
-4. HA van aktív írásos projekt:
-   a. 5 másodpercenként polling indul
-   b. A polling frissíti a projektek listáját (beleértve a chapter word count-okat)
-5. HA nincs aktív írás:
-   a. Csak a real-time subscription működik
-   b. Nincs felesleges polling terhelés
-```
-
-## Előnyök
-
-- Automatikus frissítés aktív írás közben
-- Nincs felesleges polling, ha nincs aktív írás
-- A chapter szószámok is frissülnek (nem csak a projekt státusz)
-- Kompatibilis a meglévő real-time rendszerrel
-
-## Megjegyzések
-
-- A polling 5 másodpercenként fut (megegyezik a POLLING_INTERVALS.PROJECT_STATUS-szal)
-- Csak akkor aktiválódik, ha van `writing`, `generating_outlines`, `queued`, vagy `in_progress` státuszú projekt
-- A real-time subscription továbbra is működik a gyors frissítésekhez
+1. Indíts el egy új könyvírást
+2. Ellenőrizd a `chapters` táblát - a `content` mező növekedjen minden scene után
+3. Ellenőrizd a `word_count` értékeket - ne legyenek 0
+4. A befejezés után az email csak akkor menjen ki, ha van tartalom
