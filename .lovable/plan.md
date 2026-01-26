@@ -1,89 +1,75 @@
 
-# Terv: Projekt Betöltési Oldal Vicces Üzenetekkel
+
+# Terv: Loading Screen Módosítása
 
 ## Összefoglaló
-Amikor a felhasználó egy projektre kattint, 3 másodpercig egy egyedi betöltési oldal jelenik meg:
-- Animált progress bar (0% → 100%)
-- Véletlenszerűen váltakozó vicces üzenetek
-- KönyvÍró logóval
+A betöltési képernyőt módosítjuk:
+- **1 üzenet** jelenik meg (nincs váltakozás)
+- **4 másodperc** töltési idő (3 helyett)
 
-## Működés
+## Változások
+
+### Fájl: `src/components/loading/ProjectLoadingScreen.tsx`
+
+| Beállítás | Régi érték | Új érték |
+|-----------|------------|----------|
+| `DURATION_MS` | 3000 | **4000** |
+| Üzenet váltás | 600ms-onként | **Nincs** (egyetlen random üzenet) |
+
+### Részletes Változások
+
+1. **Időtartam növelése**:
+   ```typescript
+   const DURATION_MS = 4000; // 3000 → 4000
+   ```
+
+2. **Üzenet rotáció eltávolítása**:
+   - Törlés: `MESSAGE_INTERVAL_MS` konstans
+   - Törlés: `getRandomMessage` callback
+   - Törlés: `messageInterval` setInterval
+   - Megtartás: egyetlen random üzenet kiválasztása induláskor
+
+### Egyszerűsített useEffect
+
+```typescript
+useEffect(() => {
+  // Egyetlen random üzenet beállítása induláskor
+  setCurrentMessage(FUNNY_MESSAGES[Math.floor(Math.random() * FUNNY_MESSAGES.length)]);
+
+  // Progress animáció (4 másodperc alatt 0% → 100%)
+  const progressInterval = setInterval(() => {
+    setProgress((prev) => {
+      const increment = 100 / (DURATION_MS / 50);
+      return Math.min(prev + increment, 100);
+    });
+  }, 50);
+
+  // Befejezés 4 másodperc után
+  const completeTimeout = setTimeout(() => {
+    setIsExiting(true);
+    setTimeout(onComplete, 300);
+  }, DURATION_MS);
+
+  return () => {
+    clearInterval(progressInterval);
+    clearTimeout(completeTimeout);
+  };
+}, [onComplete]);
+```
+
+## Eredmény
 
 ```text
 ┌──────────────────────────────────────────────────┐
 │                                                  │
 │              [K] KönyvÍró                        │
 │                                                  │
-│     ════════════════════════════════════         │
-│     ████████████████░░░░░░░░░░░░░░░░░  67%       │
-│     ════════════════════════════════════         │
+│     ████████████████████░░░░░░░░░░░░  52%        │
 │                                                  │
-│   "Éppen az utolsó szavakat írom..."             │
+│   "Kávét főzök a karaktereknek..."               │
+│         (egyetlen üzenet, nem változik)          │
 │                                                  │
 └──────────────────────────────────────────────────┘
+         4 másodperc után navigáció
 ```
 
-## Vicces Üzenetek Listája
-
-- "Éppen az utolsó szavakat írom..."
-- "Pár pillanat és mutatok egy bestsellert..."
-- "Türelem bestsellert terem..."
-- "A múzsa épp ihletért megy..."
-- "Kávét főzök a karaktereknek..."
-- "Fejezetek rendezése folyamatban..."
-- "Az író még a tollát keresi..."
-- "Kreatív energia töltése..."
-- "A történet szálait bogozom..."
-- "Még gyorsan átolvasom a végét..."
-
-## Technikai Megvalósítás
-
-### 1. Új Komponens: ProjectLoadingScreen
-
-**Fájl:** `src/components/loading/ProjectLoadingScreen.tsx`
-
-```typescript
-// Fő tulajdonságok:
-- 3 másodperces időzítő (3000ms)
-- Progress bar 0% → 100% animáció
-- Üzenetváltás 600ms-onként (kb. 5 üzenet jelenik meg)
-- onComplete callback a navigációhoz
-```
-
-### 2. Dashboard Módosítás
-
-**Fájl:** `src/pages/Dashboard.tsx`
-
-Változások:
-- Új state: `loadingProjectId` (string | null)
-- `handleProjectOpen` módosítása: loading screen megjelenítése navigáció helyett
-- A loading screen befejezése után történik a navigáció
-
-```typescript
-// Új flow:
-1. Felhasználó kattint projektre
-2. setLoadingProjectId(project.id) - loading screen megjelenik
-3. 3 másodperc múlva onComplete callback
-4. navigate(`/project/${id}`) - valódi navigáció
-5. setLoadingProjectId(null) - cleanup
-```
-
-### 3. Animációk
-
-A progress bar lineárisan halad 0%-ról 100%-ra 3 másodperc alatt.
-Az üzenetek fade-in/fade-out effekttel váltakoznak.
-
-## Érintett Fájlok
-
-| Fájl | Művelet |
-|------|---------|
-| `src/components/loading/ProjectLoadingScreen.tsx` | Új komponens |
-| `src/pages/Dashboard.tsx` | Loading state és logika hozzáadása |
-
-## UX Részletek
-
-- A loading screen teljes képernyős overlay
-- Sötét háttér a mögöttes tartalom felett
-- A progress bar folyamatosan és simán animálódik
-- Az üzenetek véletlenszerű sorrendben jelennek meg (nincs ismétlés egymás után)
-- A projekt címe is megjelenhet opcionálisan
