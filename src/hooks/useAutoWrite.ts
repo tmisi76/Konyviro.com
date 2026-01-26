@@ -714,7 +714,8 @@ export function useAutoWrite({
           
           console.log(`Generating outlines batch ${Math.floor(i / PARALLEL_OUTLINE_LIMIT) + 1}: ${batch.map(c => c.title).join(", ")}`);
           
-          await Promise.all(batch.map(async (chapter) => {
+          // Generate outlines - if ANY fails, stop the whole process
+          const results = await Promise.allSettled(batch.map(async (chapter) => {
             const previousIndex = chaptersData.findIndex(c => c.id === chapter.id);
             const previousSummary = chaptersData
               .slice(0, previousIndex)
@@ -729,12 +730,23 @@ export function useAutoWrite({
             
             const nextChapterTitle = chaptersData[previousIndex + 1]?.title;
             
-            try {
-              await generateOutlineForChapter(chapter, previousSummary, nextChapterTitle);
-            } catch (outlineError) {
-              console.error(`Outline generation failed for chapter ${chapter.title}:`, outlineError);
+            const sceneOutline = await generateOutlineForChapter(chapter, previousSummary, nextChapterTitle);
+            
+            // KRITIKUS: Ellenőrizzük, hogy valóban kapott-e outline-t
+            if (!sceneOutline || sceneOutline.length === 0) {
+              throw new Error(`A "${chapter.title}" fejezet vázlatának generálása sikertelen - üres válasz!`);
             }
+            
+            console.log(`✅ Successfully generated ${sceneOutline.length} scenes for "${chapter.title}"`);
+            return { chapter, sceneOutline };
           }));
+          
+          // Check for failures - if any failed, STOP immediately
+          const failures = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+          if (failures.length > 0) {
+            const errorMessages = failures.map(f => f.reason?.message || "Ismeretlen hiba").join("\n");
+            throw new Error(`Vázlat generálás sikertelen:\n${errorMessages}`);
+          }
           
           // Short delay between batches to avoid rate limiting
           if (i + PARALLEL_OUTLINE_LIMIT < chaptersNeedingOutline.length) {
