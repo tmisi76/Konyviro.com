@@ -22,6 +22,15 @@ interface Step7AutoWriteProps {
   onComplete: () => void;
 }
 
+/**
+ * Step7AutoWrite - Automatikus könyvírás indító lépés
+ * 
+ * Ez a komponens a háttérben futó könyvírást indítja el.
+ * A folyamat a szerveren fut, így bezárható a böngésző.
+ * A progress a Dashboard-on követhető a WritingStatusCard-on keresztül.
+ * 
+ * @deprecated useAutoWrite - A régi böngésző-alapú loop lecserélve useBackgroundWriter-re
+ */
 export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteProps) {
   const navigate = useNavigate();
   const { 
@@ -38,7 +47,7 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
 
   const handleStartWriting = async () => {
     await startWriting();
-    // Átirányítás a dashboard-ra
+    // Átirányítás a dashboard-ra - a progress ott követhető
     navigate("/dashboard");
   };
 

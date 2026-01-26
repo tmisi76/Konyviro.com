@@ -1,3 +1,11 @@
+/**
+ * @deprecated Ez a hook elavult. Használd helyette a useBackgroundWriter hookot!
+ * 
+ * A régi böngésző-alapú loop helyett a háttérfolyamat fut a szerveren.
+ * Ez a hook csak visszamenőleges kompatibilitás miatt maradt meg.
+ * 
+ * @see useBackgroundWriter - Az új háttérfolyamat kezelő hook
+ */
 import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
