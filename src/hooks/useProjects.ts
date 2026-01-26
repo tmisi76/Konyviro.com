@@ -39,6 +39,8 @@ export function useProjects() {
       // Fetch chapter word counts and aggregate them per project
       if (data && data.length > 0) {
         const projectIds = data.map(p => p.id);
+        
+        // Fetch chapters for word counts
         const { data: chapters } = await supabase
           .from("chapters")
           .select("project_id, word_count")
@@ -49,13 +51,26 @@ export function useProjects() {
           wordCounts[c.project_id] = (wordCounts[c.project_id] || 0) + (c.word_count || 0);
         });
 
-        // Update projects with real word counts from chapters
-        const projectsWithRealWordCount = data.map(p => ({
+        // Fetch selected covers for each project
+        const { data: covers } = await supabase
+          .from("covers")
+          .select("project_id, image_url")
+          .in("project_id", projectIds)
+          .eq("is_selected", true);
+
+        const coverUrls: Record<string, string | null> = {};
+        covers?.forEach(c => {
+          coverUrls[c.project_id] = c.image_url;
+        });
+
+        // Update projects with real word counts and cover URLs
+        const projectsWithExtras = data.map(p => ({
           ...p,
-          word_count: wordCounts[p.id] || 0
+          word_count: wordCounts[p.id] || 0,
+          selected_cover_url: coverUrls[p.id] || null
         }));
 
-        setProjects(projectsWithRealWordCount);
+        setProjects(projectsWithExtras);
       } else {
         setProjects(data || []);
       }

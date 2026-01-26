@@ -118,6 +118,7 @@ export default function Dashboard() {
         writingMode: p.writing_mode,
         backgroundError: p.background_error,
         status: p.status,
+        coverUrl: (p as any).selected_cover_url || null,
       }));
   }, [projects]);
 

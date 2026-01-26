@@ -26,6 +26,7 @@ export interface Project {
   writingStatus?: string | null;
   writingMode?: string | null;
   backgroundError?: string | null;
+  coverUrl?: string | null;
 }
 
 interface ProjectCardProps {
@@ -186,10 +187,19 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
         </DropdownMenu>
       </div>
 
-      {/* Title */}
-      <h3 className="mb-2 text-lg font-semibold text-foreground line-clamp-2">
-        {project.title}
-      </h3>
+      {/* Cover Thumbnail + Title */}
+      <div className="flex gap-3 mb-3">
+        {project.coverUrl ? (
+          <img
+            src={project.coverUrl}
+            alt={`${project.title} borító`}
+            className="w-12 h-18 object-cover rounded-md shadow-sm flex-shrink-0"
+          />
+        ) : null}
+        <h3 className="text-lg font-semibold text-foreground line-clamp-2">
+          {project.title}
+        </h3>
+      </div>
 
       {/* Background writing indicator with scene progress */}
       {isBackgroundWriting && (
