@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChapterSidebar } from "@/components/editor/ChapterSidebar";
-import { EditorBlock } from "@/components/editor/EditorBlock";
+import { EditorView } from "@/components/editor/EditorView";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
 import { OutlineView } from "@/components/editor/OutlineView";
 import { CharacterList } from "@/components/characters/CharacterList";
@@ -339,52 +339,22 @@ export default function ProjectEditor() {
 
         {/* Content based on view mode */}
         {viewMode === "editor" ? (
-          <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-[700px] px-16 py-8">
-              {blocks.map((block) => (
-                <div
-                  key={block.id}
-                  data-block-id={block.id}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.classList.add("border-t-2", "border-primary");
-                  }}
-                  onDragLeave={(e) => {
-                    e.currentTarget.classList.remove("border-t-2", "border-primary");
-                  }}
-                  onDrop={(e) => {
-                    e.currentTarget.classList.remove("border-t-2", "border-primary");
-                    handleDrop(block.id);
-                  }}
-                >
-                  <EditorBlock
-                    block={block}
-                    isSelected={selectedBlockId === block.id}
-                    onSelect={() => setSelectedBlockId(block.id)}
-                    onUpdate={(updates) => updateBlock(block.id, updates)}
-                    onDelete={() => handleDeleteBlock(block.id)}
-                    onCreateAfter={(type) => handleCreateBlockAfter(block.id, type)}
-                    onDragStart={() => setDraggedBlockId(block.id)}
-                    onDragEnd={() => setDraggedBlockId(null)}
-                    isDragging={draggedBlockId === block.id}
-                    showResearchTools={supportsResearch}
-                    onInsertCitation={() => setShowCitationPanel(true)}
-                    onAIAction={handleInlineAIAction}
-                  />
-                </div>
-              ))}
-
-              {/* Empty area click to add block */}
-              <div
-                className="h-32 cursor-text"
-                onClick={() => {
-                  if (blocks.length === 0) {
-                    createBlock("paragraph", "", 0);
-                  }
-                }}
-              />
-            </div>
-          </div>
+          <EditorView
+            blocks={blocks}
+            selectedBlockId={selectedBlockId}
+            draggedBlockId={draggedBlockId}
+            supportsResearch={supportsResearch}
+            onSelectBlock={setSelectedBlockId}
+            onUpdateBlock={updateBlock}
+            onDeleteBlock={handleDeleteBlock}
+            onCreateBlockAfter={handleCreateBlockAfter}
+            onDragStart={setDraggedBlockId}
+            onDragEnd={() => setDraggedBlockId(null)}
+            onDrop={handleDrop}
+            onInsertCitation={() => setShowCitationPanel(true)}
+            onAIAction={handleInlineAIAction}
+            onCreateEmptyBlock={() => createBlock("paragraph", "", 0)}
+          />
         ) : viewMode === "outline" ? (
           <OutlineView
             chapters={chapters}
