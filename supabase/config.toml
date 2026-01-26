@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.generate-chapter-summary]
 verify_jwt = false
+
+[functions.book-writer-orchestrator]
+verify_jwt = false
