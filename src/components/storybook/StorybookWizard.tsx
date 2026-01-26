@@ -200,6 +200,7 @@ export function StorybookWizard() {
               data={data}
               onUpdatePage={updatePage}
               onRegenerateIllustration={generateIllustration}
+              onRegenerateMissingIllustrations={generateAllIllustrations}
               onSave={saveProject}
               onExport={handleExport}
               isSaving={isSaving}

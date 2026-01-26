@@ -95,24 +95,33 @@ export function StorybookGenerateStep({
       setPhase("illustrations");
 
       // Generate illustrations with real progress tracking
-      const pagesCount = data.pages.length || totalPages;
-      setTotalIllustrations(pagesCount);
+      // Use the age group's fixed page count as initial estimate
+      // The callback will update with actual values
+      setTotalIllustrations(totalPages);
       setCurrentIllustration(0);
 
       const illustrationsSuccess = await onGenerateIllustrations((current, total) => {
         setCurrentIllustration(current);
-        setTotalIllustrations(total);
-        const illustrationProgress = 50 + (current / total) * 45;
+        if (total > 0) {
+          setTotalIllustrations(total);
+        }
+        const illustrationProgress = 50 + (current / (total || totalPages)) * 45;
         setProgress(illustrationProgress);
         setCreditsUsed(STORYBOOK_TEXT_COST + (current * STORYBOOK_ILLUSTRATION_COST));
       });
       
       if (!illustrationsSuccess) {
+        // Check if it failed because of no pages
+        const actualPagesCount = data.pages.length;
+        if (actualPagesCount === 0) {
+          throw new Error("Nem sikerült az oldalakat generálni. Kérlek próbáld újra.");
+        }
         throw new Error("Néhány illusztráció nem készült el. Az előnézetben újragenerálhatod őket.");
       }
 
+      const finalPagesCount = data.pages.length || totalPages;
       setProgress(100);
-      setCreditsUsed(STORYBOOK_TEXT_COST + (pagesCount * STORYBOOK_ILLUSTRATION_COST));
+      setCreditsUsed(STORYBOOK_TEXT_COST + (finalPagesCount * STORYBOOK_ILLUSTRATION_COST));
       setPhase("complete");
       toast.success("A mesekönyv elkészült!");
     } catch (err) {
