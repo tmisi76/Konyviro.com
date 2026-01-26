@@ -652,10 +652,22 @@ export function useAutoWrite({
           generation_status: (ch.generation_status as ChapterWithScenes["generation_status"]) || "pending",
         }));
         
+        // CRITICAL VALIDATION: Check that outlines were actually saved
+        const chaptersWithEmptyOutlines = chaptersData.filter(ch => 
+          !ch.scene_outline || ch.scene_outline.length === 0
+        );
+        
+        if (chaptersWithEmptyOutlines.length > 0) {
+          const missingTitles = chaptersWithEmptyOutlines.map(c => c.title).join(", ");
+          console.error(`Chapters still missing outlines after generation: ${missingTitles}`);
+          throw new Error(`${chaptersWithEmptyOutlines.length} fejezetnél nem sikerült létrehozni a vázlatot: ${missingTitles}. Próbáld újra!`);
+        }
+        
         // Calculate totalScenes IMMEDIATELY after outline generation
         let totalScenesAfterOutline = 0;
         chaptersData.forEach(ch => {
           totalScenesAfterOutline += (ch.scene_outline?.length || 0);
+          console.log(`Chapter "${ch.title}": ${ch.scene_outline?.length || 0} scenes`);
         });
         
         console.log(`All outlines generated. Total scenes: ${totalScenesAfterOutline}. Starting scene writing...`);
@@ -697,6 +709,21 @@ export function useAutoWrite({
           currentChapterIndex: chapterIndex,
           currentChapterTitle: chapter.title,
         }));
+
+        // GUARD CLAUSE: Check if chapter has valid scene_outline before writing
+        if (!chapter.scene_outline || chapter.scene_outline.length === 0) {
+          console.error(`Chapter "${chapter.title}" (${chapter.id}) has empty scene_outline, marking as failed...`);
+          toast.error(`A "${chapter.title}" fejezet vázlata hiányzik!`);
+          
+          // Mark chapter as failed generation
+          await supabase
+            .from("chapters")
+            .update({ generation_status: "failed" })
+            .eq("id", chapter.id);
+          
+          failedCount++;
+          continue; // Skip to next chapter
+        }
 
         // Get existing blocks for this chapter
         const { data: existingBlocks } = await supabase

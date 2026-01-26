@@ -171,7 +171,25 @@ KÖTELEZŐ SZEKCIÓK:
     }));
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    await supabase.from("chapters").update({ scene_outline: sceneOutline, generation_status: "pending" }).eq("id", chapterId);
+    
+    // CRITICAL: Add error handling for the database update
+    const { data: updateData, error: updateError } = await supabase
+      .from("chapters")
+      .update({ scene_outline: sceneOutline, generation_status: "pending" })
+      .eq("id", chapterId)
+      .select();
+
+    if (updateError) {
+      console.error("Failed to save outline to DB:", updateError);
+      throw new Error(`Nem sikerült menteni a vázlatot: ${updateError.message}`);
+    }
+
+    if (!updateData || updateData.length === 0) {
+      console.error("Update returned no data - chapter may not exist:", chapterId);
+      throw new Error("Nem sikerült frissíteni a fejezetet - nem található");
+    }
+
+    console.log(`Successfully saved ${sceneOutline.length} scenes to chapter ${chapterId}`);
 
     return new Response(JSON.stringify({ sceneOutline, sectionOutline }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
