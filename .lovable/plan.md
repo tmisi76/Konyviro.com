@@ -1,75 +1,48 @@
 
 
-# Terv: Loading Screen Módosítása
+# Mesekönyv generálási hiba javítása
 
-## Összefoglaló
-A betöltési képernyőt módosítjuk:
-- **1 üzenet** jelenik meg (nincs váltakozás)
-- **4 másodperc** töltési idő (3 helyett)
+## Probléma azonosítása
 
-## Változások
+A `generate-storybook` edge function hibás modell nevet használ: `google/gemini-2.0-flash`. Ez a modell nem létezik a Lovable AI gateway-ben.
 
-### Fájl: `src/components/loading/ProjectLoadingScreen.tsx`
-
-| Beállítás | Régi érték | Új érték |
-|-----------|------------|----------|
-| `DURATION_MS` | 3000 | **4000** |
-| Üzenet váltás | 600ms-onként | **Nincs** (egyetlen random üzenet) |
-
-### Részletes Változások
-
-1. **Időtartam növelése**:
-   ```typescript
-   const DURATION_MS = 4000; // 3000 → 4000
-   ```
-
-2. **Üzenet rotáció eltávolítása**:
-   - Törlés: `MESSAGE_INTERVAL_MS` konstans
-   - Törlés: `getRandomMessage` callback
-   - Törlés: `messageInterval` setInterval
-   - Megtartás: egyetlen random üzenet kiválasztása induláskor
-
-### Egyszerűsített useEffect
-
-```typescript
-useEffect(() => {
-  // Egyetlen random üzenet beállítása induláskor
-  setCurrentMessage(FUNNY_MESSAGES[Math.floor(Math.random() * FUNNY_MESSAGES.length)]);
-
-  // Progress animáció (4 másodperc alatt 0% → 100%)
-  const progressInterval = setInterval(() => {
-    setProgress((prev) => {
-      const increment = 100 / (DURATION_MS / 50);
-      return Math.min(prev + increment, 100);
-    });
-  }, 50);
-
-  // Befejezés 4 másodperc után
-  const completeTimeout = setTimeout(() => {
-    setIsExiting(true);
-    setTimeout(onComplete, 300);
-  }, DURATION_MS);
-
-  return () => {
-    clearInterval(progressInterval);
-    clearTimeout(completeTimeout);
-  };
-}, [onComplete]);
+**Hibaüzenet a logokból:**
+```
+invalid model: google/gemini-2.0-flash, allowed models: [openai/gpt-5-mini openai/gpt-5 openai/gpt-5-nano openai/gpt-5.2 google/gemini-2.5-pro google/gemini-2.5-flash google/gemini-2.5-flash-lite google/gemini-2.5-flash-image google/gemini-3-pro-preview google/gemini-3-flash-preview google/gemini-3-pro-image-preview]
 ```
 
-## Eredmény
+## Javítási terv
+
+### 1. lepes: Modell frissitese az edge function-ben
+
+**Fajl:** `supabase/functions/generate-storybook/index.ts`
+
+**Valtozas:** A 181. sorban a modell nevet csereljuk `google/gemini-2.0-flash`-rol `google/gemini-3-flash-preview`-ra.
 
 ```text
-┌──────────────────────────────────────────────────┐
-│                                                  │
-│              [K] KönyvÍró                        │
-│                                                  │
-│     ████████████████████░░░░░░░░░░░░  52%        │
-│                                                  │
-│   "Kávét főzök a karaktereknek..."               │
-│         (egyetlen üzenet, nem változik)          │
-│                                                  │
-└──────────────────────────────────────────────────┘
-         4 másodperc után navigáció
+Elotte: model: "google/gemini-2.0-flash"
+Utana:  model: "google/gemini-3-flash-preview"
 ```
+
+**Miert ezt a modellt valasztjuk:**
+- Gyors es koltseghatekony
+- Kiegyensulyozott kepessegek szoveggenralashoz
+- Tokeletesen megfelel gyermekmesek irasahoz
+
+### 2. lepes: Edge function ujra deploy-olasa
+
+A modositas utan ujra deployolni kell a `generate-storybook` edge function-t, hogy az uj modell nev hatassal legyen.
+
+## Technikai reszletek
+
+| Tulajdonsag | Ertek |
+|-------------|-------|
+| Modositando fajl | `supabase/functions/generate-storybook/index.ts` |
+| Modositando sor | 181 |
+| Regi ertek | `google/gemini-2.0-flash` |
+| Uj ertek | `google/gemini-3-flash-preview` |
+
+## Varható eredmeny
+
+A javitas utan a mesekönyv generalas megfeleloen fog mukodni, es a felhasznalok sikeresen letrehozhatjak a sajat mesekonyveiket.
 
