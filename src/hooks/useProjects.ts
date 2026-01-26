@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { POLLING_INTERVALS } from "@/constants/timing";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Project = Tables<"projects">;
@@ -11,7 +12,7 @@ export function useProjects() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     if (!user) {
       setProjects([]);
       setIsLoading(false);
@@ -61,7 +62,7 @@ export function useProjects() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
   const deleteProject = async (projectId: string): Promise<boolean> => {
     try {
@@ -195,7 +196,30 @@ export function useProjects() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, fetchProjects]);
+
+  // Polling aktív írás esetén
+  useEffect(() => {
+    if (!user) return;
+
+    // Ellenőrizzük, van-e aktív írásos projekt
+    const hasActiveWriting = projects.some(p => 
+      p.writing_status && 
+      p.writing_status !== 'idle' && 
+      p.writing_status !== 'completed' &&
+      p.writing_status !== 'failed'
+    );
+
+    // Ha nincs aktív írás, nem kell polling
+    if (!hasActiveWriting) return;
+
+    // Polling indítása
+    const interval = setInterval(() => {
+      fetchProjects();
+    }, POLLING_INTERVALS.PROJECT_STATUS);
+
+    return () => clearInterval(interval);
+  }, [user, projects, fetchProjects]);
 
   return {
     projects,
