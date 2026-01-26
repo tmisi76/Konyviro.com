@@ -271,6 +271,7 @@ export type Database = {
         Row: {
           character_appearances: Json | null
           created_at: string
+          current_scene_index: number | null
           generation_status: string | null
           id: string
           key_points: string[] | null
@@ -278,6 +279,7 @@ export type Database = {
           quality_issues: Json | null
           quality_score: number | null
           scene_outline: Json | null
+          scenes_completed: number | null
           sort_order: number
           status: string
           summary: string | null
@@ -285,10 +287,13 @@ export type Database = {
           title: string
           updated_at: string
           word_count: number
+          writing_error: string | null
+          writing_status: string | null
         }
         Insert: {
           character_appearances?: Json | null
           created_at?: string
+          current_scene_index?: number | null
           generation_status?: string | null
           id?: string
           key_points?: string[] | null
@@ -296,6 +301,7 @@ export type Database = {
           quality_issues?: Json | null
           quality_score?: number | null
           scene_outline?: Json | null
+          scenes_completed?: number | null
           sort_order?: number
           status?: string
           summary?: string | null
@@ -303,10 +309,13 @@ export type Database = {
           title?: string
           updated_at?: string
           word_count?: number
+          writing_error?: string | null
+          writing_status?: string | null
         }
         Update: {
           character_appearances?: Json | null
           created_at?: string
+          current_scene_index?: number | null
           generation_status?: string | null
           id?: string
           key_points?: string[] | null
@@ -314,6 +323,7 @@ export type Database = {
           quality_issues?: Json | null
           quality_score?: number | null
           scene_outline?: Json | null
+          scenes_completed?: number | null
           sort_order?: number
           status?: string
           summary?: string | null
@@ -321,6 +331,8 @@ export type Database = {
           title?: string
           updated_at?: string
           word_count?: number
+          writing_error?: string | null
+          writing_status?: string | null
         }
         Relationships: [
           {
@@ -781,13 +793,18 @@ export type Database = {
           background_started_at: string | null
           book_type: string | null
           book_type_data: Json | null
+          completed_scenes: number | null
           complexity: number | null
           created_at: string
+          current_chapter_index: number | null
+          current_scene_index: number | null
           description: string | null
+          failed_scenes: number | null
           fiction_style: Json | null
           generated_story: string | null
           genre: string
           id: string
+          last_activity_at: string | null
           nonfiction_book_type: string | null
           selected_story_idea: Json | null
           status: string
@@ -802,11 +819,15 @@ export type Database = {
           target_word_count: number
           title: string
           tone: string | null
+          total_scenes: number | null
           updated_at: string
           user_id: string
           wizard_step: number | null
           word_count: number
+          writing_completed_at: string | null
+          writing_error: string | null
           writing_mode: string | null
+          writing_started_at: string | null
           writing_status: string | null
           writing_style: string | null
         }
@@ -818,13 +839,18 @@ export type Database = {
           background_started_at?: string | null
           book_type?: string | null
           book_type_data?: Json | null
+          completed_scenes?: number | null
           complexity?: number | null
           created_at?: string
+          current_chapter_index?: number | null
+          current_scene_index?: number | null
           description?: string | null
+          failed_scenes?: number | null
           fiction_style?: Json | null
           generated_story?: string | null
           genre: string
           id?: string
+          last_activity_at?: string | null
           nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
           status?: string
@@ -839,11 +865,15 @@ export type Database = {
           target_word_count?: number
           title: string
           tone?: string | null
+          total_scenes?: number | null
           updated_at?: string
           user_id: string
           wizard_step?: number | null
           word_count?: number
+          writing_completed_at?: string | null
+          writing_error?: string | null
           writing_mode?: string | null
+          writing_started_at?: string | null
           writing_status?: string | null
           writing_style?: string | null
         }
@@ -855,13 +885,18 @@ export type Database = {
           background_started_at?: string | null
           book_type?: string | null
           book_type_data?: Json | null
+          completed_scenes?: number | null
           complexity?: number | null
           created_at?: string
+          current_chapter_index?: number | null
+          current_scene_index?: number | null
           description?: string | null
+          failed_scenes?: number | null
           fiction_style?: Json | null
           generated_story?: string | null
           genre?: string
           id?: string
+          last_activity_at?: string | null
           nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
           status?: string
@@ -876,11 +911,15 @@ export type Database = {
           target_word_count?: number
           title?: string
           tone?: string | null
+          total_scenes?: number | null
           updated_at?: string
           user_id?: string
           wizard_step?: number | null
           word_count?: number
+          writing_completed_at?: string | null
+          writing_error?: string | null
           writing_mode?: string | null
+          writing_started_at?: string | null
           writing_status?: string | null
           writing_style?: string | null
         }
