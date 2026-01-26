@@ -7,6 +7,7 @@ export type WritingStatus =
   | 'queued' 
   | 'generating_outlines' 
   | 'writing' 
+  | 'in_progress'
   | 'paused' 
   | 'completed' 
   | 'failed';
@@ -229,7 +230,7 @@ export function useBackgroundWriter(projectId: string | null) {
     ? Math.round((progress.wordCount / progress.targetWordCount) * 100)
     : 0;
 
-  const isWriting = progress.status === 'writing' || progress.status === 'generating_outlines' || progress.status === 'queued';
+  const isWriting = progress.status === 'writing' || progress.status === 'generating_outlines' || progress.status === 'queued' || progress.status === 'in_progress';
   const canStart = progress.status === 'idle' || progress.status === 'failed';
   const canPause = isWriting;
   const canResume = progress.status === 'paused';
