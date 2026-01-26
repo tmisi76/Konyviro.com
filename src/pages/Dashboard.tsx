@@ -15,6 +15,7 @@ import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { UsagePanel } from "@/components/dashboard/UsagePanel";
+import { WritingStatusCard } from "@/components/dashboard/WritingStatusCard";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { SuccessModal } from "@/components/subscription/SuccessModal";
 import { UpgradeModal } from "@/components/subscription/UpgradeModal";
@@ -85,6 +86,15 @@ export default function Dashboard() {
       title: p.title,
       status: p.status as "active" | "completed" | "archived",
     }));
+  }, [projects]);
+
+  // Aktív írások (writing_status nem idle és nem completed)
+  const activeWritingProjects = useMemo(() => {
+    return projects.filter(p => 
+      p.writing_status && 
+      p.writing_status !== 'idle' && 
+      p.writing_status !== 'completed'
+    );
   }, [projects]);
 
   // Transform database projects to card format (exclude archived for main view)
@@ -375,6 +385,24 @@ export default function Dashboard() {
               icon={Flame}
             />
           </div>
+
+          {/* Aktív háttérírások */}
+          {activeWritingProjects.length > 0 && (
+            <div className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-foreground">
+                Folyamatban lévő írások
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {activeWritingProjects.map((project) => (
+                  <WritingStatusCard
+                    key={project.id}
+                    projectId={project.id}
+                    projectTitle={project.title}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Projects section + Usage Panel */}
           <div className="mb-8 grid gap-6 lg:grid-cols-3">
