@@ -14,9 +14,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Loader2, Sparkles, Image as ImageIcon, Check, Pencil } from 'lucide-react';
+import { ArrowLeft, Loader2, Sparkles, Image as ImageIcon, Check, Pencil, Zap, Lock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { EditCoverModal } from '@/components/covers/EditCoverModal';
+import { useSubscription } from '@/hooks/useSubscription';
+import { COVER_GENERATION_COST } from '@/constants/credits';
 
 const STYLE_OPTIONS = [
   { value: 'photorealistic', label: 'Fotórealisztikus' },
@@ -53,6 +55,11 @@ const CoverDesigner: React.FC = () => {
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [coverToEdit, setCoverToEdit] = useState<Cover | null>(null);
+
+  // Subscription data for credit check
+  const { canGenerateWords, getRemainingWords, refetch: refetchSubscription } = useSubscription();
+  const hasEnoughCredits = canGenerateWords(COVER_GENERATION_COST);
+  const remainingWords = getRemainingWords();
 
   // Fetch project data
   const { data: project, isLoading: projectLoading } = useQuery({
@@ -128,17 +135,20 @@ const CoverDesigner: React.FC = () => {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['covers', projectId] });
+      refetchSubscription(); // Refresh credit display
+      const creditsUsed = data?.credits_used || COVER_GENERATION_COST;
       toast({
         title: 'Borító elkészült!',
-        description: 'Az új borító sikeresen létrejött.',
+        description: `Az új borító sikeresen létrejött. ${creditsUsed.toLocaleString()} szó kredit levonva.`,
       });
       setPrompt('');
     },
     onError: (error: Error) => {
+      const isInsufficientCredits = error.message.includes('kredit');
       toast({
-        title: 'Hiba',
+        title: isInsufficientCredits ? 'Nincs elég kredit' : 'Hiba',
         description: error.message,
         variant: 'destructive',
       });
@@ -184,6 +194,14 @@ const CoverDesigner: React.FC = () => {
       toast({
         title: 'Hiányzó leírás',
         description: 'Kérlek adj meg egy leírást a borítóhoz.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!hasEnoughCredits) {
+      toast({
+        title: 'Nincs elég kredit',
+        description: `A borító generálás ${COVER_GENERATION_COST.toLocaleString()} szó kreditet igényel. Vásárolj extra kreditet vagy válts nagyobb csomagra.`,
         variant: 'destructive',
       });
       return;
@@ -281,15 +299,32 @@ const CoverDesigner: React.FC = () => {
                   />
                 </div>
 
+                {/* Credit cost info */}
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+                  <Zap className="h-4 w-4 text-amber-500" />
+                  <span>
+                    Költség: <strong className="text-foreground">{COVER_GENERATION_COST.toLocaleString()} szó</strong>
+                    {' • '}
+                    Maradék: <strong className={remainingWords < COVER_GENERATION_COST ? 'text-destructive' : 'text-foreground'}>
+                      {remainingWords === Infinity ? '∞' : remainingWords.toLocaleString()} szó
+                    </strong>
+                  </span>
+                </div>
+
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={generateMutation.isPending}
+                  disabled={generateMutation.isPending || !hasEnoughCredits}
                 >
                   {generateMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Generálás...
+                    </>
+                  ) : !hasEnoughCredits ? (
+                    <>
+                      <Lock className="mr-2 h-4 w-4" />
+                      Nincs elég kredit
                     </>
                   ) : (
                     <>
