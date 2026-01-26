@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.book-writer-orchestrator]
 verify_jwt = false
+
+[functions.book-writer-process]
+verify_jwt = false
