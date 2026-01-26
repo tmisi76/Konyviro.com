@@ -672,6 +672,15 @@ export function useAutoWrite({
       let completedCount = 0;
       let failedCount = 0;
       let skippedCount = 0;
+      
+      // CRITICAL: Track word count locally (React state doesn't update in loop)
+      let runningWordCount = 0;
+      
+      // Initialize with existing chapter word counts
+      chaptersData.forEach(ch => {
+        runningWordCount += ch.word_count || 0;
+      });
+      console.log(`Starting with existing word count: ${runningWordCount}, target: ${targetWordCount}`);
 
       // Build cumulative character history from previous chapters
       const characterHistory: Record<string, string[]> = {};
@@ -728,9 +737,9 @@ export function useAutoWrite({
 
           // *** WORD COUNT LIMIT CHECK ***
           // Stop if we've reached or exceeded target word count (with 10% tolerance)
-          const currentTotalWords = progress.totalWords + completedCount * 300; // Estimate from already written
-          if (currentTotalWords >= targetWordCount * 1.1) {
-            console.log(`Target word count reached (${currentTotalWords}/${targetWordCount}), stopping...`);
+          // FIXED: Use local runningWordCount instead of stale React state
+          if (runningWordCount >= targetWordCount * 1.1) {
+            console.log(`Target word count reached (${runningWordCount}/${targetWordCount}), stopping...`);
             // Mark remaining scenes as skipped
             for (let remainingScene = sceneIndex; remainingScene < chapter.scene_outline.length; remainingScene++) {
               if (chapter.scene_outline[remainingScene]?.status === "pending") {
@@ -796,6 +805,11 @@ export function useAutoWrite({
 
           // Update chapter word count (word usage is now tracked server-side)
           const wordCount = sceneText.split(/\s+/).filter(w => w.length > 0).length;
+          
+          // CRITICAL: Update local running word count for accurate limit checking
+          runningWordCount += wordCount;
+          console.log(`Scene ${sceneIndex + 1} written: ${wordCount} words. Running total: ${runningWordCount}/${targetWordCount}`);
+          
           await supabase
             .from("chapters")
             .update({ 
@@ -812,7 +826,7 @@ export function useAutoWrite({
           setProgress(prev => ({ 
             ...prev, 
             completedScenes: completedCount,
-            totalWords: prev.totalWords + wordCount,
+            totalWords: runningWordCount, // Use accurate local count
             failedScenes: failedCount,
             skippedScenes: skippedCount,
           }));
