@@ -14,8 +14,8 @@ const logStep = (step: string, details?: unknown) => {
 // Tier configurations
 const TIER_CONFIG: Record<string, { wordLimit: number; projectLimit: number }> = {
   free: { wordLimit: 1000, projectLimit: 1 },
-  hobby: { wordLimit: 50000, projectLimit: 1 },
-  writer: { wordLimit: 200000, projectLimit: 5 },
+  hobby: { wordLimit: 100000, projectLimit: 5 },
+  writer: { wordLimit: 1000000, projectLimit: 50 },
   pro: { wordLimit: 999999999, projectLimit: 999 },
 };
 
