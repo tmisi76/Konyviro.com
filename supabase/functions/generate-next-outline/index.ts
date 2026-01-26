@@ -132,7 +132,7 @@ serve(async (req) => {
         outlineResponse = await fetch(`${supabaseUrl}/functions/v1/generate-detailed-outline`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${supabaseServiceKey}`,
+            Authorization: authHeader, // Pass the original auth header
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
