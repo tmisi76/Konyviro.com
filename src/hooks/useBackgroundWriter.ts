@@ -109,17 +109,18 @@ export function useBackgroundWriter(projectId: string | null) {
     };
   }, [projectId]);
 
-  // Írás indítása
+  // Írás indítása - Az új start-book-writing edge function-t hívja!
   const startWriting = useCallback(async () => {
     if (!projectId) return;
     
     setIsLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('book-writer-orchestrator', {
+      const { data, error } = await supabase.functions.invoke('start-book-writing', {
         body: { projectId, action: 'start' }
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Könyvírás elindítva",
@@ -129,7 +130,7 @@ export function useBackgroundWriter(projectId: string | null) {
       console.error("Failed to start writing:", error);
       toast({
         title: "Hiba",
-        description: "Nem sikerült elindítani a könyvírást.",
+        description: error instanceof Error ? error.message : "Nem sikerült elindítani a könyvírást.",
         variant: "destructive",
       });
     } finally {
@@ -143,11 +144,12 @@ export function useBackgroundWriter(projectId: string | null) {
     
     setIsLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('book-writer-orchestrator', {
+      const { data, error } = await supabase.functions.invoke('start-book-writing', {
         body: { projectId, action: 'resume' }
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Könyvírás folytatva",
@@ -157,7 +159,7 @@ export function useBackgroundWriter(projectId: string | null) {
       console.error("Failed to resume writing:", error);
       toast({
         title: "Hiba",
-        description: "Nem sikerült folytatni a könyvírást.",
+        description: error instanceof Error ? error.message : "Nem sikerült folytatni a könyvírást.",
         variant: "destructive",
       });
     } finally {
@@ -171,11 +173,12 @@ export function useBackgroundWriter(projectId: string | null) {
     
     setIsLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('book-writer-orchestrator', {
+      const { data, error } = await supabase.functions.invoke('start-book-writing', {
         body: { projectId, action: 'pause' }
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Könyvírás szüneteltetve",
@@ -185,7 +188,7 @@ export function useBackgroundWriter(projectId: string | null) {
       console.error("Failed to pause writing:", error);
       toast({
         title: "Hiba",
-        description: "Nem sikerült szüneteltetni a könyvírást.",
+        description: error instanceof Error ? error.message : "Nem sikerült szüneteltetni a könyvírást.",
         variant: "destructive",
       });
     } finally {
@@ -199,11 +202,12 @@ export function useBackgroundWriter(projectId: string | null) {
     
     setIsLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('book-writer-orchestrator', {
+      const { data, error } = await supabase.functions.invoke('start-book-writing', {
         body: { projectId, action: 'cancel' }
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast({
         title: "Könyvírás leállítva",
@@ -213,7 +217,7 @@ export function useBackgroundWriter(projectId: string | null) {
       console.error("Failed to cancel writing:", error);
       toast({
         title: "Hiba",
-        description: "Nem sikerült leállítani a könyvírást.",
+        description: error instanceof Error ? error.message : "Nem sikerült leállítani a könyvírást.",
         variant: "destructive",
       });
     } finally {
