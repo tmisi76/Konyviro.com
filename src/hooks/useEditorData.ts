@@ -43,11 +43,11 @@ export function useEditorData(projectId: string) {
     }
   }, [projectId, activeChapterId]);
 
-  // Fetch blocks for active chapter
+  // Fetch blocks for active chapter - converts chapter.content to blocks if needed
   const fetchBlocks = useCallback(async () => {
     if (!activeChapterId) return;
 
-    const { data, error } = await supabase
+    const { data: blocksData, error } = await supabase
       .from("blocks")
       .select("*")
       .eq("chapter_id", activeChapterId)
@@ -58,18 +58,64 @@ export function useEditorData(projectId: string) {
       return;
     }
 
-    const typedData = (data || []).map(block => ({
+    // Ha nincs blokk, nézzük meg van-e chapter.content
+    if (!blocksData || blocksData.length === 0) {
+      // Lekérjük a chapter content-et közvetlenül
+      const { data: chapterData } = await supabase
+        .from("chapters")
+        .select("content")
+        .eq("id", activeChapterId)
+        .maybeSingle();
+      
+      if (chapterData?.content && chapterData.content.trim().length > 0) {
+        // Van content - konvertáljuk blokkokká
+        const paragraphs = chapterData.content.split('\n\n').filter((p: string) => p.trim());
+        
+        const newBlocks: Block[] = [];
+        for (let i = 0; i < paragraphs.length; i++) {
+          const { data: block } = await supabase
+            .from("blocks")
+            .insert({
+              chapter_id: activeChapterId,
+              type: 'paragraph',
+              content: paragraphs[i].trim(),
+              sort_order: i,
+            })
+            .select()
+            .single();
+          
+          if (block) {
+            newBlocks.push({
+              ...block,
+              type: block.type as BlockType,
+              metadata: (block.metadata || {}) as Block['metadata']
+            });
+          }
+        }
+        
+        setBlocks(newBlocks);
+        if (newBlocks.length > 0) {
+          toast.success("Fejezet tartalom betöltve a szerkesztőbe");
+        }
+        return;
+      }
+      
+      // Ha nincs content sem, üres blokk létrehozása
+      const newBlock = await createBlock("paragraph", "", 0);
+      if (newBlock) {
+        setBlocks([newBlock]);
+      }
+      return;
+    }
+
+    // Normál eset - vannak blokkok
+    const typedData = blocksData.map(block => ({
       ...block,
       type: block.type as BlockType,
       metadata: (block.metadata || {}) as Block['metadata']
     }));
 
     setBlocks(typedData);
-    
-    // Create initial block if none exist
-    if (typedData.length === 0) {
-      await createBlock("paragraph", "", 0);
-    }
   }, [activeChapterId]);
 
   // Create chapter

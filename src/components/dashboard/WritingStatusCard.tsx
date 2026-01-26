@@ -85,10 +85,13 @@ export function WritingStatusCard({ projectId, projectTitle }: WritingStatusCard
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Szavak</span>
             <span className="font-medium">
-              {progress.wordCount.toLocaleString("hu-HU")} / {progress.targetWordCount.toLocaleString("hu-HU")} ({wordProgressPercent}%)
+              {progress.wordCount.toLocaleString("hu-HU")} / {progress.targetWordCount.toLocaleString("hu-HU")} ({Math.min(wordProgressPercent, 100)}%)
             </span>
           </div>
-          <Progress value={wordProgressPercent} className="h-2" />
+          <Progress 
+            value={Math.min(wordProgressPercent, 100)} 
+            className={`h-2 ${progress.status === 'completed' ? '[&>div]:bg-emerald-500' : ''}`} 
+          />
         </div>
 
         {/* Hibás szekciók */}
