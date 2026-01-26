@@ -165,7 +165,13 @@ export function WritingProgressPage({
     return () => clearInterval(interval);
   }, [startTime, status]);
 
-  const progressPercent = totalScenes > 0 
+  // PRIMARY progress: word count based (what users expect)
+  const wordProgressPercent = targetWordCount > 0 
+    ? Math.min(Math.round((totalWords / targetWordCount) * 100), 100)
+    : 0;
+  
+  // SECONDARY progress: scene count based (for internal tracking)
+  const sceneProgressPercent = totalScenes > 0 
     ? Math.round((completedScenes / totalScenes) * 100) 
     : 0;
 
@@ -308,10 +314,11 @@ export function WritingProgressPage({
             >
               <h3 className="text-2xl font-bold mb-3">🎉 A könyved elkészült!</h3>
               <p className="text-lg text-muted-foreground mb-2">
-                {totalWords.toLocaleString()} szó • {completedScenes} {sceneLabel}
+                {totalWords.toLocaleString()} / {targetWordCount.toLocaleString()} szó 
+                <span className="text-primary ml-1">({wordProgressPercent}%)</span>
               </p>
-              <p className="text-sm text-muted-foreground mb-4">
-                Írás időtartama: {formatTime(elapsedSeconds)}
+              <p className="text-xs text-muted-foreground mb-2">
+                {completedScenes} / {totalScenes} {sceneLabel} • Írás időtartama: {formatTime(elapsedSeconds)}
               </p>
               
               {/* Session kredit összesítés */}
@@ -483,7 +490,7 @@ export function WritingProgressPage({
                     boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.3), inset 0 -2px 4px rgba(0,0,0,0.2), 0 2px 8px hsl(var(--primary) / 0.4)',
                   }}
                   initial={{ width: 0 }}
-                  animate={{ width: `${progressPercent}%` }}
+                  animate={{ width: `${wordProgressPercent}%` }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-black/20 rounded-full" />
@@ -508,7 +515,7 @@ export function WritingProgressPage({
                 
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-xs font-bold text-foreground drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]">
-                    {progressPercent}%
+                    {wordProgressPercent}%
                   </span>
                 </div>
               </div>

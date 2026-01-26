@@ -943,6 +943,29 @@ export function useAutoWrite({
         }
       }
 
+      // CRITICAL: Check for incomplete chapters before marking as completed
+      const finalChaptersCheck = await supabase
+        .from("chapters")
+        .select("id, title, word_count, generation_status")
+        .eq("project_id", projectId)
+        .order("sort_order");
+      
+      const incompleteChapters = (finalChaptersCheck.data || []).filter(ch => 
+        ch.word_count === 0 || (ch.generation_status !== "completed" && ch.generation_status !== "done")
+      );
+      
+      if (incompleteChapters.length > 0 && failedCount === 0 && skippedCount === 0) {
+        // There are incomplete chapters but they weren't tracked as failed/skipped
+        console.error(`Incomplete chapters found: ${incompleteChapters.map(c => c.title).join(", ")}`);
+        setProgress(prev => ({ 
+          ...prev, 
+          status: "error",
+          error: `${incompleteChapters.length} fejezet nem készült el: ${incompleteChapters.map(c => c.title).join(", ")}. Próbáld újra!`,
+          failedScenes: incompleteChapters.length,
+        }));
+        return;
+      }
+
       setProgress(prev => ({ 
         ...prev, 
         status: "completed",
