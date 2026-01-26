@@ -18,7 +18,8 @@ import { useProjectDetails } from "@/hooks/useProjectDetails";
 import { useCharacters } from "@/hooks/useCharacters";
 import { useAIContext } from "@/hooks/useAIContext";
 import { useSources, useCitations } from "@/hooks/useResearch";
-import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
+import { useInlineAI } from "@/hooks/useInlineAI";
+import { AIAction } from "@/hooks/useAIGeneration";
 import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
@@ -43,10 +44,6 @@ export default function ProjectEditor() {
     setIsGeneratingOutline,
     showCitationPanel,
     setShowCitationPanel,
-    isInlineGenerating,
-    setIsInlineGenerating,
-    inlineGeneratingBlockId,
-    setInlineGeneratingBlockId,
     globalSelectedText,
     setGlobalSelectedText,
     cursorPosition,
@@ -93,119 +90,17 @@ export default function ProjectEditor() {
   // Check if project supports research (non-fiction)
   const supportsResearch = project?.genre === "szakkonyv";
 
-  // AI generation for inline actions
-  const { generate: aiGenerate, reset: aiReset } = useAIGeneration({
+  // Inline AI actions (rewrite, expand, shorten)
+  const { handleInlineAIAction } = useInlineAI({
     projectId: projectId || "",
-    chapterId: activeChapterId || undefined,
-    genre: project?.genre,
+    activeChapterId,
+    projectGenre: project?.genre,
+    projectDescription: project?.description || undefined,
+    projectTone: project?.tone || undefined,
+    blocks,
+    charactersContext,
+    updateBlock,
   });
-
-  // Global selection listener for AI sidebar tools
-  useEffect(() => {
-    const handleSelectionChange = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-      
-      const range = sel.getRangeAt(0);
-      const container = range.startContainer.parentElement?.closest('[data-block-id]');
-      
-      // Only update if we're inside the editor
-      if (!container) return;
-      
-      const blockId = container.getAttribute('data-block-id');
-      if (!blockId) return;
-      
-      // Update selected text if there's a selection
-      if (sel.toString().length > 0) {
-        setGlobalSelectedText(sel.toString());
-      }
-      
-      // Use focusOffset for more accurate cursor position
-      const offset = sel.isCollapsed ? range.startOffset : range.endOffset;
-      setCursorPosition({ blockId, offset });
-    };
-
-    document.addEventListener("selectionchange", handleSelectionChange);
-    return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, []);
-
-  // Handle inline AI action from FloatingToolbar
-  const handleInlineAIAction = useCallback(async (action: AIAction, selectedText: string, blockId: string) => {
-    if (!selectedText.trim()) {
-      toast.error("Válassz ki szöveget a művelethez");
-      return;
-    }
-
-    setIsInlineGenerating(true);
-    setInlineGeneratingBlockId(blockId);
-
-    const context: AIContext = {
-      bookDescription: project?.description || undefined,
-      tone: project?.tone || undefined,
-      chapterContent: blocks.map((b) => b.content).join("\n").slice(-2000),
-      characters: charactersContext,
-    };
-
-    const settings: AISettings = {
-      creativity: 50,
-      length: "medium",
-      useProjectStyle: true,
-    };
-
-    // Build action-specific prompt
-    let prompt = "";
-    switch (action) {
-      case "rewrite":
-        prompt = `Írd át ezt a szöveget jobban, megtartva az értelmét. Csak az átírt szöveget add vissza, semmi mást:\n\n"${selectedText}"`;
-        break;
-      case "expand":
-        prompt = `Bővítsd ki ezt a szöveget részletesebb leírásokkal. Csak a bővített szöveget add vissza, semmi mást:\n\n"${selectedText}"`;
-        break;
-      case "shorten":
-        prompt = `Tömörítsd ezt a szöveget, megtartva a lényeget. Csak a tömörített szöveget add vissza, semmi mást:\n\n"${selectedText}"`;
-        break;
-      default:
-        prompt = selectedText;
-    }
-
-    try {
-      aiReset();
-      const result = await aiGenerate(action, prompt, context, settings);
-      
-      if (result) {
-        // Find the block and replace the selected text
-        const block = blocks.find((b) => b.id === blockId);
-        if (block) {
-          const newContent = block.content.replace(selectedText, result);
-          updateBlock(blockId, { content: newContent });
-          
-          // Sync DOM
-          setTimeout(() => {
-            const blockElements = document.querySelectorAll('[contenteditable="true"]');
-            for (const el of blockElements) {
-              const htmlEl = el as HTMLElement;
-              const parentDiv = htmlEl.closest('[class*="group relative"]');
-              if (parentDiv) {
-                // Find by checking content match
-                if (block.content === htmlEl.innerText || htmlEl.innerText.includes(selectedText)) {
-                  htmlEl.innerText = newContent;
-                  break;
-                }
-              }
-            }
-          }, 0);
-          
-          toast.success(`${action === "rewrite" ? "Átírva" : action === "expand" ? "Bővítve" : "Rövidítve"}!`);
-        }
-      }
-    } catch (error) {
-      console.error("Inline AI action error:", error);
-      toast.error("Hiba történt az AI művelet során");
-    } finally {
-      setIsInlineGenerating(false);
-      setInlineGeneratingBlockId(null);
-    }
-  }, [project, blocks, updateBlock, aiGenerate, aiReset]);
 
   // Handle citation insertion
   const handleInsertCitation = useCallback(async (source: Source, pageRef?: string) => {
