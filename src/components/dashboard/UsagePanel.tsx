@@ -18,7 +18,11 @@ const TIER_NAMES: Record<string, string> = {
   pro: "PRO",
 };
 
-export function UsagePanel() {
+interface UsagePanelProps {
+  compact?: boolean;
+}
+
+export function UsagePanel({ compact = false }: UsagePanelProps) {
   const navigate = useNavigate();
   const { subscription, usage, activeProjectCount, isLoading } = useSubscription();
   const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
@@ -83,6 +87,16 @@ export function UsagePanel() {
   };
 
   if (isLoading) {
+    if (compact) {
+      return (
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-1.5 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-1.5 w-full" />
+        </div>
+      );
+    }
     return (
       <div className="rounded-xl border bg-card p-5">
         <div className="mb-4 flex items-center gap-2">
@@ -102,6 +116,51 @@ export function UsagePanel() {
   const projectBadge = getStatusBadge(projectUsage.percent);
   const isUnlimited = subscription?.monthlyWordLimit === -1;
   const isUnlimitedProjects = subscription?.projectLimit === -1;
+
+  // Compact mode for sidebar
+  if (compact) {
+    return (
+      <div className="space-y-3">
+        {/* AI szavak */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Zap className="h-3 w-3" />
+              AI szavak
+            </span>
+            <span>{isUnlimited ? "∞" : `${wordUsage.percent}%`}</span>
+          </div>
+          {!isUnlimited && <Progress value={wordUsage.percent} className="h-1.5" />}
+        </div>
+        
+        {/* Projektek */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <FolderOpen className="h-3 w-3" />
+              Projektek
+            </span>
+            <span>{isUnlimitedProjects ? "∞" : `${projectUsage.used}/${projectUsage.total}`}</span>
+          </div>
+          {!isUnlimitedProjects && <Progress value={projectUsage.percent} className="h-1.5" />}
+        </div>
+        
+        {/* Extra kredits */}
+        {(subscription?.extraWordsBalance ?? 0) > 0 && (
+          <div className="flex justify-between text-xs">
+            <span className="flex items-center gap-1 text-primary">
+              <Coins className="h-3 w-3" />
+              Extra
+            </span>
+            <span className="text-primary font-medium">
+              {subscription.extraWordsBalance.toLocaleString("hu-HU")}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
 
   return (
     <div className="rounded-xl border bg-card p-5">

@@ -12,14 +12,17 @@ export function useProjects() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchProjects = useCallback(async () => {
+  const fetchProjects = useCallback(async (isPolling = false) => {
     if (!user) {
       setProjects([]);
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    // Only show loading state on initial load, not during polling
+    if (!isPolling) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -213,9 +216,9 @@ export function useProjects() {
     // Ha nincs aktív írás, nem kell polling
     if (!hasActiveWriting) return;
 
-    // Polling indítása
+    // Polling indítása - isPolling = true, hogy ne villogjon
     const interval = setInterval(() => {
-      fetchProjects();
+      fetchProjects(true);
     }, POLLING_INTERVALS.PROJECT_STATUS);
 
     return () => clearInterval(interval);

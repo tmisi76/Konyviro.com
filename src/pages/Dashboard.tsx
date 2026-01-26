@@ -14,7 +14,7 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
-import { UsagePanel } from "@/components/dashboard/UsagePanel";
+
 import { WritingStatusCard } from "@/components/dashboard/WritingStatusCard";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { SuccessModal } from "@/components/subscription/SuccessModal";
@@ -23,7 +23,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { PullToRefresh } from "@/components/mobile/PullToRefresh";
 import { InstallPWAPrompt } from "@/components/mobile/InstallPWAPrompt";
-import { WritingStatsPanel } from "@/components/stats/WritingStatsPanel";
+
 import { ContentSkeleton } from "@/components/ui/content-skeleton";
 import { OnboardingTour } from "@/components/ui/onboarding-tour";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
@@ -421,43 +421,38 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Projects section + Usage Panel */}
-          <div className="mb-8 grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <h2 className="mb-4 text-lg font-semibold text-foreground">
-                {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
-              </h2>
+          {/* Projects section - full width */}
+          <div className="mb-8">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">
+              {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
+            </h2>
 
-              {isLoading ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="h-48 animate-pulse rounded-xl bg-muted"
-                    />
-                  ))}
-                </div>
-              ) : nonArchivedProjectCount === 0 ? (
-                <EmptyState onCreateProject={handleNewProject} />
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {recentProjects.map((project) => (
-                    <ProjectCard
-                      key={project.id}
-                      project={project}
-                      onOpen={handleProjectOpen}
-                      onDelete={handleProjectDeleteRequest}
-                      onArchive={handleArchiveProject}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-            <UsagePanel />
+            {isLoading ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div
+                    key={i}
+                    className="h-48 animate-pulse rounded-xl bg-muted"
+                  />
+                ))}
+              </div>
+            ) : nonArchivedProjectCount === 0 ? (
+              <EmptyState onCreateProject={handleNewProject} />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recentProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onOpen={handleProjectOpen}
+                    onDelete={handleProjectDeleteRequest}
+                    onArchive={handleArchiveProject}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Writing Stats Panel - at the bottom */}
-          <WritingStatsPanel />
         </div>
       </main>
 

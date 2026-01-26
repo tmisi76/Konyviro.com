@@ -99,58 +99,11 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
   const genre = genreConfig[project.genre] || genreConfig["egyéb"];
   const isAdultContent = project.genre === "erotikus";
 
-  // Poll for updates while background writing is in progress
+  // Update live data when project prop changes (from parent polling)
   useEffect(() => {
-    if (!isBackgroundWriting) return;
-
-    const fetchProgress = async () => {
-      // Fetch project status
-      const { data: projectData } = await supabase
-        .from("projects")
-        .select("word_count, writing_status")
-        .eq("id", project.id)
-        .single();
-
-      if (projectData) {
-        setLiveWordCount(projectData.word_count);
-        setLiveStatus(projectData.writing_status);
-      }
-
-      // Fetch scene progress
-      const { data: chapters } = await supabase
-        .from("chapters")
-        .select("title, scene_outline")
-        .eq("project_id", project.id)
-        .order("sort_order");
-
-      if (chapters) {
-        let total = 0;
-        let completed = 0;
-        let currentChapter = "";
-
-        for (const ch of chapters) {
-          const scenes = (ch.scene_outline as any[]) || [];
-          total += scenes.length;
-          const chapterCompleted = scenes.filter(
-            (s) => s?.status === "done" || s?.status === "completed"
-          ).length;
-          completed += chapterCompleted;
-
-          // Find current chapter (has pending or writing scenes)
-          if (!currentChapter && chapterCompleted < scenes.length && scenes.length > 0) {
-            currentChapter = ch.title;
-          }
-        }
-
-        setSceneProgress({ total, completed, currentChapter });
-      }
-    };
-
-    fetchProgress();
-    const interval = setInterval(fetchProgress, 5000);
-
-    return () => clearInterval(interval);
-  }, [isBackgroundWriting, project.id]);
+    setLiveWordCount(project.wordCount);
+    setLiveStatus(project.writingStatus);
+  }, [project.wordCount, project.writingStatus]);
 
   return (
     <div
