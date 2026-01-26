@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdmin } from "@/hooks/useAdmin";
+import { UsagePanel } from "@/components/dashboard/UsagePanel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -236,6 +237,13 @@ export function DashboardSidebar({
 
       {/* Bottom links */}
       <div className={cn("border-t border-sidebar-border p-2", isCollapsed && "flex flex-col items-center")}>
+        {/* UsagePanel - csak kinyitott állapotban */}
+        {!isCollapsed && (
+          <div className="mb-3 px-1">
+            <UsagePanel compact />
+          </div>
+        )}
+        
         <button
           onClick={onSettings}
           className={cn(

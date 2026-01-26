@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { POLLING_INTERVALS } from "@/constants/timing";
 
 export type WritingStatus = 
   | 'idle' 
@@ -108,6 +109,53 @@ export function useBackgroundWriter(projectId: string | null) {
       supabase.removeChannel(channel);
     };
   }, [projectId]);
+
+  // Polling hozzáadása az aktív írások frissítéséhez - chapters word_count aggregálással
+  useEffect(() => {
+    if (!projectId) return;
+
+    const isActive = ['writing', 'generating_outlines', 'queued', 'in_progress'].includes(progress.status);
+    if (!isActive) return;
+
+    const fetchProgress = async () => {
+      // Projekt lekérése
+      const { data: project } = await supabase
+        .from("projects")
+        .select("writing_status, total_scenes, completed_scenes, failed_scenes, current_chapter_index, current_scene_index, target_word_count, writing_error, writing_started_at, writing_completed_at")
+        .eq("id", projectId)
+        .single();
+
+      // Chapters word_count aggregálása - valós adatok
+      const { data: chapters } = await supabase
+        .from("chapters")
+        .select("word_count")
+        .eq("project_id", projectId);
+
+      const totalWords = chapters?.reduce((sum, c) => sum + (c.word_count || 0), 0) || 0;
+
+      if (project) {
+        setProgress({
+          status: (project.writing_status as WritingStatus) || 'idle',
+          totalScenes: project.total_scenes || 0,
+          completedScenes: project.completed_scenes || 0,
+          failedScenes: project.failed_scenes || 0,
+          currentChapterIndex: project.current_chapter_index || 0,
+          currentSceneIndex: project.current_scene_index || 0,
+          wordCount: totalWords, // Aggregált word count a chapters táblából!
+          targetWordCount: project.target_word_count || 0,
+          error: project.writing_error,
+          startedAt: project.writing_started_at,
+          completedAt: project.writing_completed_at,
+        });
+      }
+    };
+
+    // Initial fetch
+    fetchProgress();
+
+    const interval = setInterval(fetchProgress, POLLING_INTERVALS.PROJECT_STATUS);
+    return () => clearInterval(interval);
+  }, [projectId, progress.status]);
 
   // Írás indítása - Az új start-book-writing edge function-t hívja!
   const startWriting = useCallback(async () => {
