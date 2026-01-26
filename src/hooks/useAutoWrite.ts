@@ -34,6 +34,22 @@ const WRITE_SECTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wri
 // Client-side timeout (longer than edge function timeout to account for network latency)
 const CLIENT_TIMEOUT = 150000; // 2.5 minutes
 
+// Retry configuration constants
+const OUTLINE_RETRY_CONFIG = {
+  MAX_RETRIES: 10,
+  BASE_DELAY: 8000, // 8 seconds
+  MAX_DELAY: 180000, // 3 minutes
+};
+
+const SCENE_RETRY_CONFIG = {
+  MAX_RETRIES: 12,
+  BASE_DELAY: 10000, // 10 seconds
+  MAX_DELAY: 300000, // 5 minutes
+};
+
+const GLOBAL_COOLDOWN_MS = 60000; // 1 minute cooldown after rate limit
+const SCENE_DELAY_MS = 8000; // 8 seconds between scenes
+
 export function useAutoWrite({
   projectId,
   genre,
@@ -71,6 +87,9 @@ export function useAutoWrite({
   const sceneDurationsRef = useRef<number[]>([]);
   const pendingApprovalRef = useRef(false);
   const resumeFromChapterRef = useRef<number | null>(null);
+  
+  // Global rate limit cooldown tracker
+  const lastRateLimitRef = useRef<number>(0);
 
   // Fetch chapters with scene outlines and character appearances
   const fetchChapters = useCallback(async () => {
@@ -125,12 +144,24 @@ export function useAutoWrite({
     fetchChapters();
   }, [fetchChapters]);
 
-  // Generate outline for a single chapter (genre-aware)
+  // Generate outline for a single chapter (genre-aware) WITH RETRY LOGIC
   const generateOutlineForChapter = useCallback(async (
     chapter: ChapterWithScenes,
     previousChaptersSummary?: string,
-    nextChapterTitle?: string
-  ) => {
+    nextChapterTitle?: string,
+    retryCount = 0
+  ): Promise<SceneOutline[]> => {
+    const { MAX_RETRIES, BASE_DELAY, MAX_DELAY } = OUTLINE_RETRY_CONFIG;
+    
+    // Apply global cooldown if recently rate limited
+    const timeSinceRateLimit = Date.now() - lastRateLimitRef.current;
+    if (timeSinceRateLimit < GLOBAL_COOLDOWN_MS) {
+      const waitTime = GLOBAL_COOLDOWN_MS - timeSinceRateLimit;
+      console.log(`Global cooldown active: waiting ${Math.ceil(waitTime/1000)}s`);
+      toast.info(`Várakozás a rendszer helyreállására... ${Math.ceil(waitTime/1000)} mp`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
     const { data: { session } } = await supabase.auth.getSession();
     
     // Choose URL based on genre
@@ -185,6 +216,36 @@ export function useAutoWrite({
 
       clearTimeout(timeoutId);
 
+      // Handle rate limiting - DON'T count as retry, just wait
+      if (response.status === 429) {
+        lastRateLimitRef.current = Date.now();
+        const retryAfter = response.headers.get('Retry-After');
+        const delay = retryAfter 
+          ? parseInt(retryAfter) * 1000 
+          : Math.min(30000 + Math.random() * 30000, 60000); // 30-60s random
+        
+        console.log(`Outline rate limited. Waiting ${delay/1000}s (NOT counting as retry, attempt ${retryCount + 1})`);
+        toast.info(`AI túlterhelt, várakozás ${Math.ceil(delay/1000)} mp...`, { duration: delay });
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        // Rate limit does NOT increment retryCount - infinite patience
+        return generateOutlineForChapter(chapter, previousChaptersSummary, nextChapterTitle, retryCount);
+      }
+      
+      // Handle server errors WITH retry
+      if (response.status >= 500) {
+        if (retryCount >= MAX_RETRIES) {
+          throw new Error("Szerver hiba túl sok próbálkozás után. Próbáld újra később.");
+        }
+        
+        const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
+        console.log(`Server error ${response.status}. Retrying outline in ${delay/1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+        toast.info(`Szerver hiba, újrapróbálás ${Math.ceil(delay/1000)} mp múlva...`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return generateOutlineForChapter(chapter, previousChaptersSummary, nextChapterTitle, retryCount + 1);
+      }
+
       if (!response.ok) {
         let errorMessage = isNonFiction ? "Szekció vázlat generálási hiba" : "Jelenet vázlat generálási hiba";
         try {
@@ -193,6 +254,15 @@ export function useAutoWrite({
         } catch {
           console.error("Failed to parse error response");
         }
+        
+        // Retry on other errors too
+        if (retryCount < MAX_RETRIES) {
+          const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
+          console.log(`Outline error: ${errorMessage}. Retrying in ${delay/1000}s`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return generateOutlineForChapter(chapter, previousChaptersSummary, nextChapterTitle, retryCount + 1);
+        }
+        
         throw new Error(errorMessage);
       }
 
@@ -201,6 +271,15 @@ export function useAutoWrite({
         data = await response.json();
       } catch (parseError) {
         console.error("Failed to parse outline response JSON:", parseError);
+        
+        // Retry on parse error
+        if (retryCount < MAX_RETRIES) {
+          const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
+          console.log(`JSON parse error. Retrying outline in ${delay/1000}s`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return generateOutlineForChapter(chapter, previousChaptersSummary, nextChapterTitle, retryCount + 1);
+        }
+        
         throw new Error("Vázlat válasz feldolgozási hiba");
       }
       
@@ -209,7 +288,16 @@ export function useAutoWrite({
       return sceneOutline.filter(s => s != null);
     } catch (error) {
       clearTimeout(timeoutId);
+      
       if (error instanceof Error && error.name === "AbortError") {
+        // Timeout - retry
+        if (retryCount < MAX_RETRIES) {
+          const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
+          console.log(`Outline timeout. Retrying in ${delay/1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          toast.info(`Időtúllépés, újrapróbálás ${Math.ceil(delay/1000)} mp múlva...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return generateOutlineForChapter(chapter, previousChaptersSummary, nextChapterTitle, retryCount + 1);
+        }
         throw new Error("Időtúllépés a vázlat generálása közben");
       }
       throw error;
@@ -277,7 +365,7 @@ export function useAutoWrite({
     }
   }, [chapters, generateOutlineForChapter, fetchChapters]);
 
-  // Write a single scene/section (genre-aware) with enhanced retry logic
+  // Write a single scene/section (genre-aware) with ROBUST retry logic
   const writeScene = useCallback(async (
     chapter: ChapterWithScenes,
     sceneIndex: number,
@@ -285,15 +373,23 @@ export function useAutoWrite({
     characterHistory?: Record<string, string[]>,
     retryCount = 0
   ): Promise<string> => {
-    const MAX_RETRIES = 7;
-    const BASE_DELAY = 5000; // 5 seconds base delay
-    const MAX_DELAY = 120000; // Maximum 2 minutes
+    const { MAX_RETRIES, BASE_DELAY, MAX_DELAY } = SCENE_RETRY_CONFIG;
     
     const scene = chapter.scene_outline[sceneIndex];
     
     if (!scene) {
       throw new Error(`Jelenet ${sceneIndex + 1} nem található a fejezetben`);
     }
+    
+    // Apply global cooldown if recently rate limited
+    const timeSinceRateLimit = Date.now() - lastRateLimitRef.current;
+    if (timeSinceRateLimit < GLOBAL_COOLDOWN_MS) {
+      const waitTime = GLOBAL_COOLDOWN_MS - timeSinceRateLimit;
+      console.log(`Global cooldown active: waiting ${Math.ceil(waitTime/1000)}s before scene`);
+      toast.info(`Várakozás a rendszer helyreállására... ${Math.ceil(waitTime/1000)} mp`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
     const { data: { session } } = await supabase.auth.getSession();
 
     abortControllerRef.current = new AbortController();
@@ -348,18 +444,20 @@ export function useAutoWrite({
 
       clearTimeout(timeoutId);
 
-      // Handle rate limiting with exponential backoff + max delay
+      // Handle rate limiting - DON'T count as retry, wait indefinitely
       if (response.status === 429) {
-        if (retryCount >= MAX_RETRIES) {
-          throw new Error("Túl sok próbálkozás után sem sikerült. Kérlek próbáld újra később.");
-        }
+        lastRateLimitRef.current = Date.now();
+        const retryAfter = response.headers.get('Retry-After');
+        const delay = retryAfter 
+          ? parseInt(retryAfter) * 1000 
+          : Math.min(30000 + Math.random() * 30000, 60000); // 30-60s random
         
-        const delay = Math.min(BASE_DELAY * Math.pow(2, retryCount), MAX_DELAY);
-        console.log(`Rate limited. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-        toast.info(`AI válaszra várakozás... ${Math.ceil(delay / 1000)} másodperc`, { duration: delay });
+        console.log(`Scene rate limited. Waiting ${delay/1000}s (NOT counting as retry, attempt ${retryCount + 1})`);
+        toast.info(`AI túlterhelt, várakozás ${Math.ceil(delay/1000)} mp...`, { duration: delay });
         
         await new Promise(resolve => setTimeout(resolve, delay));
-        return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
+        // Rate limit does NOT increment retryCount - infinite patience for rate limits
+        return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount);
       }
       
       // Handle transient server errors with retry
@@ -369,8 +467,8 @@ export function useAutoWrite({
         }
         
         const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
-        console.log(`Server error ${response.status}. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-        toast.info(`Szerver hiba, újrapróbálás ${Math.ceil(delay / 1000)} mp múlva...`, { duration: delay });
+        console.log(`Server error ${response.status}. Retrying scene in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+        toast.info(`Szerver hiba, újrapróbálás ${Math.ceil(delay / 1000)} mp múlva...`);
         
         await new Promise(resolve => setTimeout(resolve, delay));
         return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
@@ -384,6 +482,15 @@ export function useAutoWrite({
         } catch {
           console.error("Failed to parse error response");
         }
+        
+        // Retry on other errors too
+        if (retryCount < MAX_RETRIES) {
+          const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
+          console.log(`Scene error: ${errorMessage}. Retrying in ${delay/1000}s`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
+        }
+        
         throw new Error(errorMessage);
       }
 
@@ -395,7 +502,7 @@ export function useAutoWrite({
         console.error("Failed to parse scene response JSON:", parseError);
         if (retryCount < MAX_RETRIES) {
           const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
-          console.log(`JSON parse error. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          console.log(`JSON parse error. Retrying scene in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
         }
@@ -408,7 +515,7 @@ export function useAutoWrite({
       if (fullText.length < 100) {
         if (retryCount < MAX_RETRIES) {
           const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
-          console.log(`Response too short (${fullText.length} chars). Retrying in ${delay / 1000}s`);
+          console.log(`Response too short (${fullText.length} chars). Retrying scene in ${delay / 1000}s`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
         }
@@ -435,11 +542,11 @@ export function useAutoWrite({
       clearTimeout(timeoutId);
       
       if (error instanceof Error && error.name === "AbortError") {
-        // Check if this was a timeout
+        // Check if this was a timeout - retry
         if (retryCount < MAX_RETRIES) {
           const delay = Math.min(BASE_DELAY * Math.pow(1.5, retryCount), MAX_DELAY);
-          console.log(`Timeout. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-          toast.info(`Időtúllépés, újrapróbálás...`, { duration: delay });
+          console.log(`Scene timeout. Retrying in ${delay / 1000}s (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          toast.info(`Időtúllépés, újrapróbálás ${Math.ceil(delay / 1000)} mp múlva...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return writeScene(chapter, sceneIndex, previousContent, characterHistory, retryCount + 1);
         }
@@ -869,8 +976,8 @@ export function useAutoWrite({
           // Notify parent
           onChapterUpdated?.(chapter.id);
 
-          // Reduced delay between scenes (3 seconds - was 8s)
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Delay between scenes to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, SCENE_DELAY_MS));
         }
 
         allPreviousContent += "\n\n" + chapterContent;
