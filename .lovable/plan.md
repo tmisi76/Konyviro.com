@@ -1,128 +1,135 @@
 
-# Email értesítés hozzáadása a könyvírás befejezéséhez
+# Dashboard Projekt Állapot Frissítés - Terv
 
-## Jelenlegi állapot
+## Probléma
 
-- A `send-completion-email` edge function már létezik és működik
-- A régi `book-writer-process` már hívja, de az új `process-writing-job` nem
-- Az `updateProjectProgress` function detektálja, amikor minden job kész (`isCompleted = true`)
+A Dashboard-on a projektek állapota nem frissül elég gyakran:
+- A real-time subscription csak a `projects` tábla változásaira figyel
+- A szószám aggregálás (chapters táblából) nem frissül automatikusan
+- Ha egy háttérírás befejeződik, a kártya csak a real-time esemény után frissül
 
-## Szükséges változtatások
+## Megoldás
 
-### 1. `supabase/functions/process-writing-job/index.ts`
+Hozzáadunk egy polling mechanizmust a `useProjects` hook-hoz, ami pár másodpercenként frissíti a projektek állapotát, de **csak akkor, ha van aktív háttérírás**.
 
-Bővítsük az `updateProjectProgress` function-t, hogy befejezéskor hívja a `send-completion-email`-t:
+---
 
-```text
-Módosítások az updateProjectProgress function-ben (326-366. sorok):
+## Technikai részletek
+
+### 1. `src/hooks/useProjects.ts` módosítások
+
+**Új import:**
+```typescript
+import { POLLING_INTERVALS } from "@/constants/timing";
 ```
 
+**Új polling useEffect hozzáadása (a real-time subscription után):**
+
 ```typescript
-// Projekt progress frissítése
-async function updateProjectProgress(supabase: any, projectId: string) {
-  // ... meglévő count lekérések ...
-  
-  // Projekt frissítése
-  const isCompleted = pendingCount === 0;
-  
-  // Ha most fejeződött be, küldjünk email értesítést
-  if (isCompleted) {
-    await sendCompletionEmail(supabase, projectId);
-  }
-  
-  // ... projekt update ...
-}
+// Polling aktív írás esetén
+useEffect(() => {
+  if (!user) return;
+
+  // Ellenőrizzük, van-e aktív írásos projekt
+  const hasActiveWriting = projects.some(p => 
+    p.writing_status && 
+    p.writing_status !== 'idle' && 
+    p.writing_status !== 'completed' &&
+    p.writing_status !== 'failed'
+  );
+
+  // Ha nincs aktív írás, nem kell polling
+  if (!hasActiveWriting) return;
+
+  // Polling indítása
+  const interval = setInterval(() => {
+    fetchProjects();
+  }, POLLING_INTERVALS.PROJECT_STATUS); // 5000ms
+
+  return () => clearInterval(interval);
+}, [user, projects]);
 ```
 
-**Új helper function hozzáadása a fájl végére:**
+---
+
+### 2. `src/constants/timing.ts` - Új konstans (opcionális)
+
+Ha gyorsabb frissítést szeretnénk a Dashboard-on:
 
 ```typescript
-// Email küldése a könyv befejezésekor
-async function sendCompletionEmail(supabase: any, projectId: string) {
-  try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
-    // Projekt és user adatok lekérése
-    const { data: project } = await supabase
-      .from("projects")
-      .select("title, user_id")
-      .eq("id", projectId)
-      .single();
-    
-    if (!project?.user_id) {
-      console.error("Project or user not found for email");
-      return;
+export const POLLING_INTERVALS = {
+  PROJECT_STATUS: 5000,        // 5s - meglévő
+  PROJECT_STATUS_FAST: 3000,   // 3s - meglévő
+  DASHBOARD_REFRESH: 5000,     // 5s - Dashboard frissítés aktív írás esetén
+  // ...
+} as const;
+```
+
+---
+
+### 3. Alternatív megoldás: Gyorsabb real-time
+
+Ha a real-time subscription megbízhatóan működik, a probléma valószínűleg az, hogy a chapter szószámokat külön kell lekérni. Ebben az esetben a `useProjects` hook `fetchProjects` function-ját kellene a real-time callback-ből is meghívni, nem csak a projekt adatokat frissíteni.
+
+**Módosítás a real-time callback-ben:**
+
+```typescript
+.on(
+  'postgres_changes',
+  {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'projects',
+    filter: `user_id=eq.${user.id}`
+  },
+  (payload) => {
+    const updatedProject = payload.new as Project;
+    // Ha a writing_status változott, frissítsük az egész listát
+    // hogy a chapter word count-ok is frissüljenek
+    if (updatedProject.writing_status === 'writing' || 
+        updatedProject.writing_status === 'completed') {
+      fetchProjects();
+    } else {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === updatedProject.id ? { ...p, ...updatedProject } : p))
+      );
     }
-    
-    // User email lekérése az auth.users táblából
-    const { data: userData } = await supabase.auth.admin.getUserById(project.user_id);
-    
-    if (!userData?.user?.email) {
-      console.error("User email not found");
-      return;
-    }
-    
-    // Email küldése
-    console.log(`Sending completion email to ${userData.user.email} for project "${project.title}"`);
-    
-    await fetch(`${supabaseUrl}/functions/v1/send-completion-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`
-      },
-      body: JSON.stringify({
-        email: userData.user.email,
-        projectTitle: project.title,
-        projectId: projectId
-      })
-    });
-    
-    console.log("Completion email sent successfully");
-  } catch (error) {
-    // Ne dobjunk hibát, csak loggoljuk - az email küldés nem kritikus
-    console.error("Failed to send completion email:", error);
   }
-}
+)
 ```
 
-## Alternatív megoldás (ha az auth.admin nem elérhető)
-
-Ha a Supabase admin API nem használható, a profiles táblából is lekérhető az email:
-
-```typescript
-// Profiles táblából lekérés (ha van email mező)
-const { data: authData } = await supabase
-  .from("profiles")
-  .select("user_id")
-  .eq("user_id", project.user_id)
-  .single();
-
-// Vagy közvetlen auth.users lekérés RPC-vel
-```
+---
 
 ## Összefoglaló
 
 | Fájl | Változtatás |
 |------|-------------|
-| `process-writing-job/index.ts` | Új `sendCompletionEmail` helper function + hívás `updateProjectProgress`-ből |
+| `src/hooks/useProjects.ts` | Új polling useEffect aktív írás esetén |
+| `src/constants/timing.ts` | (opcionális) Új DASHBOARD_REFRESH konstans |
 
 ## Működési folyamat
 
 ```text
-1. pg_cron triggereli a process-writing-job-ot (30 mp-ként)
-2. Feldolgozza az utolsó pending job-ot
-3. Frissíti a projekt progresst az updateProjectProgress-ben
-4. Ha nincs több pending job (isCompleted = true):
-   a. Lekéri a projekt címét és user_id-t
-   b. Lekéri a user email címét
-   c. Meghívja a send-completion-email edge function-t
-   d. A user email-t kap a könyve elkészültéről
+1. Dashboard betöltődik
+2. useProjects lekéri a projekteket
+3. Real-time subscription elindul
+4. HA van aktív írásos projekt:
+   a. 5 másodpercenként polling indul
+   b. A polling frissíti a projektek listáját (beleértve a chapter word count-okat)
+5. HA nincs aktív írás:
+   a. Csak a real-time subscription működik
+   b. Nincs felesleges polling terhelés
 ```
+
+## Előnyök
+
+- Automatikus frissítés aktív írás közben
+- Nincs felesleges polling, ha nincs aktív írás
+- A chapter szószámok is frissülnek (nem csak a projekt státusz)
+- Kompatibilis a meglévő real-time rendszerrel
 
 ## Megjegyzések
 
-- Az email küldés nem blokkolja a job feldolgozást (try-catch)
-- Ha a küldés nem sikerül, csak logolunk, nem szakítjuk meg a folyamatot
-- Az email tartalmazza a könyv címét és egy linket a projekt megnyitásához
+- A polling 5 másodpercenként fut (megegyezik a POLLING_INTERVALS.PROJECT_STATUS-szal)
+- Csak akkor aktiválódik, ha van `writing`, `generating_outlines`, `queued`, vagy `in_progress` státuszú projekt
+- A real-time subscription továbbra is működik a gyors frissítésekhez
