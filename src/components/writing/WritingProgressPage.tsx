@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { 
   Loader2, 
   Pause, 
@@ -16,7 +17,8 @@ import {
   Coins,
   Check,
   Edit3,
-  RotateCcw
+  RotateCcw,
+  Target
 } from "lucide-react";
 
 export interface WritingProgressPageProps {
@@ -537,6 +539,29 @@ export function WritingProgressPage({
               </div>
               <span>{totalWords.toLocaleString()} szó</span>
             </div>
+
+            {/* Célszószám progress bar */}
+            {targetWordCount > 0 && (
+              <div className="mb-4 p-3 bg-muted/30 rounded-lg border border-border/50">
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Target className="w-3.5 h-3.5" />
+                    <span>Célszószám</span>
+                  </div>
+                  <span className="font-medium">
+                    <span className="text-primary">{totalWords.toLocaleString()}</span>
+                    <span className="text-muted-foreground"> / {targetWordCount.toLocaleString()} szó</span>
+                  </span>
+                </div>
+                <Progress 
+                  value={Math.min((totalWords / targetWordCount) * 100, 100)} 
+                  className="h-2"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1.5 text-right">
+                  {Math.round((totalWords / targetWordCount) * 100)}% kész
+                </p>
+              </div>
+            )}
 
             {/* Kredit információk panel */}
             <CreditPanel 
