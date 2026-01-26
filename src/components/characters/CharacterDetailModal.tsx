@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { User, Trash2, Sparkles, Loader2 } from "lucide-react";
+import { User, Trash2, Sparkles, Loader2, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -40,6 +40,8 @@ import {
   HAIR_COLOR_OPTIONS,
   EYE_COLOR_OPTIONS,
 } from "@/types/character";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface CharacterDetailModalProps {
   character: Character;
@@ -59,6 +61,7 @@ export function CharacterDetailModal({
   onDelete,
 }: CharacterDetailModalProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
   
   // Local state for textarea fields to prevent comma input issues
   const [motivationsText, setMotivationsText] = useState((character.motivations || []).join(", "));
@@ -443,6 +446,61 @@ export function CharacterDetailModal({
                 value={character.speech_style || ""}
                 onChange={(e) => onUpdate({ speech_style: e.target.value || null })}
                 placeholder="Hogyan beszél? Milyen szavakat használ? Vannak szójárásai?"
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Karakter hang (AI generált)</label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    setIsGeneratingVoice(true);
+                    toast.info("Karakter hang generálása...");
+                    try {
+                      const { data, error } = await supabase.functions.invoke(
+                        'generate-character-voice',
+                        {
+                          body: {
+                            name: character.name,
+                            role: character.role,
+                            age: character.age,
+                            occupation: character.occupation,
+                            positiveTraits: character.positive_traits,
+                            negativeTraits: character.negative_traits,
+                            backstory: character.backstory,
+                            motivation: (character.motivations || []).join(", "),
+                          }
+                        }
+                      );
+                      if (error) throw error;
+                      if (data?.character_voice) {
+                        onUpdate({ character_voice: data.character_voice });
+                        toast.success("Karakter hang generálva!");
+                      }
+                    } catch (err) {
+                      console.error("Voice generation failed:", err);
+                      toast.warning("Karakter hang generálás sikertelen.");
+                    } finally {
+                      setIsGeneratingVoice(false);
+                    }
+                  }}
+                  disabled={isGeneratingVoice}
+                  className="gap-2"
+                >
+                  {isGeneratingVoice ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                  AI hang generálás
+                </Button>
+              </div>
+              <Textarea
+                value={character.character_voice || ""}
+                onChange={(e) => onUpdate({ character_voice: e.target.value || null })}
+                placeholder="Az AI által generált karakter hang leírása..."
+                className="min-h-[120px]"
               />
             </div>
           </TabsContent>

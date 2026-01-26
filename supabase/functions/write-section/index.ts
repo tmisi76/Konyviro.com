@@ -141,36 +141,147 @@ serve(async (req) => {
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const isFiction = genre === "fiction";
+    // Create Supabase client for deep context fetching
+    const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    // 1. Fetch Full Project Details
+    const { data: project, error: projectError } = await supabaseClient
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .single();
+    if (projectError) console.warn('Could not fetch project details:', projectError.message);
+
+    // 2. Fetch POV Character Details (including character_voice)
+    const povCharacterId = sectionOutline.pov_character_id || sectionOutline.pov;
+    let povCharacter: { name: string; character_voice: string | null } = { name: sectionOutline.pov || 'Unknown', character_voice: null };
+    if (povCharacterId && typeof povCharacterId === 'string' && povCharacterId.includes('-')) {
+      const { data: charData } = await supabaseClient
+        .from('characters')
+        .select('name, character_voice, positive_traits, negative_traits, backstory, speech_style')
+        .eq('id', povCharacterId)
+        .single();
+      if (charData) {
+        povCharacter = { name: charData.name, character_voice: charData.character_voice };
+      }
+    }
+
+    // 3. Fetch Previous 3 Scenes/Sections Summaries from blocks table
+    const previousScenes: { summary: string }[] = [];
+    const { data: allBlocks } = await supabaseClient
+      .from('blocks')
+      .select('content, sort_order')
+      .eq('chapter_id', chapterId)
+      .order('sort_order', { ascending: true });
+    if (allBlocks && sectionNumber > 1) {
+      const startIdx = Math.max(0, sectionNumber - 4);
+      const endIdx = sectionNumber - 1;
+      for (let i = startIdx; i < endIdx && i < allBlocks.length; i++) {
+        const block = allBlocks[i];
+        const summary = (block.content || '').substring(0, 200) + '...';
+        previousScenes.push({ summary });
+      }
+    }
+
+    // 4. Fetch Research Sources (for nonfiction)
+    const { data: sources } = await supabaseClient
+      .from('sources')
+      .select('title, url, notes')
+      .eq('project_id', projectId);
+    const sourcesList = sources || [];
+
+    // 5. Determine Story Arc Position and Tension Level
+    const totalSectionsInChapter = sectionOutline.total_sections || 5;
+    const progressInChapter = sectionNumber / totalSectionsInChapter;
+    let storyArcPosition = 'Középső rész';
+    let tensionLevel = 'Közepes';
+    if (progressInChapter < 0.3) {
+      storyArcPosition = 'Felvezetés';
+      tensionLevel = 'Alacsony';
+    } else if (progressInChapter > 0.7) {
+      storyArcPosition = 'Klimax felé';
+      tensionLevel = 'Magas';
+    }
+
+    const isFiction = genre === "fiction" || (project?.genre && project.genre !== 'nonfiction' && project.genre !== 'szakkönyv' && project.genre !== 'szakkonyv');
     const sectionType = sectionOutline.pov || sectionOutline.type || "concept";
     const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
     
+    // Build rich context-aware prompt
     const userPrompt = isFiction
-      ? `ÍRD MEG a jelenetet:\n\nFEJEZET: ${chapterTitle}\nJELENET #${sectionNumber}: "${sectionOutline.title}"\nPOV: ${sectionOutline.pov}\nHelyszín: ${sectionOutline.location}\nIdő: ${sectionOutline.time}\nLeírás: ${sectionOutline.description}\nKulcs események: ${(sectionOutline.key_events || []).join(", ")}\nÉrzelmi ív: ${sectionOutline.emotional_arc}\nCélhossz: ~${sectionOutline.target_words} szó${previousContent ? `\n\nElőző tartalom folytatása:\n${previousContent.slice(-1500)}` : ""}`
-      : `ÍRD MEG A SZEKCIÓT:
+      ? `CONTEXT:
+- KÖNYV MŰFAJA: ${project?.genre || genre || 'fiction'}
+- KÖNYV HANGNEME: ${project?.tone || 'Általános'}
+- KÖNYV CÉLKÖZÖNSÉGE: ${project?.target_audience || targetAudience || 'Felnőtt olvasók'}
+- KÖNYV ALAPTÖRTÉNETE: ${project?.story_idea || 'Nincs megadva'}
 
-FEJEZET: ${chapterTitle}
-SZEKCIÓ #${sectionNumber}: "${sectionOutline.title}"
-TÍPUS: ${sectionType}
-FELADAT: ${SECTION_PROMPTS[sectionType] || "Írj tartalmas szekciót."}
+JELENET DRAMATURGIÁJA:
+- TÖRTÉNETI ÍV POZÍCIÓ: Ez a jelenet a történet ${storyArcPosition} részében van.
+- FESZÜLTSÉG SZINTJE: ${tensionLevel}. A jelenetnek ezt a feszültséget kell tükröznie.
 
-KULCSPONTOK (mindegyiket dolgozd fel):
+KARAKTER INFORMÁCIÓK:
+- POV KARAKTER NEVE: ${povCharacter.name}
+- POV KARAKTER HANGJA ÉS STÍLUSA: ${povCharacter.character_voice || 'Standard narráció, semleges hang.'}
+- POV KARAKTER CÉLJA A JELENETBEN: ${sectionOutline.pov_goal || 'Nincs megadva'}
+- POV KARAKTER ÉRZELMI ÁLLAPOTA A JELENET ELEJÉN: ${sectionOutline.pov_emotion_start || 'Semleges'}
+
+ELŐZMÉNYEK (AZ ELŐZŐ JELENETEK RÖVID ÖSSZEFOGLALÓJA):
+${previousScenes.length > 0 ? previousScenes.map((s, i) => `${i + 1}. ${s.summary}`).join('\n') : 'Ez az első jelenet a fejezetben.'}
+
+ELŐZŐ SZÖVEGRÉSZ (az utolsó 4000 karakter a folytonosság érdekében):
+${(previousContent || '').slice(-4000)}
+
+---
+ÍRÁSI FELADAT:
+Írd meg az alábbi jelenetet a fenti kontextus és a "Mély POV" technika maximális figyelembevételével. A narráció és minden leírás a POV karakter szemszögéből történjen, az ő hangján és érzelmi állapotán keresztül.
+
+- FEJEZET CÍME: "${chapterTitle}"
+- JELENET SORSZÁMA: ${sectionNumber}
+- JELENET CÍME: "${sectionOutline.title}"
+- HELYSZÍN: ${sectionOutline.location || 'Nincs megadva'}
+- IDŐ: ${sectionOutline.time || 'Nincs megadva'}
+- JELENET LEÍRÁSA: ${sectionOutline.description}
+- KULCSESEMÉNYEK (ezeknek kötelezően meg kell történniük): ${(sectionOutline.key_events || []).join(', ')}
+- ÉRZELMI ÍV: ${sectionOutline.emotional_arc || 'Nincs megadva'}
+- VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
+- CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
+
+CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
+      : `CONTEXT:
+- KÖNYV NAGY ÍGÉRETE: ${project?.description || bookTopic || 'Nincs megadva'}
+- CÉLKÖZÖNSÉG: ${project?.target_audience || targetAudience || 'Általános közönség'}
+- CÉLKÖZÖNSÉG RÉSZLETES LEÍRÁSA: ${project?.audience_level || 'Általános'}
+- SZERZŐI PROFIL: ${authorProfile?.bio || project?.author_profile?.bio || 'Szakértő a témában'}
+- EGYEDI MÓDSZERTAN/KERETRENDSZER: ${authorProfile?.methodology || project?.author_profile?.methodology || 'Nincs megadva'}
+${authorProfile?.formality === "magaz" ? "- MEGSZÓLÍTÁS: Magázó forma (Ön)" : "- MEGSZÓLÍTÁS: Tegező forma (Te)"}
+
+KUTATÁSI ANYAGOK (releváns források a kijelentések alátámasztásához):
+${sourcesList.length > 0 ? sourcesList.map((s, i) => `- [forrás: ${i + 1}] ${s.title}: ${s.notes || 'Nincs összefoglaló'}`).join('\n') : 'Nincsenek külső források. Támaszkodj a szerzői profilra és a módszertanra.'}
+
+ELŐZŐ SZÖVEGRÉSZ (az utolsó 4000 karakter a folytonosság érdekében):
+${(previousContent || '').slice(-4000)}
+
+---
+ÍRÁSI FELADAT:
+Írd meg az alábbi szakkönyv szekciót a fenti kontextus és a "StoryBrand" keretrendszer maximális figyelembevételével. Az olvasó a hős, te vagy a segítő. Adj neki egy világos tervet és hívd cselekvésre.
+
+- FEJEZET CÍME: "${chapterTitle}"
+- SZEKCIÓ SORSZÁMA: ${sectionNumber}
+- SZEKCIÓ CÍME: "${sectionOutline.title}"
+- SZEKCIÓ TÍPUSA: ${sectionType}
+- FELADAT: ${SECTION_PROMPTS[sectionType] || "Írj tartalmas szekciót."}
+- SZEKCIÓ CÉLJA (TANULÁSI EREDMÉNY): ${sectionOutline.description || 'Az olvasó megérti és alkalmazni tudja a tartalmat.'}
+- KULCSPONTOK (ezeket kötelezően fejtsd ki részletesen, példákkal):
 ${(sectionOutline.key_events || []).map((p: string, i: number) => `${i+1}. ${p}`).join('\n')}
-
-TANULÁSI CÉL: ${sectionOutline.description || "Az olvasó megérti és alkalmazni tudja a tartalmat."}
-CÉLKÖZÖNSÉG: ${targetAudience || "Általános"}
-KÖNYV TÉMÁJA: ${bookTopic || "Szakkönyv"}
-${authorProfile?.formality === "magaz" ? "MEGSZÓLÍTÁS: Magázó forma (Ön)" : "MEGSZÓLÍTÁS: Tegező forma (Te)"}
-
-CÉLHOSSZ: ~${sectionOutline.target_words} szó
-
-${previousContent ? `FOLYTATÁS (illeszkedj az előző tartalomhoz):\n${previousContent.slice(-1500)}` : ""}
+- CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
 
 FORMÁZÁSI KÖVETELMÉNYEK:
 - Használj alcímeket ha a szekció hosszabb
 - Használj bullet point listákat a kulcspontoknál
 - Használj számozott lépéseket a folyamatoknál
-- A szekció végén készíts átvezetést a következőhöz`;
+- A szekció végén készíts átvezetést a következőhöz
+
+CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
