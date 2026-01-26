@@ -1,171 +1,176 @@
 
-# Terv: Borító Generálás Költség Megjelenítése és Kredit Levonás
+# Terv: Előfizetési Csomagok Frissítése
 
 ## Összefoglaló
-A borítókészítő funkció működik (a logok alapján sikeresen generált képeket). Implementálni kell:
-1. A költség megjelenítését a felhasználói felületen
-2. A kredit ellenőrzését és levonását generálás előtt
+Frissíteni kell az előfizetési csomagokat a nyitóoldalon és az adatbázisban az új limitekkel és funkciókkal.
 
-## Költség Definíció
+## Változások Összehasonlítása
 
-| Művelet | Kredit Költség |
-|---------|----------------|
-| **Borító generálás** | 2000 szó |
-| **Borító szerkesztés (inpainting)** | 2000 szó |
+| Csomag | Régi Projekt Limit | Új Projekt Limit | Régi Szó Limit | Új Szó Limit |
+|--------|-------------------|-----------------|----------------|--------------|
+| **Ingyenes** | 1 | 1 | 1,000 | 1,000 |
+| **Hobbi** | 1 | **5** | 100,000 | 100,000 |
+| **Író** | 5 | **50** | 1,000,000 | 1,000,000 |
 
-**Indoklás:** A `google/gemini-3-pro-image-preview` modell ~2000-3000 tokent használ képenként, ami szó-egyenértékben kb. 1500-2000 szónak felel meg. A 2000 szó konzisztens és könnyen érthető érték.
+## Új Feature Listák
 
-## Implementáció Lépései
+### Ingyenes
+- 1 aktív projekt
+- 1.000 szó / hó AI generálás
+- ❌ NINCS exportálási lehetőség
+- ❌ NINCS Könyvborító tervező
+- ❌ NINCS Kreatív regényíró
+- ❌ NINCS Támogatás
 
-### 1. Konstans Definiálása
-Új fájl: `src/constants/credits.ts`
-```text
-┌──────────────────────────────────┐
-│ COVER_GENERATION_COST = 2000     │
-│ COVER_EDIT_COST = 2000           │
-└──────────────────────────────────┘
-```
+### Hobbi
+- 5 aktív projekt
+- 100.000 szó / hó AI generálás
+- ✅ Exportálás (DOC, Epub, PDF, TXT)
+- ✅ Nano Banana Könyvborító tervező
+- ✅ Kreatív regényíró AI rendszer
+- ✅ Email támogatás
 
-### 2. CoverDesigner.tsx Módosítások
-- Költség megjelenítése a generálás gomb mellett
-- "Maradék kredit" ellenőrzés a generálás előtt
-- Hibaüzenet ha nincs elég kredit
-
-```text
-┌─────────────────────────────────────────┐
-│     🎨 Borító Tervező                   │
-├─────────────────────────────────────────┤
-│                                         │
-│  [Űrlap mezők...]                       │
-│                                         │
-│  ⚡ Költség: 2000 szó kredit            │
-│                                         │
-│  [✨ Borító Generálása]                 │
-│                                         │
-│  ─────────────────────────────────────  │
-│  💡 Tip: Ellenőrizd a havi keretedet   │
-│      a beállításoknál                   │
-└─────────────────────────────────────────┘
-```
-
-### 3. Backend Kredit Levonás
-`supabase/functions/generate-cover/index.ts` módosítása:
-
-**Új logika a generálás ELŐTT:**
-1. Ellenőrizni, hogy a felhasználónak van-e elég kreditje (havi keret + extra)
-2. Ha nincs: 402 hibát visszaadni
-
-**Új logika a generálás UTÁN:**
-3. Kredit levonás a meglévő `increment_words_generated` és `use_extra_credits` RPC függvényekkel
-
-```text
-┌─────────────────────────────────────────┐
-│ generate-cover Edge Function            │
-├─────────────────────────────────────────┤
-│                                         │
-│  1. JWT ellenőrzés ✓                    │
-│  2. Projekt tulajdonjog ✓               │
-│  3. ⭐ KREDIT ELLENŐRZÉS (új!)          │
-│     - profiles.monthly_word_limit       │
-│     - user_usage.words_generated        │
-│     - profiles.extra_words_balance      │
-│     - Ha limit - used + extra < 2000:   │
-│       → 402 "Nincs elég kredit"         │
-│  4. AI Képgenerálás                     │
-│  5. Storage feltöltés                   │
-│  6. covers tábla rekord                 │
-│  7. ⭐ KREDIT LEVONÁS (új!)             │
-│     - increment_words_generated(2000)   │
-│     - VAGY use_extra_credits()          │
-│  8. Visszatérés                         │
-└─────────────────────────────────────────┘
-```
-
-### 4. edit-cover-inpainting Módosítás
-Ugyanaz a logika mint a generate-cover-nél.
-
-### 5. Frontend Kredit Ellenőrzés
-A `useSubscription` hook `canGenerateWords(2000)` függvényét használjuk a gomb letiltásához ha nincs elég kredit.
+### Író
+- 50 aktív projekt
+- 1.000.000 szó / hó AI generálás
+- ✅ Exportálás (DOC, Epub, PDF, TXT)
+- ✅ Nano Banana Könyvborító tervező
+- ✅ Kreatív regényíró AI rendszer
+- ✅ Karakter & kutatás modul
+- ✅ Minden műfaj (+18 tartalom)
+- ✅ Email támogatás
 
 ## Érintett Fájlok
 
-| Fájl | Változás |
-|------|----------|
-| `src/constants/credits.ts` | ÚJ - kredit konstansok |
-| `src/pages/CoverDesigner.tsx` | Költség megjelenítés, kredit ellenőrzés UI |
-| `src/components/covers/EditCoverModal.tsx` | Költség megjelenítés |
-| `supabase/functions/generate-cover/index.ts` | Kredit validáció és levonás |
-| `supabase/functions/edit-cover-inpainting/index.ts` | Kredit validáció és levonás |
+| Fájl | Változás Típusa |
+|------|----------------|
+| `src/types/subscription.ts` | Új feature listák és projekt limitek |
+| `supabase/functions/stripe-webhook/index.ts` | TIER_LIMITS frissítése |
+| `supabase/functions/admin-update-subscription/index.ts` | TIER_CONFIG frissítése |
 
-## UI Változások Részletesen
+## Részletes Változások
 
-### Generálás Gomb Környezete
-```text
-┌──────────────────────────────────────┐
-│  ⚡ Generálás költsége: 2000 szó     │
-│                                      │
-│  [✨ Borító Generálása]              │
-│   (vagy ha nincs kredit:)            │
-│  [🔒 Nincs elég kredit] (disabled)   │
-│                                      │
-│  Maradék keret: 15,000 szó           │
-└──────────────────────────────────────┘
-```
+### 1. src/types/subscription.ts
 
-### Szerkesztés Modal
-Hasonló költség megjelenítés az EditCoverModal-ban is.
-
-## Hibaüzenetek
-
-| Helyzet | Üzenet |
-|---------|--------|
-| Nincs elég kredit (frontend) | "Nincs elég szó kredited. A borító generálás 2000 szó kreditet igényel." |
-| Nincs elég kredit (backend 402) | "Nincs elég kredit. Vásárolj extra kreditet vagy válts nagyobb csomagra." |
-| Sikeres generálás | "Borító elkészült! 2000 szó kredit levonva." |
-
-## Technikai Részletek
-
-### Kredit Logika (write-section mintájára)
+**Ingyenes csomag (free):**
 ```typescript
-// 1. Lekérdezés
-const { data: profile } = await supabase.from("profiles")
-  .select("monthly_word_limit, extra_words_balance")
-  .eq("user_id", userId).single();
-
-const { data: usage } = await supabase.from("user_usage")
-  .select("words_generated")
-  .eq("user_id", userId)
-  .eq("month", currentMonth).single();
-
-// 2. Ellenőrzés
-const limit = profile.monthly_word_limit || 5000;
-const used = usage?.words_generated || 0;
-const extra = profile.extra_words_balance || 0;
-const remaining = Math.max(0, limit - used);
-const total = remaining + extra;
-
-if (total < COVER_COST) {
-  return 402 error;
-}
-
-// 3. Generálás után: levonás
-if (limit === -1 || COVER_COST <= remaining) {
-  // Havi keretből
-  await supabase.rpc("increment_words_generated", {...});
-} else {
-  // Vegyes (havi + extra)
-  if (remaining > 0) {
-    await supabase.rpc("increment_words_generated", {...});
-  }
-  const fromExtra = COVER_COST - remaining;
-  await supabase.rpc("use_extra_credits", {...});
-}
+features: [
+  "1 aktív projekt",
+  "1.000 szó / hó AI generálás",
+  "❌ Nincs exportálás",
+  "❌ Nincs borító tervező",
+  "❌ Nincs támogatás",
+],
+projectLimit: 1,
+monthlyWordLimit: 1000,
 ```
 
-## Tesztelési Checklist
-- [ ] Költség megjelenik a generálás gombnál
-- [ ] Gomb letiltott ha nincs elég kredit
-- [ ] Generálás után a kredit levonásra kerül
-- [ ] UsagePanel frissül a levonás után
-- [ ] 402 hiba megfelelően kezelve
-- [ ] Extra kredit helyesen használva ha a havi elfogyott
+**Hobbi csomag:**
+```typescript
+features: [
+  "5 aktív projekt",
+  "100.000 szó / hó AI generálás",
+  "Exportálás (DOC, Epub, PDF, TXT)",
+  "Nano Banana Könyvborító tervező",
+  "Kreatív regényíró AI rendszer",
+  "Email támogatás",
+],
+projectLimit: 5,  // Változás: 1 → 5
+monthlyWordLimit: 100000,
+```
+
+**Író csomag:**
+```typescript
+features: [
+  "50 aktív projekt",
+  "1.000.000 szó / hó AI generálás",
+  "Exportálás (DOC, Epub, PDF, TXT)",
+  "Nano Banana Könyvborító tervező",
+  "Kreatív regényíró AI rendszer",
+  "Karakter & kutatás modul",
+  "Minden műfaj (+18 tartalom)",
+  "Email támogatás",
+],
+projectLimit: 50,  // Változás: 5 → 50
+monthlyWordLimit: 1000000,
+```
+
+### 2. supabase/functions/stripe-webhook/index.ts
+
+A `TIER_LIMITS` konstans frissítése:
+```typescript
+const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: number }> = {
+  hobby: { projectLimit: 5, monthlyWordLimit: 100000 },    // 1→5, 50000→100000
+  writer: { projectLimit: 50, monthlyWordLimit: 1000000 }, // 5→50, 200000→1000000
+  pro: { projectLimit: -1, monthlyWordLimit: -1 },
+};
+```
+
+### 3. supabase/functions/admin-update-subscription/index.ts
+
+A `TIER_CONFIG` konstans frissítése:
+```typescript
+const TIER_CONFIG: Record<string, { wordLimit: number; projectLimit: number }> = {
+  free: { wordLimit: 1000, projectLimit: 1 },
+  hobby: { wordLimit: 100000, projectLimit: 5 },     // 50000→100000, 1→5
+  writer: { wordLimit: 1000000, projectLimit: 50 },  // 200000→1000000, 5→50
+  pro: { wordLimit: 999999999, projectLimit: 999 },
+};
+```
+
+### 4. Adatbázis Frissítése (subscription_plans tábla)
+
+SQL UPDATE parancsok a `subscription_plans` táblához:
+```sql
+-- Ingyenes csomag frissítése
+UPDATE subscription_plans 
+SET 
+  features = '["1 aktív projekt", "1.000 szó / hó AI generálás", "❌ Nincs exportálás", "❌ Nincs borító tervező", "❌ Nincs támogatás"]'::jsonb,
+  limits = '{"max_projects": 1, "monthly_word_limit": 1000}'::jsonb
+WHERE slug = 'free';
+
+-- Hobbi csomag frissítése
+UPDATE subscription_plans 
+SET 
+  features = '["5 aktív projekt", "100.000 szó / hó AI generálás", "Exportálás (DOC, Epub, PDF, TXT)", "Nano Banana Könyvborító tervező", "Kreatív regényíró AI rendszer", "Email támogatás"]'::jsonb,
+  limits = '{"max_projects": 5, "monthly_word_limit": 100000}'::jsonb
+WHERE slug = 'hobby';
+
+-- Író csomag frissítése
+UPDATE subscription_plans 
+SET 
+  features = '["50 aktív projekt", "1.000.000 szó / hó AI generálás", "Exportálás (DOC, Epub, PDF, TXT)", "Nano Banana Könyvborító tervező", "Kreatív regényíró AI rendszer", "Karakter & kutatás modul", "Minden műfaj (+18 tartalom)", "Email támogatás"]'::jsonb,
+  limits = '{"max_projects": 50, "monthly_word_limit": 1000000}'::jsonb
+WHERE slug = 'writer';
+```
+
+## Vizuális Előnézet
+
+A PricingSection így fog kinézni:
+
+```text
+┌─────────────────────┬─────────────────────┬─────────────────────┐
+│     INGYENES        │       HOBBI         │        ÍRÓ          │
+│       0 Ft          │    4.990 Ft/hó      │    14.990 Ft/hó     │
+├─────────────────────┼─────────────────────┼─────────────────────┤
+│ ● 1 aktív projekt   │ ● 5 aktív projekt   │ ● 50 aktív projekt  │
+│ ● 1.000 szó/hó      │ ● 100.000 szó/hó    │ ● 1.000.000 szó/hó  │
+│ ❌ Nincs export     │ ● Export (DOC,...)  │ ● Export (DOC,...)  │
+│ ❌ Nincs borító     │ ● Borító tervező    │ ● Borító tervező    │
+│ ❌ Nincs támogatás  │ ● Email támogatás   │ ● Karakter modul    │
+│                     │                     │ ● +18 tartalom      │
+│                     │                     │ ● Email támogatás   │
+├─────────────────────┼─────────────────────┼─────────────────────┤
+│   [Regisztrálok]    │    [Lefoglalom]     │    [Lefoglalom]     │
+└─────────────────────┴─────────────────────┴─────────────────────┘
+```
+
+## Implementáció Lépései
+
+1. **Frontend típusok frissítése** - `src/types/subscription.ts` módosítása
+2. **Edge Functions frissítése** - `stripe-webhook` és `admin-update-subscription` 
+3. **Adatbázis frissítése** - SQL INSERT tool használata a `subscription_plans` tábla frissítéséhez
+4. **Edge Functions újratelepítése** - Deploy a frissített funkciókhoz
+
+## Megjegyzés
+A meglévő felhasználók limitjei NEM változnak automatikusan - az ő `profiles` táblában tárolt értékei megmaradnak. Csak az új előfizetésekre vonatkoznak az új limitek.
