@@ -1,3 +1,11 @@
+/**
+ * @deprecated Ez a komponens elavult. A progress mostantól a Dashboard-on jelenik meg!
+ * 
+ * A WritingStatusCard komponens mutatja a háttérben futó könyvírás állapotát.
+ * Ez a komponens csak visszamenőleges kompatibilitás miatt maradt meg.
+ * 
+ * @see WritingStatusCard - Az új Dashboard-on megjelenő státusz kártya
+ */
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
