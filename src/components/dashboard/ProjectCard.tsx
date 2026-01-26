@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { BookExportModal } from "@/components/export/BookExportModal";
+import { useBackgroundWriter } from "@/hooks/useBackgroundWriter";
 
 export interface Project {
   id: string;
@@ -80,7 +81,11 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
   const [sceneProgress, setSceneProgress] = useState({ total: 0, completed: 0, currentChapter: "" });
   const [showExportModal, setShowExportModal] = useState(false);
   
-  const isBackgroundWriting = liveStatus === "background_writing";
+  // Hook for starting background writing
+  const { startWriting, isLoading: isStartingWrite, canStart } = useBackgroundWriter(project.id);
+  
+  const isBackgroundWriting = liveStatus === "background_writing" || liveStatus === "writing" || liveStatus === "generating_outlines" || liveStatus === "queued";
+  const isIdle = !liveStatus || liveStatus === "idle";
   const isCompleted = liveStatus === "completed";
   const hasFailed = liveStatus === "failed";
   
@@ -279,6 +284,27 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
         <p className="mb-3 text-xs text-destructive">
           {project.backgroundError}
         </p>
+      )}
+
+      {/* Start writing button for idle projects */}
+      {isIdle && canStart && (
+        <Button
+          size="sm"
+          variant="default"
+          className="mb-3 w-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            startWriting();
+          }}
+          disabled={isStartingWrite}
+        >
+          {isStartingWrite ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="mr-2 h-4 w-4" />
+          )}
+          Automatikus írás indítása
+        </Button>
       )}
 
       {/* Last edited */}
