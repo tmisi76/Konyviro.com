@@ -43,22 +43,17 @@ export function useBackgroundWriter(projectId: string | null) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Projekt állapot figyelése polling-gal
+  // Projekt állapot figyelése real-time
   useEffect(() => {
     if (!projectId) return;
 
-    // Lekérdező függvény
-    const fetchProgress = async () => {
-      const { data: project, error } = await supabase
+    // Kezdeti állapot lekérése
+    const fetchInitialState = async () => {
+      const { data: project } = await supabase
         .from("projects")
-        .select("writing_status, total_scenes, completed_scenes, failed_scenes, word_count, target_word_count, writing_error, writing_started_at, writing_completed_at")
+        .select("writing_status, total_scenes, completed_scenes, failed_scenes, current_chapter_index, current_scene_index, word_count, target_word_count, writing_error, writing_started_at, writing_completed_at")
         .eq("id", projectId)
         .single();
-
-      if (error) {
-        console.error("Failed to fetch project progress:", error);
-        return;
-      }
 
       if (project) {
         setProgress({
@@ -66,8 +61,8 @@ export function useBackgroundWriter(projectId: string | null) {
           totalScenes: project.total_scenes || 0,
           completedScenes: project.completed_scenes || 0,
           failedScenes: project.failed_scenes || 0,
-          currentChapterIndex: 0,
-          currentSceneIndex: 0,
+          currentChapterIndex: project.current_chapter_index || 0,
+          currentSceneIndex: project.current_scene_index || 0,
           wordCount: project.word_count || 0,
           targetWordCount: project.target_word_count || 0,
           error: project.writing_error,
@@ -77,17 +72,40 @@ export function useBackgroundWriter(projectId: string | null) {
       }
     };
 
-    // Kezdeti lekérés
-    fetchProgress();
+    fetchInitialState();
 
-    // POLLING: 3 másodpercenként frissít
-    const pollInterval = setInterval(() => {
-      fetchProgress();
-    }, 3000);
+    // Real-time subscription
+    const channel = supabase
+      .channel(`project-writing-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'projects',
+          filter: `id=eq.${projectId}`
+        },
+        (payload) => {
+          const project = payload.new;
+          setProgress({
+            status: (project.writing_status as WritingStatus) || 'idle',
+            totalScenes: project.total_scenes || 0,
+            completedScenes: project.completed_scenes || 0,
+            failedScenes: project.failed_scenes || 0,
+            currentChapterIndex: project.current_chapter_index || 0,
+            currentSceneIndex: project.current_scene_index || 0,
+            wordCount: project.word_count || 0,
+            targetWordCount: project.target_word_count || 0,
+            error: project.writing_error,
+            startedAt: project.writing_started_at,
+            completedAt: project.writing_completed_at,
+          });
+        }
+      )
+      .subscribe();
 
-    // Cleanup
     return () => {
-      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
     };
   }, [projectId]);
 
@@ -96,15 +114,6 @@ export function useBackgroundWriter(projectId: string | null) {
     if (!projectId) return;
     
     setIsLoading(true);
-    
-    // Optimista UI frissítés - azonnal mutassuk, hogy elindult
-    setProgress(prev => ({
-      ...prev,
-      status: 'queued',
-      error: null,
-      startedAt: new Date().toISOString(),
-    }));
-    
     try {
       const { data, error } = await supabase.functions.invoke('start-book-writing', {
         body: { projectId, action: 'start' }
@@ -119,21 +128,11 @@ export function useBackgroundWriter(projectId: string | null) {
       });
     } catch (error) {
       console.error("Failed to start writing:", error);
-      
-      // Hiba esetén visszaállítjuk idle-re
-      setProgress(prev => ({
-        ...prev,
-        status: 'idle',
-        error: error instanceof Error ? error.message : "Ismeretlen hiba",
-      }));
-      
       toast({
         title: "Hiba",
         description: error instanceof Error ? error.message : "Nem sikerült elindítani a könyvírást.",
         variant: "destructive",
       });
-      
-      throw error; // Re-throw, hogy a hívó is kezelni tudja
     } finally {
       setIsLoading(false);
     }

@@ -1,125 +1,148 @@
 
-# Javítási terv: Wizard → Dashboard átmenet szinkronizálása
+# Javítási terv: A megírt szöveg mentése a fejezetekhez
 
 ## Probléma azonosítása
 
-A felhasználó azt tapasztalja, hogy:
-1. A wizard végén rákattint az "Automatikus írás indítása" gombra
-2. Felvillan valami, majd átirányítás történik a Dashboard-ra
-3. A Dashboard azt mutatja, hogy az írás NEM indult el, és újra felkínálja az indítást
+A háttérírás során a `write-section` edge function sikeresen generálja a szöveget, de:
+1. A `processSceneJob` function a `process-writing-job`-ban **nem menti el a content-et** a chapters táblába
+2. Csak a `scenes_completed` számlálót növeli
+3. Ezért a fejezetek `word_count: 0` és `content: null` marad
+4. Az email kiküldésre kerül a "befejezés" után, de a könyv valójában üres
 
-**Gyökér ok**: Race condition - a navigate gyorsabb, mint az adatbázis frissítése.
+## Érintett fájl
 
-```text
-Idősor:
-1. User kattint: "Automatikus írás indítása"
-2. startWriting() → edge function hívás elindul
-3. navigate("/dashboard") → AZONNAL átirányít (NEM várja meg az edge function-t!)
-4. Dashboard betöltődik → fetchInitialState() lekéri a projektet
-5. Projekt még "idle" státuszban (az edge function még fut)
-6. Dashboard: "Indítás" gombot mutat → USER ÖSSZEZAVARODIK
-7. Edge function végez → writing_status = 'generating_outlines'
-8. Real-time subscription frissít → DE túl késő, a user már látta az "Indítás" gombot
-```
+### `supabase/functions/process-writing-job/index.ts`
 
-## Megoldás
+A `processSceneJob` function-t kell módosítani (279-321. sorok).
 
-Két javítás szükséges:
+## Szükséges változtatások
 
-### 1. `Step7AutoWrite.tsx` - Várjuk meg az edge function válaszát
+### 1. A szekció tartalmának mentése a chapter-hez
 
-A `handleStartWriting` function-ben:
-- NE navigáljunk azonnal
-- Várjuk meg, amíg a `startWriting()` befejezi a hívást
-- Ellenőrizzük a sikert
-- Csak EZUTÁN navigáljunk
+A `write-section` visszaadja a `{ content, wordCount }` objektumot. Ezt a tartalmat hozzá kell fűzni a chapter `content` mezőjéhez.
 
 ```typescript
-const handleStartWriting = async () => {
-  try {
-    await startWriting();
-    // Kis várakozás, hogy a real-time subscription is frissülhessen
-    await new Promise(resolve => setTimeout(resolve, 500));
-    navigate("/dashboard");
-  } catch (error) {
-    // Ha hiba van, ne navigáljunk el - a toast már megjelenik a hook-ból
-    console.error("Writing start failed:", error);
-  }
-};
+async function processSceneJob(supabase, job, project, chapter) {
+  const sceneIndex = job.scene_index;
+  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${chapter.title}`);
+  
+  // ... fetch hívás ...
+  
+  const result = await response.json();
+  const sceneContent = result.content || "";
+  const wordCount = result.wordCount || 0;
+  
+  // ÚJ: Fűzzük hozzá a chapter content-hez
+  const existingContent = chapter.content || "";
+  const separator = existingContent.length > 0 ? "\n\n" : "";
+  const newContent = existingContent + separator + sceneContent;
+  
+  // Számoljuk újra a teljes szószámot
+  const totalWords = newContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+  
+  // Fejezet frissítése A TARTALOMMAL
+  await supabase.from("chapters")
+    .update({ 
+      content: newContent,
+      word_count: totalWords,
+      scenes_completed: (chapter.scenes_completed || 0) + 1,
+      writing_status: 'writing'
+    })
+    .eq("id", chapter.id);
+
+  console.log(`Scene ${sceneIndex + 1} completed with ${wordCount} words`);
+  return true;
+}
 ```
 
-### 2. `useBackgroundWriter.ts` - Optimista UI frissítés
+### 2. Fejezet frissített adatainak lekérése minden scene előtt
 
-A `startWriting()` function-ben az API hívás ELŐTT állítsuk be az állapotot:
+Mivel a chapter objektum a job feldolgozás elején kerül lekérésre, és a content változik minden scene után, frissítenünk kell a chapter adatokat a `processSceneJob`-ban:
 
 ```typescript
-const startWriting = useCallback(async () => {
-  if (!projectId) return;
+async function processSceneJob(supabase, job, project, chapter) {
+  const sceneIndex = job.scene_index;
   
-  setIsLoading(true);
+  // FRISSÍTETT chapter lekérése a legújabb content-tel
+  const { data: currentChapter } = await supabase
+    .from("chapters")
+    .select("*")
+    .eq("id", chapter.id)
+    .single();
   
-  // Optimista UI frissítés - azonnal mutassuk, hogy elindult
-  setProgress(prev => ({
-    ...prev,
-    status: 'queued', // Azonnal "queued" státusz
-    error: null,
-    startedAt: new Date().toISOString(),
-  }));
-  
-  try {
-    const { data, error } = await supabase.functions.invoke('start-book-writing', {
-      body: { projectId, action: 'start' }
-    });
-
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-
-    toast({ ... });
-    
-  } catch (error) {
-    // Hiba esetén visszaállítjuk idle-re
-    setProgress(prev => ({
-      ...prev,
-      status: 'idle',
-      error: error instanceof Error ? error.message : "Ismeretlen hiba",
-    }));
-    
-    toast({ variant: "destructive", ... });
-  } finally {
-    setIsLoading(false);
+  if (!currentChapter) {
+    throw new Error("Chapter not found");
   }
-}, [projectId, toast]);
+  
+  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${currentChapter.title}`);
+  
+  // ... fetch hívás a write-section-höz ...
+  
+  const result = await response.json();
+  const sceneContent = result.content || "";
+  const wordCount = result.wordCount || 0;
+  
+  // Hozzáfűzés a meglévő tartalomhoz
+  const existingContent = currentChapter.content || "";
+  const separator = existingContent.length > 0 ? "\n\n" : "";
+  const newContent = existingContent + separator + sceneContent;
+  const totalWords = newContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+  
+  await supabase.from("chapters")
+    .update({ 
+      content: newContent,
+      word_count: totalWords,
+      scenes_completed: (currentChapter.scenes_completed || 0) + 1,
+      writing_status: 'writing'
+    })
+    .eq("id", chapter.id);
+
+  console.log(`Scene ${sceneIndex + 1} completed with ${wordCount} words, total chapter: ${totalWords} words`);
+  return true;
+}
 ```
 
-### 3. Dashboard betöltési állapot javítása
+### 3. Email küldés validálás - ne küldj emailt, ha nincs tartalom
 
-Ha a projekt `writing_status` === `'queued'` vagy `'generating_outlines'`, de az `isLoading` még true, mutassunk egy loading indikátort a `WritingStatusCard`-on ahelyett, hogy az "Indítás" gombot mutatnánk.
+Az `updateProjectProgress` function-ben ellenőrizzük, hogy tényleg van-e tartalom a fejezetekben:
+
+```typescript
+async function updateProjectProgress(supabase, projectId) {
+  // ... meglévő count lekérések ...
+  
+  const isCompleted = pendingCount === 0;
+  
+  // Ellenőrizzük, hogy tényleg van-e tartalom
+  if (isCompleted) {
+    const { data: chapters } = await supabase
+      .from("chapters")
+      .select("word_count")
+      .eq("project_id", projectId);
+    
+    const hasContent = chapters?.some(ch => (ch.word_count || 0) > 0);
+    
+    // Csak akkor küldünk emailt, ha van tényleges tartalom
+    if (hasContent && totalWords > 0) {
+      await sendCompletionEmail(supabase, projectId);
+    }
+  }
+  
+  // ... projekt frissítés ...
+}
+```
 
 ## Összefoglaló táblázat
 
-| Fájl | Változtatás |
-|------|-------------|
-| `src/components/wizard/steps/Step7AutoWrite.tsx` | Várakozás az edge function válaszára + delay |
-| `src/hooks/useBackgroundWriter.ts` | Optimista UI frissítés a startWriting-ben |
+| Probléma | Megoldás |
+|----------|----------|
+| A content nincs mentve | `processSceneJob` frissíti a chapter.content-et |
+| A word_count 0 marad | A chapter.word_count is frissül |
+| Email üres könyvre megy ki | Validáció hozzáadása az email küldés előtt |
+| Régi chapter adat | Frissített chapter lekérése minden scene előtt |
 
-## Javított flow
+## Tesztelési terv
 
-```text
-Idősor (javítva):
-1. User kattint: "Automatikus írás indítása"
-2. Button loading állapotba kerül (Loader2 ikon)
-3. startWriting() → optimista UI: status = 'queued'
-4. Edge function hívás
-5. Edge function válasz (1-2 sec)
-6. 500ms várakozás (real-time sync)
-7. navigate("/dashboard")
-8. Dashboard betöltődik → projekt már 'generating_outlines' státuszban
-9. WritingStatusCard: "Vázlatok készítése" badge → ✅ HELYES!
-```
-
-## Előnyök
-
-- Nincs villanás vagy összeakadás
-- A felhasználó mindig konzisztens állapotot lát
-- Ha hiba van, a wizard-on marad és látja a hibaüzenetet
-- Nincs lehetőség dupla indításra
+1. Indíts el egy új könyvírást
+2. Ellenőrizd a `chapters` táblát - a `content` mező növekedjen minden scene után
+3. Ellenőrizd a `word_count` értékeket - ne legyenek 0
+4. A befejezés után az email csak akkor menjen ki, ha van tartalom

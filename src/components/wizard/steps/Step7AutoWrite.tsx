@@ -46,15 +46,9 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
   const isNonFiction = genre === "szakkonyv";
 
   const handleStartWriting = async () => {
-    try {
-      await startWriting();
-      // Kis várakozás, hogy a real-time subscription is frissülhessen
-      await new Promise(resolve => setTimeout(resolve, 500));
-      navigate("/dashboard");
-    } catch (error) {
-      // Ha hiba van, ne navigáljunk el - a toast már megjelenik a hook-ból
-      console.error("Writing start failed:", error);
-    }
+    await startWriting();
+    // Átirányítás a dashboard-ra - a progress ott követhető
+    navigate("/dashboard");
   };
 
   const handleGoToDashboard = () => {
