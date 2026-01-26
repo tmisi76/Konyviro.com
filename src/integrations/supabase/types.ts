@@ -1348,6 +1348,84 @@ export type Database = {
         }
         Relationships: []
       }
+      writing_jobs: {
+        Row: {
+          attempts: number | null
+          chapter_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          job_type: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number | null
+          next_retry_at: string | null
+          priority: number | null
+          project_id: string
+          scene_index: number | null
+          scene_outline: Json | null
+          sort_order: number | null
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number | null
+          chapter_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          job_type: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          priority?: number | null
+          project_id: string
+          scene_index?: number | null
+          scene_outline?: Json | null
+          sort_order?: number | null
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number | null
+          chapter_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          job_type?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number | null
+          next_retry_at?: string | null
+          priority?: number | null
+          project_id?: string
+          scene_index?: number | null
+          scene_outline?: Json | null
+          sort_order?: number | null
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writing_jobs_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "writing_jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       writing_sessions: {
         Row: {
           ai_words_generated: number
