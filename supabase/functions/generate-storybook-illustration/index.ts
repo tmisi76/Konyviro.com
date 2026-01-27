@@ -18,6 +18,27 @@ const STYLE_MODIFIERS: Record<string, string> = {
   "classic-fairytale": "classic fairytale illustration, vintage storybook style, enchanting and magical, golden age children's book, ornate details",
 };
 
+interface CharacterProfile {
+  gender?: string;
+  age?: string;
+  hairColor?: string;
+  hairStyle?: string;
+  eyeColor?: string;
+  clothing?: string;
+  distinguishingFeatures?: string;
+  fullDescription?: string;
+}
+
+interface CharacterPhoto {
+  id: string;
+  originalUrl: string;
+  processedUrl?: string;
+  name: string;
+  role: "main" | "supporting";
+  description?: string;
+  profile?: CharacterProfile;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -113,35 +134,87 @@ serve(async (req) => {
     // Build the full prompt with style modifier
     const styleModifier = STYLE_MODIFIERS[style] || STYLE_MODIFIERS["cartoon"];
     
-    // Include character descriptions if available
-    let characterContext = "";
+    // Build detailed character descriptions from profiles
+    let characterDescriptions = "";
+    const referenceImages: string[] = [];
+    
     if (characters && characters.length > 0) {
-      const mainChar = characters.find((c: any) => c.role === "main");
-      if (mainChar) {
-        characterContext = `The main character is a child named ${mainChar.name}. `;
-        if (mainChar.description) {
-          characterContext += `${mainChar.description}. `;
+      const charDescParts: string[] = [];
+      
+      for (const char of characters as CharacterPhoto[]) {
+        const roleLabel = char.role === "main" ? "Főszereplő" : "Mellékszereplő";
+        
+        // Use fullDescription from profile if available, otherwise build from profile fields
+        if (char.profile?.fullDescription) {
+          charDescParts.push(`(${roleLabel}: ${char.name} - ${char.profile.fullDescription})`);
+        } else if (char.profile) {
+          const traits: string[] = [];
+          if (char.profile.gender) traits.push(char.profile.gender);
+          if (char.profile.age) traits.push(char.profile.age);
+          if (char.profile.hairColor && char.profile.hairStyle) {
+            traits.push(`${char.profile.hairColor}, ${char.profile.hairStyle} hajjal`);
+          } else if (char.profile.hairColor) {
+            traits.push(`${char.profile.hairColor} hajjal`);
+          }
+          if (char.profile.eyeColor) traits.push(`${char.profile.eyeColor} szemekkel`);
+          if (char.profile.clothing) traits.push(char.profile.clothing);
+          if (char.profile.distinguishingFeatures) traits.push(char.profile.distinguishingFeatures);
+          
+          if (traits.length > 0) {
+            charDescParts.push(`(${roleLabel}: ${char.name}, ${traits.join(", ")})`);
+          } else {
+            charDescParts.push(`(${roleLabel}: ${char.name})`);
+          }
+        } else if (char.description) {
+          charDescParts.push(`(${roleLabel}: ${char.name}, ${char.description})`);
+        } else {
+          charDescParts.push(`(${roleLabel}: ${char.name})`);
+        }
+        
+        // Collect reference images for image-to-image
+        if (char.originalUrl) {
+          referenceImages.push(char.originalUrl);
         }
       }
+      
+      characterDescriptions = charDescParts.join("\n");
     }
 
+    // Build the full prompt with character-first approach
     const fullPrompt = `Create a children's book illustration for page ${pageNumber || 1}.
 
-Scene description: ${prompt}
+CHARACTER DESCRIPTIONS (MUST match these exactly):
+${characterDescriptions || "No specific characters defined."}
 
-${characterContext}
+SCENE DESCRIPTION:
+${prompt}
 
-Style requirements: ${styleModifier}
+STYLE REQUIREMENTS:
+${styleModifier}
 
-Important:
+CRITICAL INSTRUCTIONS:
+- The characters MUST look exactly as described above
+- Maintain consistent character appearance throughout the book
 - The image should be suitable for a children's book
-- Use bright, cheerful colors
+- Use bright, cheerful colors appropriate for the style
 - The scene should be clear and easy to understand
 - No text or words in the image
 - Safe for all ages
 - Horizontal landscape orientation (16:9 aspect ratio)`;
 
-    console.log("Generating illustration with prompt:", fullPrompt.substring(0, 300) + "...");
+    console.log("Generating illustration with prompt:", fullPrompt.substring(0, 500) + "...");
+    console.log("Reference images count:", referenceImages.length);
+
+    // Build message content with text and reference images
+    const messageContent: any[] = [{ type: "text", text: fullPrompt }];
+    
+    // Add reference images for character consistency (up to 3)
+    for (const refUrl of referenceImages.slice(0, 3)) {
+      messageContent.push({
+        type: "image_url",
+        image_url: { url: refUrl },
+      });
+    }
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -152,7 +225,7 @@ Important:
       body: JSON.stringify({
         model: "google/gemini-3-pro-image-preview",
         messages: [
-          { role: "user", content: fullPrompt }
+          { role: "user", content: messageContent }
         ],
         modalities: ["image", "text"],
       }),
