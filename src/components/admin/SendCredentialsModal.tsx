@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface User {
   id: string;
+  user_id: string;
   email: string;
   full_name: string | null;
   subscription_tier: string;
@@ -50,7 +51,7 @@ export function SendCredentialsModal({
     try {
       const { data, error } = await supabase.functions.invoke("admin-send-credentials", {
         body: {
-          user_id: user.id,
+          user_id: user.user_id,
           generate_new_password: isAdminReminder ? false : generateNewPassword,
           is_admin_reminder: isAdminReminder,
           custom_message: customMessage,
