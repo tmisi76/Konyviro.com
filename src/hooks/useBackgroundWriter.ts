@@ -5,6 +5,7 @@ import { POLLING_INTERVALS } from "@/constants/timing";
 
 export type WritingStatus = 
   | 'idle' 
+  | 'draft'
   | 'queued' 
   | 'generating_outlines' 
   | 'writing' 

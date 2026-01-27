@@ -10,7 +10,8 @@ import {
   AlertCircle, 
   Loader2,
   BookOpen,
-  Clock
+  Clock,
+  FileText
 } from "lucide-react";
 import { useBackgroundWriter, WritingStatus } from "@/hooks/useBackgroundWriter";
 import { formatDistanceToNow } from "date-fns";
@@ -24,6 +25,7 @@ interface WritingStatusCardProps {
 
 const statusConfig: Record<WritingStatus, { label: string; color: string; icon: ReactNode }> = {
   idle: { label: "Nem indult", color: "bg-muted", icon: <Clock className="h-3 w-3" /> },
+  draft: { label: "Vázlat", color: "bg-slate-500", icon: <FileText className="h-3 w-3" /> },
   queued: { label: "Sorban áll", color: "bg-yellow-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
   generating_outlines: { label: "Vázlatok készítése", color: "bg-blue-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
   writing: { label: "Írás folyamatban", color: "bg-green-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
@@ -47,7 +49,7 @@ export function WritingStatusCard({ projectId, projectTitle }: WritingStatusCard
     pauseWriting,
   } = useBackgroundWriter(projectId);
 
-  const status = statusConfig[progress.status];
+  const status = statusConfig[progress.status] || statusConfig.idle;
 
   // Ne rejtsd el - mindig mutasd a kártyát, hogy lehessen indítani
   // A Dashboard szintjén kell szűrni, hogy milyen projektek jelenjenek meg
