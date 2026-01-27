@@ -160,6 +160,7 @@ KÖVETELMÉNYEK:
 Válaszolj JSON formátumban:
 {
   "title": "A mese címe",
+  "coverPrompt": "Angol nyelvű leírás a borítóképhez, ami a mese hangulatát, főszereplőjét és témáját mutatja be egyetlen látványos képen",
   "pages": [
     {
       "pageNumber": 1,
@@ -255,6 +256,7 @@ Válaszolj JSON formátumban:
         title: storyData.title || title,
         story: content,
         pages,
+        coverPrompt: storyData.coverPrompt || null,
         credits_used: STORYBOOK_GENERATION_COST,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

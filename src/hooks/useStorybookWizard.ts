@@ -224,10 +224,10 @@ export function useStorybookWizard() {
   }, [user]);
 
   // Generate story with AI
-  const generateStory = useCallback(async (): Promise<boolean> => {
+  const generateStory = useCallback(async (): Promise<{ success: boolean; coverPrompt?: string }> => {
     if (!user) {
       toast.error("Be kell jelentkezned");
-      return false;
+      return { success: false };
     }
 
     setIsGenerating(true);
@@ -259,11 +259,11 @@ export function useStorybookWizard() {
         updateData("title", response.title);
       }
 
-      return true;
+      return { success: true, coverPrompt: response.coverPrompt || null };
     } catch (error) {
       console.error("Error generating story:", error);
       toast.error("Hiba a történet generálása során");
-      return false;
+      return { success: false };
     } finally {
       setIsGenerating(false);
     }
@@ -399,6 +399,48 @@ export function useStorybookWizard() {
     return successCount === total;
   }, [generateIllustration]);
 
+  // Generate cover image from prompt
+  const generateCover = useCallback(async (coverPrompt: string): Promise<boolean> => {
+    if (!user || !coverPrompt) return false;
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      
+      if (!accessToken) return false;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-storybook-illustration`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            prompt: coverPrompt,
+            style: data.illustrationStyle,
+            characters: data.characters,
+            pageNumber: 0, // Cover
+          }),
+        }
+      );
+
+      if (!response.ok) return false;
+
+      const responseData = await response.json();
+      if (responseData.imageUrl) {
+        setCoverUrl(responseData.imageUrl);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error generating cover:", error);
+      return false;
+    }
+  }, [user, data.illustrationStyle, data.characters, setCoverUrl]);
+
   // Save project to database
   const saveProject = useCallback(async (): Promise<string | null> => {
     if (!user) {
@@ -490,6 +532,7 @@ export function useStorybookWizard() {
     generateStory,
     generateIllustration,
     generateAllIllustrations,
+    generateCover,
     saveProject,
   };
 }

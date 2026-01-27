@@ -77,6 +77,7 @@ export function StorybookWizard() {
     generateStory,
     generateIllustration,
     generateAllIllustrations,
+    generateCover,
     saveProject,
   } = useStorybookWizard();
 
@@ -188,6 +189,7 @@ export function StorybookWizard() {
               isGenerating={isGenerating}
               onGenerateStory={generateStory}
               onGenerateIllustrations={generateAllIllustrations}
+              onGenerateCover={generateCover}
               onComplete={handleGenerateComplete}
               setPages={setPages}
             />
