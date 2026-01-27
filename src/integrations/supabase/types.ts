@@ -1610,6 +1610,7 @@ export type Database = {
         Returns: boolean
       }
       use_storybook_credit: { Args: { p_user_id: string }; Returns: boolean }
+      use_storybook_credit_v2: { Args: never; Returns: undefined }
     }
     Enums: {
       admin_role: "super_admin" | "admin" | "support" | "viewer"
