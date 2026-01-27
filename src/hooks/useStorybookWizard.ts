@@ -269,7 +269,7 @@ export function useStorybookWizard() {
     }
   }, [user, data, updateData]);
 
-  // Generate illustration for a page
+  // Generate illustration for a page with extended timeout
   const generateIllustration = useCallback(async (
     pageId: string,
     pageData?: StorybookPage // Optional: pass page data directly to avoid closure issues
@@ -286,20 +286,49 @@ export function useStorybookWizard() {
     updatePage(pageId, { isGenerating: true });
 
     try {
-      const { data: response, error } = await supabase.functions.invoke("generate-storybook-illustration", {
-        body: {
-          prompt: page.illustrationPrompt,
-          style: data.illustrationStyle,
-          characters: data.characters,
-          pageNumber: page.pageNumber,
-        },
-      });
+      // Get session for auth token
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      
+      if (!accessToken) {
+        throw new Error("Nincs aktív munkamenet");
+      }
 
-      if (error) throw error;
+      // Use native fetch with 3-minute timeout for long AI generation
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
 
-      if (response.imageUrl) {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-storybook-illustration`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            prompt: page.illustrationPrompt,
+            style: data.illustrationStyle,
+            characters: data.characters,
+            pageNumber: page.pageNumber,
+          }),
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const responseData = await response.json();
+
+      if (responseData.imageUrl) {
         updatePage(pageId, { 
-          illustrationUrl: response.imageUrl,
+          illustrationUrl: responseData.imageUrl,
           isGenerating: false,
         });
         return true;
@@ -308,13 +337,17 @@ export function useStorybookWizard() {
       return false;
     } catch (error) {
       console.error("Error generating illustration:", error);
-      toast.error("Hiba az illusztráció generálása során");
+      const isTimeout = error instanceof Error && error.name === "AbortError";
+      toast.error(isTimeout 
+        ? "Az illusztráció generálása túl sokáig tartott. Próbáld újra később."
+        : "Hiba az illusztráció generálása során"
+      );
       updatePage(pageId, { isGenerating: false });
       return false;
     }
   }, [user, data.illustrationStyle, data.characters, updatePage]);
 
-  // Generate all illustrations with progress callback
+  // Generate all illustrations with progress callback and robust error handling
   const generateAllIllustrations = useCallback(async (
     onProgress?: (current: number, total: number) => void
   ): Promise<boolean> => {
@@ -335,20 +368,35 @@ export function useStorybookWizard() {
       return true;
     }
     
+    let successCount = 0;
+    const failedPages: string[] = [];
+    
     for (let i = 0; i < pagesToGenerate.length; i++) {
       const page = pagesToGenerate[i];
       onProgress?.(i + 1, total);
       
       // Pass page data directly to avoid closure issues
       const success = await generateIllustration(page.id, page);
-      if (!success) return false;
       
-      // Small delay between generations to avoid rate limiting
+      if (success) {
+        successCount++;
+      } else {
+        failedPages.push(`${page.pageNumber}. oldal`);
+      }
+      
+      // Increased delay between generations to avoid rate limiting
       if (i < pagesToGenerate.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
-    return true;
+    
+    // If at least some succeeded, allow continuing with warning
+    if (successCount > 0 && failedPages.length > 0) {
+      toast.warning(`${failedPages.length} illusztráció nem készült el: ${failedPages.join(", ")}`);
+      return true; // Allow continuing with partial results
+    }
+    
+    return successCount === total;
   }, [generateIllustration]);
 
   // Save project to database

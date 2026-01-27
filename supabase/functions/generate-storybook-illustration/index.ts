@@ -216,34 +216,72 @@ CRITICAL INSTRUCTIONS:
       });
     }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-pro-image-preview",
-        messages: [
-          { role: "user", content: messageContent }
-        ],
-        modalities: ["image", "text"],
-      }),
-    });
+    // Retry logic for AI generation
+    let aiData = null;
+    const maxRetries = 2;
+    let lastError: Error | null = null;
 
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`AI generation attempt ${attempt + 1}/${maxRetries + 1}`);
+        
+        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-pro-image-preview",
+            messages: [
+              { role: "user", content: messageContent }
+            ],
+            modalities: ["image", "text"],
+          }),
+        });
+
+        if (aiResponse.ok) {
+          aiData = await aiResponse.json();
+          break;
+        }
+
+        // Handle rate limiting with retry
+        if (aiResponse.status === 429 && attempt < maxRetries) {
+          const retryDelay = 5000 * (attempt + 1);
+          console.log(`Rate limited, waiting ${retryDelay}ms before retry`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+
+        // Non-retryable error
+        if (aiResponse.status === 429) {
+          return new Response(
+            JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const errorText = await aiResponse.text();
+        console.error("AI gateway error:", aiResponse.status, errorText);
+        throw new Error(`AI generation failed: ${aiResponse.status}`);
+
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.error(`Attempt ${attempt + 1} failed:`, lastError.message);
+        
+        if (attempt < maxRetries) {
+          const retryDelay = 3000 * (attempt + 1);
+          console.log(`Retrying in ${retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
+        throw lastError;
       }
-      const errorText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errorText);
-      throw new Error(`AI generation failed: ${aiResponse.status}`);
     }
 
-    const aiData = await aiResponse.json();
+    if (!aiData) {
+      throw lastError || new Error("AI generation failed after retries");
+    }
     const imageData = aiData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
     if (!imageData) {
