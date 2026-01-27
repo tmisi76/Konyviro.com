@@ -1,89 +1,69 @@
 
-# Mesekönyv Megjelenítés és Státusz Javítás
+# Dashboard és Pricing Módosítások
 
-## Áttekintés
+## Összefoglalás
 
-A fejlesztés három fő problémát old meg:
-1. A kész mesekönyvek "Vázlat" helyett "Kész" státusszal jelenjenek meg
-2. Kész mesekönyv megnyitásakor a mesekönyv megjelenítő (FlipBook) nyíljon meg
-3. Normál könyvek megnyitásakor a könyv szerkesztő nyíljon meg
+A felhasználó három módosítást kér:
+
+1. **Folyamatban lévő írások szekció** - Csak könyvek jelenjenek meg (mesekönyvek ne), és csak azok, amiket épp a háttérben ír az AI
+2. **Mesekönyveim megnyitása** - A mesekönyv készítő wizard utolsó (előnézet) lépésére vigyen, ahol lapozhatja és megnézheti
+3. **Pricing módosítások**:
+   - "ÍRÓ" csomag átnevezése → "PROFI"
+   - PROFI: 250.000 szó/hó (korábban 1.000.000)
+   - PROFI: 5 mesekönyv/hó (korábban 3)
+   - HOBBI: 1 mesekönyv/hó (korábban 1 - ez marad)
 
 ---
 
-## Technikai Megoldás
+## 1. Folyamatban Lévő Írások Szűrés
 
-### 1. Mesekönyv Készként Jelölése
-
-**Fájl:** `src/hooks/useStorybookWizard.ts`
-
-A `saveProject` funkció módosítása:
-- Ellenőrizni, hogy minden oldal rendelkezik-e illusztrációval
-- Ha igen, a `writing_status`-t `"completed"`-re állítani `"draft"` helyett
-
+### Jelenlegi állapot
 ```typescript
-// Jelenlegi
-writing_status: "draft"
-
-// Új logika
-const allIllustrationsComplete = data.pages.length > 0 && 
-  data.pages.every(p => p.illustrationUrl);
-writing_status: allIllustrationsComplete ? "completed" : "draft"
+const activeWritingProjects = useMemo(() => {
+  return projects.filter(p => 
+    p.writing_status && 
+    !['idle', 'completed', 'failed'].includes(p.writing_status)
+  );
+}, [projects]);
 ```
 
-### 2. Új Storybook Viewer Oldal
-
-**Új fájl:** `src/pages/StorybookViewer.tsx`
-
-Ez az oldal:
-- Betölti a mesekönyv adatait az adatbázisból (`storybook_data` JSONB)
-- Megjeleníti a `FlipBook` komponenssel
-- Biztosít visszalépési lehetőséget a dashboardra
-- Tartalmaz exportálási és szerkesztési gombot
-
-**Komponensek:**
-- Fejléc: Vissza gomb, cím, műveletek (Szerkesztés, Exportálás)
-- FlipBook megjelenítő
-- Opcionális export modal
-
-### 3. Új Útvonal Regisztrálása
-
-**Fájl:** `src/App.tsx`
-
-Új route hozzáadása:
+### Új logika
+A mesekönyvek kizárása és a háttérírás ellenőrzése:
 ```typescript
-<Route
-  path="/storybook/:id"
-  element={
-    <ProtectedRoute>
-      <Suspense fallback={<FullPageLoader message="Mesekönyv betöltése..." />}>
-        <StorybookViewer />
-      </Suspense>
-    </ProtectedRoute>
-  }
-/>
+const activeWritingProjects = useMemo(() => {
+  return projects.filter(p => 
+    // Csak könyvek (nem mesekönyv)
+    p.genre !== "mesekonyv" &&
+    // Aktív háttérírás státusz
+    p.writing_status && 
+    ['queued', 'generating_outlines', 'writing', 'in_progress'].includes(p.writing_status) &&
+    // Háttérírás mód
+    p.writing_mode === "background"
+  );
+}, [projects]);
 ```
-
-### 4. Dashboard Navigáció Módosítása
 
 **Fájl:** `src/pages/Dashboard.tsx`
 
-A `handleLoadingComplete` funkció módosítása genre alapján:
-- Ha a projekt `genre === "mesekonyv"` és `writing_status === "completed"` → `/storybook/${id}`
-- Egyébként → `/project/${id}` (normál szerkesztő)
+---
 
-Ehhez szükséges:
-- A `cardProjects` tartalmazza a `genre` és `writingStatus` mezőket (már tartalmazza)
-- Új segédfüggvény a megfelelő útvonal kiválasztásához
+## 2. Mesekönyv Megnyitása - Wizard Utolsó Lépésre
 
+### Jelenlegi állapot
+Kész mesekönyv → `/storybook/:id` (StorybookViewer)
+
+### Új logika
+Mesekönyv megnyitása → `/create-storybook` a wizard 7. lépésére (előnézet), a projekt adataival betöltve
+
+### Megvalósítás
+
+**A) handleLoadingComplete módosítása (`Dashboard.tsx`):**
 ```typescript
 const handleLoadingComplete = () => {
   if (loadingProjectId && loadingProject) {
-    const isCompletedStorybook = 
-      loadingProject.genre === "mesekonyv" && 
-      loadingProject.writing_status === "completed";
-    
-    if (isCompletedStorybook) {
-      navigate(`/storybook/${loadingProjectId}`);
+    // Mesekönyv → wizard utolsó lépése (előnézet)
+    if (loadingProject.genre === "mesekonyv") {
+      navigate(`/create-storybook?projectId=${loadingProjectId}`);
     } else {
       navigate(`/project/${loadingProjectId}`);
     }
@@ -92,79 +72,115 @@ const handleLoadingComplete = () => {
 };
 ```
 
-### 5. ProjectCard Frissítése
+**B) useStorybookWizard.ts módosítás:**
+- URL query param ellenőrzése: `projectId`
+- Ha van projectId, akkor betölti a meglévő projektet az adatbázisból
+- Automatikusan a 7. lépésre (preview) ugrik
 
-**Fájl:** `src/components/dashboard/ProjectCard.tsx`
+```typescript
+// useStorybookWizard.ts - useEffect hozzáadása
+useEffect(() => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const projectIdParam = urlParams.get("projectId");
+  
+  if (projectIdParam && user) {
+    // Meglévő projekt betöltése
+    loadExistingProject(projectIdParam);
+  }
+}, [user]);
 
-A mesekönyvek esetén:
-- Ha `genre === "mesekonyv"` és `writingStatus === "completed"` → "Kész" badge megjelenítése
-- A "Vázlat" badge csak akkor jelenjen meg, ha tényleg `writingStatus === "draft"`
+const loadExistingProject = async (projectId: string) => {
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", projectId)
+    .single();
+    
+  if (project?.storybook_data) {
+    const storybookData = JSON.parse(project.storybook_data);
+    setData({
+      ...storybookData,
+      projectId: project.id,
+      title: project.title,
+    });
+    setCurrentStep(7); // Preview lépés
+  }
+};
+```
+
+**Fájlok:**
+- `src/pages/Dashboard.tsx`
+- `src/hooks/useStorybookWizard.ts`
 
 ---
 
-## Új Fájlok
+## 3. Pricing Módosítások
 
-| Fájl | Leírás |
-|------|--------|
-| `src/pages/StorybookViewer.tsx` | Kész mesekönyv olvasó nézet |
+### Változtatások
 
-## Módosítandó Fájlok
+| Csomag | Korábbi név | Új név | Szavak | Mesekönyv |
+|--------|-------------|--------|--------|-----------|
+| hobby | HOBBI | HOBBI | 100.000 | 1/hó |
+| writer | ÍRÓ | PROFI | 250.000 | 5/hó |
+
+### Kód módosítás (`src/types/subscription.ts`)
+
+```typescript
+{
+  id: "writer",
+  name: "PROFI",  // ÍRÓ → PROFI
+  description: "Profi szerzőknek",  // Komoly íróknak → Profi szerzőknek
+  // ...árak maradnak...
+  features: [
+    "50 aktív projekt",
+    "250.000 szó / hó AI generálás",  // 1.000.000 → 250.000
+    "5 mesekönyv / hó",  // ÚJ feature sor
+    "Exportálás (DOC, Epub, PDF, TXT)",
+    "Nano Banana Könyvborító tervező",
+    "Kreatív regényíró AI rendszer",
+    "Karakter & kutatás modul",
+    "Minden műfaj (+18 tartalom)",
+    "Email támogatás",
+  ],
+  monthlyWordLimit: 250000,  // 1000000 → 250000
+  isPopular: true,
+},
+```
+
+### HOBBI csomag feature lista frissítés
+
+```typescript
+{
+  id: "hobby",
+  name: "HOBBI",
+  // ...
+  features: [
+    "5 aktív projekt",
+    "100.000 szó / hó AI generálás",
+    "1 mesekönyv / hó",  // ÚJ feature sor
+    "Exportálás (DOC, Epub, PDF, TXT)",
+    "Nano Banana Könyvborító tervező",
+    "Kreatív regényíró AI rendszer",
+    "Email támogatás",
+  ],
+  // ...
+},
+```
+
+**Fájl:** `src/types/subscription.ts`
+
+---
+
+## Összegzés - Érintett Fájlok
 
 | Fájl | Módosítás |
 |------|-----------|
-| `src/hooks/useStorybookWizard.ts` | `saveProject` - státusz beállítása késznek |
-| `src/App.tsx` | Új `/storybook/:id` route |
-| `src/pages/Dashboard.tsx` | Navigáció logika genre/státusz alapján |
+| `src/pages/Dashboard.tsx` | activeWritingProjects szűrő + mesekönyv navigáció |
+| `src/hooks/useStorybookWizard.ts` | Meglévő projekt betöltése URL-ből |
+| `src/types/subscription.ts` | ÍRÓ → PROFI átnevezés, szó limit, mesekönyv limit features |
 
 ---
 
-## Felhasználói Élmény
+## Megjegyzés: Adatbázis Szinkron
 
-### Kész Mesekönyv Megnyitása
-```text
-Dashboard → Mesekönyv kártya (Kész badge) → Kattintás
-   ↓
-Betöltő képernyő
-   ↓
-/storybook/:id → FlipBook nézetben megnyílik
-```
-
-### Folyamatban Lévő Mesekönyv Megnyitása
-```text
-Dashboard → Mesekönyv kártya (Vázlat badge) → Kattintás
-   ↓
-/create-storybook → Wizard folytatódik (ha van mentett adat)
-   VAGY
-/project/:id → Szerkesztő (alap projektnézet)
-```
-
-### Normál Könyv Megnyitása
-```text
-Dashboard → Könyv kártya → Kattintás
-   ↓
-/project/:id → Normál könyv szerkesztő
-```
-
----
-
-## StorybookViewer Komponens Struktúra
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  ← Vissza              [Mesekönyv címe]      [Szerkesztés] │
-│                                              [Exportálás]   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│                   ┌───────────────────┐                     │
-│                   │                   │                     │
-│                   │     FlipBook      │                     │
-│                   │                   │                     │
-│                   │    (interaktív    │                     │
-│                   │     könyv)        │                     │
-│                   │                   │                     │
-│                   └───────────────────┘                     │
-│                                                             │
-│                    [ < ]   • • • • •   [ > ]                │
-│                           1/12 oldal                        │
-└─────────────────────────────────────────────────────────────┘
-```
+A subscription tierek database-oldali limitjei (pl. `storybook_credit_limit`) a `stripe-webhook` és `admin-update-subscription` edge functionökben vannak beállítva. Ha a tényleges 5 mesekönyv/hó limitet is be szeretnéd állítani, az adatbázis szintű változtatást is igényelne - de ez most csak a frontend feature listát módosítja.
