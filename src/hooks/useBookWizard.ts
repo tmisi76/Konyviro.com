@@ -264,11 +264,9 @@ export function useBookWizard() {
 
         if (error) throw error;
         
-        // Increment projects_created count for the user
+        // Increment projects_created count for the user (no p_user_id needed - uses auth.uid())
         if (user) {
-          const { error: usageError } = await supabase.rpc("increment_projects_created", {
-            p_user_id: user.id,
-          });
+          const { error: usageError } = await supabase.rpc("increment_projects_created");
           if (usageError) {
             console.error("Failed to update project count:", usageError);
           }

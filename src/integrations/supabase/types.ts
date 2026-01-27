@@ -1576,10 +1576,102 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_safe: {
+        Row: {
+          adult_content_verified: boolean | null
+          adult_verified_at: string | null
+          avatar_url: string | null
+          billing_period: string | null
+          bio: string | null
+          created_at: string | null
+          display_name: string | null
+          extra_words_balance: number | null
+          founder_discount_applied: boolean | null
+          full_name: string | null
+          id: string | null
+          is_founder: boolean | null
+          last_credit_reset: string | null
+          monthly_word_limit: number | null
+          project_limit: number | null
+          retention_discount_active: boolean | null
+          retention_discount_expires_at: string | null
+          social_instagram: string | null
+          social_twitter: string | null
+          storybook_credit_limit: number | null
+          storybook_credits_used: number | null
+          subscription_end_date: string | null
+          subscription_start_date: string | null
+          subscription_status: string | null
+          subscription_tier: string | null
+          updated_at: string | null
+          user_id: string | null
+          website: string | null
+        }
+        Insert: {
+          adult_content_verified?: boolean | null
+          adult_verified_at?: string | null
+          avatar_url?: string | null
+          billing_period?: string | null
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          extra_words_balance?: number | null
+          founder_discount_applied?: boolean | null
+          full_name?: string | null
+          id?: string | null
+          is_founder?: boolean | null
+          last_credit_reset?: string | null
+          monthly_word_limit?: number | null
+          project_limit?: number | null
+          retention_discount_active?: boolean | null
+          retention_discount_expires_at?: string | null
+          social_instagram?: string | null
+          social_twitter?: string | null
+          storybook_credit_limit?: number | null
+          storybook_credits_used?: number | null
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          website?: string | null
+        }
+        Update: {
+          adult_content_verified?: boolean | null
+          adult_verified_at?: string | null
+          avatar_url?: string | null
+          billing_period?: string | null
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          extra_words_balance?: number | null
+          founder_discount_applied?: boolean | null
+          full_name?: string | null
+          id?: string | null
+          is_founder?: boolean | null
+          last_credit_reset?: string | null
+          monthly_word_limit?: number | null
+          project_limit?: number | null
+          retention_discount_active?: boolean | null
+          retention_discount_expires_at?: string | null
+          social_instagram?: string | null
+          social_twitter?: string | null
+          storybook_credit_limit?: number | null
+          storybook_credits_used?: number | null
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string | null
+          subscription_tier?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      add_extra_credits: {
+      add_extra_credits_internal: {
         Args: { p_user_id: string; p_word_count: number }
         Returns: undefined
       }
@@ -1587,29 +1679,43 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_role"]
       }
-      get_storybook_credits: {
-        Args: { p_user_id: string }
-        Returns: {
-          credit_limit: number
-          credits_remaining: number
-          credits_used: number
-        }[]
-      }
-      increment_projects_created: {
-        Args: { p_user_id: string }
-        Returns: undefined
-      }
-      increment_words_generated: {
-        Args: { p_user_id: string; p_word_count: number }
-        Returns: undefined
-      }
+      get_storybook_credits:
+        | {
+            Args: never
+            Returns: {
+              credit_limit: number
+              credits_remaining: number
+              credits_used: number
+            }[]
+          }
+        | {
+            Args: { p_user_id: string }
+            Returns: {
+              credit_limit: number
+              credits_remaining: number
+              credits_used: number
+            }[]
+          }
+      increment_projects_created:
+        | { Args: never; Returns: undefined }
+        | { Args: { p_user_id: string }; Returns: undefined }
+      increment_words_generated:
+        | {
+            Args: { p_user_id: string; p_word_count: number }
+            Returns: undefined
+          }
+        | { Args: { p_word_count: number }; Returns: undefined }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
-      use_extra_credits: {
-        Args: { p_user_id: string; p_word_count: number }
-        Returns: boolean
-      }
-      use_storybook_credit: { Args: { p_user_id: string }; Returns: boolean }
+      use_extra_credits:
+        | {
+            Args: { p_user_id: string; p_word_count: number }
+            Returns: boolean
+          }
+        | { Args: { p_word_count: number }; Returns: boolean }
+      use_storybook_credit:
+        | { Args: never; Returns: boolean }
+        | { Args: { p_user_id: string }; Returns: boolean }
       use_storybook_credit_v2: { Args: never; Returns: undefined }
     }
     Enums: {
