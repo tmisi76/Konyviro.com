@@ -41,7 +41,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "Könyvíró AI <onboarding@resend.dev>",
+        from: "Ink Story <noreply@digitalisbirodalom.hu>",
         to: [email],
         subject: `🎉 A könyved elkészült: ${projectTitle}`,
         html: `
