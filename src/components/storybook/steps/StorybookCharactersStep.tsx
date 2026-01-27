@@ -13,6 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { 
   Upload, 
   X, 
@@ -22,9 +30,12 @@ import {
   Loader2,
   ImagePlus,
   ArrowRight,
+  Pencil,
+  Sparkles,
 } from "lucide-react";
-import { CharacterPhoto } from "@/types/storybook";
+import { CharacterPhoto, CharacterProfile } from "@/types/storybook";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StorybookCharactersStepProps {
   characters: CharacterPhoto[];
@@ -45,6 +56,41 @@ export function StorybookCharactersStep({
 }: StorybookCharactersStepProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<CharacterProfile | null>(null);
+  const [editingCharacterId, setEditingCharacterId] = useState<string | null>(null);
+
+  const analyzeCharacterPhoto = useCallback(async (characterId: string, imageUrl: string) => {
+    // Set analyzing state
+    onUpdateCharacter(characterId, { isAnalyzing: true });
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-character-photo", {
+        body: { imageUrl },
+      });
+
+      if (error) {
+        console.error("Character analysis error:", error);
+        toast.error("Nem sikerült elemezni a fotót");
+        onUpdateCharacter(characterId, { isAnalyzing: false });
+        return;
+      }
+
+      if (data?.profile) {
+        onUpdateCharacter(characterId, {
+          profile: data.profile,
+          isAnalyzing: false,
+        });
+        toast.success("Karakter profil elkészült!");
+      } else {
+        onUpdateCharacter(characterId, { isAnalyzing: false });
+      }
+    } catch (err) {
+      console.error("Character analysis failed:", err);
+      toast.error("Hiba történt az elemzés során");
+      onUpdateCharacter(characterId, { isAnalyzing: false });
+    }
+  }, [onUpdateCharacter]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (characters.length >= 3) {
@@ -76,17 +122,21 @@ export function StorybookCharactersStep({
           originalUrl: url,
           name: "",
           role: characters.length === 0 ? "main" : "supporting",
+          isAnalyzing: true,
         };
         onAddCharacter(newCharacter);
         setEditingId(newCharacter.id);
-        toast.success("Fotó feltöltve!");
+        toast.success("Fotó feltöltve! Elemzés folyamatban...");
+        
+        // Start automatic analysis
+        analyzeCharacterPhoto(newCharacter.id, url);
       }
     } catch (error) {
       toast.error("Hiba a feltöltés során");
     } finally {
       setIsUploading(false);
     }
-  }, [characters, onUploadPhoto, onAddCharacter]);
+  }, [characters, onUploadPhoto, onAddCharacter, analyzeCharacterPhoto]);
 
   const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
     onDrop,
@@ -117,7 +167,30 @@ export function StorybookCharactersStep({
       return;
     }
 
+    // Check if any character is still analyzing
+    const stillAnalyzing = characters.some(c => c.isAnalyzing);
+    if (stillAnalyzing) {
+      toast.error("Várd meg, amíg az elemzés befejeződik");
+      return;
+    }
+
     onComplete();
+  };
+
+  const openEditModal = (character: CharacterPhoto) => {
+    setEditingCharacterId(character.id);
+    setEditingProfile(character.profile || {});
+    setEditModalOpen(true);
+  };
+
+  const saveProfileEdit = () => {
+    if (editingCharacterId && editingProfile) {
+      onUpdateCharacter(editingCharacterId, { profile: editingProfile });
+      toast.success("Profil mentve!");
+    }
+    setEditModalOpen(false);
+    setEditingCharacterId(null);
+    setEditingProfile(null);
   };
 
   return (
@@ -217,18 +290,30 @@ export function StorybookCharactersStep({
                 size="icon"
                 className="absolute top-2 right-2 h-8 w-8"
                 onClick={() => onRemoveCharacter(character.id)}
+                disabled={character.isAnalyzing}
               >
                 <X className="w-4 h-4" />
               </Button>
 
               <div className="flex gap-4 mt-4">
-                {/* Photo preview */}
-                <div className="w-24 h-24 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                {/* Photo preview with analyzing overlay */}
+                <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                   <img
                     src={character.originalUrl}
                     alt={character.name || "Szereplő"}
-                    className="w-full h-full object-cover"
+                    className={cn(
+                      "w-full h-full object-cover transition-opacity",
+                      character.isAnalyzing && "opacity-50"
+                    )}
                   />
+                  {character.isAnalyzing && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <div className="flex flex-col items-center gap-1">
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        <span className="text-[10px] text-white font-medium">Elemzés...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Character details */}
@@ -243,6 +328,7 @@ export function StorybookCharactersStep({
                       onChange={(e) => onUpdateCharacter(character.id, { name: e.target.value })}
                       placeholder="Pl.: Bence, Anna"
                       className="mt-1"
+                      disabled={character.isAnalyzing}
                     />
                   </div>
 
@@ -254,6 +340,7 @@ export function StorybookCharactersStep({
                       <Select
                         value={character.role}
                         onValueChange={(value) => onUpdateCharacter(character.id, { role: value as "main" | "supporting" })}
+                        disabled={character.isAnalyzing}
                       >
                         <SelectTrigger className="mt-1">
                           <SelectValue />
@@ -266,18 +353,73 @@ export function StorybookCharactersStep({
                     </div>
                   </div>
 
-                  <div>
-                    <Label htmlFor={`desc-${character.id}`} className="text-sm">
-                      Leírás (opcionális)
-                    </Label>
-                    <Input
-                      id={`desc-${character.id}`}
-                      value={character.description || ""}
-                      onChange={(e) => onUpdateCharacter(character.id, { description: e.target.value })}
-                      placeholder="Pl.: 5 éves, szeret focizni"
-                      className="mt-1"
-                    />
-                  </div>
+                  {/* Profile summary */}
+                  {character.profile && !character.isAnalyzing && (
+                    <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300">
+                          <Sparkles className="w-4 h-4" />
+                          <span className="text-xs font-semibold">AI Profil</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => openEditModal(character)}
+                        >
+                          <Pencil className="w-3 h-3 mr-1" />
+                          Szerkesztés
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        {character.profile.gender && (
+                          <div>
+                            <span className="text-muted-foreground">Nem:</span>{" "}
+                            <span className="font-medium">{character.profile.gender}</span>
+                          </div>
+                        )}
+                        {character.profile.age && (
+                          <div>
+                            <span className="text-muted-foreground">Kor:</span>{" "}
+                            <span className="font-medium">{character.profile.age}</span>
+                          </div>
+                        )}
+                        {character.profile.hairColor && (
+                          <div>
+                            <span className="text-muted-foreground">Haj:</span>{" "}
+                            <span className="font-medium">{character.profile.hairColor}</span>
+                          </div>
+                        )}
+                        {character.profile.eyeColor && (
+                          <div>
+                            <span className="text-muted-foreground">Szem:</span>{" "}
+                            <span className="font-medium">{character.profile.eyeColor}</span>
+                          </div>
+                        )}
+                      </div>
+                      {character.profile.fullDescription && (
+                        <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
+                          {character.profile.fullDescription}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Original description field (hidden if profile exists) */}
+                  {!character.profile && !character.isAnalyzing && (
+                    <div>
+                      <Label htmlFor={`desc-${character.id}`} className="text-sm">
+                        Leírás (opcionális)
+                      </Label>
+                      <Input
+                        id={`desc-${character.id}`}
+                        value={character.description || ""}
+                        onChange={(e) => onUpdateCharacter(character.id, { description: e.target.value })}
+                        placeholder="Pl.: 5 éves, szeret focizni"
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -306,11 +448,20 @@ export function StorybookCharactersStep({
         <Button
           size="lg"
           onClick={handleContinue}
-          disabled={characters.length === 0}
+          disabled={characters.length === 0 || characters.some(c => c.isAnalyzing)}
           className="gap-2"
         >
-          Tovább
-          <ArrowRight className="w-4 h-4" />
+          {characters.some(c => c.isAnalyzing) ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Elemzés folyamatban...
+            </>
+          ) : (
+            <>
+              Tovább
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
         </Button>
       </motion.div>
 
@@ -331,6 +482,128 @@ export function StorybookCharactersStep({
           <li>• Portré vagy félalakos kép működik legjobban</li>
         </ul>
       </motion.div>
+
+      {/* Edit Profile Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-500" />
+              Karakter Profil Szerkesztése
+            </DialogTitle>
+            <DialogDescription>
+              Finomítsd az AI által generált leírást, hogy az illusztrációk pontosabbak legyenek.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingProfile && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-gender">Nem</Label>
+                  <Input
+                    id="edit-gender"
+                    value={editingProfile.gender || ""}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, gender: e.target.value })}
+                    placeholder="Pl.: kislány"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-age">Kor</Label>
+                  <Input
+                    id="edit-age"
+                    value={editingProfile.age || ""}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, age: e.target.value })}
+                    placeholder="Pl.: kb. 5 éves"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-hairColor">Hajszín</Label>
+                  <Input
+                    id="edit-hairColor"
+                    value={editingProfile.hairColor || ""}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, hairColor: e.target.value })}
+                    placeholder="Pl.: szőke"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-hairStyle">Hajstílus</Label>
+                  <Input
+                    id="edit-hairStyle"
+                    value={editingProfile.hairStyle || ""}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, hairStyle: e.target.value })}
+                    placeholder="Pl.: rövid, göndör"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-eyeColor">Szemszín</Label>
+                  <Input
+                    id="edit-eyeColor"
+                    value={editingProfile.eyeColor || ""}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, eyeColor: e.target.value })}
+                    placeholder="Pl.: kék"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-clothing">Ruházat</Label>
+                  <Input
+                    id="edit-clothing"
+                    value={editingProfile.clothing || ""}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, clothing: e.target.value })}
+                    placeholder="Pl.: piros póló"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-features">Megkülönböztető jegyek</Label>
+                <Input
+                  id="edit-features"
+                  value={editingProfile.distinguishingFeatures || ""}
+                  onChange={(e) => setEditingProfile({ ...editingProfile, distinguishingFeatures: e.target.value })}
+                  placeholder="Pl.: szeplős orr, nagy mosoly"
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-fullDescription">Teljes leírás</Label>
+                <Textarea
+                  id="edit-fullDescription"
+                  value={editingProfile.fullDescription || ""}
+                  onChange={(e) => setEditingProfile({ ...editingProfile, fullDescription: e.target.value })}
+                  placeholder="Részletes leírás az illusztrátornak..."
+                  className="mt-1 min-h-[120px]"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ez a leírás segít az AI-nak konzisztensen megrajzolni a karaktert minden oldalon.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditModalOpen(false)}>
+              Mégse
+            </Button>
+            <Button onClick={saveProfileEdit}>
+              Mentés
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
