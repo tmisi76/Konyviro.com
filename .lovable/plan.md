@@ -1,97 +1,100 @@
 
-# Stripe Checkout Hiba Javítása
 
-## A Probléma
+# Dr. Varga-Nagy Adrienn Előfizetés Aktiválása
 
-A Stripe edge function hibát dob:
-```
-`customer_creation` can only be used in `payment` mode.
-```
+## Összefoglaló
 
-A `customer_creation: "always"` opció **csak `mode: "payment"` (egyszeri fizetés)** esetén használható. Mi `mode: "subscription"` (előfizetés) módban vagyunk, ahol ez a paraméter nem megengedett.
+A felhasználó fizetése **sikeres** volt a Stripe-ban, de a **webhook nem futott le**, ezért a profilja nem lett frissítve. Manuálisan kell aktiválni az előfizetését.
 
 ---
 
-## Megoldás
+## Felhasználó Adatai
 
-A `create-checkout` edge function-ből el kell távolítani a `customer_creation` paramétert subscription módban.
+| Mező | Érték |
+|------|-------|
+| Név | Dr. Varga-Nagy Adrienn |
+| Email | nagyadrienn986@gmail.com |
+| User ID | 1c9bd1e2-e2dc-4afb-a8de-3eaeb384a8bf |
+| Stripe Customer | cus_Ts1Q5TfJPrcbji |
+| Stripe Subscription | sub_1SuHPtBqXALGTPIrDWmVmmt8 |
+| Csomag | Hobbi Alapító (éves) |
+| Ár | 29,940 Ft |
 
-**Módosítás a 105. sorban:**
+---
 
-```typescript
-// ELŐTTE (hibás):
-customer_creation: customerId ? undefined : "always",
+## 1. Profil Manuális Frissítése
 
-// UTÁNA (javított):
-// Eltávolítjuk teljesen - subscription módban a Stripe automatikusan kezeli
+SQL parancs az előfizetés aktiválásához:
+
+```sql
+UPDATE public.profiles
+SET 
+  subscription_tier = 'hobby',
+  subscription_status = 'active',
+  billing_period = 'yearly',
+  is_founder = true,
+  founder_discount_applied = true,
+  stripe_customer_id = 'cus_Ts1Q5TfJPrcbji',
+  stripe_subscription_id = 'sub_1SuHPtBqXALGTPIrDWmVmmt8',
+  subscription_start_date = '2026-01-27T18:52:31Z',
+  subscription_end_date = '2027-01-27T18:52:31Z',
+  project_limit = 5,
+  monthly_word_limit = 0,
+  extra_words_balance = 1200000,
+  storybook_credit_limit = 1,
+  storybook_credits_used = 0,
+  last_credit_reset = NOW(),
+  updated_at = NOW()
+WHERE user_id = '1c9bd1e2-e2dc-4afb-a8de-3eaeb384a8bf';
 ```
 
-A Stripe subscription módban automatikusan létrehozza a customert, ha:
-- Nincs `customer` megadva
-- Van `customer_email` megadva
+### Miért ezek az értékek?
+
+| Mező | Érték | Magyarázat |
+|------|-------|------------|
+| subscription_tier | hobby | Hobbi csomag |
+| billing_period | yearly | Éves előfizetés |
+| monthly_word_limit | 0 | Éves előfizetésnél 0 (minden a balance-ban) |
+| extra_words_balance | 1,200,000 | 12 hónap × 100,000 szó |
+| storybook_credit_limit | 1 | Hobbi: 1 mesekönyv/hó |
+| subscription_end_date | 2027-01-27 | 1 évvel a vásárlás után |
 
 ---
 
-## Részletek
+## 2. Webhook Konfigurálás Ellenőrzése
 
-### Miért működik ez?
+**KRITIKUS**: A Stripe Dashboard-ban ellenőrizd, hogy a webhook be van-e állítva!
 
-Subscription checkout esetén:
-1. Ha nincs customer, de van customer_email → Stripe automatikusan létrehoz egyet
-2. A webhook-ban megkapjuk a session.customer ID-t
-3. Onnan lekérhetjük az email címet és létrehozhatjuk a Supabase usert
+**Lépések:**
+1. Menj ide: https://dashboard.stripe.com/webhooks
+2. Ellenőrizd, hogy létezik-e webhook erre az URL-re:
+   ```
+   https://qdyneottmnulmkypzmtt.supabase.co/functions/v1/stripe-webhook
+   ```
+3. Ha nincs, hozd létre ezekkel az eseményekkel:
+   - `checkout.session.completed`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+   - `invoice.payment_failed`
 
-### Módosítandó fájl
-
-| Fájl | Változás |
-|------|----------|
-| `supabase/functions/create-checkout/index.ts` | `customer_creation` sor törlése |
-
----
-
-## Javított Kód
-
-```typescript
-const session = await stripe.checkout.sessions.create({
-  customer: customerId,
-  customer_email: customerId ? undefined : userEmail || undefined,
-  line_items: [
-    {
-      price: priceId,
-      quantity: 1,
-    },
-  ],
-  mode: "subscription",
-  billing_address_collection: "required",
-  phone_number_collection: {
-    enabled: true,
-  },
-  // customer_creation ELTÁVOLÍTVA - subscription módban nem támogatott
-  success_url: successUrl || `${req.headers.get("origin")}/dashboard?subscription=success`,
-  cancel_url: cancelUrl || `${req.headers.get("origin")}/pricing?subscription=cancelled`,
-  metadata: {
-    supabase_user_id: userId || "guest",
-    tier: tier,
-    billing_period: billingPeriod,
-    is_founder: "true",
-  },
-  subscription_data: {
-    metadata: {
-      supabase_user_id: userId || "guest",
-      tier: tier,
-      billing_period: billingPeriod,
-      is_founder: "true",
-    },
-  },
-});
-```
+4. A webhook Signing secret-jét másold be a Lovable Cloud secrets-be `STRIPE_WEBHOOK_SECRET` néven
 
 ---
 
-## Várt Eredmény
+## 3. Email Küldés a Felhasználónak
 
-A javítás után:
-1. ✅ A "REGISZTRÁLOK" gomb kattintásra megnyílik a Stripe Checkout
-2. ✅ Guest felhasználók is tudnak fizetni
-3. ✅ A Stripe automatikusan létrehozza a customert
-4. ✅ A webhook megkapja a customer adatokat és létrehozza a Supabase usert
+A felhasználó **már be tud lépni**, mert a fiókja létezik (valószínűleg manuálisan regisztrált). Viszont az előfizetése nem volt aktív.
+
+A frissítés után a felhasználónak jelezni kell, hogy:
+- Az előfizetése aktiválva lett
+- Bejelentkezhet és használhatja a Hobbi funkciót
+- 1,200,000 szó kreditet kapott az éves előfizetéshez
+
+---
+
+## Végrehajtandó Lépések Sorrendben
+
+1. ✅ **Profil frissítése** - SQL parancs futtatása
+2. ⚠️ **Webhook ellenőrzése** - Stripe Dashboard-ban
+3. 📧 **Felhasználó értesítése** - Email vagy más módon
+
