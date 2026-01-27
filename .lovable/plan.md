@@ -1,82 +1,178 @@
 
-## Dashboard Hiba Javítás
+# Dashboard Átszervezés - Mesekönyvek Elkülönítése
 
-### Hiba Azonosítás
+## Összefoglalás
 
-A dashboard összeomlásának oka a `WritingStatusCard.tsx` fájlban található. A hiba akkor jelentkezik, amikor a `writing_status` mező értéke `"draft"`, ami nem szerepel a `statusConfig` objektumban.
-
-**Hiba folyamata:**
-1. Az adatbázis visszaad egy projektet `writing_status: "draft"` értékkel
-2. A Dashboard `activeWritingProjects` szűrője beengedi (mert nem `idle`, `completed` vagy `failed`)
-3. A `WritingStatusCard` megpróbálja keresni: `statusConfig["draft"]` → `undefined`
-4. Majd `undefined.color` → **TypeError: Cannot read properties of undefined**
+A dashboard jelenlegi struktúráját át kell alakítani, hogy:
+1. **Mesekönyvek külön szekcióban** jelenjenek meg
+2. **Kész projektek "Kész" jelzéssel** legyenek megjelölve
+3. **Címkézések magyarosítása** - "Új projekt" → "Új könyv készítés", "Legutóbbi projektek" → "Legutóbbi könyveim"
 
 ---
 
-### Javítási Terv
+## Változások Áttekintése
 
-#### 1. lépés - StatusConfig bővítése
+### 1. Szekciók Átalakítása
 
-Hozzá kell adni a `"draft"` státuszt a `statusConfig` objektumhoz a `WritingStatusCard.tsx` fájlban:
+**Jelenlegi struktúra:**
+- Statisztikák
+- Folyamatban lévő írások
+- Legutóbbi projektek (minden típus egyben)
 
-```typescript
-const statusConfig: Record<WritingStatus, { label: string; color: string; icon: ReactNode }> = {
-  idle: { label: "Nem indult", color: "bg-muted", icon: <Clock className="h-3 w-3" /> },
-  draft: { label: "Vázlat", color: "bg-slate-500", icon: <FileText className="h-3 w-3" /> },  // ÚJ
-  queued: { label: "Sorban áll", color: "bg-yellow-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
-  // ... többi meglévő
-};
-```
+**Új struktúra:**
+- Statisztikák
+- Folyamatban lévő írások
+- Legutóbbi könyveim (csak nem-mesekönyv projektek)
+- Mesekönyveim (külön szekció a `mesekonyv` genre-ű projektekhez)
 
-#### 2. lépés - WritingStatus típus frissítése
+### 2. Címkék Módosítása
 
-A `useBackgroundWriter.ts` hook-ban frissíteni kell a `WritingStatus` típust, hogy tartalmazza a `"draft"` értéket:
+| Eredeti | Új |
+|---------|-----|
+| "Új projekt" | "Új könyv készítés" |
+| "Legutóbbi projektek" | "Legutóbbi könyveim" |
+| "Projektek" (üres állapot) | "Könyveim" |
+| "Összes projekt" | "Összes könyv" |
 
-```typescript
-export type WritingStatus = 
-  | 'idle' 
-  | 'draft'       // ÚJ
-  | 'queued' 
-  | 'generating_outlines' 
-  | 'writing' 
-  | 'in_progress'
-  | 'paused' 
-  | 'completed' 
-  | 'failed';
-```
+### 3. Kész Projektek Jelzése
 
-#### 3. lépés - Fallback védelem hozzáadása
-
-Biztonsági fallback logika a `WritingStatusCard.tsx`-ben arra az esetre, ha a jövőben más ismeretlen státusz érkezne:
-
-```typescript
-const status = statusConfig[progress.status] || statusConfig.idle;
-```
+A `writing_status === "completed"` státuszú projektek "Kész" badge-et kapnak a kártyán, nem csak ha `writingMode === "background"`.
 
 ---
 
-### Érintett Fájlok
+## Technikai Terv
 
-| Fájl | Módosítás |
-|------|-----------|
-| `src/hooks/useBackgroundWriter.ts` | `WritingStatus` típushoz `draft` hozzáadása |
-| `src/components/dashboard/WritingStatusCard.tsx` | `statusConfig`-hoz `draft` hozzáadása + fallback védelem |
+### A) Dashboard.tsx Módosítások
 
----
-
-### Alternatív Megközelítés
-
-Ha a `draft` státuszú projektek nem kellene, hogy megjelenjenek a "Folyamatban lévő írások" szekcióban, akkor a Dashboard szűrőjét is módosítani lehetne:
-
+#### Szűrők Hozzáadása
 ```typescript
-const activeWritingProjects = useMemo(() => {
-  return projects.filter(p => 
-    p.writing_status && 
-    !['idle', 'draft', 'completed', 'failed'].includes(p.writing_status)  // draft kizárva
-  );
+// Mesekönyvek külön szűrése
+const storybookProjects = useMemo(() => {
+  return projects
+    .filter((p) => p.genre === "mesekonyv" && p.status !== "archived")
+    .map((p) => ({ /* formázás */ }));
+}, [projects]);
+
+// Normál könyvek (nem mesekönyv)
+const bookProjects = useMemo(() => {
+  return projects
+    .filter((p) => p.genre !== "mesekonyv" && p.status !== "archived")
+    .map((p) => ({ /* formázás */ }));
 }, [projects]);
 ```
 
-Ez a megoldás egyszerűbb, de nem kezeli az esetleges jövőbeli ismeretlen státuszokat.
+#### Szekciók Renderelése
+```tsx
+{/* Legutóbbi könyveim */}
+<section>
+  <h2>Legutóbbi könyveim</h2>
+  {bookProjects.length === 0 ? <EmptyState /> : <ProjectCards />}
+</section>
 
-**Javasolt megoldás:** Mindkét javítás kombinálása - a `draft` státusz hozzáadása a config-hoz ÉS a fallback védelem implementálása.
+{/* Mesekönyveim - csak ha van */}
+{storybookProjects.length > 0 && (
+  <section>
+    <h2>Mesekönyveim</h2>
+    <StorybookCards />
+  </section>
+)}
+```
+
+### B) DashboardSidebar.tsx Módosítások
+
+- **"Új projekt"** gomb szöveg → **"Új könyv készítés"**
+- Limit elérve esetén: **"Limit elérve"** marad
+
+### C) ProjectCard.tsx Módosítások
+
+#### Kész Jelzés Logikája
+```typescript
+// Jelenlegi (túl szűk):
+{isCompleted && project.writingMode === "background" && (...)}
+
+// Új (minden kész projekt):
+{isCompleted && (
+  <Badge className="bg-green-600">
+    <CheckCircle /> Kész
+  </Badge>
+)}
+```
+
+#### Mesekönyv Badge
+```typescript
+// Új genre config bejegyzés
+mesekonyv: {
+  label: "Mesekönyv",
+  className: "bg-amber-100 text-amber-700 border-amber-200 ..."
+}
+```
+
+### D) StatsCard Címke
+
+- **"Összes projekt"** → **"Összes könyv"**
+
+### E) MobileBottomNav.tsx
+
+- **"Projektek"** tab → **"Könyveim"**
+
+### F) EmptyState.tsx
+
+- **"Hozd létre első könyved"** → **"Készítsd el első könyved"**
+
+---
+
+## Érintett Fájlok
+
+| Fájl | Módosítás Típusa |
+|------|------------------|
+| `src/pages/Dashboard.tsx` | Szűrők, szekciók, címkék |
+| `src/components/dashboard/DashboardSidebar.tsx` | Gomb szöveg |
+| `src/components/dashboard/ProjectCard.tsx` | "Kész" badge, mesekönyv genre |
+| `src/components/dashboard/StatsCard.tsx` | - (csak a hívás helyén) |
+| `src/components/dashboard/EmptyState.tsx` | Szövegek |
+| `src/components/mobile/MobileBottomNav.tsx` | Tab címke |
+
+---
+
+## UI Struktúra (Asztali Nézet)
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  Üdv újra, [Felhasználó]!                                   │
+│  Folytasd az írást ott, ahol abbahagytad.                   │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ Összes könyv│  │   Mai írás  │  │   Sorozat   │          │
+│  │      4      │  │     0       │  │     0       │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+├─────────────────────────────────────────────────────────────┤
+│  Folyamatban lévő írások                                    │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  [Projekt kártya - írás alatt]                       │   │
+│  └──────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│  Legutóbbi könyveim                                         │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐                │
+│  │  Fiction  │  │ Erotikus  │  │ Szakkönyv │                │
+│  │   ✓ Kész  │  │   ✓ Kész  │  │   ✓ Kész  │                │
+│  └───────────┘  └───────────┘  └───────────┘                │
+├─────────────────────────────────────────────────────────────┤
+│  Mesekönyveim                                               │
+│  ┌───────────┐                                              │
+│  │ Mesekönyv │                                              │
+│  │  🧸 Kész  │                                              │
+│  └───────────┘                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Sidebar "Új könyv készítés" Gomb
+
+```text
+┌──────────────────────┐
+│  + Új könyv készítés │  ← Módosított szöveg
+└──────────────────────┘
+```
+
+Limit elérése esetén továbbra is "Limit elérve" szöveg marad.
