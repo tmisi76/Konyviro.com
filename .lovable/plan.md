@@ -1,117 +1,82 @@
 
-## Összefoglaló Terv - Mesekönyv Javítások
+## Dashboard Hiba Javítás
 
-### Azonosított Problémák
+### Hiba Azonosítás
 
-1. **Szöveg olvashatóság** - A gradient háttér nem biztosít elegendő kontrasztot
-2. **Mentés nem működik** - A `projects_genre_check` constraint nem tartalmazza a "mesekonyv" értéket
-3. **Export nem profi minőségű** - Jelenleg HTML-t generál, nem CloudConvert-es PDF-et
-4. **Borító és szerkezet hiányzik** - Nincs AI-generált borító, nincs címlap
+A dashboard összeomlásának oka a `WritingStatusCard.tsx` fájlban található. A hiba akkor jelentkezik, amikor a `writing_status` mező értéke `"draft"`, ami nem szerepel a `statusConfig` objektumban.
 
----
-
-### 1. Szöveg Háttér Javítás
-
-**Fájl:** `src/components/storybook/steps/StorybookPreviewStep.tsx`
-
-**Változtatások:**
-- 134. sor (bal oldal): `bg-gradient-to-t from-black/70 to-transparent` → `bg-black/70 rounded-t-lg`
-- 168. sor (jobb oldal): `bg-gradient-to-t from-black/70 to-transparent` → `bg-black/70 rounded-t-lg`
-- 216. sor (mobil): `bg-gradient-to-t from-black/80 via-black/50 to-transparent` → `bg-black/70 rounded-t-xl`
+**Hiba folyamata:**
+1. Az adatbázis visszaad egy projektet `writing_status: "draft"` értékkel
+2. A Dashboard `activeWritingProjects` szűrője beengedi (mert nem `idle`, `completed` vagy `failed`)
+3. A `WritingStatusCard` megpróbálja keresni: `statusConfig["draft"]` → `undefined`
+4. Majd `undefined.color` → **TypeError: Cannot read properties of undefined**
 
 ---
 
-### 2. Mentés Javítás - Adatbázis Constraint
+### Javítási Terv
 
-**Migráció szükséges:**
+#### 1. lépés - StatusConfig bővítése
 
-```sql
--- Add 'mesekonyv' to the genre constraint
-ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_genre_check;
+Hozzá kell adni a `"draft"` státuszt a `statusConfig` objektumhoz a `WritingStatusCard.tsx` fájlban:
 
-ALTER TABLE projects ADD CONSTRAINT projects_genre_check 
-CHECK (genre = ANY (ARRAY['szakkönyv', 'szakkonyv', 'fiction', 'erotikus', 'mesekonyv']));
+```typescript
+const statusConfig: Record<WritingStatus, { label: string; color: string; icon: ReactNode }> = {
+  idle: { label: "Nem indult", color: "bg-muted", icon: <Clock className="h-3 w-3" /> },
+  draft: { label: "Vázlat", color: "bg-slate-500", icon: <FileText className="h-3 w-3" /> },  // ÚJ
+  queued: { label: "Sorban áll", color: "bg-yellow-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
+  // ... többi meglévő
+};
+```
+
+#### 2. lépés - WritingStatus típus frissítése
+
+A `useBackgroundWriter.ts` hook-ban frissíteni kell a `WritingStatus` típust, hogy tartalmazza a `"draft"` értéket:
+
+```typescript
+export type WritingStatus = 
+  | 'idle' 
+  | 'draft'       // ÚJ
+  | 'queued' 
+  | 'generating_outlines' 
+  | 'writing' 
+  | 'in_progress'
+  | 'paused' 
+  | 'completed' 
+  | 'failed';
+```
+
+#### 3. lépés - Fallback védelem hozzáadása
+
+Biztonsági fallback logika a `WritingStatusCard.tsx`-ben arra az esetre, ha a jövőben más ismeretlen státusz érkezne:
+
+```typescript
+const status = statusConfig[progress.status] || statusConfig.idle;
 ```
 
 ---
 
-### 3. CloudConvert Exportálás
+### Érintett Fájlok
 
-**Fájl:** `supabase/functions/export-storybook/index.ts`
-
-**Teljes átírás CloudConvert integrációval:**
-
-A meglévő `export-book` edge function mintáját követve:
-
-1. **HTML generálás** - Teljes mesekönyv HTML struktúrával:
-   - Borító oldal (AI generált kép vagy gradient háttér címmel)
-   - Címlap (fehér oldal a címmel és szerzővel)
-   - Tartalmi oldalak (illusztrációk + szöveg)
-   - Záró oldal
-
-2. **CloudConvert integráció:**
-   - HTML-t base64 kódolás
-   - CloudConvert job létrehozása (HTML → PDF konverzió)
-   - Export rekord mentése az `exports` táblába
-   - Job ID visszaadása polling-hoz
-
-3. **A4 méretű professzionális PDF:**
-   - 300 DPI minőség
-   - Bleed opció támogatása
-   - Print-ready beállítások
-
-**Fájl:** `src/components/storybook/StorybookExport.tsx`
-
-**Változtatások:**
-- Polling logika hozzáadása (mint a book exportnál)
-- `export-status` edge function hívása a CloudConvert job státuszának ellenőrzésére
-- Letöltési link megjelenítése amikor kész
+| Fájl | Módosítás |
+|------|-----------|
+| `src/hooks/useBackgroundWriter.ts` | `WritingStatus` típushoz `draft` hozzáadása |
+| `src/components/dashboard/WritingStatusCard.tsx` | `statusConfig`-hoz `draft` hozzáadása + fallback védelem |
 
 ---
 
-### 4. Borító Generálás és Struktúra
+### Alternatív Megközelítés
 
-**Fájl:** `supabase/functions/generate-storybook/index.ts`
+Ha a `draft` státuszú projektek nem kellene, hogy megjelenjenek a "Folyamatban lévő írások" szekcióban, akkor a Dashboard szűrőjét is módosítani lehetne:
 
-**Változtatások:**
-- Borító prompt generálása az AI-nak
-- `coverPrompt` mező hozzáadása a válaszhoz
-
-**Fájl:** `src/hooks/useStorybookWizard.ts`
-
-**Változtatások:**
-- `generateCover` függvény hozzáadása
-- A `generateStory` után automatikusan hívja a borító generálást
-- Borító URL mentése a `data.coverUrl`-be
-
-**Fájl:** `supabase/functions/export-storybook/index.ts`
-
-**HTML struktúra:**
-```text
-1. Borító oldal - Teljes oldalas AI kép + cím overlay
-2. Belső címlap - Fehér háttér, cím középen, szerző
-3-N. Tartalmi oldalak - Illusztrációk szöveggel
-N+1. Záró oldal - "Vége" + InkStory branding
+```typescript
+const activeWritingProjects = useMemo(() => {
+  return projects.filter(p => 
+    p.writing_status && 
+    !['idle', 'draft', 'completed', 'failed'].includes(p.writing_status)  // draft kizárva
+  );
+}, [projects]);
 ```
 
----
+Ez a megoldás egyszerűbb, de nem kezeli az esetleges jövőbeli ismeretlen státuszokat.
 
-### Érintett Fájlok Összesítése
-
-| Fájl | Változtatás típusa |
-|------|-------------------|
-| `supabase/migrations/xxx.sql` | Új migráció - genre constraint |
-| `src/components/storybook/steps/StorybookPreviewStep.tsx` | 3 CSS osztály módosítás |
-| `supabase/functions/export-storybook/index.ts` | Teljes átírás CloudConvert-re |
-| `src/components/storybook/StorybookExport.tsx` | Polling logika hozzáadása |
-| `supabase/functions/generate-storybook/index.ts` | Borító prompt hozzáadása |
-| `src/hooks/useStorybookWizard.ts` | Borító generálás függvény |
-
----
-
-### Várható Eredmény
-
-- A szöveg mindig jól olvasható lesz a 70%-os fekete háttéren
-- A mesekönyvek sikeresen menthetők lesznek az adatbázisba
-- Professzionális PDF exportálás CloudConvert-tel
-- Az exportált PDF struktúrája: Borító → Címlap → Oldalak → Záró
+**Javasolt megoldás:** Mindkét javítás kombinálása - a `draft` státusz hozzáadása a config-hoz ÉS a fallback védelem implementálása.
