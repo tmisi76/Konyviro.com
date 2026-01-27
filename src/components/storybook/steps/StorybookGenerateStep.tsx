@@ -24,8 +24,9 @@ import {
 interface StorybookGenerateStepProps {
   data: StorybookData;
   isGenerating: boolean;
-  onGenerateStory: () => Promise<boolean>;
+  onGenerateStory: () => Promise<{ success: boolean; coverPrompt?: string }>;
   onGenerateIllustrations: (onProgress?: (current: number, total: number) => void) => Promise<boolean>;
+  onGenerateCover?: (coverPrompt: string) => Promise<boolean>;
   onComplete: () => void;
   setPages: (pages: StorybookPage[]) => void;
 }
@@ -37,6 +38,7 @@ export function StorybookGenerateStep({
   isGenerating,
   onGenerateStory,
   onGenerateIllustrations,
+  onGenerateCover,
   onComplete,
   setPages,
 }: StorybookGenerateStepProps) {
@@ -83,15 +85,23 @@ export function StorybookGenerateStep({
         setProgress(prev => Math.min(prev + 2, 45));
       }, 300);
 
-      const storySuccess = await onGenerateStory();
+      const storyResult = await onGenerateStory();
       clearInterval(progressInterval);
 
-      if (!storySuccess) {
+      if (!storyResult.success) {
         throw new Error("Hiba a történet generálása során. Kérlek próbáld újra.");
       }
 
-      setProgress(50);
+      setProgress(45);
       setCreditsUsed(STORYBOOK_TEXT_COST);
+
+      // Generate cover if coverPrompt is available
+      if (storyResult.coverPrompt && onGenerateCover) {
+        setProgress(48);
+        await onGenerateCover(storyResult.coverPrompt);
+        setProgress(50);
+      }
+
       setPhase("illustrations");
 
       // Generate illustrations with real progress tracking

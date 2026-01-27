@@ -131,7 +131,7 @@ export function StorybookPreviewStep({
                 </div>
               )}
               {/* Text overlay */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 to-transparent">
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/70 rounded-t-lg">
                 <p className="text-white text-sm md:text-base leading-relaxed">
                   {leftPage.text}
                 </p>
@@ -165,7 +165,7 @@ export function StorybookPreviewStep({
                 </div>
               )}
               {/* Text overlay */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 to-transparent">
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/70 rounded-t-lg">
                 <p className="text-white text-sm md:text-base leading-relaxed">
                   {rightPage.text}
                 </p>
@@ -213,7 +213,7 @@ export function StorybookPreviewStep({
           )}
 
           {/* Text overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 via-black/50 to-transparent">
+          <div className="absolute bottom-0 left-0 right-0 p-6 bg-black/70 rounded-t-xl">
             {isEditing ? (
               <div className="space-y-2">
                 <Textarea
