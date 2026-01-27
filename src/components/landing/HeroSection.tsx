@@ -73,18 +73,44 @@ export function HeroSection() {
           {/* Social proof - hidden */}
         </div>
 
-        {/* Hero Image/Screenshot placeholder */}
+        {/* Hero Video - kézzel rajzolt stílussal */}
         <div className="mx-auto mt-16 max-w-5xl">
+          {/* Piros marker szöveg - 15° döntéssel */}
+          <div className="mb-4 flex justify-start pl-8">
+            <p 
+              className="text-2xl font-bold text-red-500"
+              style={{ 
+                transform: "rotate(-15deg)",
+                fontFamily: "'Caveat', cursive",
+                textShadow: "1px 1px 2px rgba(0,0,0,0.1)"
+              }}
+            >
+              Nézd meg, hogyan működik...
+            </p>
+          </div>
+          
+          {/* Rajzolt nyíl SVG */}
+          <div className="relative -mt-2 ml-48 mb-2">
+            <svg width="60" height="40" viewBox="0 0 60 40">
+              <path 
+                d="M5,5 Q15,35 50,25 M50,25 L42,18 M50,25 L45,32" 
+                stroke="#ef4444" 
+                strokeWidth="3" 
+                fill="none" 
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+
+          {/* Video container árnyékkal */}
           <div className="relative overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-            <div className="aspect-video bg-gradient-to-br from-muted to-muted/50 p-8">
-              <div className="flex h-full items-center justify-center">
-                <div className="text-center">
-                  <BookOpen className="mx-auto h-16 w-16 text-muted-foreground/50" />
-                  <p className="mt-4 text-muted-foreground">
-                    Szerkesztő felület előnézet
-                  </p>
-                </div>
-              </div>
+            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
+              <iframe 
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }}
+                src="https://www.tella.tv/video/vid_cmkwhdz8801g404jl4pfa93et/embed?b=0&title=0&a=1&loop=0&t=0&muted=0&wt=0" 
+                allowFullScreen 
+              />
             </div>
             {/* Decorative gradient overlay */}
             <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
