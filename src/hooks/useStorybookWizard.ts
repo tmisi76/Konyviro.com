@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ const STORAGE_KEY = "storybook-wizard-data";
 export function useStorybookWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [data, setData] = useState<StorybookData>({
     title: "",
@@ -32,6 +33,7 @@ export function useStorybookWizard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
 
   // Ref to track current pages - avoids stale closure issues
   const pagesRef = useRef<StorybookPage[]>([]);
@@ -44,8 +46,66 @@ export function useStorybookWizard() {
   // Total steps for storybook wizard
   const maxSteps = 7;
 
-  // Load from session storage on mount
+  // Load existing project from URL param (projectId)
   useEffect(() => {
+    const projectIdParam = searchParams.get("projectId");
+    
+    if (projectIdParam && user && !data.projectId) {
+      loadExistingProject(projectIdParam);
+    }
+  }, [searchParams, user]);
+
+  const loadExistingProject = async (projectId: string) => {
+    setIsLoadingProject(true);
+    try {
+      const { data: project, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", projectId)
+        .single();
+
+      if (error) throw error;
+
+      if (project?.storybook_data) {
+        const storybookData = typeof project.storybook_data === 'string' 
+          ? JSON.parse(project.storybook_data) 
+          : project.storybook_data;
+        
+        // Sync pages ref immediately
+        pagesRef.current = storybookData.pages || [];
+        
+        setData({
+          title: project.title || storybookData.title || "",
+          theme: storybookData.theme || null,
+          customThemeDescription: storybookData.customThemeDescription,
+          ageGroup: storybookData.ageGroup || null,
+          illustrationStyle: storybookData.illustrationStyle || null,
+          characters: storybookData.characters || [],
+          storyPrompt: storybookData.storyPrompt || "",
+          generatedStory: storybookData.generatedStory,
+          pages: storybookData.pages || [],
+          coverUrl: storybookData.coverUrl,
+          projectId: project.id,
+        });
+        
+        // Navigate to preview step (step 7)
+        setCurrentStep(7);
+        setIsDirty(false);
+      }
+    } catch (error) {
+      console.error("Error loading storybook project:", error);
+      toast.error("Hiba a mesekönyv betöltése során");
+    } finally {
+      setIsLoadingProject(false);
+    }
+  };
+
+  // Load from session storage on mount (only if not loading from URL param)
+  useEffect(() => {
+    const projectIdParam = searchParams.get("projectId");
+    // Skip session storage loading if we're loading an existing project from URL
+    if (projectIdParam) return;
+    
     const saved = sessionStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -56,7 +116,7 @@ export function useStorybookWizard() {
         // Ignore parse errors
       }
     }
-  }, []);
+  }, [searchParams]);
 
   // Save to session storage on changes
   useEffect(() => {
@@ -516,6 +576,7 @@ export function useStorybookWizard() {
     isSaving,
     isGenerating,
     isDirty,
+    isLoadingProject,
     setTheme,
     setCustomThemeDescription,
     setAgeGroup,

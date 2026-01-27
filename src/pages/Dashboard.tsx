@@ -96,11 +96,16 @@ export default function Dashboard() {
     }));
   }, [projects]);
 
-  // Aktív írások (csak folyamatban lévők, nem completed/failed/idle)
+  // Aktív háttérírások (csak könyvek, nem mesekönyvek, és csak háttérírás módban)
   const activeWritingProjects = useMemo(() => {
     return projects.filter(p => 
+      // Csak könyvek (nem mesekönyv)
+      p.genre !== "mesekonyv" &&
+      // Aktív háttérírás státusz
       p.writing_status && 
-      !['idle', 'completed', 'failed'].includes(p.writing_status)
+      ['queued', 'generating_outlines', 'writing', 'in_progress'].includes(p.writing_status) &&
+      // Háttérírás mód
+      p.writing_mode === "background"
     );
   }, [projects]);
 
@@ -164,13 +169,9 @@ export default function Dashboard() {
 
   const handleLoadingComplete = () => {
     if (loadingProjectId && loadingProject) {
-      // Check if this is a completed storybook - navigate to viewer
-      const isCompletedStorybook = 
-        loadingProject.genre === "mesekonyv" && 
-        loadingProject.writing_status === "completed";
-
-      if (isCompletedStorybook) {
-        navigate(`/storybook/${loadingProjectId}`);
+      // Mesekönyv → wizard utolsó lépése (előnézet), ahol lapozhatja
+      if (loadingProject.genre === "mesekonyv") {
+        navigate(`/create-storybook?projectId=${loadingProjectId}`);
       } else {
         navigate(`/project/${loadingProjectId}`);
       }
