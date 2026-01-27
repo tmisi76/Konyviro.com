@@ -1,19 +1,17 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, BookOpen, Feather } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
 export function HeroSection() {
   const navigate = useNavigate();
-
   const scrollToPricing = () => {
     const element = document.getElementById("pricing");
     if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
+      element.scrollIntoView({
+        behavior: "smooth"
+      });
     }
   };
-
-  return (
-    <section className="relative overflow-hidden py-20 sm:py-32">
+  return <section className="relative overflow-hidden py-20 sm:py-32">
       {/* Background gradient */}
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-primary/5 via-background to-background" />
       
@@ -21,10 +19,14 @@ export function HeroSection() {
       <div className="absolute left-10 top-20 hidden animate-float opacity-20 lg:block">
         <BookOpen className="h-16 w-16 text-primary" />
       </div>
-      <div className="absolute right-20 top-40 hidden animate-float opacity-20 lg:block" style={{ animationDelay: "1s" }}>
+      <div className="absolute right-20 top-40 hidden animate-float opacity-20 lg:block" style={{
+      animationDelay: "1s"
+    }}>
         <Feather className="h-12 w-12 text-secondary" />
       </div>
-      <div className="absolute bottom-20 left-1/4 hidden animate-float opacity-20 lg:block" style={{ animationDelay: "2s" }}>
+      <div className="absolute bottom-20 left-1/4 hidden animate-float opacity-20 lg:block" style={{
+      animationDelay: "2s"
+    }}>
         <Sparkles className="h-10 w-10 text-accent" />
       </div>
 
@@ -52,20 +54,11 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button
-              size="lg"
-              onClick={() => navigate("/auth?mode=register")}
-              className="group w-full px-8 sm:w-auto"
-            >
+            <Button size="lg" onClick={() => navigate("/auth?mode=register")} className="group w-full px-8 sm:w-auto">
               Ingyenesen kipróbálom
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={scrollToPricing}
-              className="w-full sm:w-auto"
-            >
+            <Button size="lg" variant="outline" onClick={scrollToPricing} className="w-full sm:w-auto">
               Csomagok megtekintése
             </Button>
           </div>
@@ -77,46 +70,34 @@ export function HeroSection() {
         <div className="mx-auto mt-16 max-w-5xl">
           {/* Piros marker szöveg - 15° döntéssel */}
           <div className="mb-4 flex justify-start pl-8">
-            <p 
-              className="text-2xl font-bold text-red-500"
-              style={{ 
-                transform: "rotate(-15deg)",
-                fontFamily: "'Caveat', cursive",
-                textShadow: "1px 1px 2px rgba(0,0,0,0.1)"
-              }}
-            >
-              Nézd meg, hogyan működik...
-            </p>
+            
           </div>
           
           {/* Rajzolt nyíl SVG */}
           <div className="relative -mt-2 ml-48 mb-2">
-            <svg width="60" height="40" viewBox="0 0 60 40">
-              <path 
-                d="M5,5 Q15,35 50,25 M50,25 L42,18 M50,25 L45,32" 
-                stroke="#ef4444" 
-                strokeWidth="3" 
-                fill="none" 
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            
           </div>
 
           {/* Video container árnyékkal */}
           <div className="relative overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
-              <iframe 
-                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }}
-                src="https://www.tella.tv/video/vid_cmkwhdz8801g404jl4pfa93et/embed?b=0&title=0&a=1&loop=0&t=0&muted=0&wt=0" 
-                allowFullScreen 
-              />
+            <div style={{
+            position: "relative",
+            paddingBottom: "56.25%",
+            height: 0
+          }}>
+              <iframe style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              border: 0
+            }} src="https://www.tella.tv/video/vid_cmkwhdz8801g404jl4pfa93et/embed?b=0&title=0&a=1&loop=0&t=0&muted=0&wt=0" allowFullScreen />
             </div>
             {/* Decorative gradient overlay */}
-            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
+            
           </div>
         </div>
       </div>
-    </section>
-  );
+    </section>;
 }
