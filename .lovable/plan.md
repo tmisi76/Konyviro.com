@@ -1,46 +1,58 @@
 
-# Szöveg Módosítás - Könyvírás Folyamatban Üzenet
+# Folyamatban Lévő Írások Blokk Javítás
 
-## Összefoglalás
+## Probléma
 
-A könyvírás wizard utolsó lépésénél a háttérírás üzenetet és a gombot kell módosítani.
+Az adatbázis lekérdezés megmutatja, hogy a frissen létrehozott szakkönyv:
+- `writing_status`: `in_progress` ✅
+- `writing_mode`: **NULL** ❌
+
+A jelenlegi szűrő feltétele `p.writing_mode === "background"`, de a projektnél a `writing_mode` NULL, ezért nem jelenik meg a blokkban.
 
 ---
 
-## Változtatások
+## Megoldás
 
-### Fájl: `src/components/wizard/steps/Step7AutoWrite.tsx`
-
-| Elem | Jelenlegi | Új |
-|------|-----------|-----|
-| **Üzenet szöveg** | "A könyved írása a háttérben fut. Bezárhatod ezt az oldalt, a folyamatot a Dashboard-on követheted nyomon." | "Most kérlek kattints a gombra, zárd be ezt az ablakot, utána kattints az INDÍTÁS gombra a könyvnél és az AI megírja a háttérben a könyvet." |
-| **Gomb szöveg** | "Folyamat követése a Dashboard-on" | "Bezárom az ablakot és elindítom a szövegírást" |
+Távolítsuk el a `writing_mode === "background"` feltételt a szűrésből. Ehelyett elég csak az aktív írási státuszt ellenőrizni.
 
 ---
 
 ## Kód Módosítás
 
-**133-137. sor (üzenet):**
-```tsx
-{progress.status !== 'completed' && (
-  <p className="text-center text-muted-foreground">
-    Most kérlek kattints a gombra, zárd be ezt az ablakot, utána kattints 
-    az INDÍTÁS gombra a könyvnél és az AI megírja a háttérben a könyvet.
-  </p>
-)}
+### Fájl: `src/pages/Dashboard.tsx`
+
+**99-110. sorok - jelenlegi:**
+```typescript
+const activeWritingProjects = useMemo(() => {
+  return projects.filter(p => 
+    p.genre !== "mesekonyv" &&
+    p.writing_status && 
+    ['queued', 'generating_outlines', 'writing', 'in_progress'].includes(p.writing_status) &&
+    p.writing_mode === "background"  // <-- EZ A PROBLÉMA
+  );
+}, [projects]);
 ```
 
-**144-146. sor (gomb):**
-```tsx
-{progress.status === 'completed' 
-  ? 'Vissza a Dashboard-ra' 
-  : 'Bezárom az ablakot és elindítom a szövegírást'}
+**Új verzió:**
+```typescript
+const activeWritingProjects = useMemo(() => {
+  return projects.filter(p => 
+    // Csak könyvek (nem mesekönyv)
+    p.genre !== "mesekonyv" &&
+    // Aktív háttérírás státusz (nem kész és nem failed)
+    p.writing_status && 
+    ['queued', 'generating_outlines', 'writing', 'in_progress'].includes(p.writing_status)
+    // writing_mode feltétel eltávolítva - elég a státusz
+  );
+}, [projects]);
 ```
 
 ---
 
-## Érintett Fájl
+## Összefoglalás
 
 | Fájl | Módosítás |
 |------|-----------|
-| `src/components/wizard/steps/Step7AutoWrite.tsx` | Üzenet és gomb szöveg frissítése |
+| `src/pages/Dashboard.tsx` | `writing_mode === "background"` feltétel eltávolítása |
+
+Ez után minden aktív írási státuszú könyv (nem mesekönyv) megjelenik a "Folyamatban lévő írások" blokkban.
