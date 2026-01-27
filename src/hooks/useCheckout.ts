@@ -8,7 +8,8 @@ export function useCheckout() {
 
   const createCheckoutSession = async (
     priceId: string,
-    tier: SubscriptionTier
+    tier: SubscriptionTier,
+    billingPeriod: "monthly" | "yearly" = "yearly"
   ) => {
     setIsLoading(true);
 
@@ -17,6 +18,7 @@ export function useCheckout() {
         body: {
           priceId,
           tier,
+          billingPeriod,
           successUrl: `${window.location.origin}/dashboard?subscription=success`,
           cancelUrl: `${window.location.origin}/pricing?subscription=cancelled`,
         },

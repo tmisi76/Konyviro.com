@@ -13,11 +13,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Tier configuration
-const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: number }> = {
-  hobby: { projectLimit: 5, monthlyWordLimit: 100000 },
-  writer: { projectLimit: 50, monthlyWordLimit: 1000000 },
-  pro: { projectLimit: -1, monthlyWordLimit: -1 }, // -1 means unlimited
+// Tier configuration - monthly limits
+const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: number; storybookLimit: number }> = {
+  hobby: { projectLimit: 5, monthlyWordLimit: 100000, storybookLimit: 1 },
+  writer: { projectLimit: 50, monthlyWordLimit: 250000, storybookLimit: 5 },
+  pro: { projectLimit: -1, monthlyWordLimit: -1, storybookLimit: 999 },
 };
 
 serve(async (req) => {
@@ -65,38 +65,148 @@ serve(async (req) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.supabase_user_id;
+        let userId = session.metadata?.supabase_user_id;
         const tier = session.metadata?.tier as string;
+        const billingPeriod = session.metadata?.billing_period || "yearly";
         const isFounder = session.metadata?.is_founder === "true";
 
+        logStep("Processing checkout.session.completed", { 
+          userId, 
+          tier, 
+          billingPeriod, 
+          isFounder,
+          customerId: session.customer 
+        });
+
+        // GUEST CHECKOUT - Create new user
+        if (!userId || userId === "guest") {
+          const customerId = session.customer as string;
+          logStep("Guest checkout detected, creating user", { customerId });
+          
+          try {
+            const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+            
+            if (!customer.deleted && customer.email) {
+              logStep("Retrieved customer from Stripe", { 
+                email: customer.email, 
+                name: customer.name 
+              });
+              
+              // Check if user already exists
+              const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+              const existingUser = existingUsers?.users?.find(u => u.email === customer.email);
+              
+              if (existingUser) {
+                userId = existingUser.id;
+                logStep("User already exists", { userId, email: customer.email });
+              } else {
+                // Create new user with random password
+                const tempPassword = crypto.randomUUID();
+                const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+                  email: customer.email,
+                  password: tempPassword,
+                  email_confirm: true,
+                  user_metadata: {
+                    full_name: customer.name || "",
+                  },
+                });
+                
+                if (authError) {
+                  logStep("ERROR creating user", { error: authError.message });
+                  throw authError;
+                }
+                
+                if (authData.user) {
+                  userId = authData.user.id;
+                  logStep("New user created", { userId, email: customer.email });
+                  
+                  // Send password reset email so user can set their password
+                  const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+                    type: "recovery",
+                    email: customer.email,
+                    options: {
+                      redirectTo: `${Deno.env.get("SUPABASE_URL")?.replace('.supabase.co', '.lovableproject.com')}/auth?mode=reset`,
+                    },
+                  });
+                  
+                  if (resetError) {
+                    logStep("Warning: Failed to send password reset email", { error: resetError.message });
+                  } else {
+                    logStep("Password reset email sent", { email: customer.email });
+                  }
+                }
+              }
+            } else {
+              logStep("ERROR: Customer has no email or is deleted");
+              break;
+            }
+          } catch (customerError) {
+            logStep("ERROR retrieving/creating customer", { error: String(customerError) });
+            break;
+          }
+        }
+
         if (!userId || !tier) {
-          console.error("Missing user_id or tier in session metadata");
+          logStep("ERROR: Missing user_id or tier after processing");
           break;
         }
 
+        // Calculate limits based on tier
         const limits = TIER_LIMITS[tier] || TIER_LIMITS.hobby;
-        const subscriptionEndDate = new Date();
-        subscriptionEndDate.setFullYear(subscriptionEndDate.getFullYear() + 1);
+        
+        // Calculate credits based on billing period
+        let monthlyWordLimit = limits.monthlyWordLimit;
+        let extraWordsBalance = 0;
+        
+        if (billingPeriod === "yearly" && tier !== "free") {
+          // Yearly: 12 months of credits upfront in extra_words_balance
+          monthlyWordLimit = 0;
+          extraWordsBalance = limits.monthlyWordLimit * 12;
+          logStep("Yearly subscription - credits calculated", { 
+            monthlyWordLimit, 
+            extraWordsBalance 
+          });
+        } else {
+          // Monthly: standard monthly limit
+          logStep("Monthly subscription - limits set", { monthlyWordLimit });
+        }
 
-        // Update user profile
+        // Calculate subscription end date
+        const subscriptionEndDate = new Date();
+        if (billingPeriod === "yearly") {
+          subscriptionEndDate.setFullYear(subscriptionEndDate.getFullYear() + 1);
+        } else {
+          subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + 1);
+        }
+
+        // Upsert profile (create or update)
+        const profileData = {
+          user_id: userId,
+          subscription_tier: tier,
+          subscription_status: "active",
+          billing_period: billingPeriod,
+          is_founder: isFounder,
+          founder_discount_applied: isFounder,
+          subscription_start_date: new Date().toISOString(),
+          subscription_end_date: subscriptionEndDate.toISOString(),
+          stripe_customer_id: session.customer as string,
+          stripe_subscription_id: session.subscription as string,
+          project_limit: limits.projectLimit,
+          monthly_word_limit: monthlyWordLimit,
+          extra_words_balance: extraWordsBalance,
+          storybook_credit_limit: limits.storybookLimit,
+          storybook_credits_used: 0,
+          last_credit_reset: new Date().toISOString(),
+        };
+
+        logStep("Upserting profile", profileData);
+
         const { error: updateError } = await supabaseAdmin
           .from("profiles")
-          .update({
-            subscription_tier: tier,
-            subscription_status: "active",
-            is_founder: isFounder,
-            founder_discount_applied: isFounder,
-            subscription_start_date: new Date().toISOString(),
-            subscription_end_date: subscriptionEndDate.toISOString(),
-            stripe_customer_id: session.customer as string,
-            stripe_subscription_id: session.subscription as string,
-            project_limit: limits.projectLimit,
-            monthly_word_limit: limits.monthlyWordLimit,
-          })
-          .eq("user_id", userId);
+          .upsert(profileData, { onConflict: "user_id" });
 
         if (updateError) {
-          console.error("Error updating profile:", updateError);
+          logStep("ERROR updating profile", { error: updateError.message });
           throw updateError;
         }
 
@@ -112,10 +222,18 @@ serve(async (req) => {
               .from("founder_spots")
               .update({ spots_taken: spots.spots_taken + 1 })
               .eq("id", spots.id);
+            logStep("Founder spot incremented");
           }
         }
 
-        logStep("Subscription activated", { userId, tier, isFounder });
+        logStep("Subscription activated successfully", { 
+          userId, 
+          tier, 
+          billingPeriod,
+          monthlyWordLimit,
+          extraWordsBalance,
+          isFounder 
+        });
         break;
       }
 
@@ -129,7 +247,7 @@ serve(async (req) => {
         
         let targetUserId = subscription.metadata?.supabase_user_id;
 
-        if (!targetUserId) {
+        if (!targetUserId || targetUserId === "guest") {
           // Try to find user by customer id
           const customerId = subscription.customer as string;
           logStep("No user_id in metadata, looking up by customer", { customerId });
@@ -181,7 +299,7 @@ serve(async (req) => {
         const subscription = event.data.object as Stripe.Subscription;
         let deletedUserId = subscription.metadata?.supabase_user_id;
 
-        if (!deletedUserId) {
+        if (!deletedUserId || deletedUserId === "guest") {
           const customerId = subscription.customer as string;
           const { data: profile } = await supabaseAdmin
             .from("profiles")
@@ -205,6 +323,8 @@ serve(async (req) => {
             subscription_end_date: new Date().toISOString(),
             project_limit: 1,
             monthly_word_limit: 1000,
+            extra_words_balance: 0,
+            storybook_credit_limit: 0,
             stripe_subscription_id: null,
           })
           .eq("user_id", deletedUserId);
