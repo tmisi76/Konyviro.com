@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.edit-cover-inpainting]
 verify_jwt = false
+
+[functions.analyze-character-photo]
+verify_jwt = false
