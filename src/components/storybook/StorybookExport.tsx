@@ -53,7 +53,7 @@ export function StorybookExport({ data, projectId }: StorybookExportProps) {
   });
 
   // Polling for export status
-  const pollExportStatus = useCallback(async (exportId: string, attempt = 0) => {
+  const pollExportStatus = useCallback(async (exportId: string, jobId: string, attempt = 0) => {
     if (attempt >= MAX_POLL_ATTEMPTS) {
       setExportStatus("failed");
       setErrorMessage("Az exportálás túl sokáig tartott. Kérlek próbáld újra később.");
@@ -63,7 +63,7 @@ export function StorybookExport({ data, projectId }: StorybookExportProps) {
 
     try {
       const { data: response, error } = await supabase.functions.invoke("export-status", {
-        body: { exportId },
+        body: { exportId, jobId },
       });
 
       if (error) throw error;
@@ -82,13 +82,13 @@ export function StorybookExport({ data, projectId }: StorybookExportProps) {
         setIsExporting(false);
       } else {
         // Still processing, continue polling
-        setTimeout(() => pollExportStatus(exportId, attempt + 1), POLL_INTERVAL);
+        setTimeout(() => pollExportStatus(exportId, jobId, attempt + 1), POLL_INTERVAL);
       }
     } catch (error) {
       console.error("Poll error:", error);
       // Retry on network error
       if (attempt < MAX_POLL_ATTEMPTS - 1) {
-        setTimeout(() => pollExportStatus(exportId, attempt + 1), POLL_INTERVAL);
+        setTimeout(() => pollExportStatus(exportId, jobId, attempt + 1), POLL_INTERVAL);
       } else {
         setExportStatus("failed");
         setErrorMessage("Hiba a státusz lekérdezése során");
@@ -129,7 +129,7 @@ export function StorybookExport({ data, projectId }: StorybookExportProps) {
       if (response.jobId && response.exportId) {
         // CloudConvert job started, begin polling
         setExportStatus("polling");
-        pollExportStatus(response.exportId);
+        pollExportStatus(response.exportId, response.jobId);
       } else if (response.downloadUrl) {
         // Direct download (legacy/fallback)
         setDownloadUrl(response.downloadUrl);
