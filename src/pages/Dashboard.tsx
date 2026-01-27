@@ -96,16 +96,14 @@ export default function Dashboard() {
     }));
   }, [projects]);
 
-  // Aktív háttérírások (csak könyvek, nem mesekönyvek, és csak háttérírás módban)
+  // Aktív háttérírások (csak könyvek, nem mesekönyvek)
   const activeWritingProjects = useMemo(() => {
     return projects.filter(p => 
       // Csak könyvek (nem mesekönyv)
       p.genre !== "mesekonyv" &&
-      // Aktív háttérírás státusz
+      // Aktív írási státusz (nem kész és nem failed)
       p.writing_status && 
-      ['queued', 'generating_outlines', 'writing', 'in_progress'].includes(p.writing_status) &&
-      // Háttérírás mód
-      p.writing_mode === "background"
+      ['queued', 'generating_outlines', 'writing', 'in_progress'].includes(p.writing_status)
     );
   }, [projects]);
 
