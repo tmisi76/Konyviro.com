@@ -46,13 +46,13 @@ serve(async (req) => {
 
     logStep("Checkout mode", { authenticated: !!userId });
 
-    const { priceId, tier, successUrl, cancelUrl } = await req.json();
+    const { priceId, tier, billingPeriod = "yearly", successUrl, cancelUrl } = await req.json();
 
     if (!priceId || !tier) {
       throw new Error("Missing required parameters");
     }
 
-    logStep("Request params", { priceId, tier });
+    logStep("Request params", { priceId, tier, billingPeriod });
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
@@ -108,12 +108,14 @@ serve(async (req) => {
       metadata: {
         supabase_user_id: userId || "guest",
         tier: tier,
+        billing_period: billingPeriod,
         is_founder: "true",
       },
       subscription_data: {
         metadata: {
           supabase_user_id: userId || "guest",
           tier: tier,
+          billing_period: billingPeriod,
           is_founder: "true",
         },
       },

@@ -35,7 +35,7 @@ export function PricingSection() {
     // Paid plans - direct Stripe checkout (guest or authenticated)
     const priceId = billingPeriod === "yearly" ? plan.yearlyPriceId : plan.monthlyPriceId;
     if (priceId) {
-      createCheckoutSession(priceId, plan.id as "hobby" | "writer" | "pro");
+      createCheckoutSession(priceId, plan.id as "hobby" | "writer" | "pro", billingPeriod);
     }
   };
 
