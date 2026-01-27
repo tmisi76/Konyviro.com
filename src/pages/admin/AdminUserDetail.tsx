@@ -334,7 +334,8 @@ export default function AdminUserDetail() {
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         user={user ? {
-          id: user.user_id,
+          id: user.id,
+          user_id: user.user_id,
           email: user.email,
           full_name: user.full_name,
           subscription_tier: user.subscription_tier

@@ -51,6 +51,7 @@ interface EditUserModalProps {
   onOpenChange: (open: boolean) => void;
   user: {
     id: string;
+    user_id: string;
     email: string;
     full_name: string | null;
     subscription_tier: string;
@@ -101,7 +102,7 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', user.user_id)
       .single();
     
     if (data) {
@@ -134,7 +135,7 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
           display_name: displayName,
           bio: bio,
         })
-        .eq("user_id", user.id);
+        .eq("user_id", user.user_id);
 
       if (error) throw error;
       toast.success("Profil mentve!");
@@ -153,7 +154,7 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
     try {
       const { data, error } = await supabase.functions.invoke("admin-update-subscription", {
         body: {
-          user_id: user.id,
+          user_id: user.user_id,
           subscription_tier: subscriptionTier,
           subscription_status: subscriptionStatus,
           billing_period: billingPeriod,
@@ -186,7 +187,7 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
     try {
       const { data, error } = await supabase.functions.invoke("admin-update-subscription", {
         body: {
-          user_id: user.id,
+          user_id: user.user_id,
           add_extra_credits: addCreditsAmount,
         },
       });
@@ -211,7 +212,7 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
     try {
       const { data, error } = await supabase.functions.invoke("admin-update-subscription", {
         body: {
-          user_id: user.id,
+          user_id: user.user_id,
           reset_credits: true,
         },
       });
@@ -236,7 +237,7 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
     try {
       const { data, error } = await supabase.functions.invoke("admin-reset-password", {
         body: {
-          user_id: user.id,
+          user_id: user.user_id,
           action,
         },
       });
