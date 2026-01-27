@@ -77,6 +77,31 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // SECURITY: Require authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Hitelesítés szükséges" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !userData?.user) {
+      return new Response(
+        JSON.stringify({ error: "Érvénytelen vagy lejárt token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = userData.user.id;
+
     const { action, prompt, context, genre, settings, projectId, chapterId } = await req.json();
     if (!prompt) return new Response(JSON.stringify({ error: "Prompt szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -84,14 +109,10 @@ serve(async (req) => {
     if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     let stylePrompt = "";
-    const authHeader = req.headers.get("Authorization");
-    if (settings?.useProjectStyle && authHeader) {
-      const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-      if (user) {
-        const { data: styleProfile } = await supabase.from("user_style_profiles").select("*").eq("user_id", user.id).single();
-        if (styleProfile) stylePrompt = buildStylePrompt(styleProfile);
-      }
+    if (settings?.useProjectStyle) {
+      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: styleProfile } = await serviceClient.from("user_style_profiles").select("*").eq("user_id", userId).single();
+      if (styleProfile) stylePrompt = buildStylePrompt(styleProfile);
     }
 
     const systemPrompt = `${SYSTEM_PROMPTS[genre] || SYSTEM_PROMPTS.fiction}\n\n${ACTION_PROMPTS[action] || ACTION_PROMPTS.chat}${context?.bookDescription ? `\n\nKönyv: ${context.bookDescription}` : ""}${context?.previousChapters ? `\n\n--- ELŐZŐ FEJEZETEK ---\n${context.previousChapters}` : ""}${context?.currentChapterTitle ? `\n\nAKTUÁLIS FEJEZET: ${context.currentChapterTitle}` : ""}${stylePrompt}`;

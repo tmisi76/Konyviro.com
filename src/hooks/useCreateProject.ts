@@ -58,10 +58,8 @@ export function useCreateProject() {
         return false;
       }
 
-      // Increment projects_created count for the user
-      const { error: usageError } = await supabase.rpc("increment_projects_created", {
-        p_user_id: user.id,
-      });
+      // Increment projects_created count for the user (no p_user_id needed - uses auth.uid())
+      const { error: usageError } = await supabase.rpc("increment_projects_created");
       if (usageError) {
         console.error("Failed to update project count:", usageError);
       }

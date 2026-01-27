@@ -411,8 +411,14 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
         const { data: profile } = await supabase.from("profiles").select("monthly_word_limit, extra_words_balance").eq("user_id", project.user_id).single();
         const { data: usage } = await supabase.from("user_usage").select("words_generated").eq("user_id", project.user_id).eq("month", month).single();
         const limit = profile?.monthly_word_limit || 5000, used = usage?.words_generated || 0, extra = profile?.extra_words_balance || 0, remaining = Math.max(0, limit - used);
-        if (limit === -1 || wordCount <= remaining) await supabase.rpc("increment_words_generated", { p_user_id: project.user_id, p_word_count: wordCount });
-        else { if (remaining > 0) await supabase.rpc("increment_words_generated", { p_user_id: project.user_id, p_word_count: remaining }); const fromExtra = Math.min(wordCount - remaining, extra); if (fromExtra > 0) await supabase.rpc("use_extra_credits", { p_user_id: project.user_id, p_word_count: fromExtra }); }
+        // Service role: update usage directly instead of using RPC (which now requires auth.uid())
+        if (limit === -1 || wordCount <= remaining) {
+          await supabase.from("user_usage").upsert({ user_id: project.user_id, month, words_generated: used + wordCount, projects_created: 0 }, { onConflict: "user_id,month" });
+        } else {
+          if (remaining > 0) await supabase.from("user_usage").upsert({ user_id: project.user_id, month, words_generated: used + remaining, projects_created: 0 }, { onConflict: "user_id,month" });
+          const fromExtra = Math.min(wordCount - remaining, extra);
+          if (fromExtra > 0) await supabase.from("profiles").update({ extra_words_balance: extra - fromExtra, updated_at: new Date().toISOString() }).eq("user_id", project.user_id);
+        }
       }
     }
 

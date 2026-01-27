@@ -416,24 +416,29 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
     const extra = profile?.extra_words_balance || 0;
     const remaining = Math.max(0, limit - used);
     
+    // Service role: update usage directly instead of using RPC (which now requires auth.uid())
+    const currentMonth = new Date().toISOString().slice(0, 7);
     if (limit === -1 || wordCount <= remaining) {
-      await supabase.rpc("increment_words_generated", { 
-        p_user_id: project.user_id, 
-        p_word_count: wordCount 
-      });
+      await supabase.from("user_usage").upsert({
+        user_id: project.user_id,
+        month: currentMonth,
+        words_generated: used + wordCount,
+        projects_created: 0
+      }, { onConflict: "user_id,month" });
     } else {
       if (remaining > 0) {
-        await supabase.rpc("increment_words_generated", { 
-          p_user_id: project.user_id, 
-          p_word_count: remaining 
-        });
+        await supabase.from("user_usage").upsert({
+          user_id: project.user_id,
+          month: currentMonth,
+          words_generated: used + remaining,
+          projects_created: 0
+        }, { onConflict: "user_id,month" });
       }
       const fromExtra = Math.min(wordCount - remaining, extra);
       if (fromExtra > 0) {
-        await supabase.rpc("use_extra_credits", { 
-          p_user_id: project.user_id, 
-          p_word_count: fromExtra 
-        });
+        await supabase.from("profiles")
+          .update({ extra_words_balance: extra - fromExtra, updated_at: new Date().toISOString() })
+          .eq("user_id", project.user_id);
       }
     }
 

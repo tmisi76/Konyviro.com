@@ -192,8 +192,8 @@ export function useCoachToAutoWrite(): UseCoachToAutoWriteReturn {
         })
         .eq("id", project.id);
 
-      // Increment projects created
-      await supabase.rpc("increment_projects_created", { p_user_id: session.user.id });
+      // Increment projects created (no p_user_id needed - uses auth.uid())
+      await supabase.rpc("increment_projects_created");
 
       toast.success("Könyv létrehozva, automata írás indul!");
       return project.id;
