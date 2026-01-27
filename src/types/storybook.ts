@@ -180,6 +180,17 @@ export const AGE_GROUPS: AgeGroupInfo[] = [
   },
 ];
 
+export interface CharacterProfile {
+  gender?: string;
+  age?: string;
+  hairColor?: string;
+  hairStyle?: string;
+  eyeColor?: string;
+  clothing?: string;
+  distinguishingFeatures?: string;
+  fullDescription?: string;
+}
+
 export interface CharacterPhoto {
   id: string;
   originalUrl: string;
@@ -187,6 +198,8 @@ export interface CharacterPhoto {
   name: string;
   role: "main" | "supporting";
   description?: string;
+  profile?: CharacterProfile;
+  isAnalyzing?: boolean;
 }
 
 export interface StorybookPage {
