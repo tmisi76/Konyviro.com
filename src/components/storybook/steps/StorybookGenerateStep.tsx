@@ -16,6 +16,8 @@ import {
 import { StorybookData, StorybookPage, AGE_GROUPS } from "@/types/storybook";
 import { toast } from "sonner";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useProfile } from "@/hooks/useProfile";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   STORYBOOK_TEXT_COST, 
   STORYBOOK_ILLUSTRATION_COST 
@@ -51,6 +53,7 @@ export function StorybookGenerateStep({
   const hasStarted = useRef(false);
   
   const { subscription, usage, getRemainingWords } = useSubscription();
+  const { refetch: refetchProfile } = useProfile();
 
   const ageGroup = data.ageGroup ? AGE_GROUPS.find(g => g.id === data.ageGroup) : null;
   const totalPages = ageGroup?.pageCount || 12;
@@ -132,6 +135,21 @@ export function StorybookGenerateStep({
       const finalPagesCount = data.pages.length || totalPages;
       setProgress(100);
       setCreditsUsed(STORYBOOK_TEXT_COST + (finalPagesCount * STORYBOOK_ILLUSTRATION_COST));
+      
+      // Deduct storybook credit after successful generation
+      try {
+        const { error: creditError } = await supabase.rpc("use_storybook_credit_v2");
+        if (creditError) {
+          console.error("Failed to deduct storybook credit:", creditError);
+          // Don't block completion, just log the error
+        } else {
+          // Refresh profile to update UI
+          refetchProfile();
+        }
+      } catch (creditErr) {
+        console.error("Error calling use_storybook_credit_v2:", creditErr);
+      }
+      
       setPhase("complete");
       toast.success("A mesekönyv elkészült!");
     } catch (err) {
