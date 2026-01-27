@@ -1,95 +1,87 @@
 
-## Miért nem látszanak a képek? (gyökérok)
 
-A képgenerálás **valójában nem (mindig) fut le a story oldalakra**, mert a „történet generálás” után a UI azonnal elindítja az illusztrációk generálását, miközben a React state (`data.pages`) frissítése **aszinkron**.
+## Probléma
 
-Konkrétan:
-- `generateStory()` meghívja az `updateData("pages", response.pages)`-t
-- ez **nem azonnal** frissíti a hook `data.pages` értékét (csak következő rendernél)
-- közben a `StorybookGenerateStep` rögtön hívja `generateAllIllustrations()`-t
-- a `generateAllIllustrations()` most a `pagesRef.current`-ből dolgozik, de **a ref szinkronizálása useEffect-ben történik**, tehát ebben a pillanatban még **üres lehet**
-- így a loop 0 oldalt talál, „sikeresen” lefut, de **nem állít be `illustrationUrl`-eket**, ezért az előnézetben csak a sárga placeholder marad
+Amikor új mesekönyvet kezdesz készíteni, a rendszer betölti a korábbi (félbehagyott) mesekönyv adatait a session storage-ból, ahelyett hogy tiszta lappal indulna.
 
-Ez magyarázza a tünetet is: „nem lehet megnyitni, csak a sárga helye van ott” – mert nincs URL eltárolva.
+## Megoldás
 
----
+Két helyen kell biztosítani, hogy a mesekönyv varázsló mindig tiszta állapottal induljon:
 
-## Mit fogunk megcsinálni (javítás)
+### 1. Dashboard "Új projekt" gomb
+**Fájl:** `src/pages/Dashboard.tsx`
 
-### 1) `pagesRef` azonnali frissítése, nem csak `useEffect`-tel
-**Fájl:** `src/hooks/useStorybookWizard.ts`
+A `handleNewProject` függvényben a `book-wizard-data` mellett töröljük a `storybook-wizard-data`-t is:
 
-- A `generateStory()` sikeres válasza után, amikor megjön `response.pages`, azonnal beállítjuk:
-  - `pagesRef.current = response.pages`
-  - majd `updateData("pages", response.pages)` (state frissítés)
-- Így a `generateAllIllustrations()` már a **friss oldallistát** látja, akkor is, ha a React még nem renderelt újra.
+```typescript
+const handleNewProject = () => {
+  if (isProjectLimitReached()) {
+    setIsUpgradeModalOpen(true);
+    return;
+  }
+  // Clear ALL wizard states to ensure fresh project creation
+  sessionStorage.removeItem("book-wizard-data");
+  sessionStorage.removeItem("storybook-wizard-data"); // << ÚJ
+  navigate("/create-book");
+};
+```
 
-Ugyanezt a mintát kiterjesztjük:
-- `setPages(pages)` → frissítse `pagesRef.current`-et is
-- `updatePage(pageId, updates)` → frissítse `pagesRef.current`-et is (a kiszámolt next pages tömbbel)
+### 2. StorybookWizard komponens mount
+**Fájl:** `src/components/storybook/StorybookWizard.tsx`
 
-Ezzel megszűnik az a versenyhelyzet, hogy a ref „le van maradva” a generálási folyamat elején.
+A komponens indulásakor explicit módon reseteljük a régi adatokat, ha a felhasználó "frissen" érkezik (nem visszalépés vagy oldal újratöltés):
 
----
+Új logika a `StorybookWizard` komponensben:
+- Ellenőrizzük, hogy volt-e korábban befejezetlen projekt (pl. `data.projectId !== null` vagy `currentStep > 1`)
+- Ha "frissen" érkezünk a `/create-storybook` útvonalra, automatikusan reseteljük
 
-### 2) Védelem: ha nincs oldal, ne „sikeresen” fusson le
-**Fájl:** `src/hooks/useStorybookWizard.ts`
+Alternatív, egyszerűbb megközelítés:
+- A `CreateStorybook.tsx` page komponensben, mielőtt renderelnénk a `StorybookWizard`-ot, töröljük a session storage-ot
 
-A `generateAllIllustrations()` elejére:
-- ha `pagesRef.current.length === 0`, akkor:
-  - dobjunk hibát / térjünk vissza `false`-szal, és
-  - `toast.error("Nem találok oldalakat a képgeneráláshoz. Kérlek próbáld újra.")`
+**Fájl:** `src/pages/CreateStorybook.tsx`
 
-Így a felhasználó nem kap hamis „elkészült” állapotot.
+```typescript
+import { useEffect } from "react";
+import { StorybookWizard } from "@/components/storybook/StorybookWizard";
 
----
+export default function CreateStorybook() {
+  // Always start fresh when navigating to this page
+  useEffect(() => {
+    sessionStorage.removeItem("storybook-wizard-data");
+  }, []);
 
-### 3) `StorybookGenerateStep` pontosabb oldal-szám és állapot
-**Fájl:** `src/components/storybook/steps/StorybookGenerateStep.tsx`
+  return <StorybookWizard />;
+}
+```
 
-Jelenleg itt ez problémás:
-- `const pagesCount = data.pages.length || totalPages;`
-Mert a `data.pages` prop a generálás pillanatában **stale** lehet.
+### 3. BookCreationWizard navigáció
+**Fájl:** `src/components/wizard/BookCreationWizard.tsx`
 
-Javítás:
-- az illusztrációk indításakor a `totalIllustrations`-t inkább a korosztály fix oldal-számára állítjuk (ageGroup `pageCount`), és a valódi progress-t a callback (current/total) fogja felülírni.
-- Ha a callback `total === 0` vagy a `generateAllIllustrations()` `false`-t ad vissza, a UI menjen „error” fázisba „Próbáld újra” gombbal.
+Amikor a felhasználó a "mesekonyv" műfajt választja, töröljük a session storage-ot a navigáció előtt:
 
----
+```typescript
+const handleGenreSelect = (genre: "szakkonyv" | "fiction" | "mesekonyv") => {
+  if (genre === "mesekonyv") {
+    sessionStorage.removeItem("storybook-wizard-data"); // << ÚJ
+    navigate("/create-storybook");
+    return;
+  }
+  // ...
+};
+```
 
-### 4) Előnézetben gyors „összes hiányzó kép újragenerálása” gomb (opcionális, de nagyon hasznos)
-**Fájl:** `src/components/storybook/steps/StorybookPreviewStep.tsx`
+## Javasolt megközelítés
 
-Ha az előnézetben a user sárga placeholdereket lát, legyen egy gomb:
-- „Hiányzó képek legenerálása”
-ami meghívja a hook `generateAllIllustrations()`-t (progress nélkül is jó).
-Ez egy „mentőöv”, ha a generálás közben valami megszakadt.
+A **legbiztonságosabb** megoldás a **2. pont** (CreateStorybook.tsx), mert:
+- Garantálja, hogy bármelyik útvonalon érkezik a felhasználó, tiszta lappal indul
+- Egyetlen helyen kell módosítani
+- A session storage csak a wizard működése közben hasznos (ha a felhasználó véletlenül frissíti az oldalt)
 
----
-
-## Hogyan ellenőrizzük, hogy jó lett
-
-1. /create-storybook → végiglépdel → Generálás
-2. Történet generálás után illusztrációk fázis: ténylegesen elindul a 16 hívás
-3. „Mesekönyv megtekintése” → előnézetben a képek megjelennek (nincs sárga placeholder)
-4. Ha mégis van hiányzó kép: „Hiányzó képek legenerálása” gomb pótolja
-
----
+**Kiegészítésként** érdemes az 1. és 3. pontot is megcsinálni a konzisztencia érdekében.
 
 ## Érintett fájlok
 
-- `src/hooks/useStorybookWizard.ts`
-  - `pagesRef` azonnali frissítése `generateStory`, `setPages`, `updatePage` során
-  - guard: ha nincs oldal, ne fusson le „sikeresen”
-- `src/components/storybook/steps/StorybookGenerateStep.tsx`
-  - „stale data.pages” miatti félrevezető flow csökkentése + jobb error kezelés
-- `src/components/storybook/steps/StorybookPreviewStep.tsx` (opcionális, de javasolt)
-  - „Hiányzó képek legenerálása” gomb
-
----
-
-## Kockázatok / mellékhatások
-
-- Minimális: a ref szinkronizálása azonnali assignmenttel biztonságos, mert csak „cache”-ként használjuk, és a state továbbra is a single source of truth.
-- A guard miatt előfordulhat, hogy egy korábbi „csendes” hiba most láthatóvá válik (ez jó: nem ad hamis kész állapotot).
+1. `src/pages/CreateStorybook.tsx` - session storage törlése mount-kor
+2. `src/pages/Dashboard.tsx` - mindkét wizard storage törlése
+3. `src/components/wizard/BookCreationWizard.tsx` - storybook storage törlése navigálás előtt
 
