@@ -102,7 +102,6 @@ serve(async (req) => {
       phone_number_collection: {
         enabled: true,
       },
-      customer_creation: customerId ? undefined : "always",
       success_url: successUrl || `${req.headers.get("origin")}/dashboard?subscription=success`,
       cancel_url: cancelUrl || `${req.headers.get("origin")}/pricing?subscription=cancelled`,
       metadata: {
