@@ -20,6 +20,7 @@ import {
 import { StorybookData, StorybookPage } from "@/types/storybook";
 import { StorybookExport } from "../StorybookExport";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface StorybookPreviewStepProps {
   data: StorybookData;
@@ -47,6 +48,7 @@ export function StorybookPreviewStep({
   const [regeneratingPage, setRegeneratingPage] = useState<string | null>(null);
   const [isRegeneratingAll, setIsRegeneratingAll] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [exportProjectId, setExportProjectId] = useState<string | null>(data.projectId);
 
   const pages = data.pages;
   const totalPages = pages.length;
@@ -313,7 +315,26 @@ export function StorybookPreviewStep({
               <Save className="w-4 h-4" />
             )}
           </Button>
-          <Button size="sm" onClick={() => setShowExportModal(true)} className="gap-2">
+          <Button 
+            size="sm" 
+            onClick={async () => {
+              // Ensure we have a projectId before exporting
+              let pid = exportProjectId || data.projectId;
+              if (!pid) {
+                toast.info("A projekt mentése folyamatban...");
+                pid = await onSave();
+                if (pid) {
+                  setExportProjectId(pid);
+                } else {
+                  toast.error("A projekt mentése szükséges az exportálás előtt.");
+                  return;
+                }
+              }
+              setShowExportModal(true);
+            }} 
+            disabled={isSaving}
+            className="gap-2"
+          >
             <Download className="w-4 h-4" />
             Exportálás
           </Button>
@@ -328,7 +349,7 @@ export function StorybookPreviewStep({
           </DialogHeader>
           <StorybookExport 
             data={data} 
-            projectId={data.projectId || ""} 
+            projectId={exportProjectId || data.projectId || ""} 
           />
         </DialogContent>
       </Dialog>
