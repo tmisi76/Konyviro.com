@@ -163,7 +163,20 @@ export default function Dashboard() {
   };
 
   const handleLoadingComplete = () => {
-    if (loadingProjectId) {
+    if (loadingProjectId && loadingProject) {
+      // Check if this is a completed storybook - navigate to viewer
+      const isCompletedStorybook = 
+        loadingProject.genre === "mesekonyv" && 
+        loadingProject.writing_status === "completed";
+
+      if (isCompletedStorybook) {
+        navigate(`/storybook/${loadingProjectId}`);
+      } else {
+        navigate(`/project/${loadingProjectId}`);
+      }
+      setLoadingProjectId(null);
+    } else if (loadingProjectId) {
+      // Fallback if loadingProject is not available
       navigate(`/project/${loadingProjectId}`);
       setLoadingProjectId(null);
     }

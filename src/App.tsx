@@ -28,6 +28,7 @@ const CreateBook = lazy(() => import("./pages/CreateBook"));
 const BookCoach = lazy(() => import("./pages/BookCoach"));
 const CoverDesigner = lazy(() => import("./pages/CoverDesigner"));
 const CreateStorybook = lazy(() => import("./pages/CreateStorybook"));
+const StorybookViewer = lazy(() => import("./pages/StorybookViewer"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -89,6 +90,16 @@ function AppContent() {
             <ProtectedRoute>
               <Suspense fallback={<FullPageLoader message="Mesekönyv készítő betöltése..." />}>
                 <CreateStorybook />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/storybook/:id"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Mesekönyv betöltése..." />}>
+                <StorybookViewer />
               </Suspense>
             </ProtectedRoute>
           }

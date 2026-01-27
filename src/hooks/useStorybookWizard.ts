@@ -450,13 +450,17 @@ export function useStorybookWizard() {
 
     setIsSaving(true);
     try {
+      // Check if all pages have illustrations - if so, mark as completed
+      const allIllustrationsComplete = data.pages.length > 0 && 
+        data.pages.every(p => p.illustrationUrl);
+
       const projectData = {
         user_id: user.id,
         title: data.title || "Új mesekönyv",
         genre: "mesekonyv",
         subcategory: data.theme,
         target_audience: data.ageGroup,
-        writing_status: "draft",
+        writing_status: allIllustrationsComplete ? "completed" : "draft",
         storybook_data: JSON.stringify({
           theme: data.theme,
           customThemeDescription: data.customThemeDescription,
