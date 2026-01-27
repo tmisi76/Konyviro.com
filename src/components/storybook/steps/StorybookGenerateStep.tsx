@@ -142,8 +142,14 @@ export function StorybookGenerateStep({
   };
 
   const handleContinueWithErrors = () => {
-    // Allow user to continue even if some illustrations failed
-    setPhase("complete");
+    // Check if at least some pages have illustrations
+    const successfulPages = data.pages.filter(p => p.illustrationUrl);
+    
+    if (successfulPages.length > 0) {
+      setPhase("complete");
+    } else {
+      toast.error("Legalább egy illusztrációnak el kell készülnie a folytatáshoz.");
+    }
   };
 
   const formatCredits = (credits: number) => {
