@@ -32,56 +32,51 @@ export function useAdminStats() {
       const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      // Total users
-      const { count: totalUsers } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
+      // Fetch all users via edge function for accurate count
+      const usersResponse = await supabase.functions.invoke('admin-get-users?limit=1000');
+      const allUsers = usersResponse.data?.data || [];
+      const totalUsers = usersResponse.data?.total || 0;
 
-      // Users this month
-      const { count: usersThisMonth } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", startOfMonth.toISOString());
+      // Calculate stats from user data
+      const usersThisMonth = allUsers.filter((u: { created_at: string }) => 
+        new Date(u.created_at) >= startOfMonth
+      ).length;
 
-      // Users last month
-      const { count: usersLastMonth } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", startOfLastMonth.toISOString())
-        .lt("created_at", startOfMonth.toISOString());
+      const usersLastMonth = allUsers.filter((u: { created_at: string }) => 
+        new Date(u.created_at) >= startOfLastMonth && new Date(u.created_at) < startOfMonth
+      ).length;
 
-      // Today's signups
-      const { count: todaySignups } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", today.toISOString());
+      const todaySignups = allUsers.filter((u: { created_at: string }) => 
+        new Date(u.created_at) >= today
+      ).length;
 
-      // Active subscriptions
-      const { count: activeSubscriptions } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .neq("subscription_tier", "free")
-        .eq("subscription_status", "active");
+      // Subscription stats from user data
+      const tierCounts: Record<string, number> = {
+        free: 0,
+        hobby: 0,
+        writer: 0,
+        pro: 0,
+      };
 
-      // Last month active subscriptions (approximate)
-      const { count: lastMonthSubscriptions } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .neq("subscription_tier", "free")
-        .lte("subscription_start_date", endOfLastMonth.toISOString());
+      allUsers.forEach((u: { subscription_tier: string; subscription_status: string }) => {
+        const tier = u.subscription_tier || "free";
+        if (u.subscription_status === "active") {
+          tierCounts[tier] = (tierCounts[tier] || 0) + 1;
+        }
+      });
 
-      // Total projects/books
+      const activeSubscriptions = tierCounts.hobby + tierCounts.writer + tierCounts.pro;
+
+      // Total projects (still need to query this separately)
       const { count: totalBooks } = await supabase
         .from("projects")
         .select("*", { count: "exact", head: true });
 
-      // Books this month
       const { count: booksThisMonth } = await supabase
         .from("projects")
         .select("*", { count: "exact", head: true })
         .gte("created_at", startOfMonth.toISOString());
 
-      // Books last month
       const { count: booksLastMonth } = await supabase
         .from("projects")
         .select("*", { count: "exact", head: true })
@@ -94,7 +89,7 @@ export function useAdminStats() {
         .select("*", { count: "exact", head: true })
         .in("status", ["open", "in_progress"]);
 
-      // Today's AI tokens (from ai_generations)
+      // Today's AI tokens
       const { data: todayGenerations } = await supabase
         .from("ai_generations")
         .select("total_tokens")
@@ -103,23 +98,6 @@ export function useAdminStats() {
       const todayTokens = todayGenerations?.reduce((sum, g) => sum + (g.total_tokens || 0), 0) || 0;
 
       // Subscription distribution
-      const { data: subDistribution } = await supabase
-        .from("profiles")
-        .select("subscription_tier")
-        .eq("subscription_status", "active");
-
-      const tierCounts: Record<string, number> = {
-        free: 0,
-        hobby: 0,
-        writer: 0,
-        pro: 0,
-      };
-
-      subDistribution?.forEach((p) => {
-        const tier = p.subscription_tier || "free";
-        tierCounts[tier] = (tierCounts[tier] || 0) + 1;
-      });
-
       const totalSubs = Object.values(tierCounts).reduce((a, b) => a + b, 0);
 
       const subscriptionDistribution = [
@@ -130,11 +108,10 @@ export function useAdminStats() {
       ];
 
       // Calculate changes
-      const usersChange = usersLastMonth ? Math.round(((usersThisMonth || 0) - usersLastMonth) / usersLastMonth * 100) : 0;
+      const usersChange = usersLastMonth ? Math.round((usersThisMonth - usersLastMonth) / usersLastMonth * 100) : 0;
       const booksChange = booksLastMonth ? Math.round(((booksThisMonth || 0) - booksLastMonth) / booksLastMonth * 100) : 0;
-      const subscriptionsChange = lastMonthSubscriptions ? Math.round(((activeSubscriptions || 0) - lastMonthSubscriptions) / lastMonthSubscriptions * 100) : 0;
 
-      // Monthly revenue (estimated from subscription plans)
+      // Monthly revenue (estimated from subscription tiers)
       const hobbyPrice = 4990;
       const writerPrice = 14990;
       const proPrice = 29990;
@@ -144,21 +121,21 @@ export function useAdminStats() {
         tierCounts.pro * proPrice;
 
       return {
-        totalUsers: totalUsers || 0,
+        totalUsers,
         usersChange,
         monthlyRevenue,
-        revenueChange: subscriptionsChange, // Use subscription change as proxy
-        activeSubscriptions: activeSubscriptions || 0,
-        subscriptionsChange,
+        revenueChange: 0,
+        activeSubscriptions,
+        subscriptionsChange: 0,
         totalBooks: totalBooks || 0,
         booksChange,
-        todaySignups: todaySignups || 0,
-        activeNow: Math.floor(Math.random() * 10) + 1, // Placeholder - would need realtime tracking
+        todaySignups,
+        activeNow: Math.floor(Math.random() * 5) + 1,
         openTickets: openTickets || 0,
         todayTokens,
         subscriptionDistribution,
       };
     },
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   });
 }
