@@ -1,100 +1,111 @@
 
+# Admin Felület Javítása - Valós Adatok Megjelenítése
 
-# Dr. Varga-Nagy Adrienn Előfizetés Aktiválása
+## Probléma Azonosítása
 
-## Összefoglaló
+Az admin felhasználók listája üres, mert:
+1. A `profiles` tábla RLS policy-ja **csak a saját profilt engedi látni** minden felhasználónak
+2. Nincs admin-specifikus SELECT policy a `profiles` táblán
+3. Az email címek nem érhetők el kliens oldalról (placeholder értékek jelennek meg)
 
-A felhasználó fizetése **sikeres** volt a Stripe-ban, de a **webhook nem futott le**, ezért a profilja nem lett frissítve. Manuálisan kell aktiválni az előfizetését.
+## Aktuális Adatbázis Állapot
 
----
+| Felhasználó | Email | Tier | Stripe ID |
+|------------|-------|------|-----------|
+| Farkas Erzsébet | - | free | - |
+| Dr. Varga-Nagy Adrienn | nagyadrienn986@gmail.com | hobby | cus_Ts1Q5TfJPrcbji |
+| Berezi Nándor | - | free | - |
+| Tóth Mihály (Admin) | tmisi76@gmail.com | writer | - |
 
-## Felhasználó Adatai
+## Megoldási Terv
 
-| Mező | Érték |
-|------|-------|
-| Név | Dr. Varga-Nagy Adrienn |
-| Email | nagyadrienn986@gmail.com |
-| User ID | 1c9bd1e2-e2dc-4afb-a8de-3eaeb384a8bf |
-| Stripe Customer | cus_Ts1Q5TfJPrcbji |
-| Stripe Subscription | sub_1SuHPtBqXALGTPIrDWmVmmt8 |
-| Csomag | Hobbi Alapító (éves) |
-| Ár | 29,940 Ft |
+### 1. RLS Policy Hozzáadása az Adminoknak
 
----
-
-## 1. Profil Manuális Frissítése
-
-SQL parancs az előfizetés aktiválásához:
+Új RLS policy létrehozása a `profiles` táblán, ami lehetővé teszi az adminoknak az összes profil olvasását:
 
 ```sql
-UPDATE public.profiles
-SET 
-  subscription_tier = 'hobby',
-  subscription_status = 'active',
-  billing_period = 'yearly',
-  is_founder = true,
-  founder_discount_applied = true,
-  stripe_customer_id = 'cus_Ts1Q5TfJPrcbji',
-  stripe_subscription_id = 'sub_1SuHPtBqXALGTPIrDWmVmmt8',
-  subscription_start_date = '2026-01-27T18:52:31Z',
-  subscription_end_date = '2027-01-27T18:52:31Z',
-  project_limit = 5,
-  monthly_word_limit = 0,
-  extra_words_balance = 1200000,
-  storybook_credit_limit = 1,
-  storybook_credits_used = 0,
-  last_credit_reset = NOW(),
-  updated_at = NOW()
-WHERE user_id = '1c9bd1e2-e2dc-4afb-a8de-3eaeb384a8bf';
+CREATE POLICY "Admins can view all profiles"
+ON public.profiles FOR SELECT
+USING (is_admin(auth.uid()));
 ```
 
-### Miért ezek az értékek?
+Ez a policy a már meglévő `is_admin()` security definer függvényt használja.
 
-| Mező | Érték | Magyarázat |
-|------|-------|------------|
-| subscription_tier | hobby | Hobbi csomag |
-| billing_period | yearly | Éves előfizetés |
-| monthly_word_limit | 0 | Éves előfizetésnél 0 (minden a balance-ban) |
-| extra_words_balance | 1,200,000 | 12 hónap × 100,000 szó |
-| storybook_credit_limit | 1 | Hobbi: 1 mesekönyv/hó |
-| subscription_end_date | 2027-01-27 | 1 évvel a vásárlás után |
+### 2. Edge Function Létrehozása Felhasználók Lekérdezésére
 
----
+Új edge function: `admin-get-users`
 
-## 2. Webhook Konfigurálás Ellenőrzése
+A function service role-lal lekérdezi:
+- A `profiles` tábla adatait
+- Az `auth.users` tábla email címeit (csak service role érheti el)
+- A `projects` tábla projekt számokat
 
-**KRITIKUS**: A Stripe Dashboard-ban ellenőrizd, hogy a webhook be van-e állítva!
+Visszaadja:
+- Teljes felhasználói lista email címekkel
+- Projekt statisztikák
+- Előfizetési információk
 
-**Lépések:**
-1. Menj ide: https://dashboard.stripe.com/webhooks
-2. Ellenőrizd, hogy létezik-e webhook erre az URL-re:
-   ```
-   https://qdyneottmnulmkypzmtt.supabase.co/functions/v1/stripe-webhook
-   ```
-3. Ha nincs, hozd létre ezekkel az eseményekkel:
-   - `checkout.session.completed`
-   - `customer.subscription.updated`
-   - `customer.subscription.deleted`
-   - `invoice.payment_failed`
+### 3. Admin Hookek Frissítése
 
-4. A webhook Signing secret-jét másold be a Lovable Cloud secrets-be `STRIPE_WEBHOOK_SECRET` néven
+A `useAdminUsers`, `useRecentUsers`, és `useAdminStats` hookokat módosítani kell:
+- Az új edge function-t használják a közvetlen Supabase lekérdezések helyett
+- Valós email címeket kapnak vissza
+- A projekt számokat is megkapják
 
----
+### 4. Dashboard Adatok Szinkronizálása
 
-## 3. Email Küldés a Felhasználónak
+A dashboard statisztikák (összes felhasználó, előfizetések, bevétel) szintén a frissített adatokat fogják használni.
 
-A felhasználó **már be tud lépni**, mert a fiókja létezik (valószínűleg manuálisan regisztrált). Viszont az előfizetése nem volt aktív.
+## Technikai Részletek
 
-A frissítés után a felhasználónak jelezni kell, hogy:
-- Az előfizetése aktiválva lett
-- Bejelentkezhet és használhatja a Hobbi funkciót
-- 1,200,000 szó kreditet kapott az éves előfizetéshez
+### Új Edge Function: `admin-get-users`
 
----
+```text
+supabase/functions/admin-get-users/index.ts
+```
 
-## Végrehajtandó Lépések Sorrendben
+**Működése:**
+1. JWT tokennel ellenőrzi az admin jogosultságot
+2. Service role-lal lekérdezi az auth.users táblát
+3. Join-olja a profiles adatokkal
+4. Visszaadja a teljes felhasználói listát
 
-1. ✅ **Profil frissítése** - SQL parancs futtatása
-2. ⚠️ **Webhook ellenőrzése** - Stripe Dashboard-ban
-3. 📧 **Felhasználó értesítése** - Email vagy más módon
+### Hook Módosítások
 
+**useAdminUsers.ts:**
+- Edge function hívás a közvetlen query helyett
+- Valós email megjelenítés
+- Projekt számlálás integrálása
+
+**useRecentUsers.ts:**
+- Edge function használata
+- Email és név megjelenítés
+
+**useAdminStats.ts:**
+- Edge function a pontos statisztikákhoz
+- Stripe-ból lekért bevételi adatok
+
+### RLS Policy Változások
+
+```sql
+-- Új admin policy a profiles táblára
+CREATE POLICY "Admins can view all profiles"
+ON public.profiles FOR SELECT
+USING (is_admin(auth.uid()));
+```
+
+## Stripe Webhook Javítás
+
+**A webhook nem futott le** - ezt a Stripe Dashboard-ban kell ellenőrizni és konfigurálni:
+
+1. Webhook URL: `https://qdyneottmnulmkypzmtt.supabase.co/functions/v1/stripe-webhook`
+2. Események: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`
+3. Signing secret: Lovable Cloud secrets-be kell beállítani
+
+## Végrehajtási Sorrend
+
+1. RLS policy hozzáadása (migration)
+2. Edge function létrehozása és deployolása
+3. Hook-ok frissítése az edge function használatára
+4. Tesztelés az admin felületen
+5. Webhook konfiguráció ellenőrzése a Stripe Dashboard-ban
