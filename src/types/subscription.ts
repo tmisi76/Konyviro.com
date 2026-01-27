@@ -53,6 +53,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     features: [
       "5 aktív projekt",
       "100.000 szó / hó AI generálás",
+      "1 mesekönyv / hó",
       "Exportálás (DOC, Epub, PDF, TXT)",
       "Nano Banana Könyvborító tervező",
       "Kreatív regényíró AI rendszer",
@@ -63,8 +64,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   },
   {
     id: "writer",
-    name: "ÍRÓ",
-    description: "Komoly íróknak",
+    name: "PROFI",
+    description: "Profi szerzőknek",
     monthlyPrice: "14.990 Ft/hó",
     yearlyPrice: "89.940 Ft/év",
     yearlyOriginalPrice: "179.880 Ft/év",
@@ -73,7 +74,8 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     yearlyPriceId: "price_1Ss3QbBqXALGTPIrjbB9lSCI",
     features: [
       "50 aktív projekt",
-      "1.000.000 szó / hó AI generálás",
+      "250.000 szó / hó AI generálás",
+      "5 mesekönyv / hó",
       "Exportálás (DOC, Epub, PDF, TXT)",
       "Nano Banana Könyvborító tervező",
       "Kreatív regényíró AI rendszer",
@@ -82,7 +84,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       "Email támogatás",
     ],
     projectLimit: 50,
-    monthlyWordLimit: 1000000,
+    monthlyWordLimit: 250000,
     isPopular: true,
   },
   {
