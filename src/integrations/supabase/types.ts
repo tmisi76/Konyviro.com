@@ -748,6 +748,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_founder: boolean
+          last_credit_reset: string
           manual_subscription: boolean | null
           monthly_word_limit: number
           payment_method: string | null
@@ -758,6 +759,8 @@ export type Database = {
           retention_offer_shown_at: string | null
           social_instagram: string | null
           social_twitter: string | null
+          storybook_credit_limit: number
+          storybook_credits_used: number
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
           subscription_end_date: string | null
@@ -782,6 +785,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_founder?: boolean
+          last_credit_reset?: string
           manual_subscription?: boolean | null
           monthly_word_limit?: number
           payment_method?: string | null
@@ -792,6 +796,8 @@ export type Database = {
           retention_offer_shown_at?: string | null
           social_instagram?: string | null
           social_twitter?: string | null
+          storybook_credit_limit?: number
+          storybook_credits_used?: number
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_end_date?: string | null
@@ -816,6 +822,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_founder?: boolean
+          last_credit_reset?: string
           manual_subscription?: boolean | null
           monthly_word_limit?: number
           payment_method?: string | null
@@ -826,6 +833,8 @@ export type Database = {
           retention_offer_shown_at?: string | null
           social_instagram?: string | null
           social_twitter?: string | null
+          storybook_credit_limit?: number
+          storybook_credits_used?: number
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
           subscription_end_date?: string | null
@@ -1578,6 +1587,14 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_role"]
       }
+      get_storybook_credits: {
+        Args: { p_user_id: string }
+        Returns: {
+          credit_limit: number
+          credits_remaining: number
+          credits_used: number
+        }[]
+      }
       increment_projects_created: {
         Args: { p_user_id: string }
         Returns: undefined
@@ -1592,6 +1609,7 @@ export type Database = {
         Args: { p_user_id: string; p_word_count: number }
         Returns: boolean
       }
+      use_storybook_credit: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
       admin_role: "super_admin" | "admin" | "support" | "viewer"
