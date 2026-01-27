@@ -107,6 +107,7 @@ export function BookCreationWizard() {
   const handleGenreSelect = (genre: "szakkonyv" | "fiction" | "mesekonyv") => {
     // Redirect to storybook wizard if mesekonyv is selected
     if (genre === "mesekonyv") {
+      sessionStorage.removeItem("storybook-wizard-data");
       navigate("/create-storybook");
       return;
     }
