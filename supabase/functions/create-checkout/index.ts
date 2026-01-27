@@ -26,29 +26,25 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
     );
 
-    // Get the authorization header
+    // Get the authorization header (optional for guest checkout)
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      throw new Error("No authorization header");
+    let userId: string | null = null;
+    let userEmail: string | null = null;
+
+    // Try to get authenticated user if auth header exists
+    if (authHeader) {
+      const { data: userData, error: userError } = await supabaseClient.auth.getUser(
+        authHeader.replace("Bearer ", "")
+      );
+      
+      if (!userError && userData?.user) {
+        userId = userData.user.id;
+        userEmail = userData.user.email || null;
+        logStep("User authenticated", { userId, email: userEmail });
+      }
     }
 
-    // Verify the user with getUser
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-    
-    if (userError || !userData?.user) {
-      throw new Error("Invalid token");
-    }
-
-    const userId = userData.user.id;
-    const userEmail = userData.user.email;
-
-    if (!userEmail) {
-      throw new Error("User email not found");
-    }
-
-    logStep("User authenticated", { userId, email: userEmail });
+    logStep("Checkout mode", { authenticated: !!userId });
 
     const { priceId, tier, successUrl, cancelUrl } = await req.json();
 
@@ -67,30 +63,34 @@ serve(async (req) => {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Check if customer already exists
-    const customers = await stripe.customers.list({
-      email: userEmail,
-      limit: 1,
-    });
+    let customerId: string | undefined;
 
-    let customerId: string;
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Existing customer found", { customerId });
-    } else {
-      const customer = await stripe.customers.create({
+    // Check if customer already exists (only if we have an email)
+    if (userEmail) {
+      const customers = await stripe.customers.list({
         email: userEmail,
-        metadata: {
-          supabase_user_id: userId,
-        },
+        limit: 1,
       });
-      customerId = customer.id;
-      logStep("New customer created", { customerId });
+
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+        logStep("Existing customer found", { customerId });
+      } else {
+        const customer = await stripe.customers.create({
+          email: userEmail,
+          metadata: {
+            supabase_user_id: userId || "guest",
+          },
+        });
+        customerId = customer.id;
+        logStep("New customer created", { customerId });
+      }
     }
 
-    // Create checkout session
+    // Create checkout session with billing address and phone collection
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
+      customer_email: customerId ? undefined : userEmail || undefined,
       line_items: [
         {
           price: priceId,
@@ -98,16 +98,21 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
+      billing_address_collection: "required",
+      phone_number_collection: {
+        enabled: true,
+      },
+      customer_creation: customerId ? undefined : "always",
       success_url: successUrl || `${req.headers.get("origin")}/dashboard?subscription=success`,
       cancel_url: cancelUrl || `${req.headers.get("origin")}/pricing?subscription=cancelled`,
       metadata: {
-        supabase_user_id: userId,
+        supabase_user_id: userId || "guest",
         tier: tier,
         is_founder: "true",
       },
       subscription_data: {
         metadata: {
-          supabase_user_id: userId,
+          supabase_user_id: userId || "guest",
           tier: tier,
           is_founder: "true",
         },
