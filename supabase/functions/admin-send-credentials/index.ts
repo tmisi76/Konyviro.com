@@ -269,7 +269,7 @@ serve(async (req) => {
         Authorization: `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: "Ink Story <noreply@inkstory.hu>",
+        from: "Ink Story <noreply@resend.dev>",
         to: [email],
         subject: emailSubject,
         html: emailBody,
