@@ -1,178 +1,170 @@
 
-# Dashboard Átszervezés - Mesekönyvek Elkülönítése
+# Mesekönyv Megjelenítés és Státusz Javítás
 
-## Összefoglalás
+## Áttekintés
 
-A dashboard jelenlegi struktúráját át kell alakítani, hogy:
-1. **Mesekönyvek külön szekcióban** jelenjenek meg
-2. **Kész projektek "Kész" jelzéssel** legyenek megjelölve
-3. **Címkézések magyarosítása** - "Új projekt" → "Új könyv készítés", "Legutóbbi projektek" → "Legutóbbi könyveim"
-
----
-
-## Változások Áttekintése
-
-### 1. Szekciók Átalakítása
-
-**Jelenlegi struktúra:**
-- Statisztikák
-- Folyamatban lévő írások
-- Legutóbbi projektek (minden típus egyben)
-
-**Új struktúra:**
-- Statisztikák
-- Folyamatban lévő írások
-- Legutóbbi könyveim (csak nem-mesekönyv projektek)
-- Mesekönyveim (külön szekció a `mesekonyv` genre-ű projektekhez)
-
-### 2. Címkék Módosítása
-
-| Eredeti | Új |
-|---------|-----|
-| "Új projekt" | "Új könyv készítés" |
-| "Legutóbbi projektek" | "Legutóbbi könyveim" |
-| "Projektek" (üres állapot) | "Könyveim" |
-| "Összes projekt" | "Összes könyv" |
-
-### 3. Kész Projektek Jelzése
-
-A `writing_status === "completed"` státuszú projektek "Kész" badge-et kapnak a kártyán, nem csak ha `writingMode === "background"`.
+A fejlesztés három fő problémát old meg:
+1. A kész mesekönyvek "Vázlat" helyett "Kész" státusszal jelenjenek meg
+2. Kész mesekönyv megnyitásakor a mesekönyv megjelenítő (FlipBook) nyíljon meg
+3. Normál könyvek megnyitásakor a könyv szerkesztő nyíljon meg
 
 ---
 
-## Technikai Terv
+## Technikai Megoldás
 
-### A) Dashboard.tsx Módosítások
+### 1. Mesekönyv Készként Jelölése
 
-#### Szűrők Hozzáadása
+**Fájl:** `src/hooks/useStorybookWizard.ts`
+
+A `saveProject` funkció módosítása:
+- Ellenőrizni, hogy minden oldal rendelkezik-e illusztrációval
+- Ha igen, a `writing_status`-t `"completed"`-re állítani `"draft"` helyett
+
 ```typescript
-// Mesekönyvek külön szűrése
-const storybookProjects = useMemo(() => {
-  return projects
-    .filter((p) => p.genre === "mesekonyv" && p.status !== "archived")
-    .map((p) => ({ /* formázás */ }));
-}, [projects]);
+// Jelenlegi
+writing_status: "draft"
 
-// Normál könyvek (nem mesekönyv)
-const bookProjects = useMemo(() => {
-  return projects
-    .filter((p) => p.genre !== "mesekonyv" && p.status !== "archived")
-    .map((p) => ({ /* formázás */ }));
-}, [projects]);
+// Új logika
+const allIllustrationsComplete = data.pages.length > 0 && 
+  data.pages.every(p => p.illustrationUrl);
+writing_status: allIllustrationsComplete ? "completed" : "draft"
 ```
 
-#### Szekciók Renderelése
-```tsx
-{/* Legutóbbi könyveim */}
-<section>
-  <h2>Legutóbbi könyveim</h2>
-  {bookProjects.length === 0 ? <EmptyState /> : <ProjectCards />}
-</section>
+### 2. Új Storybook Viewer Oldal
 
-{/* Mesekönyveim - csak ha van */}
-{storybookProjects.length > 0 && (
-  <section>
-    <h2>Mesekönyveim</h2>
-    <StorybookCards />
-  </section>
-)}
-```
+**Új fájl:** `src/pages/StorybookViewer.tsx`
 
-### B) DashboardSidebar.tsx Módosítások
+Ez az oldal:
+- Betölti a mesekönyv adatait az adatbázisból (`storybook_data` JSONB)
+- Megjeleníti a `FlipBook` komponenssel
+- Biztosít visszalépési lehetőséget a dashboardra
+- Tartalmaz exportálási és szerkesztési gombot
 
-- **"Új projekt"** gomb szöveg → **"Új könyv készítés"**
-- Limit elérve esetén: **"Limit elérve"** marad
+**Komponensek:**
+- Fejléc: Vissza gomb, cím, műveletek (Szerkesztés, Exportálás)
+- FlipBook megjelenítő
+- Opcionális export modal
 
-### C) ProjectCard.tsx Módosítások
+### 3. Új Útvonal Regisztrálása
 
-#### Kész Jelzés Logikája
+**Fájl:** `src/App.tsx`
+
+Új route hozzáadása:
 ```typescript
-// Jelenlegi (túl szűk):
-{isCompleted && project.writingMode === "background" && (...)}
-
-// Új (minden kész projekt):
-{isCompleted && (
-  <Badge className="bg-green-600">
-    <CheckCircle /> Kész
-  </Badge>
-)}
+<Route
+  path="/storybook/:id"
+  element={
+    <ProtectedRoute>
+      <Suspense fallback={<FullPageLoader message="Mesekönyv betöltése..." />}>
+        <StorybookViewer />
+      </Suspense>
+    </ProtectedRoute>
+  }
+/>
 ```
 
-#### Mesekönyv Badge
+### 4. Dashboard Navigáció Módosítása
+
+**Fájl:** `src/pages/Dashboard.tsx`
+
+A `handleLoadingComplete` funkció módosítása genre alapján:
+- Ha a projekt `genre === "mesekonyv"` és `writing_status === "completed"` → `/storybook/${id}`
+- Egyébként → `/project/${id}` (normál szerkesztő)
+
+Ehhez szükséges:
+- A `cardProjects` tartalmazza a `genre` és `writingStatus` mezőket (már tartalmazza)
+- Új segédfüggvény a megfelelő útvonal kiválasztásához
+
 ```typescript
-// Új genre config bejegyzés
-mesekonyv: {
-  label: "Mesekönyv",
-  className: "bg-amber-100 text-amber-700 border-amber-200 ..."
-}
+const handleLoadingComplete = () => {
+  if (loadingProjectId && loadingProject) {
+    const isCompletedStorybook = 
+      loadingProject.genre === "mesekonyv" && 
+      loadingProject.writing_status === "completed";
+    
+    if (isCompletedStorybook) {
+      navigate(`/storybook/${loadingProjectId}`);
+    } else {
+      navigate(`/project/${loadingProjectId}`);
+    }
+    setLoadingProjectId(null);
+  }
+};
 ```
 
-### D) StatsCard Címke
+### 5. ProjectCard Frissítése
 
-- **"Összes projekt"** → **"Összes könyv"**
+**Fájl:** `src/components/dashboard/ProjectCard.tsx`
 
-### E) MobileBottomNav.tsx
-
-- **"Projektek"** tab → **"Könyveim"**
-
-### F) EmptyState.tsx
-
-- **"Hozd létre első könyved"** → **"Készítsd el első könyved"**
+A mesekönyvek esetén:
+- Ha `genre === "mesekonyv"` és `writingStatus === "completed"` → "Kész" badge megjelenítése
+- A "Vázlat" badge csak akkor jelenjen meg, ha tényleg `writingStatus === "draft"`
 
 ---
 
-## Érintett Fájlok
+## Új Fájlok
 
-| Fájl | Módosítás Típusa |
-|------|------------------|
-| `src/pages/Dashboard.tsx` | Szűrők, szekciók, címkék |
-| `src/components/dashboard/DashboardSidebar.tsx` | Gomb szöveg |
-| `src/components/dashboard/ProjectCard.tsx` | "Kész" badge, mesekönyv genre |
-| `src/components/dashboard/StatsCard.tsx` | - (csak a hívás helyén) |
-| `src/components/dashboard/EmptyState.tsx` | Szövegek |
-| `src/components/mobile/MobileBottomNav.tsx` | Tab címke |
+| Fájl | Leírás |
+|------|--------|
+| `src/pages/StorybookViewer.tsx` | Kész mesekönyv olvasó nézet |
+
+## Módosítandó Fájlok
+
+| Fájl | Módosítás |
+|------|-----------|
+| `src/hooks/useStorybookWizard.ts` | `saveProject` - státusz beállítása késznek |
+| `src/App.tsx` | Új `/storybook/:id` route |
+| `src/pages/Dashboard.tsx` | Navigáció logika genre/státusz alapján |
 
 ---
 
-## UI Struktúra (Asztali Nézet)
+## Felhasználói Élmény
+
+### Kész Mesekönyv Megnyitása
+```text
+Dashboard → Mesekönyv kártya (Kész badge) → Kattintás
+   ↓
+Betöltő képernyő
+   ↓
+/storybook/:id → FlipBook nézetben megnyílik
+```
+
+### Folyamatban Lévő Mesekönyv Megnyitása
+```text
+Dashboard → Mesekönyv kártya (Vázlat badge) → Kattintás
+   ↓
+/create-storybook → Wizard folytatódik (ha van mentett adat)
+   VAGY
+/project/:id → Szerkesztő (alap projektnézet)
+```
+
+### Normál Könyv Megnyitása
+```text
+Dashboard → Könyv kártya → Kattintás
+   ↓
+/project/:id → Normál könyv szerkesztő
+```
+
+---
+
+## StorybookViewer Komponens Struktúra
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  Üdv újra, [Felhasználó]!                                   │
-│  Folytasd az írást ott, ahol abbahagytad.                   │
+│  ← Vissza              [Mesekönyv címe]      [Szerkesztés] │
+│                                              [Exportálás]   │
 ├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │ Összes könyv│  │   Mai írás  │  │   Sorozat   │          │
-│  │      4      │  │     0       │  │     0       │          │
-│  └─────────────┘  └─────────────┘  └─────────────┘          │
-├─────────────────────────────────────────────────────────────┤
-│  Folyamatban lévő írások                                    │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  [Projekt kártya - írás alatt]                       │   │
-│  └──────────────────────────────────────────────────────┘   │
-├─────────────────────────────────────────────────────────────┤
-│  Legutóbbi könyveim                                         │
-│  ┌───────────┐  ┌───────────┐  ┌───────────┐                │
-│  │  Fiction  │  │ Erotikus  │  │ Szakkönyv │                │
-│  │   ✓ Kész  │  │   ✓ Kész  │  │   ✓ Kész  │                │
-│  └───────────┘  └───────────┘  └───────────┘                │
-├─────────────────────────────────────────────────────────────┤
-│  Mesekönyveim                                               │
-│  ┌───────────┐                                              │
-│  │ Mesekönyv │                                              │
-│  │  🧸 Kész  │                                              │
-│  └───────────┘                                              │
+│                                                             │
+│                   ┌───────────────────┐                     │
+│                   │                   │                     │
+│                   │     FlipBook      │                     │
+│                   │                   │                     │
+│                   │    (interaktív    │                     │
+│                   │     könyv)        │                     │
+│                   │                   │                     │
+│                   └───────────────────┘                     │
+│                                                             │
+│                    [ < ]   • • • • •   [ > ]                │
+│                           1/12 oldal                        │
 └─────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## Sidebar "Új könyv készítés" Gomb
-
-```text
-┌──────────────────────┐
-│  + Új könyv készítés │  ← Módosított szöveg
-└──────────────────────┘
-```
-
-Limit elérése esetén továbbra is "Limit elérve" szöveg marad.
