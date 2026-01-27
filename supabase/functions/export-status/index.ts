@@ -22,21 +22,39 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const cloudConvertApiKey = Deno.env.get("CLOUDCONVERT_API_KEY")!;
+    const cloudConvertApiKey = Deno.env.get("CLOUDCONVERT_API_KEY");
+    
+    if (!cloudConvertApiKey) {
+      console.error("CLOUDCONVERT_API_KEY is not set");
+      return new Response(JSON.stringify({ error: "Export service not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify user
+    // Verify user using getUser instead of getClaims
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      console.error("Auth error:", userError?.message);
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claimsData.claims.sub;
+    const userId = user.id;
 
     const { exportId, jobId } = await req.json();
+    
+    if (!exportId || !jobId) {
+      return new Response(JSON.stringify({ error: "Missing exportId or jobId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Verify export ownership
     const { data: exportRecord, error: exportError } = await supabase
@@ -47,6 +65,7 @@ serve(async (req) => {
       .single();
 
     if (exportError || !exportRecord) {
+      console.error("Export lookup error:", exportError?.message);
       return new Response(JSON.stringify({ error: "Export not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -54,6 +73,7 @@ serve(async (req) => {
     }
 
     // Check CloudConvert job status
+    console.log("Checking CloudConvert job:", jobId);
     const jobResponse = await fetch(`https://api.cloudconvert.com/v2/jobs/${jobId}`, {
       headers: {
         Authorization: `Bearer ${cloudConvertApiKey}`,
@@ -61,7 +81,9 @@ serve(async (req) => {
     });
 
     if (!jobResponse.ok) {
-      throw new Error("Failed to check job status");
+      const errorText = await jobResponse.text();
+      console.error("CloudConvert API error:", jobResponse.status, errorText);
+      throw new Error(`CloudConvert API error: ${jobResponse.status}`);
     }
 
     const jobData = await jobResponse.json();
