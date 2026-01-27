@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
 import { hu } from "date-fns/locale";
@@ -19,6 +19,8 @@ import {
   Unlock,
   Trash2,
   ChevronDown,
+  Shield,
+  Bell,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,6 +58,8 @@ import { useAdminUsers } from "@/hooks/admin/useAdminUsers";
 import { AddUserModal } from "@/components/admin/AddUserModal";
 import { EditUserModal } from "@/components/admin/EditUserModal";
 import { SendEmailModal } from "@/components/admin/SendEmailModal";
+import { SendCredentialsModal } from "@/components/admin/SendCredentialsModal";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function AdminUsers() {
   const [search, setSearch] = useState("");
@@ -76,7 +80,25 @@ export default function AdminUsers() {
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isSendEmailOpen, setIsSendEmailOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isSendCredentialsOpen, setIsSendCredentialsOpen] = useState(false);
+  const [isAdminReminderOpen, setIsAdminReminderOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [adminUserIds, setAdminUserIds] = useState<Set<string>>(new Set());
+
+  // Fetch admin user IDs to show admin badge and reminder option
+  useEffect(() => {
+    const fetchAdminUsers = async () => {
+      const { data } = await supabase
+        .from("admin_users")
+        .select("user_id")
+        .eq("is_active", true);
+      
+      if (data) {
+        setAdminUserIds(new Set(data.map(a => a.user_id)));
+      }
+    };
+    fetchAdminUsers();
+  }, []);
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
@@ -88,13 +110,11 @@ export default function AdminUsers() {
     toast.info("Felhasználó tiltása funkció hamarosan elérhető");
   };
 
-  const handleSendPasswordReset = async (email: string) => {
-    toast.info("Jelszó reset email küldése funkció hamarosan elérhető");
-  };
-
   const handleExportUsers = () => {
     toast.info("Export funkció hamarosan elérhető");
   };
+
+  const isAdminUser = (userId: string) => adminUserIds.has(userId);
 
   const getPlanBadgeVariant = (plan: string) => {
     switch (plan) {
@@ -316,8 +336,14 @@ export default function AdminUsers() {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium truncate max-w-[200px]">
+                          <p className="font-medium truncate max-w-[200px] flex items-center gap-2">
                             {user.full_name || user.email}
+                            {isAdminUser(user.id) && (
+                              <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                <Shield className="h-3 w-3 mr-0.5" />
+                                Admin
+                              </Badge>
+                            )}
                           </p>
                           <p className="text-sm text-muted-foreground truncate max-w-[200px]">
                             {user.email}
@@ -381,10 +407,13 @@ export default function AdminUsers() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            onClick={() => handleSendPasswordReset(user.email)}
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setIsSendCredentialsOpen(true);
+                            }}
                           >
                             <KeyRound className="mr-2 h-4 w-4" />
-                            Jelszó reset küldése
+                            Belépési adatok küldése
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {
@@ -395,6 +424,17 @@ export default function AdminUsers() {
                             <Mail className="mr-2 h-4 w-4" />
                             Email küldése
                           </DropdownMenuItem>
+                          {isAdminUser(user.id) && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setIsAdminReminderOpen(true);
+                              }}
+                            >
+                              <Bell className="mr-2 h-4 w-4" />
+                              Admin emlékeztető küldése
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem>
                             <UserCog className="mr-2 h-4 w-4" />
                             Belépés userként
@@ -490,6 +530,21 @@ export default function AdminUsers() {
         open={isSendEmailOpen}
         onOpenChange={setIsSendEmailOpen}
         user={selectedUser}
+      />
+
+      <SendCredentialsModal
+        open={isSendCredentialsOpen}
+        onOpenChange={setIsSendCredentialsOpen}
+        user={selectedUser}
+        onSuccess={refetch}
+      />
+
+      <SendCredentialsModal
+        open={isAdminReminderOpen}
+        onOpenChange={setIsAdminReminderOpen}
+        user={selectedUser}
+        isAdminReminder={true}
+        onSuccess={refetch}
       />
 
       <ConfirmationModal
