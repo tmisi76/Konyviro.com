@@ -1,22 +1,15 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import type { SubscriptionTier } from "@/types/subscription";
 import { toast } from "sonner";
 
 export function useCheckout() {
-  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
   const createCheckoutSession = async (
     priceId: string,
     tier: SubscriptionTier
   ) => {
-    if (!user) {
-      toast.error("Kérlek jelentkezz be az előfizetéshez!");
-      return;
-    }
-
     setIsLoading(true);
 
     try {

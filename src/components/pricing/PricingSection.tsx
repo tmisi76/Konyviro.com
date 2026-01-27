@@ -32,13 +32,7 @@ export function PricingSection() {
       return;
     }
 
-    // Paid plans - need auth first
-    if (!user) {
-      navigate("/auth?redirect=/pricing");
-      return;
-    }
-
-    // Get the right price ID based on billing period
+    // Paid plans - direct Stripe checkout (guest or authenticated)
     const priceId = billingPeriod === "yearly" ? plan.yearlyPriceId : plan.monthlyPriceId;
     if (priceId) {
       createCheckoutSession(priceId, plan.id as "hobby" | "writer" | "pro");
@@ -115,7 +109,7 @@ export function PricingSection() {
               onSelect={() => handlePlanSelect(freePlan)}
               isLoading={false}
               isFree={true}
-              ctaText="Regisztrálok"
+              ctaText="REGISZTRÁLOK"
             />
           )}
 
@@ -132,7 +126,7 @@ export function PricingSection() {
               discountBadge={billingPeriod === "yearly" && programOpen ? "-50%" : undefined}
               onSelect={() => handlePlanSelect(plan)}
               isLoading={isLoading}
-              ctaText={billingPeriod === "yearly" ? "Lefoglalom" : "Előfizetek"}
+              ctaText="REGISZTRÁLOK"
             />
           ))}
         </div>
