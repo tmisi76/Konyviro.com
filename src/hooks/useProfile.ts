@@ -13,6 +13,10 @@ export interface UserProfile {
   website: string | null;
   socialTwitter: string | null;
   socialInstagram: string | null;
+  // Storybook credits
+  storybookCreditLimit: number;
+  storybookCreditsUsed: number;
+  lastCreditReset: string | null;
 }
 
 const defaultProfile: UserProfile = {
@@ -25,6 +29,9 @@ const defaultProfile: UserProfile = {
   website: null,
   socialTwitter: null,
   socialInstagram: null,
+  storybookCreditLimit: 0,
+  storybookCreditsUsed: 0,
+  lastCreditReset: null,
 };
 
 export function useProfile() {
@@ -43,7 +50,7 @@ export function useProfile() {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, user_id, full_name, display_name, avatar_url, bio, website, social_twitter, social_instagram")
+        .select("id, user_id, full_name, display_name, avatar_url, bio, website, social_twitter, social_instagram, storybook_credit_limit, storybook_credits_used, last_credit_reset")
         .eq("user_id", user.id)
         .single();
 
@@ -59,6 +66,9 @@ export function useProfile() {
         website: data.website,
         socialTwitter: data.social_twitter,
         socialInstagram: data.social_instagram,
+        storybookCreditLimit: data.storybook_credit_limit || 0,
+        storybookCreditsUsed: data.storybook_credits_used || 0,
+        lastCreditReset: data.last_credit_reset,
       });
     } catch (error) {
       console.error("Error fetching profile:", error);
