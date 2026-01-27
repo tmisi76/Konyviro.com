@@ -132,8 +132,8 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
             {/* Info message */}
             {progress.status !== 'completed' && (
               <p className="text-center text-muted-foreground">
-                A könyved írása a háttérben fut. Bezárhatod ezt az oldalt, 
-                a folyamatot a Dashboard-on követheted nyomon.
+                Most kérlek kattints a gombra, zárd be ezt az ablakot, utána kattints 
+                az INDÍTÁS gombra a könyvnél és az AI megírja a háttérben a könyvet.
               </p>
             )}
 
@@ -143,7 +143,7 @@ export function Step7AutoWrite({ projectId, genre, onComplete }: Step7AutoWriteP
                 <ArrowRight className="mr-2 h-5 w-5" />
                 {progress.status === 'completed' 
                   ? 'Vissza a Dashboard-ra' 
-                  : 'Folyamat követése a Dashboard-on'}
+                  : 'Bezárom az ablakot és elindítom a szövegírást'}
               </Button>
               
               {progress.status === 'completed' && (
