@@ -174,7 +174,7 @@ export function DashboardSidebar({
                   ) : (
                     <Plus className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
                   )}
-                  {!isCollapsed && (projectLimitReached ? "Limit elérve" : "Új projekt")}
+                  {!isCollapsed && (projectLimitReached ? "Limit elérve" : "Új könyv készítés")}
                 </Button>
               </div>
             </TooltipTrigger>

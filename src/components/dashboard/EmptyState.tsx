@@ -40,10 +40,10 @@ export function EmptyState({ onCreateProject }: EmptyStateProps) {
           <Button
             onClick={onCreateProject}
             size="lg"
-            className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
+            className="bg-secondary text-secondary-foreground hover:bg-secondary/90 whitespace-nowrap"
           >
             <Plus className="mr-2 h-5 w-5" />
-            Hozd létre első könyved
+            Készítsd el első könyved
           </Button>
           <Button
             variant="outline"
