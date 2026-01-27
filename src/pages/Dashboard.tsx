@@ -118,7 +118,7 @@ export default function Dashboard() {
       .map((p) => ({
         id: p.id,
         title: p.title,
-        genre: p.genre as "szakkönyv" | "fiction" | "erotikus" | "egyéb",
+        genre: p.genre as "szakkönyv" | "fiction" | "erotikus" | "mesekonyv" | "egyéb",
         wordCount: p.word_count || 0,
         targetWordCount: p.target_word_count || 50000,
         lastEditedAt: new Date(p.updated_at),
@@ -129,6 +129,16 @@ export default function Dashboard() {
         coverUrl: (p as any).selected_cover_url || null,
       }));
   }, [projects]);
+
+  // Mesekönyvek külön szűrése
+  const storybookProjects = useMemo(() => {
+    return cardProjects.filter((p) => p.genre === "mesekonyv");
+  }, [cardProjects]);
+
+  // Normál könyvek (nem mesekönyv)
+  const bookProjects = useMemo(() => {
+    return cardProjects.filter((p) => p.genre !== "mesekonyv");
+  }, [cardProjects]);
 
   // Handlers
   const handleNewProject = () => {
@@ -211,10 +221,15 @@ export default function Dashboard() {
     }
   };
 
-  // Recent projects (sorted by last edited, excluding archived)
-  const recentProjects = useMemo(() => {
-    return [...cardProjects].slice(0, 6);
-  }, [cardProjects]);
+  // Recent books (sorted by last edited, excluding storybooks and archived)
+  const recentBooks = useMemo(() => {
+    return [...bookProjects].slice(0, 6);
+  }, [bookProjects]);
+
+  // Recent storybooks
+  const recentStorybooks = useMemo(() => {
+    return [...storybookProjects].slice(0, 6);
+  }, [storybookProjects]);
 
   // Count non-archived projects for display
   const nonArchivedProjectCount = useMemo(() => {
@@ -259,9 +274,9 @@ export default function Dashboard() {
 
               {/* Stats cards - horizontal scroll */}
               <div className="mb-6 stats-scroll">
-                <StatsCard
-                  title="Összes projekt"
-                  value={stats.totalProjects}
+            <StatsCard
+              title="Összes könyv"
+              value={stats.totalProjects}
                   icon={FolderOpen}
                 />
                 <StatsCard
@@ -296,10 +311,10 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Projects section */}
-              <div>
+              {/* Books section */}
+              <div className="mb-6">
                 <h2 className="mb-4 text-lg font-semibold text-foreground">
-                  {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
+                  {bookProjects.length > 0 ? "Legutóbbi könyveim" : "Könyveim"}
                 </h2>
 
                 {isLoading ? (
@@ -311,11 +326,13 @@ export default function Dashboard() {
                       />
                     ))}
                   </div>
-                ) : nonArchivedProjectCount === 0 ? (
+                ) : bookProjects.length === 0 && storybookProjects.length === 0 ? (
                   <EmptyState onCreateProject={handleNewProject} />
+                ) : bookProjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Még nincs könyved. Készíts egyet!</p>
                 ) : (
                   <div className="mobile-card-stack">
-                    {recentProjects.map((project) => (
+                    {recentBooks.map((project) => (
                       <ProjectCard
                         key={project.id}
                         project={project}
@@ -327,6 +344,26 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+
+              {/* Storybooks section - only show if there are storybooks */}
+              {storybookProjects.length > 0 && (
+                <div>
+                  <h2 className="mb-4 text-lg font-semibold text-foreground">
+                    Mesekönyveim
+                  </h2>
+                  <div className="mobile-card-stack">
+                    {recentStorybooks.map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        onOpen={handleProjectOpen}
+                        onDelete={handleProjectDeleteRequest}
+                        onArchive={handleArchiveProject}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </main>
         </PullToRefresh>
@@ -412,7 +449,7 @@ export default function Dashboard() {
           {/* Stats cards */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <StatsCard
-              title="Összes projekt"
+              title="Összes könyv"
               value={stats.totalProjects}
               icon={FolderOpen}
             />
@@ -448,10 +485,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Projects section - full width */}
+          {/* Books section - full width */}
           <div className="mb-8">
             <h2 className="mb-4 text-lg font-semibold text-foreground">
-              {nonArchivedProjectCount > 0 ? "Legutóbbi projektek" : "Projektek"}
+              {bookProjects.length > 0 ? "Legutóbbi könyveim" : "Könyveim"}
             </h2>
 
             {isLoading ? (
@@ -463,11 +500,13 @@ export default function Dashboard() {
                   />
                 ))}
               </div>
-            ) : nonArchivedProjectCount === 0 ? (
+            ) : bookProjects.length === 0 && storybookProjects.length === 0 ? (
               <EmptyState onCreateProject={handleNewProject} />
+            ) : bookProjects.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Még nincs könyved. Készíts egyet!</p>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recentProjects.map((project) => (
+                {recentBooks.map((project) => (
                   <ProjectCard
                     key={project.id}
                     project={project}
@@ -479,6 +518,26 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+
+          {/* Storybooks section - only show if there are storybooks */}
+          {storybookProjects.length > 0 && (
+            <div className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-foreground">
+                Mesekönyveim
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recentStorybooks.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onOpen={handleProjectOpen}
+                    onDelete={handleProjectDeleteRequest}
+                    onArchive={handleArchiveProject}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
         </div>
       </main>

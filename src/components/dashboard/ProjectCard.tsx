@@ -19,7 +19,7 @@ import { useBackgroundWriter } from "@/hooks/useBackgroundWriter";
 export interface Project {
   id: string;
   title: string;
-  genre: "szakkönyv" | "szakkonyv" | "fiction" | "erotikus" | "egyéb";
+  genre: "szakkönyv" | "szakkonyv" | "fiction" | "erotikus" | "mesekonyv" | "egyéb";
   wordCount: number;
   targetWordCount: number;
   lastEditedAt: Date;
@@ -52,6 +52,10 @@ const genreConfig: Record<string, { label: string; className: string }> = {
   erotikus: {
     label: "Erotikus",
     className: "bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-900/30 dark:text-pink-300 dark:border-pink-700",
+  },
+  mesekonyv: {
+    label: "Mesekönyv",
+    className: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700",
   },
   egyéb: {
     label: "Egyéb",
@@ -136,7 +140,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
               Íródik...
             </Badge>
           )}
-          {isCompleted && project.writingMode === "background" && (
+          {isCompleted && (
             <Badge variant="default" className="gap-1 bg-green-600">
               <CheckCircle className="h-3 w-3" />
               Kész

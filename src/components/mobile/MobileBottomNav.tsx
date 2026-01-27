@@ -27,7 +27,7 @@ export function MobileBottomNav({ activeTab, onTabChange, onNewProject }: Mobile
           <span className="text-xs font-medium">Kezdőlap</span>
         </button>
 
-        {/* Projects */}
+        {/* Books */}
         <button
           onClick={() => onTabChange("projects")}
           className={cn(
@@ -36,7 +36,7 @@ export function MobileBottomNav({ activeTab, onTabChange, onNewProject }: Mobile
           )}
         >
           <FolderOpen className="h-5 w-5" />
-          <span className="text-xs font-medium">Projektek</span>
+          <span className="text-xs font-medium">Könyveim</span>
         </button>
 
         {/* New Project FAB */}
