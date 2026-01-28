@@ -1,95 +1,190 @@
 
-# Stripe Webhook Javítás: constructEventAsync
+# Email Értesítések Komplett Javítása
 
-## Probléma Összefoglalása
+## Jelenlegi Állapot Összefoglalása
 
-A Stripe SDK 18.x verzióban a `constructEvent()` metódus nem működik szinkron kontextusban Deno Edge Runtime-ban. A hiba:
-```
-SubtleCryptoProvider cannot be used in a synchronous context.
-Use `await constructEventAsync(...)` instead of `constructEvent(...)`
-```
+A vizsgálat alapján az alábbi email küldési hiányosságok vannak:
 
-**Következmény:** A sikeres fizetések után a webhook elbukik, így:
-- A felhasználók "free" tier-en maradnak
-- Guest checkout esetén a user nem jön létre
-- A Stripe customer/subscription ID nem kerül be a profilba
+| Eset | Jelenlegi Állapot | Probléma |
+|------|-------------------|----------|
+| 1. Stripe fizetés után fiók létrehozás + email | ❌ Webhook email nem megy | A `stripe-webhook` nem küld email-t a guest checkout-nál létrehozott usernek |
+| 2. Admin "Jelszó reset email küldése" | ⚠️ Részleges | A `admin-reset-password` rossz domaint használ (`inkstory.hu` helyett `digitalisbirodalom.hu`) |
+| 3. Admin "Email küldése" | ✅ Működik | A `send-admin-email` megfelelő |
+| 4. Elfelejtett jelszó form | ❌ Hiányzik | Nincs "Elfelejtett jelszó?" link a login form-on |
+| 5. Ingyenes regisztráció üdvözlő email | ❌ Hiányzik | A `RegisterForm` nem triggerel welcome email-t |
 
 ---
 
-## Javítás
+## 1. Stripe Webhook - Email Küldés Sikeres Fizetés Után
 
-### 1. `stripe-webhook/index.ts` módosítása
+### Probléma
+A `stripe-webhook` létrehozza a guest user-t de NEM küld email-t a belépési adatokkal.
 
-**Változás (55. sor):**
+### Megoldás
+Módosítani a `stripe-webhook/index.ts` fájlt:
+- A user létrehozása után automatikusan küld egy magyar nyelvű welcome + belépési adatok email-t
+- Tartalmazza: email cím, jelszó link (recovery), csomag részletei
+
+### Kód változtatás (`stripe-webhook/index.ts`, ~136. sor után):
 ```typescript
-// RÉGI (hibás):
-const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+// Sikeres user létrehozás után, küldj welcome email-t
+if (authData.user) {
+  userId = authData.user.id;
+  logStep("New user created", { userId, email: customer.email });
+  
+  // Generate password reset link for first login
+  const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+    type: "recovery",
+    email: customer.email,
+    options: {
+      redirectTo: "https://ink-story-magic-86.lovable.app/auth?mode=set-password",
+    },
+  });
 
-// ÚJ (javított):
-const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+  // Send welcome email with login details
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (resendKey && linkData?.properties?.action_link) {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendKey}`,
+      },
+      body: JSON.stringify({
+        from: "Ink Story <noreply@digitalisbirodalom.hu>",
+        to: [customer.email],
+        subject: "Üdvözlünk az Ink Story-ban! 🎉 Állítsd be a jelszavad",
+        html: `<!-- Welcome email with password setup link -->`,
+      }),
+    });
+    logStep("Welcome email sent");
+  }
+}
 ```
 
-### 2. Edge Function újra-deployolása
-
-A javítás után azonnal deployolni kell a `stripe-webhook` függvényt.
-
 ---
 
-## Érintett Felhasználók Kézi Javítása
+## 2. Admin Reset Password - Domain Javítás
 
-A már elromlott fizetések kézi javítást igényelnek:
+### Probléma
+A `admin-reset-password/index.ts` hibás domaint használ: `noreply@inkstory.hu` (nem létezik/nincs hitelesítve)
 
-### pappkaroly55@gmail.com (user_id: 4572a4c3-9018-4091-9e00-312a26a8e395)
-- Ft29,940 = **Hobby tier éves** (Ft29,940 / 12 = ~Ft2,495/hó)
-- Stripe Customer ID: `cus_Ts38cWEWDnEceX`
+### Megoldás
+Módosítani a 148-149. sort:
+```typescript
+// RÉGI:
+from: "Ink Story <noreply@inkstory.hu>",
 
-**SQL Update:**
-```sql
-UPDATE profiles SET
-  subscription_tier = 'hobby',
-  subscription_status = 'active',
-  billing_period = 'yearly',
-  stripe_customer_id = 'cus_Ts38cWEWDnEceX',
-  monthly_word_limit = 0,
-  extra_words_balance = 1200000,  -- 100k * 12 hónap
-  project_limit = 5,
-  storybook_credit_limit = 1,
-  subscription_start_date = '2026-01-27T20:39:00Z',
-  subscription_end_date = '2027-01-27T20:39:00Z'
-WHERE user_id = '4572a4c3-9018-4091-9e00-312a26a8e395';
+// ÚJ:
+from: "Ink Story <noreply@digitalisbirodalom.hu>",
 ```
 
-### valeria.andocsi@gmail.com (nem létezik!)
-- Ft89,940 = **Profi (writer) tier éves** (Ft89,940 / 12 = ~Ft7,495/hó)
-- Stripe Customer ID: `cus_TsAmFSxWPWzoCz`
+---
 
-**Admin felületen:**
-1. Hozzuk létre a felhasználót manuálisan
-2. Állítsuk be a Profi tier-t és a helyes krediteket
+## 3. Admin Create User - Domain Javítás
+
+### Probléma  
+A `admin-create-user/index.ts` is hibás domaint használ a 254. sorban: `noreply@inkstory.hu`
+
+### Megoldás
+```typescript
+// RÉGI:
+from: "Ink Story <noreply@inkstory.hu>",
+
+// ÚJ:
+from: "Ink Story <noreply@digitalisbirodalom.hu>",
+```
 
 ---
 
-## Árképzés Ellenőrzése
+## 4. Elfelejtett Jelszó Funkció Hozzáadása
 
-A Stripe screenshot alapján:
-- **Ft29,940** → Hobby éves
-- **Ft89,940** → Profi éves
+### Probléma
+A `LoginForm.tsx` és `Auth.tsx` nem tartalmaz "Elfelejtett jelszó?" linket/funkciót
 
-Ez megegyezik a jelenlegi árazással (Ft2,495/hó hobby, Ft7,495/hó profi - 50% founder kedvezménnyel).
+### Megoldás
+
+#### 4a. AuthContext bővítése (`src/contexts/AuthContext.tsx`)
+```typescript
+// Új metódus hozzáadása:
+const resetPassword = async (email: string) => {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth?mode=reset`,
+  });
+  return { error: error as Error | null };
+};
+```
+
+#### 4b. LoginForm bővítése (`src/components/auth/LoginForm.tsx`)
+- "Elfelejtett jelszó?" link hozzáadása
+- Modal vagy inline form a jelszó reset email kéréséhez
+- Magyar nyelvű visszajelzés
+
+### Supabase Auth Email Template
+A Supabase beépített email template-ek angolul vannak. Ezeket le kell cserélni a Resend alapú megoldásra, vagy saját edge function-t használni.
+
+**Új edge function: `send-password-reset/index.ts`**
+- Fogadja az email címet
+- Generálja a recovery linket via `auth.admin.generateLink`
+- Küld magyar nyelvű emailt Resend-en keresztül
 
 ---
 
-## Érintett Fájlok
+## 5. Ingyenes Regisztráció - Welcome Email
 
-| Fájl | Változás |
-|------|----------|
-| `supabase/functions/stripe-webhook/index.ts` | `constructEvent` → `constructEventAsync` |
+### Probléma
+A `RegisterForm.tsx` sikeres regisztráció után NEM küld welcome email-t
+
+### Megoldás
+Új edge function létrehozása: `send-welcome-email/index.ts`
+- Triggerelhető a frontend-ről sikeres regisztráció után
+- VAGY: Supabase database trigger a profiles táblán
+
+### Változtatás a `RegisterForm.tsx`-ben:
+```typescript
+// Sikeres regisztráció után:
+if (!error) {
+  await supabase.functions.invoke('send-welcome-email', {
+    body: { email, full_name: fullName }
+  });
+  navigate("/dashboard");
+}
+```
 
 ---
 
-## Tesztelési Lépések
+## Érintett Fájlok Összefoglaló
 
-1. Webhook javítás után deployolás
-2. Teszt fizetés indítása
-3. Webhook logok ellenőrzése
-4. Profil frissülésének ellenőrzése
+| Fájl | Változtatás |
+|------|-------------|
+| `supabase/functions/stripe-webhook/index.ts` | + Welcome email küldés guest checkout-nál |
+| `supabase/functions/admin-reset-password/index.ts` | Domain fix: `digitalisbirodalom.hu` |
+| `supabase/functions/admin-create-user/index.ts` | Domain fix: `digitalisbirodalom.hu` |
+| `supabase/functions/send-password-reset/index.ts` | **ÚJ** - Magyar jelszó reset email |
+| `supabase/functions/send-welcome-email/index.ts` | **ÚJ** - Magyar welcome email |
+| `src/contexts/AuthContext.tsx` | + `resetPassword` metódus |
+| `src/components/auth/LoginForm.tsx` | + "Elfelejtett jelszó?" link és form |
+| `src/components/auth/RegisterForm.tsx` | + Welcome email trigger |
+
+---
+
+## Tesztelési Checklist
+
+1. ☐ Stripe fizetés után automatikusan jön email a belépési adatokkal
+2. ☐ Admin "Új jelszó generálása és küldése" működik
+3. ☐ Admin "Jelszó reset link küldése" működik
+4. ☐ "Elfelejtett jelszó?" link a login form-on működik
+5. ☐ Ingyenes regisztráció után welcome email érkezik
+6. ☐ Minden email magyar nyelvű
+7. ☐ Minden email a `digitalisbirodalom.hu` domainről jön
+
+---
+
+## Email HTML Sablonok
+
+Minden új email sablon:
+- Magyar nyelvű
+- Egységes Ink Story branding (lila gradient: #7c3aed → #a855f7)
+- Responsive design
+- Tartalmazza a bejelentkezés linket
+- Küldő: `Ink Story <noreply@digitalisbirodalom.hu>`
