@@ -1,190 +1,188 @@
 
-# Email Értesítések Komplett Javítása
+# Admin Felhasználók Oldal Befejezése
 
-## Jelenlegi Állapot Összefoglalása
+## Jelenlegi Problémák
 
-A vizsgálat alapján az alábbi email küldési hiányosságok vannak:
+### 1. Edge Function Telepítési Hiba
+Az `admin-get-users` edge function nincs regisztrálva a `config.toml`-ben, ezért 404-et ad vissza.
 
-| Eset | Jelenlegi Állapot | Probléma |
-|------|-------------------|----------|
-| 1. Stripe fizetés után fiók létrehozás + email | ❌ Webhook email nem megy | A `stripe-webhook` nem küld email-t a guest checkout-nál létrehozott usernek |
-| 2. Admin "Jelszó reset email küldése" | ⚠️ Részleges | A `admin-reset-password` rossz domaint használ (`inkstory.hu` helyett `digitalisbirodalom.hu`) |
-| 3. Admin "Email küldése" | ✅ Működik | A `send-admin-email` megfelelő |
-| 4. Elfelejtett jelszó form | ❌ Hiányzik | Nincs "Elfelejtett jelszó?" link a login form-on |
-| 5. Ingyenes regisztráció üdvözlő email | ❌ Hiányzik | A `RegisterForm` nem triggerel welcome email-t |
+### 2. Hook Duplikált Hívás
+A `useAdminUsers.ts` hook kétszer hívja a `supabase.functions.invoke`-ot, ami felesleges és hibás.
+
+### 3. Hiányzó Funkciók
+Az alábbi műveletek nincsenek implementálva:
+- Felhasználó törlése
+- Felhasználó tiltása/feloldása
+- CSV Export
+- Bulk műveletek (tömeges email, tömeges export, tömeges törlés)
+
+### 4. Email Küldés Hiba
+A `SendEmailModal` plain text body-t küld az edge function-nak, de az HTML formátumot vár.
 
 ---
 
-## 1. Stripe Webhook - Email Küldés Sikeres Fizetés Után
+## Javítási Terv
 
-### Probléma
-A `stripe-webhook` létrehozza a guest user-t de NEM küld email-t a belépési adatokkal.
+### 1. config.toml Frissítése
+Hozzáadjuk az `admin-get-users` function-t:
+```toml
+[functions.admin-get-users]
+verify_jwt = false
 
-### Megoldás
-Módosítani a `stripe-webhook/index.ts` fájlt:
-- A user létrehozása után automatikusan küld egy magyar nyelvű welcome + belépési adatok email-t
-- Tartalmazza: email cím, jelszó link (recovery), csomag részletei
+[functions.admin-send-credentials]
+verify_jwt = false
+```
 
-### Kód változtatás (`stripe-webhook/index.ts`, ~136. sor után):
+### 2. useAdminUsers Hook Javítása
+Eltávolítjuk a duplikált function invoke hívást:
 ```typescript
-// Sikeres user létrehozás után, küldj welcome email-t
-if (authData.user) {
-  userId = authData.user.id;
-  logStep("New user created", { userId, email: customer.email });
-  
-  // Generate password reset link for first login
-  const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
-    type: "recovery",
-    email: customer.email,
-    options: {
-      redirectTo: "https://ink-story-magic-86.lovable.app/auth?mode=set-password",
-    },
-  });
+// ELŐTTE (hibás):
+const { data, error } = await supabase.functions.invoke('admin-get-users', {...});
+const response = await supabase.functions.invoke(`admin-get-users?${params.toString()}`);
 
-  // Send welcome email with login details
-  const resendKey = Deno.env.get("RESEND_API_KEY");
-  if (resendKey && linkData?.properties?.action_link) {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${resendKey}`,
-      },
-      body: JSON.stringify({
-        from: "Ink Story <noreply@digitalisbirodalom.hu>",
-        to: [customer.email],
-        subject: "Üdvözlünk az Ink Story-ban! 🎉 Állítsd be a jelszavad",
-        html: `<!-- Welcome email with password setup link -->`,
-      }),
-    });
-    logStep("Welcome email sent");
+// UTÁNA (javított):
+const params = new URLSearchParams({ search, plan, page, limit });
+const response = await supabase.functions.invoke(`admin-get-users?${params.toString()}`);
+```
+
+### 3. Felhasználó Törlése - Új Edge Function
+Új edge function: `admin-delete-user/index.ts`
+- Admin jogosultság ellenőrzés
+- Auth user törlése
+- Profile és kapcsolódó adatok automatikus törlése (CASCADE)
+- Activity log bejegyzés
+
+### 4. Felhasználó Tiltása/Feloldása
+Új edge function: `admin-ban-user/index.ts`
+- User tiltása: subscription_status = 'banned', auth.users.banned_until beállítás
+- Tiltás feloldása: subscription_status = 'active', auth.users.banned_until törlése
+- Activity log bejegyzés
+
+### 5. CSV Export Funkció
+Client-side implementáció:
+- Összes látható felhasználó exportálása CSV-be
+- Mezők: Email, Név, Csomag, Projektek, Regisztráció, Státusz
+- `file-saver` csomag használata
+
+### 6. Bulk Műveletek
+- Tömeges email küldés → BulkEmailModal megnyitása a kiválasztott email címekkel
+- Tömeges export → Kiválasztott userek exportálása
+- Tömeges törlés → Confirmation modal, majd törlés loop
+
+### 7. SendEmailModal Javítása
+HTML email küldés plain text helyett:
+```typescript
+const { error } = await supabase.functions.invoke('send-admin-email', {
+  body: {
+    to: user.email,
+    subject: data.subject,
+    html: `<div style="...">${data.body.replace(/\n/g, '<br>')}</div>`,
+    text: data.body,
   }
-}
+});
 ```
 
 ---
 
-## 2. Admin Reset Password - Domain Javítás
+## Érintett Fájlok
 
-### Probléma
-A `admin-reset-password/index.ts` hibás domaint használ: `noreply@inkstory.hu` (nem létezik/nincs hitelesítve)
+| Fájl | Változás |
+|------|----------|
+| `supabase/config.toml` | + admin-get-users és admin-send-credentials |
+| `src/hooks/admin/useAdminUsers.ts` | Duplikált invoke eltávolítása |
+| `supabase/functions/admin-delete-user/index.ts` | **ÚJ** - User törlés |
+| `supabase/functions/admin-ban-user/index.ts` | **ÚJ** - Tiltás/feloldás |
+| `src/pages/admin/AdminUsers.tsx` | Törlés, tiltás, export, bulk műveletek implementálása |
+| `src/components/admin/SendEmailModal.tsx` | HTML email küldés javítása |
 
-### Megoldás
-Módosítani a 148-149. sort:
+---
+
+## Új Edge Function: admin-delete-user
+
 ```typescript
-// RÉGI:
-from: "Ink Story <noreply@inkstory.hu>",
+// Főbb lépések:
+1. Admin jogosultság ellenőrzés
+2. Target user profile lekérése (email log-hoz)
+3. supabaseAdmin.auth.admin.deleteUser(user_id) - ez törli az auth user-t
+4. A profile automatikusan törlődik (ON DELETE CASCADE)
+5. admin_activity_logs bejegyzés
+```
 
-// ÚJ:
-from: "Ink Story <noreply@digitalisbirodalom.hu>",
+## Új Edge Function: admin-ban-user
+
+```typescript
+// Tiltás:
+- profiles: subscription_status = 'banned'
+- auth.users: banned_until = far future date
+
+// Feloldás:
+- profiles: subscription_status = 'active'  
+- auth.users: banned_until = null
 ```
 
 ---
 
-## 3. Admin Create User - Domain Javítás
+## Frontend Változások (AdminUsers.tsx)
 
-### Probléma  
-A `admin-create-user/index.ts` is hibás domaint használ a 254. sorban: `noreply@inkstory.hu`
-
-### Megoldás
+### handleDeleteUser
 ```typescript
-// RÉGI:
-from: "Ink Story <noreply@inkstory.hu>",
-
-// ÚJ:
-from: "Ink Story <noreply@digitalisbirodalom.hu>",
-```
-
----
-
-## 4. Elfelejtett Jelszó Funkció Hozzáadása
-
-### Probléma
-A `LoginForm.tsx` és `Auth.tsx` nem tartalmaz "Elfelejtett jelszó?" linket/funkciót
-
-### Megoldás
-
-#### 4a. AuthContext bővítése (`src/contexts/AuthContext.tsx`)
-```typescript
-// Új metódus hozzáadása:
-const resetPassword = async (email: string) => {
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth?mode=reset`,
+const handleDeleteUser = async () => {
+  const { data, error } = await supabase.functions.invoke("admin-delete-user", {
+    body: { user_id: selectedUser.user_id }
   });
-  return { error: error as Error | null };
+  if (!error) {
+    toast.success("Felhasználó törölve");
+    refetch();
+  }
 };
 ```
 
-#### 4b. LoginForm bővítése (`src/components/auth/LoginForm.tsx`)
-- "Elfelejtett jelszó?" link hozzáadása
-- Modal vagy inline form a jelszó reset email kéréséhez
-- Magyar nyelvű visszajelzés
-
-### Supabase Auth Email Template
-A Supabase beépített email template-ek angolul vannak. Ezeket le kell cserélni a Resend alapú megoldásra, vagy saját edge function-t használni.
-
-**Új edge function: `send-password-reset/index.ts`**
-- Fogadja az email címet
-- Generálja a recovery linket via `auth.admin.generateLink`
-- Küld magyar nyelvű emailt Resend-en keresztül
-
----
-
-## 5. Ingyenes Regisztráció - Welcome Email
-
-### Probléma
-A `RegisterForm.tsx` sikeres regisztráció után NEM küld welcome email-t
-
-### Megoldás
-Új edge function létrehozása: `send-welcome-email/index.ts`
-- Triggerelhető a frontend-ről sikeres regisztráció után
-- VAGY: Supabase database trigger a profiles táblán
-
-### Változtatás a `RegisterForm.tsx`-ben:
+### handleBanUser / handleUnbanUser
 ```typescript
-// Sikeres regisztráció után:
-if (!error) {
-  await supabase.functions.invoke('send-welcome-email', {
-    body: { email, full_name: fullName }
+const handleBanUser = async (userId: string, ban: boolean) => {
+  const { error } = await supabase.functions.invoke("admin-ban-user", {
+    body: { user_id: userId, action: ban ? "ban" : "unban" }
   });
-  navigate("/dashboard");
-}
+  if (!error) {
+    toast.success(ban ? "Felhasználó tiltva" : "Tiltás feloldva");
+    refetch();
+  }
+};
 ```
 
----
-
-## Érintett Fájlok Összefoglaló
-
-| Fájl | Változtatás |
-|------|-------------|
-| `supabase/functions/stripe-webhook/index.ts` | + Welcome email küldés guest checkout-nál |
-| `supabase/functions/admin-reset-password/index.ts` | Domain fix: `digitalisbirodalom.hu` |
-| `supabase/functions/admin-create-user/index.ts` | Domain fix: `digitalisbirodalom.hu` |
-| `supabase/functions/send-password-reset/index.ts` | **ÚJ** - Magyar jelszó reset email |
-| `supabase/functions/send-welcome-email/index.ts` | **ÚJ** - Magyar welcome email |
-| `src/contexts/AuthContext.tsx` | + `resetPassword` metódus |
-| `src/components/auth/LoginForm.tsx` | + "Elfelejtett jelszó?" link és form |
-| `src/components/auth/RegisterForm.tsx` | + Welcome email trigger |
+### handleExportUsers
+```typescript
+const handleExportUsers = () => {
+  const csvContent = users?.data?.map(u => 
+    `"${u.email}","${u.full_name || ''}","${u.subscription_tier}",${u.projects_count},"${u.created_at}"`
+  ).join('\n');
+  
+  const blob = new Blob([`Email,Név,Csomag,Projektek,Regisztráció\n${csvContent}`], { type: 'text/csv' });
+  saveAs(blob, `felhasznalok_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+};
+```
 
 ---
 
 ## Tesztelési Checklist
 
-1. ☐ Stripe fizetés után automatikusan jön email a belépési adatokkal
-2. ☐ Admin "Új jelszó generálása és küldése" működik
-3. ☐ Admin "Jelszó reset link küldése" működik
-4. ☐ "Elfelejtett jelszó?" link a login form-on működik
-5. ☐ Ingyenes regisztráció után welcome email érkezik
-6. ☐ Minden email magyar nyelvű
-7. ☐ Minden email a `digitalisbirodalom.hu` domainről jön
+1. ☐ Admin felhasználók oldal betölt valós adatokkal
+2. ☐ Keresés működik (név, email)
+3. ☐ Szűrés működik (csomag, státusz)
+4. ☐ Lapozás működik
+5. ☐ Felhasználó szerkesztése működik (profil, előfizetés)
+6. ☐ Belépési adatok küldése működik
+7. ☐ Email küldése működik
+8. ☐ Felhasználó törlése működik
+9. ☐ Tiltás/feloldás működik
+10. ☐ CSV export működik
+11. ☐ Bulk műveletek működnek
 
 ---
 
-## Email HTML Sablonok
+## Telepítendő Edge Functions
 
-Minden új email sablon:
-- Magyar nyelvű
-- Egységes Ink Story branding (lila gradient: #7c3aed → #a855f7)
-- Responsive design
-- Tartalmazza a bejelentkezés linket
-- Küldő: `Ink Story <noreply@digitalisbirodalom.hu>`
+A változtatások után az alábbi edge function-ök telepítése szükséges:
+- `admin-get-users` (már létezik, csak deploy kell)
+- `admin-delete-user` (új)
+- `admin-ban-user` (új)
