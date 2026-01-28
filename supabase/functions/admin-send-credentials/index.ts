@@ -134,7 +134,7 @@ serve(async (req) => {
 
     if (is_admin_reminder) {
       // Admin reminder email
-      emailSubject = "Emlékeztető - Admin hozzáférés az Ink Story-hoz";
+      emailSubject = "Emlékeztető - Admin hozzáférés a KönyvÍró-hoz";
       emailBody = `
 <!DOCTYPE html>
 <html>
@@ -152,7 +152,7 @@ serve(async (req) => {
       <p style="font-size: 18px; color: #1e293b; margin: 0 0 20px;">Kedves <strong>${fullName}</strong>!</p>
       
       <p style="font-size: 16px; color: #475569; line-height: 1.6; margin: 0 0 30px;">
-        Ez egy emlékeztető az Ink Story admin hozzáférésedről.
+        Ez egy emlékeztető a KönyvÍró admin hozzáférésedről.
       </p>
       
       <div style="background: #fef2f2; border-radius: 12px; padding: 24px; margin: 0 0 30px; border: 1px solid #fecaca;">
@@ -176,7 +176,7 @@ serve(async (req) => {
       ` : ''}
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="https://ink-story-magic-86.lovable.app/admin" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+        <a href="https://konyviro.com/admin" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
           Admin felület megnyitása →
         </a>
       </div>
@@ -191,8 +191,8 @@ serve(async (req) => {
     } else {
       // Regular credentials email
       emailSubject = generate_new_password 
-        ? "Új belépési adatok - Ink Story"
-        : "Belépési emlékeztető - Ink Story";
+        ? "Új belépési adatok - KönyvÍró"
+        : "Belépési emlékeztető - KönyvÍró";
         
       emailBody = `
 <!DOCTYPE html>
@@ -247,14 +247,14 @@ serve(async (req) => {
       ` : ''}
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="https://ink-story-magic-86.lovable.app/auth" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+        <a href="https://konyviro.com/auth" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
           Bejelentkezés →
         </a>
       </div>
       
       <p style="font-size: 14px; color: #94a3b8; text-align: center; margin: 30px 0 0; border-top: 1px solid #e2e8f0; padding-top: 20px;">
         Ha nem te kérted ezt az emailt, kérjük jelezd nekünk!<br>
-        <strong style="color: #7c3aed;">Az Ink Story csapata</strong>
+        <strong style="color: #7c3aed;">A KönyvÍró csapata</strong>
       </p>
     </div>
   </div>
@@ -269,7 +269,7 @@ serve(async (req) => {
         Authorization: `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: "Ink Story <noreply@digitalisbirodalom.hu>",
+        from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
         to: [email],
         subject: emailSubject,
         html: emailBody,
