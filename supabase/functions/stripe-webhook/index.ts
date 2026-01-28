@@ -300,15 +300,26 @@ serve(async (req) => {
           last_credit_reset: new Date().toISOString(),
         };
 
-        logStep("Upserting profile", profileData);
+        logStep("Updating profile", profileData);
 
         const { error: updateError } = await supabaseAdmin
           .from("profiles")
-          .upsert(profileData, { onConflict: "user_id" });
+          .update(profileData)
+          .eq("user_id", userId);
 
         if (updateError) {
-          logStep("ERROR updating profile", { error: updateError.message });
-          throw updateError;
+          logStep("CRITICAL ERROR: Failed to update user profile", { 
+            userId, 
+            error: updateError.message,
+            code: updateError.code 
+          });
+          return new Response(
+            JSON.stringify({ error: "Failed to update user profile after creation." }),
+            { 
+              status: 500, 
+              headers: { ...corsHeaders, "Content-Type": "application/json" } 
+            }
+          );
         }
 
         // Increment founder spots if this is a founder subscription
