@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export function RegisterForm() {
   const [fullName, setFullName] = useState("");
@@ -45,6 +46,13 @@ export function RegisterForm() {
       setLoading(false);
       return;
     }
+
+    // Send welcome email (fire and forget, don't block navigation)
+    supabase.functions.invoke('send-welcome-email', {
+      body: { email, full_name: fullName }
+    }).catch(err => {
+      console.error("Welcome email error:", err);
+    });
 
     navigate("/dashboard");
   };
