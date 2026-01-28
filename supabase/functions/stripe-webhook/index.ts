@@ -120,19 +120,120 @@ serve(async (req) => {
                   userId = authData.user.id;
                   logStep("New user created", { userId, email: customer.email });
                   
-                  // Send password reset email so user can set their password
-                  const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+                  // Generate password reset link so user can set their password
+                  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
                     type: "recovery",
                     email: customer.email,
                     options: {
-                      redirectTo: `${Deno.env.get("SUPABASE_URL")?.replace('.supabase.co', '.lovableproject.com')}/auth?mode=reset`,
+                      redirectTo: "https://ink-story-magic-86.lovable.app/auth?mode=set-password",
                     },
                   });
                   
-                  if (resetError) {
-                    logStep("Warning: Failed to send password reset email", { error: resetError.message });
-                  } else {
-                    logStep("Password reset email sent", { email: customer.email });
+                  if (linkError) {
+                    logStep("Warning: Failed to generate password link", { error: linkError.message });
+                  }
+                  
+                  // Send welcome email with password setup link
+                  const resendKey = Deno.env.get("RESEND_API_KEY");
+                  if (resendKey) {
+                    const tierNames: Record<string, string> = {
+                      hobby: "Hobbi",
+                      writer: "Író",
+                      pro: "Profi"
+                    };
+                    const periodNames: Record<string, string> = {
+                      monthly: "havi",
+                      yearly: "éves"
+                    };
+                    
+                    const passwordLink = linkData?.properties?.action_link || "https://ink-story-magic-86.lovable.app/auth";
+                    const tierDisplay = tierNames[tier] || tier;
+                    const periodDisplay = periodNames[billingPeriod] || billingPeriod;
+                    const limits = TIER_LIMITS[tier] || TIER_LIMITS.hobby;
+                    const credits = billingPeriod === "yearly" ? limits.monthlyWordLimit * 12 : limits.monthlyWordLimit;
+                    
+                    const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f8fafc;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">🎉 Üdvözlünk az Ink Story-ban!</h1>
+    </div>
+    
+    <div style="background: white; border-radius: 0 0 16px 16px; padding: 40px 30px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <p style="font-size: 18px; color: #1e293b; margin: 0 0 20px;">Kedves <strong>${customer.name || "Felhasználó"}</strong>!</p>
+      
+      <p style="font-size: 16px; color: #475569; line-height: 1.6; margin: 0 0 20px;">
+        Köszönjük, hogy előfizettél az Ink Story-ra! Fiókod elkészült, már csak be kell állítanod a jelszavad.
+      </p>
+      
+      <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; padding: 24px; margin: 0 0 30px; border: 1px solid #e9d5ff;">
+        <h3 style="color: #7c3aed; margin: 0 0 16px; font-size: 16px;">📦 Előfizetésed részletei</h3>
+        <table style="width: 100%;">
+          <tr>
+            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Csomag:</td>
+            <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 14px;">${tierDisplay} (${periodDisplay})</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Email cím:</td>
+            <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 14px;">${customer.email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Szó kredit:</td>
+            <td style="padding: 8px 0; color: #1e293b; font-weight: 600; font-size: 14px;">${credits.toLocaleString()} szó</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${passwordLink}" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+          Jelszó beállítása →
+        </a>
+      </div>
+      
+      <p style="font-size: 14px; color: #64748b; text-align: center; margin: 20px 0;">
+        Ha a gomb nem működik, másold be ezt a linket a böngésződbe:<br>
+        <a href="${passwordLink}" style="color: #7c3aed; word-break: break-all;">${passwordLink}</a>
+      </p>
+      
+      <p style="font-size: 14px; color: #94a3b8; text-align: center; margin: 30px 0 0; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+        Ha bármilyen kérdésed van, írj nekünk!<br>
+        <strong style="color: #7c3aed;">Az Ink Story csapata</strong>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+                    try {
+                      const emailRes = await fetch("https://api.resend.com/emails", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${resendKey}`,
+                        },
+                        body: JSON.stringify({
+                          from: "Ink Story <noreply@digitalisbirodalom.hu>",
+                          to: [customer.email],
+                          subject: "🎉 Üdvözlünk az Ink Story-ban! Állítsd be a jelszavad",
+                          html: emailHtml,
+                        }),
+                      });
+
+                      if (emailRes.ok) {
+                        logStep("Welcome email sent successfully", { email: customer.email });
+                      } else {
+                        const errorText = await emailRes.text();
+                        logStep("Welcome email failed", { error: errorText });
+                      }
+                    } catch (emailError) {
+                      logStep("Email error", { error: String(emailError) });
+                    }
                   }
                 }
               }
