@@ -101,12 +101,30 @@ export function SendEmailModal({ open, onOpenChange, user }: SendEmailModalProps
     
     setIsLoading(true);
     try {
+      // Convert plain text to HTML with proper styling
+      const htmlBody = `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); padding: 20px; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Ink Story</h1>
+          </div>
+          <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e5e5; border-top: none; border-radius: 0 0 8px 8px;">
+            <div style="color: #333333; font-size: 16px; line-height: 1.6;">
+              ${data.body.replace(/\n/g, '<br>')}
+            </div>
+          </div>
+          <div style="text-align: center; padding: 20px; color: #666666; font-size: 12px;">
+            <p>© ${new Date().getFullYear()} Ink Story. Minden jog fenntartva.</p>
+          </div>
+        </div>
+      `;
+
       // Call edge function to send email
       const { error } = await supabase.functions.invoke('send-admin-email', {
         body: {
           to: user.email,
           subject: data.subject,
-          body: data.body,
+          html: htmlBody,
+          text: data.body,
         }
       });
 

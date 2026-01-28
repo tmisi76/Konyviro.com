@@ -44,14 +44,10 @@ export function useAdminUsers({
   return useQuery({
     queryKey: ['admin-users', search, status, plan, page, limit],
     queryFn: async (): Promise<AdminUsersResponse> => {
-      const { data, error } = await supabase.functions.invoke('admin-get-users', {
-        body: null,
-        headers: {},
-      });
-
       // Build URL with query params
       const params = new URLSearchParams({
         search,
+        status,
         plan,
         page: page.toString(),
         limit: limit.toString(),

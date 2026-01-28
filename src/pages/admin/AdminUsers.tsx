@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { format, formatDistanceToNow } from "date-fns";
 import { hu } from "date-fns/locale";
 import { toast } from "sonner";
+import { saveAs } from "file-saver";
 import {
   Search,
   UserPlus,
@@ -21,6 +22,7 @@ import {
   ChevronDown,
   Shield,
   Bell,
+  Loader2,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -80,10 +82,15 @@ export default function AdminUsers() {
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isSendEmailOpen, setIsSendEmailOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isBanOpen, setIsBanOpen] = useState(false);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [isSendCredentialsOpen, setIsSendCredentialsOpen] = useState(false);
   const [isAdminReminderOpen, setIsAdminReminderOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [adminUserIds, setAdminUserIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isBanning, setIsBanning] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Fetch admin user IDs to show admin badge and reminder option
   useEffect(() => {
@@ -102,16 +109,121 @@ export default function AdminUsers() {
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
-    toast.info("Felhasználó törlése funkció hamarosan elérhető");
-    setIsDeleteOpen(false);
+    
+    setIsDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-delete-user", {
+        body: { user_id: selectedUser.user_id }
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Felhasználó sikeresen törölve");
+      refetch();
+      setIsDeleteOpen(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      toast.error("Hiba történt: " + (error.message || "Ismeretlen hiba"));
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
-  const handleBanUser = async (userId: string) => {
-    toast.info("Felhasználó tiltása funkció hamarosan elérhető");
+  const handleBanUser = async () => {
+    if (!selectedUser) return;
+    
+    setIsBanning(true);
+    const action = selectedUser.status === "banned" ? "unban" : "ban";
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-ban-user", {
+        body: { user_id: selectedUser.user_id, action }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(action === "ban" ? "Felhasználó tiltva" : "Tiltás feloldva");
+      refetch();
+      setIsBanOpen(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      toast.error("Hiba történt: " + (error.message || "Ismeretlen hiba"));
+    } finally {
+      setIsBanning(false);
+    }
   };
 
   const handleExportUsers = () => {
-    toast.info("Export funkció hamarosan elérhető");
+    if (!users?.data?.length) {
+      toast.error("Nincs exportálható adat");
+      return;
+    }
+    
+    setIsExporting(true);
+    try {
+      const headers = "Email,Név,Csomag,Projektek,Regisztráció,Státusz";
+      const csvContent = users.data.map(u => 
+        `"${u.email}","${u.full_name || ''}","${u.subscription_tier}",${u.projects_count},"${format(new Date(u.created_at), 'yyyy-MM-dd')}","${u.status}"`
+      ).join('\n');
+      
+      const blob = new Blob([`${headers}\n${csvContent}`], { type: 'text/csv;charset=utf-8' });
+      saveAs(blob, `felhasznalok_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+      toast.success("Export sikeres!");
+    } catch (error) {
+      toast.error("Export hiba történt");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleBulkExport = () => {
+    if (selectedUsers.length === 0) return;
+    
+    const selectedData = users?.data?.filter(u => selectedUsers.includes(u.id));
+    if (!selectedData?.length) return;
+    
+    const headers = "Email,Név,Csomag,Projektek,Regisztráció,Státusz";
+    const csvContent = selectedData.map(u => 
+      `"${u.email}","${u.full_name || ''}","${u.subscription_tier}",${u.projects_count},"${format(new Date(u.created_at), 'yyyy-MM-dd')}","${u.status}"`
+    ).join('\n');
+    
+    const blob = new Blob([`${headers}\n${csvContent}`], { type: 'text/csv;charset=utf-8' });
+    saveAs(blob, `felhasznalok_kivalasztott_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    toast.success(`${selectedData.length} felhasználó exportálva!`);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    setIsDeleting(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    const selectedData = users?.data?.filter(u => selectedUsers.includes(u.id));
+    
+    for (const user of selectedData || []) {
+      try {
+        const { error } = await supabase.functions.invoke("admin-delete-user", {
+          body: { user_id: user.user_id }
+        });
+        if (error) throw error;
+        successCount++;
+      } catch {
+        errorCount++;
+      }
+    }
+    
+    setIsDeleting(false);
+    setIsBulkDeleteOpen(false);
+    setSelectedUsers([]);
+    refetch();
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} felhasználó törölve`);
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount} törlés sikertelen`);
+    }
   };
 
   const isAdminUser = (userId: string) => adminUserIds.has(userId);
@@ -153,8 +265,12 @@ export default function AdminUsers() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportUsers}>
-            <Download className="mr-2 h-4 w-4" />
+          <Button variant="outline" onClick={handleExportUsers} disabled={isExporting}>
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
             Export CSV
           </Button>
           <Button onClick={() => setIsAddUserOpen(true)}>
@@ -216,16 +332,15 @@ export default function AdminUsers() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem>
-                    <Mail className="mr-2 h-4 w-4" />
-                    Email küldése
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleBulkExport}>
                     <Download className="mr-2 h-4 w-4" />
                     Exportálás
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem 
+                    className="text-destructive"
+                    onClick={() => setIsBulkDeleteOpen(true)}
+                  >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Törlés
                   </DropdownMenuItem>
@@ -447,14 +562,22 @@ export default function AdminUsers() {
                           <DropdownMenuSeparator />
                           {user.status !== "banned" ? (
                             <DropdownMenuItem
-                              onClick={() => handleBanUser(user.id)}
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setIsBanOpen(true);
+                              }}
                               className="text-orange-500"
                             >
                               <Ban className="mr-2 h-4 w-4" />
                               Tiltás
                             </DropdownMenuItem>
                           ) : (
-                            <DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setIsBanOpen(true);
+                              }}
+                            >
                               <Unlock className="mr-2 h-4 w-4" />
                               Tiltás feloldása
                             </DropdownMenuItem>
@@ -554,6 +677,27 @@ export default function AdminUsers() {
         type="delete"
         title="Felhasználó törlése"
         description="Biztosan törölni szeretnéd ezt a felhasználót? Ez a művelet nem vonható vissza."
+      />
+
+      <ConfirmationModal
+        open={isBanOpen}
+        onOpenChange={setIsBanOpen}
+        onConfirm={handleBanUser}
+        type={selectedUser?.status === "banned" ? "generic" : "delete"}
+        title={selectedUser?.status === "banned" ? "Tiltás feloldása" : "Felhasználó tiltása"}
+        description={selectedUser?.status === "banned" 
+          ? "Biztosan fel szeretnéd oldani a tiltást? A felhasználó újra be tud majd lépni." 
+          : "Biztosan tiltani szeretnéd ezt a felhasználót? Nem fog tudni belépni a fiókjába."
+        }
+      />
+
+      <ConfirmationModal
+        open={isBulkDeleteOpen}
+        onOpenChange={setIsBulkDeleteOpen}
+        onConfirm={handleBulkDelete}
+        type="delete"
+        title={`${selectedUsers.length} felhasználó törlése`}
+        description="Biztosan törölni szeretnéd a kiválasztott felhasználókat? Ez a művelet nem vonható vissza."
       />
     </div>
   );
