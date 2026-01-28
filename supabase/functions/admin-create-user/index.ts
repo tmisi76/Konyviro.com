@@ -170,8 +170,8 @@ serve(async (req) => {
     
     if ((send_welcome_email || send_password_email) && resendKey) {
       const emailSubject = send_password_email 
-        ? "Üdvözlünk az Ink Story-ban - Bejelentkezési adataid"
-        : "Üdvözlünk az Ink Story-ban!";
+        ? "Üdvözlünk a KönyvÍró-nál - Bejelentkezési adataid"
+        : "Üdvözlünk a KönyvÍró-nál!";
       
       const emailBody = `
 <!DOCTYPE html>
@@ -183,7 +183,7 @@ serve(async (req) => {
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f8fafc;">
   <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
     <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">✨ Üdvözlünk az Ink Story-ban!</h1>
+      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">✨ Üdvözlünk a KönyvÍró-nál!</h1>
     </div>
     
     <div style="background: white; border-radius: 0 0 16px 16px; padding: 40px 30px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
@@ -229,14 +229,14 @@ serve(async (req) => {
       </div>
       
       <div style="text-align: center; margin: 30px 0;">
-        <a href="https://ink-story-magic-86.lovable.app/auth" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+        <a href="https://konyviro.com/auth" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
           Bejelentkezés →
         </a>
       </div>
       
       <p style="font-size: 14px; color: #94a3b8; text-align: center; margin: 30px 0 0; border-top: 1px solid #e2e8f0; padding-top: 20px;">
         Ha bármilyen kérdésed van, írj nekünk!<br>
-        <strong style="color: #7c3aed;">Az Ink Story csapata</strong>
+        <strong style="color: #7c3aed;">A KönyvÍró csapata</strong>
       </p>
     </div>
   </div>
@@ -251,7 +251,7 @@ serve(async (req) => {
             Authorization: `Bearer ${resendKey}`,
           },
           body: JSON.stringify({
-            from: "Ink Story <noreply@digitalisbirodalom.hu>",
+            from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
             to: [email],
             subject: emailSubject,
             html: emailBody,

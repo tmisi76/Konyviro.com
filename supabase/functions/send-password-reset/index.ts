@@ -58,7 +58,7 @@ serve(async (req) => {
       type: "recovery",
       email: email,
       options: {
-        redirectTo: "https://ink-story-magic-86.lovable.app/auth?mode=reset",
+        redirectTo: "https://konyviro.com/auth?mode=reset",
       },
     });
 
@@ -118,7 +118,7 @@ serve(async (req) => {
       
       <p style="font-size: 13px; color: #94a3b8; text-align: center; margin: 0; border-top: 1px solid #e2e8f0; padding-top: 20px;">
         Ez a link 1 órán belül lejár.<br>
-        <strong style="color: #7c3aed;">Az Ink Story csapata</strong>
+        <strong style="color: #7c3aed;">A KönyvÍró csapata</strong>
       </p>
     </div>
   </div>
@@ -132,9 +132,9 @@ serve(async (req) => {
         Authorization: `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: "Ink Story <noreply@digitalisbirodalom.hu>",
+        from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
         to: [email],
-        subject: "🔐 Jelszó visszaállítás - Ink Story",
+        subject: "🔐 Jelszó visszaállítás - KönyvÍró",
         html: emailHtml,
       }),
     });

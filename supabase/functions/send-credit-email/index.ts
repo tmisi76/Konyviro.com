@@ -30,7 +30,7 @@ serve(async (req) => {
       );
     }
 
-    const appUrl = Deno.env.get("APP_URL") || "https://id-preview--8c4162da-8f59-4bd1-96d2-4494bcc979d1.lovable.app";
+    const appUrl = Deno.env.get("APP_URL") || "https://konyviro.com";
 
     const formattedWords = Number(wordsPurchased).toLocaleString("hu-HU");
     const formattedAmount = Number(amountPaid).toLocaleString("hu-HU");
@@ -43,7 +43,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "Ink Story <noreply@digitalisbirodalom.hu>",
+        from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
         to: [email],
         subject: `✅ Sikeres kredit vásárlás: ${formattedWords} szó`,
         html: `
@@ -98,7 +98,7 @@ serve(async (req) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
             
             <p style="color: #9ca3af; font-size: 14px; text-align: center;">
-              Köszönjük, hogy a Könyvíró AI-t választottad!<br>
+              Köszönjük, hogy a KönyvÍró-t választottad!<br>
               Ez az email automatikusan lett kiküldve a vásárlás megerősítéseként.
             </p>
           </body>

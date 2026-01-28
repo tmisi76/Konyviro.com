@@ -93,7 +93,7 @@ serve(async (req) => {
         type: "recovery",
         email: userEmail,
         options: {
-          redirectTo: "https://ink-story-magic-86.lovable.app/auth?reset=true",
+          redirectTo: "https://konyviro.com/auth?reset=true",
         },
       });
 
@@ -145,17 +145,17 @@ serve(async (req) => {
             Authorization: `Bearer ${resendKey}`,
           },
           body: JSON.stringify({
-            from: "Ink Story <noreply@digitalisbirodalom.hu>",
+            from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
             to: [userEmail],
-            subject: "Új jelszavad az Ink Story-hoz",
+            subject: "Új jelszavad a KönyvÍró-hoz",
             html: `
               <h2>Új jelszó</h2>
               <p>Kedves ${fullName}!</p>
               <p>Az adminisztrátor új jelszót állított be a fiókodhoz.</p>
               <p><strong>Új jelszavad:</strong> ${newPassword}</p>
               <p>Kérjük, változtasd meg a jelszavad az első bejelentkezés után!</p>
-              <p><a href="https://ink-story-magic-86.lovable.app/auth">Bejelentkezés</a></p>
-              <p>Üdvözlettel,<br>Az Ink Story csapata</p>
+              <p><a href="https://konyviro.com/auth">Bejelentkezés</a></p>
+              <p>Üdvözlettel,<br>A KönyvÍró csapata</p>
             `,
           }),
         });

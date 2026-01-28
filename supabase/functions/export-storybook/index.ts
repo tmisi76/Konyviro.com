@@ -265,7 +265,7 @@ function generateStorybookHTML(storybookData: StorybookData, options: ExportOpti
   html += `
   <div class="page title-page">
     <h1>${escapeHtml(title)}</h1>
-    <p class="created-with">Készült az InkStory segítségével</p>
+    <p class="created-with">Készült a KönyvÍró segítségével</p>
   </div>`;
 
   // 3. Content pages
@@ -287,7 +287,7 @@ function generateStorybookHTML(storybookData: StorybookData, options: ExportOpti
   html += `
   <div class="page end-page">
     <h2>Vége</h2>
-    <p class="branding">Készült az InkStory segítségével</p>
+    <p class="branding">Készült a KönyvÍró segítségével</p>
   </div>`;
 
   html += `

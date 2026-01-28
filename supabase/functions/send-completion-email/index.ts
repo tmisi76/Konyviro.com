@@ -31,7 +31,7 @@ serve(async (req) => {
     }
 
     // Get the app URL from environment or use default
-    const appUrl = Deno.env.get("APP_URL") || "https://id-preview--8c4162da-8f59-4bd1-96d2-4494bcc979d1.lovable.app";
+    const appUrl = Deno.env.get("APP_URL") || "https://konyviro.com";
 
     // Send email using Resend API
     const emailResponse = await fetch("https://api.resend.com/emails", {
@@ -41,7 +41,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "Ink Story <noreply@digitalisbirodalom.hu>",
+        from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
         to: [email],
         subject: `🎉 A könyved elkészült: ${projectTitle}`,
         html: `
@@ -79,7 +79,7 @@ serve(async (req) => {
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
             
             <p style="color: #9ca3af; font-size: 14px; text-align: center;">
-              Ez az email automatikusan lett kiküldve a Könyvíró AI által.<br>
+              Ez az email automatikusan lett kiküldve a KönyvÍró által.<br>
               Ha nem te indítottad a könyvírást, kérlek hagyd figyelmen kívül ezt az emailt.
             </p>
           </body>

@@ -125,7 +125,7 @@ serve(async (req) => {
                     type: "recovery",
                     email: customer.email,
                     options: {
-                      redirectTo: "https://ink-story-magic-86.lovable.app/auth?mode=set-password",
+                      redirectTo: "https://konyviro.com/auth?mode=set-password",
                     },
                   });
                   
@@ -146,7 +146,7 @@ serve(async (req) => {
                       yearly: "éves"
                     };
                     
-                    const passwordLink = linkData?.properties?.action_link || "https://ink-story-magic-86.lovable.app/auth";
+                    const passwordLink = linkData?.properties?.action_link || "https://konyviro.com/auth";
                     const tierDisplay = tierNames[tier] || tier;
                     const periodDisplay = periodNames[billingPeriod] || billingPeriod;
                     const limits = TIER_LIMITS[tier] || TIER_LIMITS.hobby;
@@ -162,14 +162,14 @@ serve(async (req) => {
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background-color: #f8fafc;">
   <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
     <div style="background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">🎉 Üdvözlünk az Ink Story-ban!</h1>
+      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">🎉 Üdvözlünk a KönyvÍró-nál!</h1>
     </div>
     
     <div style="background: white; border-radius: 0 0 16px 16px; padding: 40px 30px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
       <p style="font-size: 18px; color: #1e293b; margin: 0 0 20px;">Kedves <strong>${customer.name || "Felhasználó"}</strong>!</p>
       
       <p style="font-size: 16px; color: #475569; line-height: 1.6; margin: 0 0 20px;">
-        Köszönjük, hogy előfizettél az Ink Story-ra! Fiókod elkészült, már csak be kell állítanod a jelszavad.
+        Köszönjük, hogy előfizettél a KönyvÍró-ra! Fiókod elkészült, már csak be kell állítanod a jelszavad.
       </p>
       
       <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; padding: 24px; margin: 0 0 30px; border: 1px solid #e9d5ff;">
@@ -203,7 +203,7 @@ serve(async (req) => {
       
       <p style="font-size: 14px; color: #94a3b8; text-align: center; margin: 30px 0 0; border-top: 1px solid #e2e8f0; padding-top: 20px;">
         Ha bármilyen kérdésed van, írj nekünk!<br>
-        <strong style="color: #7c3aed;">Az Ink Story csapata</strong>
+        <strong style="color: #7c3aed;">A KönyvÍró csapata</strong>
       </p>
     </div>
   </div>
@@ -218,9 +218,9 @@ serve(async (req) => {
                           Authorization: `Bearer ${resendKey}`,
                         },
                         body: JSON.stringify({
-                          from: "Ink Story <noreply@digitalisbirodalom.hu>",
+                          from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
                           to: [customer.email],
-                          subject: "🎉 Üdvözlünk az Ink Story-ban! Állítsd be a jelszavad",
+                          subject: "🎉 Üdvözlünk a KönyvÍró-nál! Állítsd be a jelszavad",
                           html: emailHtml,
                         }),
                       });
