@@ -122,3 +122,15 @@ verify_jwt = false
 
 [functions.analyze-character-photo]
 verify_jwt = false
+
+[functions.admin-get-users]
+verify_jwt = false
+
+[functions.admin-send-credentials]
+verify_jwt = false
+
+[functions.admin-delete-user]
+verify_jwt = false
+
+[functions.admin-ban-user]
+verify_jwt = false
