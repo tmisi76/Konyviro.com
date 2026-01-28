@@ -42,8 +42,8 @@ serve(async (req) => {
 
       console.log(`Adding ${wordsPurchased} credits for user ${userId}`);
 
-      // Add credits to user's balance
-      const { error: creditError } = await supabaseAdmin.rpc("add_extra_credits", {
+      // Add credits to user's balance using the internal function (service role only)
+      const { error: creditError } = await supabaseAdmin.rpc("add_extra_credits_internal", {
         p_user_id: userId,
         p_word_count: wordsPurchased,
       });
