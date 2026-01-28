@@ -1,80 +1,95 @@
 
-# Email Domain Váltás: digitalisbirodalom.hu
+# Stripe Webhook Javítás: constructEventAsync
 
-## Összefoglaló
+## Probléma Összefoglalása
 
-Az összes edge function-ben le kell cserélni a `resend.dev` teszt domaint a hitelesített `digitalisbirodalom.hu` domainre.
+A Stripe SDK 18.x verzióban a `constructEvent()` metódus nem működik szinkron kontextusban Deno Edge Runtime-ban. A hiba:
+```
+SubtleCryptoProvider cannot be used in a synchronous context.
+Use `await constructEventAsync(...)` instead of `constructEvent(...)`
+```
+
+**Következmény:** A sikeres fizetések után a webhook elbukik, így:
+- A felhasználók "free" tier-en maradnak
+- Guest checkout esetén a user nem jön létre
+- A Stripe customer/subscription ID nem kerül be a profilba
+
+---
+
+## Javítás
+
+### 1. `stripe-webhook/index.ts` módosítása
+
+**Változás (55. sor):**
+```typescript
+// RÉGI (hibás):
+const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+
+// ÚJ (javított):
+const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+```
+
+### 2. Edge Function újra-deployolása
+
+A javítás után azonnal deployolni kell a `stripe-webhook` függvényt.
+
+---
+
+## Érintett Felhasználók Kézi Javítása
+
+A már elromlott fizetések kézi javítást igényelnek:
+
+### pappkaroly55@gmail.com (user_id: 4572a4c3-9018-4091-9e00-312a26a8e395)
+- Ft29,940 = **Hobby tier éves** (Ft29,940 / 12 = ~Ft2,495/hó)
+- Stripe Customer ID: `cus_Ts38cWEWDnEceX`
+
+**SQL Update:**
+```sql
+UPDATE profiles SET
+  subscription_tier = 'hobby',
+  subscription_status = 'active',
+  billing_period = 'yearly',
+  stripe_customer_id = 'cus_Ts38cWEWDnEceX',
+  monthly_word_limit = 0,
+  extra_words_balance = 1200000,  -- 100k * 12 hónap
+  project_limit = 5,
+  storybook_credit_limit = 1,
+  subscription_start_date = '2026-01-27T20:39:00Z',
+  subscription_end_date = '2027-01-27T20:39:00Z'
+WHERE user_id = '4572a4c3-9018-4091-9e00-312a26a8e395';
+```
+
+### valeria.andocsi@gmail.com (nem létezik!)
+- Ft89,940 = **Profi (writer) tier éves** (Ft89,940 / 12 = ~Ft7,495/hó)
+- Stripe Customer ID: `cus_TsAmFSxWPWzoCz`
+
+**Admin felületen:**
+1. Hozzuk létre a felhasználót manuálisan
+2. Állítsuk be a Profi tier-t és a helyes krediteket
+
+---
+
+## Árképzés Ellenőrzése
+
+A Stripe screenshot alapján:
+- **Ft29,940** → Hobby éves
+- **Ft89,940** → Profi éves
+
+Ez megegyezik a jelenlegi árazással (Ft2,495/hó hobby, Ft7,495/hó profi - 50% founder kedvezménnyel).
+
+---
 
 ## Érintett Fájlok
 
-| Fájl | Jelenlegi | Új |
-|------|-----------|-----|
-| `admin-send-credentials/index.ts` | `noreply@resend.dev` | `noreply@digitalisbirodalom.hu` |
-| `send-credit-email/index.ts` | `onboarding@resend.dev` | `noreply@digitalisbirodalom.hu` |
-| `send-completion-email/index.ts` | `onboarding@resend.dev` | `noreply@digitalisbirodalom.hu` |
-| `send-bulk-email/index.ts` | `noreply@resend.dev` | `noreply@digitalisbirodalom.hu` |
-| `send-admin-email/index.ts` | `noreply@resend.dev` | `noreply@digitalisbirodalom.hu` |
+| Fájl | Változás |
+|------|----------|
+| `supabase/functions/stripe-webhook/index.ts` | `constructEvent` → `constructEventAsync` |
 
-## Változtatások
+---
 
-### 1. admin-send-credentials/index.ts (272. sor)
-```typescript
-// Régi
-from: "Ink Story <noreply@resend.dev>",
+## Tesztelési Lépések
 
-// Új
-from: "Ink Story <noreply@digitalisbirodalom.hu>",
-```
-
-### 2. send-credit-email/index.ts (46. sor)
-```typescript
-// Régi
-from: "Könyvíró AI <onboarding@resend.dev>",
-
-// Új
-from: "Ink Story <noreply@digitalisbirodalom.hu>",
-```
-
-### 3. send-completion-email/index.ts (44. sor)
-```typescript
-// Régi
-from: "Könyvíró AI <onboarding@resend.dev>",
-
-// Új
-from: "Ink Story <noreply@digitalisbirodalom.hu>",
-```
-
-### 4. send-bulk-email/index.ts (135. sor)
-```typescript
-// Régi
-from: "KönyvÍró AI <noreply@resend.dev>",
-
-// Új
-from: "Ink Story <noreply@digitalisbirodalom.hu>",
-```
-
-### 5. send-admin-email/index.ts (74. sor)
-```typescript
-// Régi
-from: "KönyvÍró AI <noreply@resend.dev>",
-
-// Új
-from: "Ink Story <noreply@digitalisbirodalom.hu>",
-```
-
-## Fontos Előfeltétel
-
-A `digitalisbirodalom.hu` domainnek **hitelesítve kell lennie** a Resend Dashboard-on:
-- https://resend.com/domains
-
-Ha még nincs hitelesítve, a Resend elutasítja az emaileket ugyanazzal a 403-as hibával.
-
-## Végrehajtási Lépések
-
-1. Módosítani mind az 5 edge function fájlt
-2. Deployolni az összes érintett function-t
-3. Tesztelni az email küldést
-
-## Branding Egységesítés
-
-Az email küldő nevet is egységesítem "Ink Story"-ra minden function-ben a konzisztencia érdekében.
+1. Webhook javítás után deployolás
+2. Teszt fizetés indítása
+3. Webhook logok ellenőrzése
+4. Profil frissülésének ellenőrzése
