@@ -66,21 +66,65 @@ export function useBillingStats() {
         return sum + (tierPrices[p.subscription_tier || ''] || 0);
       }, 0) || 0;
 
-      // Generate mock revenue history
-      const revenueHistory = Array.from({ length: 6 }, (_, i) => {
-        const date = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-        return {
-          month: date.toLocaleDateString('hu-HU', { month: 'short' }),
-          revenue: Math.round(mrr * (0.7 + Math.random() * 0.6)),
-        };
-      });
+      // Get last month's subscriptions for comparison
+      const { data: lastMonthProfiles } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .neq('subscription_tier', 'free')
+        .eq('subscription_status', 'active')
+        .lt('created_at', startOfMonth.toISOString())
+        .gte('created_at', lastMonth.toISOString());
+
+      const lastMonthMrr = lastMonthProfiles?.reduce((sum, p) => {
+        return sum + (tierPrices[p.subscription_tier || ''] || 0);
+      }, 0) || 0;
+
+      // Calculate MRR change percentage
+      const mrrChange = lastMonthMrr > 0 
+        ? Math.round(((mrr - lastMonthMrr) / lastMonthMrr) * 100 * 10) / 10
+        : 0;
+
+      // Get cancelled subscriptions for churn rate
+      const { count: cancelledCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('subscription_status', 'cancelled')
+        .gte('updated_at', lastMonth.toISOString())
+        .lt('updated_at', startOfMonth.toISOString());
+
+      const totalLastMonth = lastMonthProfiles?.length || 1;
+      const churnRate = Math.round(((cancelledCount || 0) / totalLastMonth) * 100 * 10) / 10;
+
+      // Generate revenue history from actual data
+      const revenueHistory = await Promise.all(
+        Array.from({ length: 6 }, async (_, i) => {
+          const monthDate = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+          const nextMonthDate = new Date(now.getFullYear(), now.getMonth() - 4 + i, 1);
+          
+          const { data: monthProfiles } = await supabase
+            .from('profiles')
+            .select('subscription_tier')
+            .neq('subscription_tier', 'free')
+            .eq('subscription_status', 'active')
+            .lt('created_at', nextMonthDate.toISOString());
+
+          const monthRevenue = monthProfiles?.reduce((sum, p) => {
+            return sum + (tierPrices[p.subscription_tier || ''] || 0);
+          }, 0) || 0;
+
+          return {
+            month: monthDate.toLocaleDateString('hu-HU', { month: 'short' }),
+            revenue: monthRevenue,
+          };
+        })
+      );
 
       return {
         mrr,
-        mrrChange: 12.5,
+        mrrChange,
         activeSubscriptions: activeProfiles?.length || 0,
         newThisMonth,
-        churnRate: 2.3,
+        churnRate,
         planDistribution,
         revenueHistory,
       };

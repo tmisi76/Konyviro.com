@@ -117,11 +117,35 @@ export function useAnalytics(dateRange: DateRange) {
         return { date: format(day, "MM.dd"), tokens };
       });
 
-      // Mock revenue history (would come from Stripe in production)
-      const revenueHistory = days.map(day => ({
-        date: format(day, "MM.dd"),
-        revenue: Math.floor(Math.random() * 50000) + 10000,
-      }));
+      // Calculate revenue from subscription data
+      const { data: subscriptionProfiles } = await supabase
+        .from("profiles")
+        .select("subscription_tier, subscription_start_date")
+        .neq("subscription_tier", "free")
+        .eq("subscription_status", "active");
+
+      const tierPrices: Record<string, number> = {
+        hobby: 4990,
+        writer: 14990,
+        pro: 29990,
+      };
+
+      // Generate revenue history based on active subscriptions per day
+      const revenueHistory = days.map(day => {
+        const dayStr = format(day, "yyyy-MM-dd");
+        // Count subscriptions active on this day
+        const activeOnDay = subscriptionProfiles?.filter(p => {
+          const startDate = p.subscription_start_date ? new Date(p.subscription_start_date) : null;
+          return startDate && startDate <= day;
+        }) || [];
+        
+        // Calculate daily revenue (monthly / 30)
+        const dailyRevenue = activeOnDay.reduce((sum, p) => {
+          return sum + Math.round((tierPrices[p.subscription_tier] || 0) / 30);
+        }, 0);
+        
+        return { date: format(day, "MM.dd"), revenue: dailyRevenue };
+      });
 
       // Get top users
       const { data: topUsersData } = await supabase

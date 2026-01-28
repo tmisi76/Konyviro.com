@@ -120,17 +120,55 @@ export function useAdminStats() {
         tierCounts.writer * writerPrice + 
         tierCounts.pro * proPrice;
 
+      // Get active users (users who updated projects today)
+      const { data: activeToday } = await supabase
+        .from("projects")
+        .select("user_id")
+        .gte("updated_at", today.toISOString());
+      
+      const activeNowCount = new Set(activeToday?.map(p => p.user_id) || []).size;
+
+      // Calculate revenue change
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      
+      const lastMonthUsers = allUsers.filter((u: { subscription_tier: string; created_at: string }) => 
+        new Date(u.created_at) < startOfMonth
+      );
+      
+      const lastMonthTiers: Record<string, number> = { hobby: 0, writer: 0, pro: 0 };
+      lastMonthUsers.forEach((u: { subscription_tier: string; subscription_status: string }) => {
+        if (u.subscription_status === "active" && lastMonthTiers[u.subscription_tier] !== undefined) {
+          lastMonthTiers[u.subscription_tier]++;
+        }
+      });
+      
+      const lastMonthRevenue = 
+        lastMonthTiers.hobby * hobbyPrice + 
+        lastMonthTiers.writer * writerPrice + 
+        lastMonthTiers.pro * proPrice;
+      
+      const revenueChange = lastMonthRevenue > 0 
+        ? Math.round(((monthlyRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+        : 0;
+
+      // Calculate subscriptions change
+      const lastMonthSubs = lastMonthTiers.hobby + lastMonthTiers.writer + lastMonthTiers.pro;
+      const subscriptionsChange = lastMonthSubs > 0
+        ? Math.round(((activeSubscriptions - lastMonthSubs) / lastMonthSubs) * 100)
+        : 0;
+
       return {
         totalUsers,
         usersChange,
         monthlyRevenue,
-        revenueChange: 0,
+        revenueChange,
         activeSubscriptions,
-        subscriptionsChange: 0,
+        subscriptionsChange,
         totalBooks: totalBooks || 0,
         booksChange,
         todaySignups,
-        activeNow: Math.floor(Math.random() * 5) + 1,
+        activeNow: activeNowCount,
         openTickets: openTickets || 0,
         todayTokens,
         subscriptionDistribution,
