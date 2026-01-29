@@ -16,6 +16,8 @@ import { ProjectCard } from "@/components/dashboard/ProjectCard";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 
 import { WritingStatusCard } from "@/components/dashboard/WritingStatusCard";
+import { ProofreadingStatusCard } from "@/components/dashboard/ProofreadingStatusCard";
+import { useActiveProofreadings } from "@/hooks/useActiveProofreadings";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { SuccessModal } from "@/components/subscription/SuccessModal";
 import { UpgradeModal } from "@/components/subscription/UpgradeModal";
@@ -51,6 +53,7 @@ export default function Dashboard() {
   const isMobile = useIsMobile();
   const { isOnline, pendingChanges, saveLastProject } = useOfflineSync();
   const { streak, getTodayWords, goals } = useWritingStats();
+  const { activeProofreadings } = useActiveProofreadings();
 
   // Get the project being loaded for showing its title
   const loadingProject = useMemo(() => {
@@ -323,6 +326,29 @@ export default function Dashboard() {
                 </div>
               )}
 
+              {/* Aktív lektorálások mobil nézeten */}
+              {activeProofreadings.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="mb-3 text-lg font-semibold text-foreground">
+                    Folyamatban lévő lektorálások
+                  </h2>
+                  <div className="mobile-card-stack">
+                    {activeProofreadings.map((order) => (
+                      <ProofreadingStatusCard
+                        key={order.id}
+                        orderId={order.id}
+                        projectId={order.project_id}
+                        projectTitle={order.project_title}
+                        status={order.status}
+                        currentChapter={order.current_chapter_index}
+                        totalChapters={order.total_chapters}
+                        startedAt={order.started_at}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Books section */}
               <div className="mb-6">
                 <h2 className="mb-4 text-lg font-semibold text-foreground">
@@ -481,7 +507,6 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Aktív háttérírások */}
           {activeWritingProjects.length > 0 && (
             <div className="mb-8">
               <h2 className="mb-4 text-lg font-semibold text-foreground">
@@ -493,6 +518,29 @@ export default function Dashboard() {
                     key={project.id}
                     projectId={project.id}
                     projectTitle={project.title}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Aktív lektorálások */}
+          {activeProofreadings.length > 0 && (
+            <div className="mb-8">
+              <h2 className="mb-4 text-lg font-semibold text-foreground">
+                Folyamatban lévő lektorálások
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {activeProofreadings.map((order) => (
+                  <ProofreadingStatusCard
+                    key={order.id}
+                    orderId={order.id}
+                    projectId={order.project_id}
+                    projectTitle={order.project_title}
+                    status={order.status}
+                    currentChapter={order.current_chapter_index}
+                    totalChapters={order.total_chapters}
+                    startedAt={order.started_at}
                   />
                 ))}
               </div>
