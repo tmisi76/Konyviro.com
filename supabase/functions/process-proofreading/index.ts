@@ -28,28 +28,30 @@ SZABÁLYOK:
 A válaszod KIZÁRÓLAG a javított szöveg legyen, semmilyen magyarázat vagy megjegyzés nélkül.`;
 
 async function proofreadChapter(content: string, chapterTitle: string): Promise<string> {
-  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY not configured");
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY not configured");
   }
 
   console.log(`Starting proofreading for chapter: "${chapterTitle}" (${content.length} chars)`);
 
   const result = await fetchWithRetry({
-    url: "https://api.anthropic.com/v1/messages",
+    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
     options: {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "claude-opus-4-20250514",
+        model: "google/gemini-2.5-pro",
         max_tokens: 16000,
-        system: PROOFREADING_SYSTEM_PROMPT,
         messages: [
+          {
+            role: "system",
+            content: PROOFREADING_SYSTEM_PROMPT,
+          },
           {
             role: "user",
             content: `Lektoráld a következő fejezetet: "${chapterTitle}"\n\n${content}`,
@@ -58,7 +60,7 @@ async function proofreadChapter(content: string, chapterTitle: string): Promise<
       }),
     },
     maxRetries: RETRY_CONFIG.MAX_RETRIES,
-    timeoutMs: RETRY_CONFIG.MAX_TIMEOUT_MS,
+    timeoutMs: 60000, // Reduced timeout - Lovable Gateway is faster
     onRetry: (attempt, status, error) => {
       console.log(`Retry ${attempt} for chapter "${chapterTitle}", status: ${status}, error: ${error?.message}`);
     },
@@ -74,18 +76,19 @@ async function proofreadChapter(content: string, chapterTitle: string): Promise<
 
   if (!result.response || !result.response.ok) {
     const errorText = result.response ? await result.response.text() : "No response";
-    console.error("Anthropic API error:", errorText);
+    console.error("Lovable AI Gateway error:", errorText);
     throw new Error(`API error (status: ${result.response?.status}) after ${result.attempts} attempts`);
   }
 
   const data = await result.response.json();
   
-  if (!data.content || !data.content[0] || data.content[0].type !== "text") {
-    throw new Error("Unexpected API response format");
+  const proofreadText = data.choices?.[0]?.message?.content;
+  if (!proofreadText) {
+    throw new Error("Unexpected API response format - no content in response");
   }
 
-  console.log(`Proofreading completed for "${chapterTitle}": ${data.content[0].text.length} chars`);
-  return data.content[0].text;
+  console.log(`Proofreading completed for "${chapterTitle}": ${proofreadText.length} chars`);
+  return proofreadText;
 }
 
 serve(async (req) => {
