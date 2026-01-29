@@ -1,10 +1,11 @@
-import { AlertTriangle, BookCheck, CheckCircle2, Loader2, Lock, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, BookCheck, CheckCircle2, FlaskConical, Loader2, Lock, Sparkles, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { useProofreading, calculateProofreadingPrice } from "@/hooks/useProofreading";
+import { useAdmin } from "@/hooks/useAdmin";
 
 interface ProofreadingTabProps {
   projectId: string;
@@ -19,6 +20,7 @@ const FEATURES = [
 ];
 
 export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
+  const { isAdmin } = useAdmin();
   const {
     order,
     orderLoading,
@@ -33,6 +35,8 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
     canPurchase,
     purchaseProofreading,
     isPurchasing,
+    testProofreading,
+    isTesting,
   } = useProofreading(projectId);
 
   if (orderLoading || wordCountLoading) {
@@ -228,6 +232,35 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
               <p className="text-sm text-muted-foreground text-center">
                 A lektoráláshoz legalább 100 szó szükséges.
               </p>
+            )}
+
+            {/* Admin Test Button */}
+            {isAdmin && canPurchase && wordCount >= 100 && (
+              <>
+                <Separator />
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                  onClick={() => testProofreading()}
+                  disabled={isTesting || isProcessing}
+                >
+                  {isTesting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Indítás...
+                    </>
+                  ) : (
+                    <>
+                      <FlaskConical className="h-4 w-4 mr-2" />
+                      🧪 TESZT Lektorálás (Admin - Ingyenes)
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Ez a gomb csak adminoknak látható. A teszt lektorálás ingyenes.
+                </p>
+              </>
             )}
           </CardContent>
         </Card>

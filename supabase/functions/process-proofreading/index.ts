@@ -6,25 +6,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const PROOFREADING_SYSTEM_PROMPT = `Te egy professzionális magyar könyvlektor vagy, aki évtizedes tapasztalattal rendelkezik irodalmi művek szerkesztésében.
+const PROOFREADING_SYSTEM_PROMPT = `Te egy tapasztalt magyar lektor vagy, aki szépirodalmi, ismeretterjesztő és szakmai könyvek szövegét ellenőrzi.
 
 FELADATOD:
-1. Helyesírási hibák javítása a magyar helyesírási szabályok szerint
-2. Nyelvtani hibák kijavítása (egyeztetés, vonzatok, igeidők)
-3. Stilisztikai javítások:
-   - Felesleges ismétlődések eltávolítása
-   - Klisék átfogalmazása
-   - Szóhasználat finomítása
-4. Mondatritmus és mondatszerkezet javítása
-5. Bekezdések és dialógusok megfelelő tagolása
+Elemezd és javítsd a következő könyvrészletet az alábbi szempontok szerint:
+1. Nyelvtan és helyesírás - magyar helyesírási szabályok szerinti javítás
+2. Stilisztika - felesleges ismétlődések, klisék kiküszöbölése
+3. Mondatszerkezet - gördülékenyebb, logikusabb megfogalmazás
+4. Érthetőség - természetesebb ritmus, világos gondolatvezetés
+5. Bekezdések - szükség esetén javasolj tagolást
 
 SZABÁLYOK:
-- Őrizd meg a szerző egyedi hangját és stílusát
-- NE változtasd meg a cselekményt, a karaktereket vagy a történet lényegét
+- Tartsd meg a szerző eredeti hangját és stílusát
+- Tedd gördülékenyebbé, logikusabbá és természetesebb ritmusúvá a szöveget
+- Ha szükséges, javasolj finom átfogalmazásokat vagy bekezdés-tagolást
+- NE változtasd meg az üzenetet vagy a szerző nézőpontját
 - NE adj hozzá új tartalmakat vagy jeleneteket
 - NE töröld ki a fontos részeket
-- Tartsd meg a bekezdésstruktúrát
-- A válaszod KIZÁRÓLAG a javított szöveg legyen, semmilyen magyarázat vagy megjegyzés nélkül`;
+
+A válaszod KIZÁRÓLAG a javított szöveg legyen, semmilyen magyarázat vagy megjegyzés nélkül.`;
 
 async function proofreadChapter(content: string, chapterTitle: string): Promise<string> {
   const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
@@ -41,7 +41,7 @@ async function proofreadChapter(content: string, chapterTitle: string): Promise<
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-20250514",
       max_tokens: 16000,
       system: PROOFREADING_SYSTEM_PROMPT,
       messages: [

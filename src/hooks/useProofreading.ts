@@ -108,6 +108,30 @@ export function useProofreading(projectId: string) {
     },
   });
 
+  // Admin test proofreading (free)
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("admin-test-proofreading", {
+        body: { projectId },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Teszt lektorálás elindítva!", {
+        description: "A folyamat a háttérben fut.",
+      });
+      refetchOrder();
+    },
+    onError: (error) => {
+      console.error("Test proofreading error:", error);
+      toast.error(error instanceof Error ? error.message : "Hiba történt a teszt lektorálás során");
+    },
+  });
+
   // Poll for order status updates when processing
   useEffect(() => {
     if (!order) return;
@@ -165,6 +189,8 @@ export function useProofreading(projectId: string) {
     canPurchase: !order || order.status === "failed" || order.status === "completed",
     purchaseProofreading: purchaseMutation.mutate,
     isPurchasing: purchaseMutation.isPending,
+    testProofreading: testMutation.mutate,
+    isTesting: testMutation.isPending,
     refetchOrder,
   };
 }
