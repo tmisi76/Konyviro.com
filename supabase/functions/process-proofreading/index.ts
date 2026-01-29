@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { fetchWithRetry, RETRY_CONFIG } from "../_shared/retry-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,38 +34,57 @@ async function proofreadChapter(content: string, chapterTitle: string): Promise<
     throw new Error("ANTHROPIC_API_KEY not configured");
   }
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
+  console.log(`Starting proofreading for chapter: "${chapterTitle}" (${content.length} chars)`);
+
+  const result = await fetchWithRetry({
+    url: "https://api.anthropic.com/v1/messages",
+    options: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-20250514",
+        max_tokens: 16000,
+        system: PROOFREADING_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `Lektoráld a következő fejezetet: "${chapterTitle}"\n\n${content}`,
+          },
+        ],
+      }),
     },
-    body: JSON.stringify({
-      model: "claude-opus-4-20250514",
-      max_tokens: 16000,
-      system: PROOFREADING_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Lektoráld a következő fejezetet: "${chapterTitle}"\n\n${content}`,
-        },
-      ],
-    }),
+    maxRetries: RETRY_CONFIG.MAX_RETRIES,
+    timeoutMs: RETRY_CONFIG.MAX_TIMEOUT_MS,
+    onRetry: (attempt, status, error) => {
+      console.log(`Retry ${attempt} for chapter "${chapterTitle}", status: ${status}, error: ${error?.message}`);
+    },
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Anthropic API error:", errorText);
-    throw new Error(`Anthropic API error: ${response.status}`);
+  if (result.timedOut) {
+    throw new Error(`API timeout after ${result.attempts} attempts`);
   }
 
-  const data = await response.json();
+  if (result.rateLimited) {
+    throw new Error(`Rate limited after ${result.attempts} attempts`);
+  }
+
+  if (!result.response || !result.response.ok) {
+    const errorText = result.response ? await result.response.text() : "No response";
+    console.error("Anthropic API error:", errorText);
+    throw new Error(`API error (status: ${result.response?.status}) after ${result.attempts} attempts`);
+  }
+
+  const data = await result.response.json();
   
   if (!data.content || !data.content[0] || data.content[0].type !== "text") {
     throw new Error("Unexpected API response format");
   }
 
+  console.log(`Proofreading completed for "${chapterTitle}": ${data.content[0].text.length} chars`);
   return data.content[0].text;
 }
 
@@ -85,6 +105,8 @@ serve(async (req) => {
       throw new Error("Order ID is required");
     }
 
+    console.log(`[PROOFREADING] Processing order: ${orderId}`);
+
     // Get order details
     const { data: order, error: orderError } = await supabaseAdmin
       .from("proofreading_orders")
@@ -96,19 +118,25 @@ serve(async (req) => {
       throw new Error("Order not found");
     }
 
-    if (order.status !== "paid") {
-      console.log("Order not in paid status, skipping:", order.status);
+    // FIXED: Allow both "paid" and "processing" status for resume capability
+    if (order.status !== "paid" && order.status !== "processing") {
+      console.log(`[PROOFREADING] Order not in processable status, skipping: ${order.status}`);
       return new Response(
-        JSON.stringify({ message: "Order not ready for processing" }),
+        JSON.stringify({ message: "Order already completed or failed", status: order.status }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
-    // Update status to processing
-    await supabaseAdmin
-      .from("proofreading_orders")
-      .update({ status: "processing" })
-      .eq("id", orderId);
+    // Update status to processing only if it's "paid"
+    if (order.status === "paid") {
+      await supabaseAdmin
+        .from("proofreading_orders")
+        .update({ 
+          status: "processing",
+          started_at: new Date().toISOString(),
+        })
+        .eq("id", orderId);
+    }
 
     // Get all chapters for the project
     const { data: chapters, error: chaptersError } = await supabaseAdmin
@@ -121,121 +149,200 @@ serve(async (req) => {
       throw new Error("Failed to fetch chapters");
     }
 
-    console.log(`Processing ${chapters.length} chapters for order ${orderId}`);
-
-    let processedCount = 0;
-    let failedChapter: string | null = null;
-
-    for (const chapter of chapters) {
-      try {
-        console.log(`Processing chapter ${processedCount + 1}/${chapters.length}: ${chapter.title}`);
-
-        // Skip empty chapters
-        if (!chapter.content || chapter.content.trim().length === 0) {
-          console.log(`Skipping empty chapter: ${chapter.title}`);
-          processedCount++;
-          continue;
-        }
-
-        // Proofread the chapter
-        const proofreadContent = await proofreadChapter(chapter.content, chapter.title);
-
-        // Update the chapter with proofread content
-        const wordCount = proofreadContent.split(/\s+/).filter(w => w.length > 0).length;
-        
-        const { error: updateError } = await supabaseAdmin
-          .from("chapters")
-          .update({ 
-            content: proofreadContent,
-            word_count: wordCount,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", chapter.id);
-
-        if (updateError) {
-          console.error(`Failed to update chapter ${chapter.id}:`, updateError);
-          throw new Error(`Failed to update chapter: ${chapter.title}`);
-        }
-
-        processedCount++;
-
-        // Update progress
-        await supabaseAdmin
-          .from("proofreading_orders")
-          .update({ current_chapter_index: processedCount })
-          .eq("id", orderId);
-
-        // Add a small delay between chapters to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-      } catch (chapterError) {
-        console.error(`Error processing chapter ${chapter.title}:`, chapterError);
-        failedChapter = chapter.title;
-        break;
-      }
+    // FIXED: Resume from current_chapter_index instead of starting from 0
+    const startIndex = order.current_chapter_index || 0;
+    
+    // Update total_chapters if not set
+    if (!order.total_chapters || order.total_chapters !== chapters.length) {
+      await supabaseAdmin
+        .from("proofreading_orders")
+        .update({ total_chapters: chapters.length })
+        .eq("id", orderId);
     }
 
-    if (failedChapter) {
+    console.log(`[PROOFREADING] Processing chapter ${startIndex + 1}/${chapters.length} for order ${orderId}`);
+
+    // Check if we're already done
+    if (startIndex >= chapters.length) {
+      console.log(`[PROOFREADING] All chapters already processed, marking as completed`);
+      
+      // Mark as completed
+      await supabaseAdmin
+        .from("proofreading_orders")
+        .update({ 
+          status: "completed",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", orderId);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Proofreading already completed",
+          processedCount: chapters.length,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    const chapter = chapters[startIndex];
+
+    // Skip empty chapters
+    if (!chapter.content || chapter.content.trim().length === 0) {
+      console.log(`[PROOFREADING] Skipping empty chapter: ${chapter.title}`);
+      
+      // Update progress and trigger next chapter
+      const nextIndex = startIndex + 1;
+      await supabaseAdmin
+        .from("proofreading_orders")
+        .update({ current_chapter_index: nextIndex })
+        .eq("id", orderId);
+
+      // Fire-and-forget call to process next chapter
+      if (nextIndex < chapters.length) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+        
+        fetch(`${supabaseUrl}/functions/v1/process-proofreading`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({ orderId }),
+        }).catch((err) => console.error("[PROOFREADING] Failed to trigger next chapter:", err));
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          skipped: true,
+          chapterIndex: startIndex,
+          message: `Skipped empty chapter: ${chapter.title}`,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
+    try {
+      // Process the current chapter
+      const proofreadContent = await proofreadChapter(chapter.content, chapter.title);
+
+      // Update the chapter with proofread content
+      const wordCount = proofreadContent.split(/\s+/).filter(w => w.length > 0).length;
+      
+      const { error: updateError } = await supabaseAdmin
+        .from("chapters")
+        .update({ 
+          content: proofreadContent,
+          word_count: wordCount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", chapter.id);
+
+      if (updateError) {
+        console.error(`[PROOFREADING] Failed to update chapter ${chapter.id}:`, updateError);
+        throw new Error(`Failed to update chapter: ${chapter.title}`);
+      }
+
+      // Update progress
+      const nextIndex = startIndex + 1;
+      const isLastChapter = nextIndex >= chapters.length;
+
+      if (isLastChapter) {
+        // Mark as completed
+        await supabaseAdmin
+          .from("proofreading_orders")
+          .update({ 
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            current_chapter_index: nextIndex,
+          })
+          .eq("id", orderId);
+
+        // Update project word count
+        const { data: updatedChapters } = await supabaseAdmin
+          .from("chapters")
+          .select("word_count")
+          .eq("project_id", order.project_id);
+
+        if (updatedChapters) {
+          const totalWords = updatedChapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0);
+          await supabaseAdmin
+            .from("projects")
+            .update({ word_count: totalWords })
+            .eq("id", order.project_id);
+        }
+
+        console.log(`[PROOFREADING] Completed all ${chapters.length} chapters for order ${orderId}`);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            completed: true,
+            processedCount: chapters.length,
+            message: "Proofreading completed successfully",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+        );
+      }
+
+      // Update progress for non-last chapter
+      await supabaseAdmin
+        .from("proofreading_orders")
+        .update({ current_chapter_index: nextIndex })
+        .eq("id", orderId);
+
+      console.log(`[PROOFREADING] Chapter ${startIndex + 1}/${chapters.length} completed, triggering next...`);
+
+      // Fire-and-forget call to process next chapter
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      
+      fetch(`${supabaseUrl}/functions/v1/process-proofreading`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ orderId }),
+      }).catch((err) => console.error("[PROOFREADING] Failed to trigger next chapter:", err));
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          chapterIndex: startIndex,
+          nextChapterIndex: nextIndex,
+          message: `Chapter ${startIndex + 1}/${chapters.length} processed`,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+
+    } catch (chapterError) {
+      console.error(`[PROOFREADING] Error processing chapter ${chapter.title}:`, chapterError);
+      
       // Mark as failed
       await supabaseAdmin
         .from("proofreading_orders")
         .update({ 
           status: "failed",
-          error_message: `Hiba a "${failedChapter}" fejezet lektorálása közben`,
-          current_chapter_index: processedCount,
+          error_message: `Hiba a "${chapter.title}" fejezet lektorálása közben: ${chapterError instanceof Error ? chapterError.message : "Unknown error"}`,
         })
         .eq("id", orderId);
 
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Failed at chapter: ${failedChapter}`,
-          processedCount,
+          error: `Failed at chapter: ${chapter.title}`,
+          chapterIndex: startIndex,
+          details: chapterError instanceof Error ? chapterError.message : "Unknown error",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
       );
     }
 
-    // Mark as completed
-    await supabaseAdmin
-      .from("proofreading_orders")
-      .update({ 
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        current_chapter_index: processedCount,
-      })
-      .eq("id", orderId);
-
-    // Update project word count
-    const { data: updatedChapters } = await supabaseAdmin
-      .from("chapters")
-      .select("word_count")
-      .eq("project_id", order.project_id);
-
-    if (updatedChapters) {
-      const totalWords = updatedChapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0);
-      await supabaseAdmin
-        .from("projects")
-        .update({ word_count: totalWords })
-        .eq("id", order.project_id);
-    }
-
-    console.log(`Proofreading completed for order ${orderId}. Processed ${processedCount} chapters.`);
-
-    // Send completion email (optional - could trigger email function here)
-    // TODO: Implement send-proofreading-complete-email
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        processedCount,
-        message: "Proofreading completed successfully",
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-    );
-
   } catch (error) {
-    console.error("Error in process-proofreading:", error);
+    console.error("[PROOFREADING] Error in process-proofreading:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
