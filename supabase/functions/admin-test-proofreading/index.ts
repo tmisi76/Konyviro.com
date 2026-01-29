@@ -122,33 +122,22 @@ serve(async (req) => {
 
     console.log(`Admin ${user.id} created test proofreading order ${order.id} for project ${projectId}`);
 
-    // Call process-proofreading function
+    // Call process-proofreading function (fire-and-forget, don't await)
     const processUrl = `${supabaseUrl}/functions/v1/process-proofreading`;
     
-    const processResponse = await fetch(processUrl, {
+    // Fire-and-forget: trigger processing but don't wait for it
+    fetch(processUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${supabaseServiceKey}`,
       },
       body: JSON.stringify({ orderId: order.id }),
+    }).catch((err) => {
+      console.error("Failed to trigger proofreading process:", err);
     });
 
-    if (!processResponse.ok) {
-      const errorText = await processResponse.text();
-      console.error("Process proofreading failed:", errorText);
-      
-      // Update order status to failed
-      await supabaseAdmin
-        .from("proofreading_orders")
-        .update({ status: "failed", error_message: "Failed to start processing" })
-        .eq("id", order.id);
-
-      return new Response(
-        JSON.stringify({ error: "Failed to start proofreading process", details: errorText }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
+    console.log(`Admin ${user.id} triggered test proofreading for order ${order.id}`);
 
     return new Response(
       JSON.stringify({ 
