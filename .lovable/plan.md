@@ -1,206 +1,217 @@
 
 
-# Lektorálás Dashboard Integráció
+# Lektorálás Edge Function Hibakeresés és Javítás
 
-## Összefoglaló
+## Azonosított Problémák
 
-A lektorálás indítása után a felhasználó automatikusan átirányításra kerül a Dashboard-ra, ahol egy új "Folyamatban lévő lektorálások" szekcióban követheti az előrehaladást - pontosan úgy, mint az automata könyvírásoknál.
+### 1. Státusz Ellenőrzés Blokkolja az Újraindítást
 
-## Jelenlegi Architektúra
+**Probléma helye:** `process-proofreading/index.ts` 99-105. sor
 
-| Komponens | Könyvírás | Lektorálás (jelenleg) |
-|-----------|-----------|------------------------|
-| Dashboard megjelenítés | `WritingStatusCard` | Nincs |
-| Státusz szekció | "Folyamatban lévő írások" | Nincs |
-| Háttérfolyamat | Realtime + polling | Realtime + polling (már kész) |
-| Indítás utáni redirect | Nincs (inline marad) | Nincs (inline marad) |
-
-## Javasolt Változtatások
-
-### 1. Új Komponens: `ProofreadingStatusCard`
-
-Hasonló a `WritingStatusCard`-hoz, de lektorálásra optimalizálva:
-- Projekt neve
-- Progress bar (fejezetek)
-- Státusz badge (Processing, Completed, Failed)
-- "Megnyitás" gomb a projekt szerkesztőhöz
-
-**Fájl:** `src/components/dashboard/ProofreadingStatusCard.tsx`
-
-```text
-┌──────────────────────────────────────────────────────────┐
-│ 📖 "A Sötét Erdő" könyve                   [Lektorálás]  │
-├──────────────────────────────────────────────────────────┤
-│ Fejezetek: 5 / 14                                        │
-│ ████████████░░░░░░░░░░░░░░░░░░░░░░░░░░ 36%              │
-│                                                          │
-│ Elindítva: 2 perce            [Szerkesztő megnyitása →] │
-└──────────────────────────────────────────────────────────┘
+```typescript
+if (order.status !== "paid") {
+  console.log("Order not in paid status, skipping:", order.status);
+  return new Response(
+    JSON.stringify({ message: "Order not ready for processing" }),
+    ...
+  );
+}
 ```
 
-### 2. Dashboard Módosítás
+**Következmény:** Amikor a function timeout-ol vagy crash-el a 2. fejezetnél, az order már `processing` státuszban van. A következő híváskor a function azonnal visszatér "Order not ready" üzenettel, és SOHA nem folytatja a munkát.
 
-A Dashboard-on új szekcióban jelennek meg az aktív lektorálások:
+**Bizonyíték a tesztből:**
+```
+curl POST /process-proofreading { orderId: "b7ba3156..." }
+Response: { "message": "Order not ready for processing" }
+```
+
+### 2. Nincs Retry Logika az AI Hívásnál
+
+**Probléma helye:** `process-proofreading/index.ts` 36-69. sor
+
+A `proofreadChapter` function közvetlenül hívja az Anthropic API-t:
+- **Nincs timeout kezelés** (AbortController)
+- **Nincs retry logika** (429, 502, 503, 504 hibákra)
+- **Nincs exponential backoff**
+
+**Összehasonlítás a `write-section/index.ts`-sel:**
+- 7 próbálkozás
+- 120 mp timeout
+- Exponential backoff (5s → 60s)
+- Rate limit (429) és gateway error (502/503/504) kezelés
+
+### 3. Nincs Folytatási Logika
+
+**Probléma:** A function mindig a 0. fejezettől indul, nem a `current_chapter_index`-től.
+
+```typescript
+// Jelenlegi kód (129. sor):
+for (const chapter of chapters) {
+  // Minden fejezetet újra feldolgoz az elejétől
+}
+
+// Javított logika kellene:
+for (let i = order.current_chapter_index; i < chapters.length; i++) {
+  // Csak a még nem feldolgozott fejezeteket dolgozza fel
+}
+```
+
+### 4. Hosszú Futási Idő → Edge Function Timeout
+
+**Probléma:** A Claude Opus API hívás egy fejezetre ~30-60 másodpercig tart. 14 fejezetnél ez 7-14 perc, de az edge function timeout ~60-90 másodperc.
+
+**Megoldási lehetőségek:**
+1. **Job queue architektúra** (mint a könyvírás): Minden fejezet külön edge function hívás
+2. **Chunked processing**: Egy hívás = 1 fejezet, majd újrahívja magát
+
+## Javasolt Megoldás: Job Queue Architektúra
+
+A könyvíráshoz hasonlóan, a lektorálásnak is job queue-t kellene használnia:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  Dashboard                                                      │
-├─────────────────────────────────────────────────────────────────┤
-│  📊 Statisztikák (3 kártya)                                    │
-├─────────────────────────────────────────────────────────────────┤
-│  📝 Folyamatban lévő írások        ← Könyvírás (már létezik)   │
-│     [WritingStatusCard] [WritingStatusCard]                     │
-├─────────────────────────────────────────────────────────────────┤
-│  ✍️ Folyamatban lévő lektorálások  ← ÚJ SZEKCIÓ                │
-│     [ProofreadingStatusCard]                                    │
-├─────────────────────────────────────────────────────────────────┤
-│  📚 Legutóbbi könyveim                                         │
-│     [ProjectCard] [ProjectCard] ...                             │
+│  1. start-proofreading (trigger)                                │
+│     - Order létrehozás                                          │
+│     - Első job queue bejegyzés                                  │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  2. process-proofreading-chapter (worker)                       │
+│     - Egy fejezet feldolgozása                                  │
+│     - Ha van még fejezet → következő job enqueue               │
+│     - Ha nincs → status: completed                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Fájl módosítás:** `src/pages/Dashboard.tsx`
-
-Változások:
-- Új hook: `useActiveProofreadings()` a futó lektorálások lekérdezéséhez
-- Új szekció a "Folyamatban lévő írások" alatt
-- Realtime subscription a `proofreading_orders` táblára
-
-### 3. Indítás Utáni Redirect
-
-Amikor a felhasználó elindítja a lektorálást (akár vásárlás után, akár admin teszt), automatikusan átirányítjuk a Dashboard-ra.
-
-**Fájl módosítás:** `src/hooks/useProofreading.ts`
-
-A `testMutation` `onSuccess` callback-jében:
-```typescript
-onSuccess: () => {
-  toast.success("Lektorálás elindítva!");
-  navigate("/dashboard"); // ← ÚJ
-}
-```
-
-**Fájl módosítás:** `src/components/proofreading/ProofreadingTab.tsx`
-
-A komponens props-ot kap egy `onStarted` callback-hez, ami meghívja a navigate-et.
-
-### 4. Új Hook: `useActiveProofreadings`
-
-Lekérdezi az összes aktív (`paid` vagy `processing` státuszú) lektorálást a bejelentkezett felhasználóhoz.
-
-**Fájl:** `src/hooks/useActiveProofreadings.ts`
-
-```typescript
-export function useActiveProofreadings() {
-  // Query: proofreading_orders WHERE status IN ('paid', 'processing')
-  // JOIN projects to get project title
-  // Realtime subscription for instant updates
-}
-```
-
-## Automatikus Indítás Kérdése
-
-**Igen, automatikusan elindul a lektorálás:**
-
-1. **Admin teszt:** Az `admin-test-proofreading` edge function:
-   - Létrehozza az order-t `status: "paid"` státusszal
-   - Fire-and-forget módon meghívja a `process-proofreading` function-t
-   - A háttérben azonnal elkezdődik a feldolgozás
-
-2. **Fizetett vásárlás:** A `proofreading-webhook`:
-   - Stripe webhook-tól kapja az eseményt
-   - Frissíti az order státuszt `paid`-re
-   - Fire-and-forget módon hívja a `process-proofreading`-ot
-
-Mindkét esetben a folyamat **automatikusan elindul és a háttérben fut**.
-
 ## Implementációs Terv
 
-### Fázis 1: Új Komponensek
+### Fázis 1: Azonnali Javítások (process-proofreading refactor)
 
-| Fájl | Művelet |
-|------|---------|
-| `src/components/dashboard/ProofreadingStatusCard.tsx` | Létrehozás |
-| `src/hooks/useActiveProofreadings.ts` | Létrehozás |
+| Módosítás | Leírás |
+|-----------|--------|
+| Státusz ellenőrzés | `paid` VAGY `processing` esetén fusson |
+| Folytatás | Használja `current_chapter_index`-et kezdőpontnak |
+| Retry logika | `fetchWithRetry` használata az AI híváshoz |
+| Timeout | AbortController 120s timeout-tal |
+| Egy fejezet/hívás | Egy hívás = 1 fejezet, majd fire-and-forget újrahívás |
 
-### Fázis 2: Dashboard Integráció
+### Fázis 2: Edge Function Módosítások
 
-| Fájl | Módosítás |
-|------|-----------|
-| `src/pages/Dashboard.tsx` | Új szekció hozzáadása lektorálásokhoz |
+**Fájl:** `supabase/functions/process-proofreading/index.ts`
 
-### Fázis 3: Redirect Logika
-
-| Fájl | Módosítás |
-|------|-----------|
-| `src/hooks/useProofreading.ts` | Navigate hozzáadása az onSuccess-hez |
-| `src/components/proofreading/ProofreadingTab.tsx` | useNavigate import és használat |
-
-## Technikai Részletek
-
-### ProofreadingStatusCard Felépítése
-
+1. **Státusz ellenőrzés javítása:**
 ```typescript
-interface ProofreadingStatusCardProps {
-  orderId: string;
-  projectId: string;
-  projectTitle: string;
-  status: "paid" | "processing" | "completed" | "failed";
-  currentChapter: number;
-  totalChapters: number;
-  startedAt: string | null;
-  completedAt: string | null;
-  errorMessage: string | null;
+// Folytatható, ha "paid" VAGY "processing"
+if (order.status !== "paid" && order.status !== "processing") {
+  return ...;
 }
 ```
 
-### useActiveProofreadings Return Value
-
+2. **Folytatási logika:**
 ```typescript
-{
-  activeProofreadings: Array<{
-    id: string;
-    project_id: string;
-    project_title: string;
-    status: "paid" | "processing";
-    current_chapter_index: number;
-    total_chapters: number;
-    started_at: string | null;
-  }>;
-  isLoading: boolean;
-  refetch: () => void;
+const startIndex = order.current_chapter_index || 0;
+const chapter = chapters[startIndex];
+
+// Csak 1 fejezet feldolgozása hívásonként
+```
+
+3. **Retry logika hozzáadása:**
+```typescript
+import { fetchWithRetry, RETRY_CONFIG } from "../_shared/retry-utils.ts";
+
+async function proofreadChapter(content: string, chapterTitle: string): Promise<string> {
+  const result = await fetchWithRetry({
+    url: "https://api.anthropic.com/v1/messages",
+    options: {
+      method: "POST",
+      headers: { ... },
+      body: JSON.stringify({ ... }),
+    },
+    maxRetries: 7,
+    timeoutMs: 120000,
+    onRetry: (attempt, status) => {
+      console.log(`Retry ${attempt} for chapter "${chapterTitle}", status: ${status}`);
+    },
+  });
+  
+  if (!result.response?.ok) {
+    throw new Error(`API error after ${result.attempts} attempts`);
+  }
+  
+  const data = await result.response.json();
+  return data.content[0].text;
 }
 ```
 
-### Realtime Subscription a Dashboard-on
-
+4. **Önhívó architektúra (1 fejezet/hívás):**
 ```typescript
-useEffect(() => {
-  const channel = supabase
-    .channel('dashboard-proofreading')
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'proofreading_orders',
-      filter: `user_id=eq.${user?.id}`
-    }, () => {
-      refetchProofreadings();
-    })
-    .subscribe();
-
-  return () => supabase.removeChannel(channel);
-}, [user?.id]);
+// Egy fejezet feldolgozása után újrahívja magát
+if (nextChapterIndex < chapters.length) {
+  fetch(processUrl, {
+    method: "POST",
+    headers: { ... },
+    body: JSON.stringify({ orderId }),
+  }).catch(console.error);
+}
 ```
 
 ## Összefoglaló Táblázat
 
-| Lépés | Fájl | Típus |
-|-------|------|-------|
-| 1 | `src/hooks/useActiveProofreadings.ts` | Új fájl |
-| 2 | `src/components/dashboard/ProofreadingStatusCard.tsx` | Új fájl |
-| 3 | `src/pages/Dashboard.tsx` | Módosítás |
-| 4 | `src/hooks/useProofreading.ts` | Módosítás |
-| 5 | `src/components/proofreading/ProofreadingTab.tsx` | Módosítás |
+| Probléma | Megoldás | Prioritás |
+|----------|----------|-----------|
+| Státusz blokkolás | `paid` VAGY `processing` elfogadása | Kritikus |
+| Nincs folytatás | `current_chapter_index` használata | Kritikus |
+| Nincs retry | `fetchWithRetry` integrálás | Magas |
+| Timeout | 1 fejezet/hívás + önhívás | Magas |
 
-A végeredmény: A lektorálás indítása után a felhasználó automatikusan a Dashboard-ra kerül, ahol a könyvírásokhoz hasonlóan látja a folyamat előrehaladását, és bármikor bezárhatja az oldalt.
+## Technikai Részletek
+
+### Javított Státusz Logika
+
+```typescript
+// RÉGI (hibás):
+if (order.status !== "paid") { return; }
+
+// ÚJ (helyes):
+if (order.status !== "paid" && order.status !== "processing") { 
+  console.log("Order completed or failed, skipping:", order.status);
+  return; 
+}
+
+// Csak paid → processing váltás, ha még nem processing
+if (order.status === "paid") {
+  await supabaseAdmin
+    .from("proofreading_orders")
+    .update({ status: "processing" })
+    .eq("id", orderId);
+}
+```
+
+### Önhívó Architektúra Flow
+
+```text
+1. admin-test-proofreading létrehoz ordert (status: paid)
+2. Meghívja process-proofreading (orderId)
+3. process-proofreading:
+   a. Ellenőrzi státuszt (paid VAGY processing → OK)
+   b. Lekéri current_chapter_index (pl. 0)
+   c. Feldolgozza a 0. fejezetet
+   d. Frissíti current_chapter_index = 1
+   e. Fire-and-forget hívja önmagát (orderId)
+   f. Visszatér sikerrel
+4. Következő hívás:
+   a. current_chapter_index = 1
+   b. Feldolgozza az 1. fejezetet
+   c. ... és így tovább
+5. Utolsó fejezet után:
+   a. status: completed
+   b. Nem hívja újra magát
+```
+
+Ez a megközelítés:
+- Elkerüli az edge function timeout-ot
+- Lehetővé teszi a folytatást hiba után
+- Megbízhatóbbá teszi a hosszú feldolgozásokat
 
