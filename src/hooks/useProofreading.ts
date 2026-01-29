@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -30,7 +30,7 @@ export function calculateProofreadingPrice(wordCount: number): number {
 
 export function useProofreading(projectId: string) {
   const queryClient = useQueryClient();
-  const [isPolling, setIsPolling] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch current order for the project
   const { data: order, isLoading: orderLoading, refetch: refetchOrder } = useQuery({
@@ -134,25 +134,27 @@ export function useProofreading(projectId: string) {
 
   // Poll for order status updates when processing
   useEffect(() => {
-    if (!order) return;
-
-    const shouldPoll = order.status === "paid" || order.status === "processing";
+    const shouldPoll = order?.status === "paid" || order?.status === "processing";
     
-    if (shouldPoll && !isPolling) {
-      setIsPolling(true);
-      
-      const interval = setInterval(() => {
+    // Clear existing interval if any
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    
+    if (shouldPoll) {
+      pollingIntervalRef.current = setInterval(() => {
         refetchOrder();
       }, 3000); // Poll every 3 seconds
-
-      return () => {
-        clearInterval(interval);
-        setIsPolling(false);
-      };
-    } else if (!shouldPoll && isPolling) {
-      setIsPolling(false);
     }
-  }, [order?.status, isPolling, refetchOrder]);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [order?.status, refetchOrder]);
 
   // Show toast when order completes
   useEffect(() => {
