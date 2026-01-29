@@ -1,120 +1,251 @@
 
-# Javítási Terv: Előfizetések Manuális Beállítása + Webhook Hibaelhárítás
 
-## Probléma Összefoglalása
+# Stripe Fizetési Folyamatok Teljes Vizsgálata és Admin Teszt Lektorálás
 
-A Stripe-ban 3 sikeres előfizetés van, de a felhasználók profiljai nem frissültek:
-- A `stripe-webhook` Edge Function nem kapott hívást (nincs log)
-- A Stripe Dashboard-ban valószínűleg nincs beállítva a webhook URL
+## 1. Jelenlegi Webhook Architektúra Összefoglalása
 
-## Érintett Felhasználók
+A rendszer **4 különböző webhook endpoint**-ot használ különböző fizetési típusokhoz:
 
-| Email | Supabase User ID | Stripe Customer | Csomag | Éves szó kredit |
-|-------|------------------|-----------------|--------|-----------------|
-| ninalamar.author@gmail.com | cd86cd73-c4ea-42e6-b730-978effb24abb | cus_Tsi8ZSFlQQhqnw | hobby | 1 200 000 szó |
-| schukkert.andrea@gmail.com | fcadca77-e449-49a7-a5f1-c7a958c3d772 | cus_TsdCyC0lwArGMx | writer | 3 000 000 szó |
-| ladanyibeata@gmail.com | a6b1cdd1-3394-4bcb-bd02-a825678201aa | cus_TsdUZFLuogrVW4 | writer | 3 000 000 szó |
+| Endpoint | Secret | Típus | Esemény |
+|----------|--------|-------|---------|
+| `stripe-webhook` | `STRIPE_WEBHOOK_SECRET` | Előfizetés | `checkout.session.completed`, `subscription.*` |
+| `credit-webhook` | `STRIPE_CREDIT_WEBHOOK_SECRET` | Szó kredit | `checkout.session.completed` (mode: payment) |
+| `audiobook-credit-webhook` | `STRIPE_AUDIOBOOK_WEBHOOK_SECRET` / fallback | Hangoskönyv kredit | `checkout.session.completed` (purchase_type: audiobook_credits) |
+| `proofreading-webhook` | `STRIPE_PROOFREADING_WEBHOOK_SECRET` | Lektorálás | `checkout.session.completed` (type: proofreading) |
 
-## Megoldás
+---
 
-### 1. Manuális Profil Frissítések (azonnali)
+## 2. Webhook Flow-k Részletes Elemzése
 
-SQL UPDATE utasítások a 3 felhasználó profiljának javítására:
+### 2.1 Előfizetés Vásárlás (`stripe-webhook`)
 
-**Hobbi éves (ninalamar.author@gmail.com)**:
-```sql
-UPDATE profiles SET
-  subscription_tier = 'hobby',
-  subscription_status = 'active',
-  billing_period = 'yearly',
-  is_founder = true,
-  founder_discount_applied = true,
-  subscription_start_date = '2026-01-29T16:03:00Z',
-  subscription_end_date = '2027-01-29T16:03:00Z',
-  stripe_customer_id = 'cus_Tsi8ZSFlQQhqnw',
-  stripe_subscription_id = 'sub_1SuwkfBqXALGTPIrkuK6HWfQ',
-  project_limit = 5,
-  monthly_word_limit = 0,
-  extra_words_balance = 1200000,
-  storybook_credit_limit = 1
-WHERE user_id = 'cd86cd73-c4ea-42e6-b730-978effb24abb';
+**Flow:**
+```text
+create-checkout → Stripe Checkout → stripe-webhook → Profil frissítés
 ```
 
-**Profi éves (schukkert.andrea@gmail.com)**:
-```sql
-UPDATE profiles SET
-  subscription_tier = 'writer',
-  subscription_status = 'active',
-  billing_period = 'yearly',
-  is_founder = true,
-  founder_discount_applied = true,
-  subscription_start_date = '2026-01-29T14:27:00Z',
-  subscription_end_date = '2027-01-29T14:27:00Z',
-  stripe_customer_id = 'cus_TsdCyC0lwArGMx',
-  stripe_subscription_id = 'sub_1SuvFwBqXALGTPIrVYqwujB1',
-  project_limit = 50,
-  monthly_word_limit = 0,
-  extra_words_balance = 3000000,
-  storybook_credit_limit = 5
-WHERE user_id = 'fcadca77-e449-49a7-a5f1-c7a958c3d772';
+**Működés:**
+- Guest checkout: Létrehozza az Auth usert + profilt + csomagot + welcome email
+- Logged in: Frissíti a meglévő profilt a csomaggal
+- Éves: 12 havi kredit → `extra_words_balance`
+- Havi: Standard limit → `monthly_word_limit`
+
+**Kód helyes:** A logika megfelelően kezeli mindkét esetet.
+
+### 2.2 Szó Kredit Vásárlás (`credit-webhook`)
+
+**Flow:**
+```text
+create-credit-purchase → Stripe Checkout → credit-webhook → add_extra_credits_internal RPC
 ```
 
-**Profi éves (ladanyibeata@gmail.com)**:
-```sql
-UPDATE profiles SET
-  subscription_tier = 'writer',
-  subscription_status = 'active',
-  billing_period = 'yearly',
-  is_founder = true,
-  founder_discount_applied = true,
-  subscription_start_date = '2026-01-29T11:12:00Z',
-  subscription_end_date = '2027-01-29T11:12:00Z',
-  stripe_customer_id = 'cus_TsdUZFLuogrVW4',
-  stripe_subscription_id = 'sub_1SusDHBqXALGTPIr3OB9csS9',
-  project_limit = 50,
-  monthly_word_limit = 0,
-  extra_words_balance = 3000000,
-  storybook_credit_limit = 5
-WHERE user_id = 'a6b1cdd1-3394-4bcb-bd02-a825678201aa';
+**Működés:**
+- Ellenőrzi: `mode === "payment"`
+- Hozzáadja: `extra_words_balance` mezőhöz
+- Frissíti: `credit_purchases` táblát
+- Email: Küld megerősítő emailt
+
+**Kód helyes:** A logika megfelelő.
+
+### 2.3 Hangoskönyv Kredit (`audiobook-credit-webhook`)
+
+**Flow:**
+```text
+create-audiobook-credit-purchase → Stripe Checkout → audiobook-credit-webhook → add_audiobook_minutes_internal RPC
 ```
 
-### 2. Stripe Webhook Konfiguráció (kézi lépés)
+**Működés:**
+- Ellenőrzi: `purchase_type === "audiobook_credits"` metadata
+- Hozzáadja: `audiobook_minutes_balance` mezőhöz
+- Frissíti: `audiobook_credit_purchases` táblát
 
-**A Stripe Dashboard-ban be kell állítani:**
+**Probléma azonosítva:** A webhook `STRIPE_AUDIOBOOK_WEBHOOK_SECRET` secret-et keres, ami **NINCS beállítva** a secrets-ben! Fallback-ként `STRIPE_CREDIT_WEBHOOK_SECRET`-et használ, ami azt jelenti, hogy a credit-webhook endpoint-ra kellene mennie az eseménynek.
 
-1. Nyisd meg: https://dashboard.stripe.com/webhooks
-2. Kattints "Add endpoint"
-3. **Endpoint URL**: `https://qdyneottmnulmkypzmtt.supabase.co/functions/v1/stripe-webhook`
-4. **Events to listen**:
-   - `checkout.session.completed`
-   - `customer.subscription.updated`
-   - `customer.subscription.deleted`
-   - `invoice.payment_failed`
-5. Mentés után **másold ki a Signing Secret**-et
-6. Frissítsd a `STRIPE_WEBHOOK_SECRET` értékét a projekt secrets-ben
+### 2.4 Lektorálás (`proofreading-webhook`)
 
-## Technikai Részletek
+**Flow:**
+```text
+create-proofreading-purchase → Stripe Checkout → proofreading-webhook → process-proofreading
+```
 
-### Éves előfizetés kreditszámítás
+**Működés:**
+1. Webhook beérkezik
+2. Frissíti `proofreading_orders` táblát: `status: "paid"`
+3. Aszinkron hívja: `process-proofreading` edge function
+4. `process-proofreading` végigmegy a fejezeteken és Anthropic Claude-dal lektorál
 
-| Csomag | Havi limit | Éves kredit (12×) |
-|--------|-----------|-------------------|
-| Hobby | 100 000 szó | 1 200 000 szó |
-| Writer/Profi | 250 000 szó | 3 000 000 szó |
+**AI Prompt (jelenlegi a kódban - 9-27. sor):**
+```
+Te egy professzionális magyar könyvlektor vagy...
+- Helyesírási hibák javítása
+- Nyelvtani hibák
+- Stilisztikai javítások
+- Mondatritmus javítása
+- Bekezdések tagolása
+SZABÁLYOK: Őrizd meg a szerző hangját, ne változtass cselekményt...
+```
 
-Éves előfizetésnél:
-- `monthly_word_limit = 0`
-- `extra_words_balance = havi_limit × 12`
+**Probléma azonosítva:** A modell `claude-sonnet-4-20250514` van beállítva, NEM Opus 4.5!
 
-### Érintett fájlok
+---
 
-Nincs kódmódosítás szükséges, csak:
-1. **Adatbázis**: UPDATE utasítások végrehajtása
-2. **Stripe Dashboard**: Webhook beállítása (manuális)
-3. **Secrets**: `STRIPE_WEBHOOK_SECRET` frissítése (ha szükséges)
+## 3. Azonosított Problémák
 
-## Implementációs Sorrend
+### 3.1 Webhook Konfigurációs Problémák
 
-1. SQL UPDATE utasítások végrehajtása a 3 felhasználóra
-2. Ellenőrzés, hogy a profilok frissültek
-3. Stripe webhook beállításának ellenőrzése/javítása
+| Probléma | Részletek | Javítás |
+|----------|-----------|---------|
+| Proofreading webhook nincs hívva | Nincs log a `proofreading-webhook` endpoint-ról | Stripe Dashboard-ban be kell állítani |
+| Audiobook webhook secret hiányzik | `STRIPE_AUDIOBOOK_WEBHOOK_SECRET` nincs definiálva | Fallback működik, de nem optimális |
+| Credit webhook nincs hívva | Nincs log a `credit-webhook` endpoint-ról | Stripe Dashboard-ban be kell állítani |
+
+### 3.2 AI Modell Probléma
+
+A `process-proofreading/index.ts` jelenleg ezt használja:
+```typescript
+model: "claude-sonnet-4-20250514"
+```
+
+A kérésed szerint Opus 4.5 kellene:
+```typescript
+model: "claude-opus-4-20250514"
+```
+
+### 3.3 Hiányzó Prompt Frissítés
+
+A jelenlegi prompt jó, de a te javaslatod még részletesebb:
+- "tartsd meg a szerző eredeti hangját és stílusát"
+- "tedd gördülékenyebbé, logikusabbá és természetesebb ritmusúvá"
+- "javasolj finom átfogalmazásokat vagy bekezdés-tagolást"
+
+---
+
+## 4. Javasolt Javítások
+
+### 4.1 Stripe Dashboard Konfiguráció (MANUÁLIS)
+
+A következő webhook endpoint-okat kell beállítani a **Stripe Dashboard Live Mode**-ban:
+
+| Endpoint URL | Események | Secret |
+|--------------|-----------|--------|
+| `.../functions/v1/proofreading-webhook` | `checkout.session.completed` | `STRIPE_PROOFREADING_WEBHOOK_SECRET` |
+| `.../functions/v1/credit-webhook` | `checkout.session.completed` | `STRIPE_CREDIT_WEBHOOK_SECRET` |
+| `.../functions/v1/audiobook-credit-webhook` | `checkout.session.completed` | Ugyanaz mint credit |
+
+### 4.2 Kód Módosítások
+
+#### A) `process-proofreading/index.ts` - AI Modell és Prompt Frissítés
+
+Frissítendő:
+- Modell: `claude-sonnet-4-20250514` → `claude-opus-4-20250514`
+- Prompt: A te javaslatod szerinti részletesebb verzió
+
+#### B) `ProofreadingTab.tsx` - Admin Teszt Gomb
+
+Új funkció hozzáadása:
+- Admin felhasználóknak megjelenik egy "TESZT Lektorálás (Ingyenes)" gomb
+- Ez közvetlenül meghívja a `process-proofreading` edge function-t fizetés nélkül
+- Létrehoz egy "test" státuszú order-t a tracking-hez
+
+#### C) Új Edge Function: `admin-test-proofreading`
+
+Új endpoint ami:
+- Ellenőrzi az admin jogosultságot
+- Létrehoz egy "test" order-t a `proofreading_orders` táblában
+- Közvetlenül meghívja a `process-proofreading` function-t
+
+---
+
+## 5. Implementációs Terv
+
+### Fázis 1: AI Modell és Prompt Frissítés
+
+1. **`supabase/functions/process-proofreading/index.ts`**
+   - Modell cseréje Opus 4.5-re
+   - Prompt frissítése a részletesebb verzióra
+
+### Fázis 2: Admin Teszt Lektorálás
+
+2. **Új Edge Function: `supabase/functions/admin-test-proofreading/index.ts`**
+   - Admin jogosultság ellenőrzés
+   - Teszt order létrehozása (`status: "test"`)
+   - `process-proofreading` meghívása
+
+3. **`supabase/config.toml`**
+   - Új function regisztrálása
+
+4. **`src/components/proofreading/ProofreadingTab.tsx`**
+   - Admin gomb hozzáadása
+   - `useAdmin` hook használata
+
+5. **`src/hooks/useProofreading.ts`**
+   - `testProofreading` mutation hozzáadása
+
+---
+
+## 6. Technikai Részletek
+
+### 6.1 Admin Teszt Gomb Működése
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  ProofreadingTab.tsx                                        │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │ [Lektorálás megvásárlása - 5990 Ft]  ← Normál gomb     ││
+│  └─────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │ [🧪 TESZT Lektorálás (Ingyenes)]     ← Admin only       ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Frissített Lektorálási Prompt
+
+```typescript
+const PROOFREADING_SYSTEM_PROMPT = `Te egy tapasztalt magyar lektor vagy, aki szépirodalmi, ismeretterjesztő és szakmai könyvek szövegét ellenőrzi.
+
+FELADATOD:
+Elemezd és javítsd a következő könyvrészletet az alábbi szempontok szerint:
+1. Nyelvtan és helyesírás - magyar helyesírási szabályok szerinti javítás
+2. Stilisztika - felesleges ismétlődések, klisék kiküszöbölése
+3. Mondatszerkezet - gördülékenyebb, logikusabb megfogalmazás
+4. Érthetőség - természetesebb ritmus, világos gondolatvezetés
+5. Bekezdések - szükség esetén javasolj tagolást
+
+SZABÁLYOK:
+- Tartsd meg a szerző eredeti hangját és stílusát
+- Tedd gördülékenyebbé, logikusabbá és természetesebb ritmusúvá a szöveget
+- Ha szükséges, javasolj finom átfogalmazásokat vagy bekezdés-tagolást
+- NE változtasd meg az üzenetet vagy a szerző nézőpontját
+- NE adj hozzá új tartalmakat vagy jeleneteket
+- NE töröld ki a fontos részeket
+
+A válaszod KIZÁRÓLAG a javított szöveg legyen, semmilyen magyarázat vagy megjegyzés nélkül.`;
+```
+
+### 6.3 Admin Teszt Edge Function Vázlat
+
+```typescript
+// admin-test-proofreading/index.ts
+serve(async (req) => {
+  // 1. Ellenőrizd az admin jogosultságot
+  // 2. Hozz létre egy teszt order-t (status: "test", amount: 0)
+  // 3. Hívd meg a process-proofreading-ot
+  // 4. Várd meg a választ és add vissza
+});
+```
+
+---
+
+## 7. Összefoglaló Táblázat - Mi Működik, Mi Nem
+
+| Funkció | Státusz | Probléma | Javítás |
+|---------|---------|----------|---------|
+| Előfizetés vásárlás | ✅ Működik | - | - |
+| Ingyenes → fizetős upgrade | ✅ Működik | - | - |
+| Szó kredit vásárlás | ⚠️ Webhook hiányzik | Stripe config | Manuális beállítás |
+| Hangoskönyv kredit | ⚠️ Webhook hiányzik | Stripe config | Manuális beállítás |
+| Lektorálás vásárlás | ⚠️ Webhook hiányzik | Stripe config | Manuális beállítás |
+| Lektorálás AI modell | ❌ Rossz modell | Sonnet van Opus helyett | Kód módosítás |
+| Admin teszt lektorálás | ❌ Nem létezik | Hiányzó funkció | Új feature |
+
