@@ -42,6 +42,8 @@ function AudiobookPlayerWrapper({ audiobook, getAudioUrl, onDownload }: Audioboo
     />
   );
 }
+
+interface AudiobookTabProps {
   projectId: string;
   sampleText?: string;
 }
