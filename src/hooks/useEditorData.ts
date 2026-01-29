@@ -8,6 +8,7 @@ export function useEditorData(projectId: string) {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   
@@ -47,6 +48,9 @@ export function useEditorData(projectId: string) {
   const fetchBlocks = useCallback(async () => {
     if (!activeChapterId) return;
 
+    setIsLoadingBlocks(true);
+    
+    try {
     const { data: blocksData, error } = await supabase
       .from("blocks")
       .select("*")
@@ -138,6 +142,9 @@ export function useEditorData(projectId: string) {
     }));
 
     setBlocks(typedData);
+    } finally {
+      setIsLoadingBlocks(false);
+    }
   }, [activeChapterId]);
 
   // Create chapter
@@ -439,6 +446,15 @@ export function useEditorData(projectId: string) {
     fetchChapters().finally(() => setIsLoading(false));
   }, [fetchChapters]);
 
+  // Handle chapter change with loading state
+  const handleSetActiveChapterId = useCallback((chapterId: string | null) => {
+    if (chapterId !== activeChapterId) {
+      setIsLoadingBlocks(true);
+      setBlocks([]); // Clear previous chapter blocks immediately
+    }
+    setActiveChapterId(chapterId);
+  }, [activeChapterId]);
+
   // Fetch blocks when active chapter changes
   useEffect(() => {
     if (activeChapterId) {
@@ -474,8 +490,9 @@ export function useEditorData(projectId: string) {
     chapters,
     blocks,
     activeChapterId,
-    setActiveChapterId,
+    setActiveChapterId: handleSetActiveChapterId,
     isLoading,
+    isLoadingBlocks,
     isSaving,
     lastSaved,
     createChapter,
