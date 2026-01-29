@@ -57,6 +57,7 @@ export default function ProjectEditor() {
     activeChapterId,
     setActiveChapterId,
     isLoading,
+    isLoadingBlocks,
     isSaving,
     lastSaved,
     createChapter,
@@ -351,6 +352,7 @@ export default function ProjectEditor() {
         {/* Content based on view mode */}
         {viewMode === "editor" ? (
           <EditorView
+            isLoading={isLoadingBlocks}
             blocks={blocks}
             selectedBlockId={selectedBlockId}
             draggedBlockId={draggedBlockId}

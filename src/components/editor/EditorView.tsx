@@ -1,8 +1,10 @@
 import { EditorBlock } from "@/components/editor/EditorBlock";
+import { ContentSkeleton } from "@/components/ui/content-skeleton";
 import type { Block, BlockType } from "@/types/editor";
 import type { AIAction } from "@/hooks/useAIGeneration";
 
 interface EditorViewProps {
+  isLoading?: boolean;
   blocks: Block[];
   selectedBlockId: string | null;
   draggedBlockId: string | null;
@@ -20,6 +22,7 @@ interface EditorViewProps {
 }
 
 export function EditorView({
+  isLoading,
   blocks,
   selectedBlockId,
   draggedBlockId,
@@ -35,6 +38,16 @@ export function EditorView({
   onAIAction,
   onCreateEmptyBlock,
 }: EditorViewProps) {
+  if (isLoading) {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[700px] px-16 py-8">
+          <ContentSkeleton variant="editor" count={1} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-[700px] px-16 py-8">
