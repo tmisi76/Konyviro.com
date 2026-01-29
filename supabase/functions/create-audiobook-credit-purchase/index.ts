@@ -81,7 +81,7 @@ serve(async (req) => {
               name: `Hangoskönyv kredit - ${selectedPackage.minutes} perc`,
               description: `${selectedPackage.minutes} perc hangoskönyv generálás`,
             },
-            unit_amount: selectedPackage.priceHuf,
+            unit_amount: selectedPackage.priceHuf * 100,
           },
           quantity: 1,
         },
