@@ -29,6 +29,7 @@ export function useBookWizard() {
     nonfictionBookType: null,
     bookTypeSpecificData: null,
     title: "",
+    storyDescription: "",
     targetAudience: "",
     tone: null,
     length: null,
@@ -121,6 +122,7 @@ export function useBookWizard() {
 
   const setBasicInfo = useCallback((info: {
     title: string;
+    storyDescription: string;
     targetAudience: string;
     tone: Tone;
     length: number;
@@ -382,6 +384,7 @@ export function useBookWizard() {
       nonfictionBookType: null,
       bookTypeSpecificData: null,
       title: "",
+      storyDescription: "",
       targetAudience: "",
       tone: null,
       length: null,

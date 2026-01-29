@@ -15,6 +15,7 @@ interface Step4StoryIdeasProps {
   length: BookLength;
   targetAudience: string;
   additionalInstructions: string;
+  storyDescription: string;
   existingIdeas: StoryIdea[];
   onIdeasGenerated: (ideas: StoryIdea[]) => void;
   onSelect: (idea: StoryIdea) => void;
@@ -29,6 +30,7 @@ export function Step4StoryIdeas({
   length,
   targetAudience,
   additionalInstructions,
+  storyDescription,
   existingIdeas,
   onIdeasGenerated,
   onSelect,
@@ -66,6 +68,7 @@ export function Step4StoryIdeas({
           length,
           targetAudience,
           additionalInstructions,
+          storyDescription,
           authorProfile: authorProfile || undefined,
           previousIdeas: previousTitles.length > 0 ? previousTitles : undefined,
         },

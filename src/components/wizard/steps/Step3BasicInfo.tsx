@@ -14,6 +14,7 @@ interface Step3BasicInfoProps {
   genre: Genre;
   initialData: {
     title: string;
+    storyDescription: string;
     targetAudience: string;
     tone: Tone | null;
     length: number | null;
@@ -21,6 +22,7 @@ interface Step3BasicInfoProps {
   };
   onSubmit: (data: {
     title: string;
+    storyDescription: string;
     targetAudience: string;
     tone: Tone;
     length: number;
@@ -30,6 +32,7 @@ interface Step3BasicInfoProps {
 
 export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoProps) {
   const [title, setTitle] = useState(initialData.title);
+  const [storyDescription, setStoryDescription] = useState(initialData.storyDescription);
   const [targetAudience, setTargetAudience] = useState(initialData.targetAudience);
   const [tone, setTone] = useState<Tone | null>(initialData.tone);
   const [length, setLength] = useState<number>(initialData.length || 25000);
@@ -41,6 +44,7 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
     if (!tone || !length) return;
     onSubmit({
       title,
+      storyDescription,
       targetAudience,
       tone,
       length,
@@ -81,6 +85,30 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
             placeholder="Hagyd üresen, AI generál..."
             className="h-12"
           />
+        </div>
+
+        {/* Story Description - NEW FIELD */}
+        <div className="space-y-2">
+          <Label htmlFor="storyDescription" className="text-base font-semibold">
+            Történet leírása <span className="text-primary">*</span>
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Ez 80%-ban befolyásolja a generált ötleteket. Írd le részletesen, miről szóljon a könyved!
+          </p>
+          <Textarea
+            id="storyDescription"
+            value={storyDescription}
+            onChange={(e) => setStoryDescription(e.target.value)}
+            placeholder={genre === "fiction" 
+              ? "Pl. Egy fiatal nő örökli nagyanyja titkos naplóját, ami egy elveszett kincshez vezető nyomokat tartalmaz. A főhős Olaszországba utazik, ahol egy rejtélyes férfivel összefogva fedezi fel a család múltjának titkait, miközben szerelem szövődik közöttük..."
+              : "Pl. Egy gyakorlati útmutató kisvállalkozóknak a digitális marketing alapjairól. A könyv bemutatja, hogyan építsenek social media jelenlétet nulláról, hogyan szerezzenek organikus követőket, és hogyan alakítsák vásárlóvá az érdeklődőket..."}
+            className="min-h-[150px] resize-y"
+          />
+          {storyDescription.length > 0 && (
+            <p className="text-xs text-muted-foreground text-right">
+              {storyDescription.length} karakter
+            </p>
+          )}
         </div>
 
         {/* Target Audience */}
