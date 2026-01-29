@@ -1,180 +1,73 @@
 
-# Implementációs Terv: Könyv Átnevezés + Hangoskönyv Kredit Láthatóság
 
-## Problémák Összefoglalása
+# Javítás: Könyv Átnevezés - Lista Frissítés
 
-### 1. Könyv Átnevezés
-A felhasználók nem tudják átnevezni a könyveiket. Hiányzik:
-- Átnevezés funkció a `useProjects` hook-ból
-- "Átnevezés" menüpont a projekt kártyákon és sidebar-ban
-- Modal az új cím megadásához
+## Probléma Azonosítása
 
-### 2. Hangoskönyv Kredit Vásárlás
-A hangoskönyv funkció és kredit vásárlás nem látható, mert:
-- A Dashboard-on csak a sidebar compact `UsagePanel` jelenik meg
-- Compact módban a hangoskönyv kredit csak akkor látszik, **ha már van egyenleg (>0)**
-- A "Hangoskönyv kredit vásárlás" gomb csak a teljes `UsagePanel`-ben van, ami nem jelenik meg a Dashboard főoldalán
+A `ProjectCard` komponensben lévő `RenameProjectModal` nem kap `onSuccess` callback-et, így a sikeres átnevezés után:
+1. Az adatbázisban frissül a cím
+2. De a Dashboard listája nem frissül automatikusan
+3. A felhasználónak manuálisan kell frissítenie az oldalt
 
----
+A realtime subscription elméletileg működhetne, de a jelenlegi implementációban van egy kis késés, és a lokális állapot nem frissül azonnal.
 
-## Megoldások
+## Megoldás
 
-### 1. Könyv Átnevezés Funkció
-
-**Új komponens:**
-```
-src/components/projects/RenameProjectModal.tsx
-```
-- Egyszerű modal input mezővel
-- Props: `open`, `onOpenChange`, `projectId`, `currentTitle`, `onSuccess`
-
-**Hook bővítés: `useProjects.ts`**
-- Új `renameProject(projectId: string, newTitle: string)` funkció
-
-**UI integráció:**
-- `ProjectCard.tsx` dropdown menü → "Átnevezés" opció hozzáadása
-- `DashboardSidebar.tsx` projekt menü → "Átnevezés" opció hozzáadása
-
-### 2. Hangoskönyv Kredit Láthatóság
-
-**UsagePanel.tsx módosítás (compact mód):**
-- Mindig mutassa a hangoskönyv kredit sort, **akkor is ha 0**
-- Ha 0, mutassa: "0 perc" + "Vásárlás" ikon/link
-- Kattintásra nyissa meg a `BuyAudiobookCreditModal`-t
-
-**Dashboard.tsx módosítás:**
-- A főoldalon (desktop) adjunk hozzá egy dedikált "Hangoskönyv kredit" kártyát/gombot
-- Vagy: A `UsagePanel` teljes verzióját jelenítsük meg a desktop dashboardon is
-
----
+A `ProjectCard` komponenst módosítani kell, hogy átadja az `onSuccess` callback-et a `RenameProjectModal`-nak, ami a szülő komponenstől (`Dashboard`) kapott `refetch` függvényt hívja meg.
 
 ## Érintett Fájlok
 
 | Fájl | Változás |
 |------|----------|
-| `src/hooks/useProjects.ts` | + `renameProject` funkció |
-| `src/components/projects/RenameProjectModal.tsx` | **ÚJ** - átnevezés modal |
-| `src/components/dashboard/ProjectCard.tsx` | + átnevezés menüpont + modal integráció |
-| `src/components/dashboard/DashboardSidebar.tsx` | + átnevezés menüpont + callback |
-| `src/components/dashboard/UsagePanel.tsx` | Compact mód: mindig mutassa hangoskönyv kreditet |
-| `src/pages/Dashboard.tsx` | + Hangoskönyv kredit vásárlás gomb/kártya |
+| `src/components/dashboard/ProjectCard.tsx` | + `onRename` prop hozzáadása, átadás a `RenameProjectModal`-nak |
+| `src/pages/Dashboard.tsx` | + `onRename={refetch}` átadás a `ProjectCard`-nak |
 
----
+## Technikai Részletek
 
-## Részletes Implementáció
-
-### 1. RenameProjectModal.tsx
+### 1. ProjectCard.tsx Módosítás
 
 ```tsx
-interface RenameProjectModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  projectId: string;
-  currentTitle: string;
-  onSuccess?: () => void;
+// Interface bővítés:
+interface ProjectCardProps {
+  project: Project;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onRename?: () => void; // ÚJ - callback az átnevezés utáni frissítéshez
 }
 
-// - Input mező az új címmel (előre kitöltve a jelenlegi címmel)
-// - Validáció: min 1 karakter, max 100 karakter
-// - Mentés gomb → updateProject API hívás
-// - Toast üzenet sikeres mentés után
+// Props átvétele:
+export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: ProjectCardProps) {
+
+// RenameProjectModal módosítása:
+<RenameProjectModal
+  open={showRenameModal}
+  onOpenChange={setShowRenameModal}
+  projectId={project.id}
+  currentTitle={project.title}
+  onSuccess={onRename}  // ÚJ - frissíti a listát
+/>
 ```
 
-### 2. useProjects.ts - renameProject
+### 2. Dashboard.tsx Módosítás
 
-```typescript
-const renameProject = async (projectId: string, newTitle: string): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from("projects")
-      .update({ title: newTitle })
-      .eq("id", projectId);
-
-    if (error) throw error;
-
-    setProjects((prev) =>
-      prev.map((p) => (p.id === projectId ? { ...p, title: newTitle } : p))
-    );
-    return true;
-  } catch (err) {
-    console.error("Error renaming project:", err);
-    return false;
-  }
-};
-```
-
-### 3. ProjectCard Dropdown Bővítés
+A `ProjectCard` komponenseknél átadni az `onRename` prop-ot:
 
 ```tsx
-// Új menüpont az "Exportálás" alatt:
-<DropdownMenuItem onClick={() => setShowRenameModal(true)}>
-  <Type className="mr-2 h-4 w-4" />
-  Átnevezés
-</DropdownMenuItem>
-
-// + RenameProjectModal a komponens végén
+<ProjectCard
+  key={project.id}
+  project={project}
+  onOpen={handleProjectOpen}
+  onDelete={handleProjectDeleteRequest}
+  onArchive={handleArchiveProject}
+  onRename={refetch}  // ÚJ - lista újratöltése átnevezés után
+/>
 ```
 
-### 4. UsagePanel Compact Mód Javítás
-
-A 166-178. sor módosítása:
-
-```tsx
-{/* Audiobook credits in compact mode - ALWAYS show, even if 0 */}
-{!audiobookLoading && (
-  <button 
-    onClick={() => setShowAudiobookCreditModal(true)}
-    className="flex justify-between text-xs w-full hover:text-primary transition-colors"
-  >
-    <span className="flex items-center gap-1 text-primary">
-      <Headphones className="h-3 w-3" />
-      Hangoskönyv
-    </span>
-    <span className="text-primary font-medium flex items-center gap-1">
-      {audiobookBalance > 0 ? formatAudioMinutes(audiobookBalance) : (
-        <>
-          <span>0 perc</span>
-          <Plus className="h-3 w-3" />
-        </>
-      )}
-    </span>
-  </button>
-)}
-```
-
-### 5. Dashboard Hangoskönyv Gomb (Opcionális)
-
-A statscard-ok mellé egy új kártya vagy gomb:
-
-```tsx
-{/* Audiobook promo - csak ha nincs kredit */}
-{audiobookBalance === 0 && (
-  <div className="mb-8">
-    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <Headphones className="h-8 w-8 text-primary" />
-        <div>
-          <h3 className="font-semibold">Készíts hangoskönyvet!</h3>
-          <p className="text-sm text-muted-foreground">
-            Változtasd át könyveidet professzionális hanganyaggá
-          </p>
-        </div>
-      </div>
-      <Button onClick={() => setShowAudiobookModal(true)}>
-        Kredit vásárlás
-      </Button>
-    </div>
-  </div>
-)}
-```
-
----
+Mindkét helyen (desktop és mobil nézet).
 
 ## Implementációs Sorrend
 
-1. **RenameProjectModal.tsx** létrehozása
-2. **useProjects.ts** bővítése `renameProject` funkcióval
-3. **ProjectCard.tsx** - átnevezés menüpont + modal
-4. **DashboardSidebar.tsx** - átnevezés menüpont + callback
-5. **UsagePanel.tsx** - compact mód javítás (mindig mutassa hangoskönyv kreditet)
-6. **Dashboard.tsx** - hangoskönyv promo kártya/gomb hozzáadása
+1. `ProjectCard.tsx` - `onRename` prop hozzáadása az interface-hez és átadása a modal-nak
+2. `Dashboard.tsx` - `onRename={refetch}` átadása minden `ProjectCard` komponensnek
+
