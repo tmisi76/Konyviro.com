@@ -27,14 +27,41 @@ SZABÁLYOK:
 
 A válaszod KIZÁRÓLAG a javított szöveg legyen, semmilyen magyarázat vagy megjegyzés nélkül.`;
 
-async function proofreadChapter(content: string, chapterTitle: string): Promise<string> {
+const DEFAULT_PROOFREADING_MODEL = "google/gemini-2.5-pro";
+
+// Fetch proofreading model from system_settings
+async function getProofreadingModel(supabaseUrl: string, serviceRoleKey: string): Promise<string> {
+  try {
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+    const { data, error } = await serviceClient
+      .from("system_settings")
+      .select("value")
+      .eq("key", "ai_proofreading_model")
+      .single();
+
+    if (error || !data) {
+      console.log("No proofreading model configured, using default:", DEFAULT_PROOFREADING_MODEL);
+      return DEFAULT_PROOFREADING_MODEL;
+    }
+
+    const value = data.value as unknown;
+    const model = typeof value === "string" ? JSON.parse(value) : value;
+    console.log("Using proofreading model from settings:", model);
+    return (model as string) || DEFAULT_PROOFREADING_MODEL;
+  } catch (err) {
+    console.error("Error fetching proofreading model:", err);
+    return DEFAULT_PROOFREADING_MODEL;
+  }
+}
+
+async function proofreadChapter(content: string, chapterTitle: string, model: string): Promise<string> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
   if (!LOVABLE_API_KEY) {
     throw new Error("LOVABLE_API_KEY not configured");
   }
 
-  console.log(`Starting proofreading for chapter: "${chapterTitle}" (${content.length} chars)`);
+  console.log(`Starting proofreading for chapter: "${chapterTitle}" (${content.length} chars) with model: ${model}`);
 
   const result = await fetchWithRetry({
     url: "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -45,7 +72,7 @@ async function proofreadChapter(content: string, chapterTitle: string): Promise<
         "Authorization": `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model,
         max_tokens: 16000,
         messages: [
           {
@@ -163,7 +190,12 @@ serve(async (req) => {
         .eq("id", orderId);
     }
 
-    console.log(`[PROOFREADING] Processing chapter ${startIndex + 1}/${chapters.length} for order ${orderId}`);
+    // Get the proofreading model from system settings
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const proofreadingModel = await getProofreadingModel(supabaseUrl, serviceRoleKey);
+
+    console.log(`[PROOFREADING] Processing chapter ${startIndex + 1}/${chapters.length} for order ${orderId} with model: ${proofreadingModel}`);
 
     // Check if we're already done
     if (startIndex >= chapters.length) {
@@ -229,7 +261,7 @@ serve(async (req) => {
 
     try {
       // Process the current chapter
-      const proofreadContent = await proofreadChapter(chapter.content, chapter.title);
+      const proofreadContent = await proofreadChapter(chapter.content, chapter.title, proofreadingModel);
 
       // Update the chapter with proofread content
       const wordCount = proofreadContent.split(/\s+/).filter(w => w.length > 0).length;

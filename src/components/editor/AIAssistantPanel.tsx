@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIGeneration";
 import { useWritingStyle } from "@/hooks/useWritingStyle";
+import { useAIModel } from "@/hooks/useAIModel";
 import { toast } from "sonner";
 
 interface AIAssistantPanelProps {
@@ -119,6 +120,9 @@ export function AIAssistantPanel({
 
   // Style profile hook
   const { hasStyleProfile, styleProfile } = useWritingStyle();
+  
+  // AI model settings hook
+  const { data: aiModelSettings } = useAIModel();
 
   const { isGenerating, generatedText, generate, cancel, reset } = useAIGeneration({
     projectId,
@@ -370,8 +374,8 @@ Bővítendő szöveg: "${selectedText}"`
   };
 
   const getModelBadge = () => {
-    // Using Gemini Flash via Lovable AI Gateway
-    return "Gemini Flash";
+    // Dynamic model name from system settings
+    return aiModelSettings?.defaultModelName || "AI";
   };
 
   return (
