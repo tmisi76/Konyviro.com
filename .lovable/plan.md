@@ -1,73 +1,138 @@
 
+# Javítási Terv: Hangoskönyv Előnézet Hiba + Árazási Információ
 
-# Javítás: Könyv Átnevezés - Lista Frissítés
+## Azonosított Problémák
 
-## Probléma Azonosítása
+### 1. ElevenLabs API 400 Hiba
+A logok egyértelműen mutatják:
+```
+"voice_limit_reached": "You have reached your maximum amount of custom voices (30 / 30)"
+```
 
-A `ProjectCard` komponensben lévő `RenameProjectModal` nem kap `onSuccess` callback-et, így a sikeres átnevezés után:
-1. Az adatbázisban frissül a cím
-2. De a Dashboard listája nem frissül automatikusan
-3. A felhasználónak manuálisan kell frissítenie az oldalt
+**Probléma**: A 4 narrátor (`NOpBlnGInO9m6vDvFkFC`, `IRHApOXLvnW57QJPQH2P` stb.) custom/klónozott hangok, és az ElevenLabs fiók elérte a 30 custom voice limitjét.
 
-A realtime subscription elméletileg működhetne, de a jelenlegi implementációban van egy kis késés, és a lokális állapot nem frissül azonnal.
+**Megoldás**: A `tts_voices` táblában cserélni kell az `elevenlabs_voice_id` értékeket ElevenLabs standard hangokra. Magyar hangok helyett angol hangokat kell használni, mert a standard hangok között nincsenek magyar nyelvűek, de a `eleven_multilingual_v2` modell magyar szöveget is képes felolvasni angol hangokkal.
 
-## Megoldás
+### 2. Hiányzó Árazási Információ
+A felhasználónak tudnia kell, hogy:
+- A hangoskönyv készítés extra költséggel jár
+- Előbb krediteket kell vásárolnia
+- Mennyibe kerül kb. a könyve
 
-A `ProjectCard` komponenst módosítani kell, hogy átadja az `onSuccess` callback-et a `RenameProjectModal`-nak, ami a szülő komponenstől (`Dashboard`) kapott `refetch` függvényt hívja meg.
+---
+
+## Megoldások
+
+### 1. Narrátor Hangok Frissítése (Adatbázis)
+
+A `tts_voices` táblában az `elevenlabs_voice_id` értékeket cserélni kell működő ElevenLabs standard hangokra:
+
+| Név | Jelenlegi (hibás) | Új voice_id | Hang típusa |
+|-----|-------------------|-------------|-------------|
+| Narrátor 1 | `NOpBlnGInO9m6vDvFkFC` | `JBFqnCBsd6RMkjVDRZzb` | George - férfi |
+| Narrátor 2 | `IRHApOXLvnW57QJPQH2P` | `EXAVITQu4vr4xnSDxMaL` | Sarah - női |
+| Narrátor 3 | `xjlfQQ3ynqiEyRpArrT8` | `onwK4e9ZLuTAKqWW03F9` | Daniel - férfi |
+| Narrátor 4 | `XfNU2rGpBa01ckF309OY` | `pFZP5JQG7iQjIQuC4Bku` | Lily - női |
+
+### 2. AudiobookTab.tsx Módosítás - Árazási Információ
+
+A `CostEstimate` komponenst bővíteni kell:
+
+```tsx
+const CostEstimate = () => {
+  // Kiszámítjuk a becsült költséget a legkisebb csomag áráig
+  const cheapestPackage = AUDIOBOOK_CREDIT_PACKAGES[0]; // 30 perc / 9990 Ft
+  const estimatedCostHuf = Math.ceil(estimatedMinutes * 300); // ~300 Ft/perc átlag
+  
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      {/* Becsült hossz és egyenleg (már megvan) */}
+      
+      {/* ÚJ: Becsült költség kiírása */}
+      {!canGenerate && (
+        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-800">
+            <strong>Becsült költség:</strong> kb. {estimatedCostHuf.toLocaleString("hu-HU")} Ft
+          </p>
+          <p className="text-xs text-amber-600 mt-1">
+            A hangoskönyv készítéshez előbb kredit vásárlás szükséges.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+### 3. VoicePicker.tsx - Hibaüzenet Javítás
+
+A hibakezelést javítani kell, hogy ne az ElevenLabs technikai hibaüzenetét mutassa:
+
+```tsx
+// useVoicePreview onError:
+onError: (error) => {
+  // Barátságosabb hibaüzenet
+  toast.error("Hang előnézet nem elérhető. Kérlek próbáld újra később.");
+}
+```
+
+---
 
 ## Érintett Fájlok
 
 | Fájl | Változás |
 |------|----------|
-| `src/components/dashboard/ProjectCard.tsx` | + `onRename` prop hozzáadása, átadás a `RenameProjectModal`-nak |
-| `src/pages/Dashboard.tsx` | + `onRename={refetch}` átadás a `ProjectCard`-nak |
+| **Adatbázis migráció** | `tts_voices` tábla `elevenlabs_voice_id` frissítése |
+| `src/components/audiobook/AudiobookTab.tsx` | + Becsült költség kiírása, kredit vásárlás szükségességének kommunikálása |
+| `src/hooks/useAudiobook.ts` | Hibaüzenet javítása a voice preview-nál |
 
-## Technikai Részletek
+---
 
-### 1. ProjectCard.tsx Módosítás
+## Részletes Implementáció
 
-```tsx
-// Interface bővítés:
-interface ProjectCardProps {
-  project: Project;
-  onOpen: (id: string) => void;
-  onDelete: (id: string) => void;
-  onArchive?: (id: string) => void;
-  onRename?: () => void; // ÚJ - callback az átnevezés utáni frissítéshez
-}
+### 1. SQL Migráció - Voice ID-k Cseréje
 
-// Props átvétele:
-export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: ProjectCardProps) {
+```sql
+-- Update voice IDs to working ElevenLabs standard voices
+UPDATE tts_voices SET 
+  elevenlabs_voice_id = 'JBFqnCBsd6RMkjVDRZzb',
+  description = 'Mély, nyugodt férfi hang'
+WHERE id = 'e0ef7984-457e-4edc-94e5-4979531d5e37';
 
-// RenameProjectModal módosítása:
-<RenameProjectModal
-  open={showRenameModal}
-  onOpenChange={setShowRenameModal}
-  projectId={project.id}
-  currentTitle={project.title}
-  onSuccess={onRename}  // ÚJ - frissíti a listát
-/>
+UPDATE tts_voices SET 
+  elevenlabs_voice_id = 'EXAVITQu4vr4xnSDxMaL',
+  description = 'Kellemes női hang'
+WHERE id = '0f35d413-97e8-4acb-907a-45ef1c836b76';
+
+-- stb...
 ```
 
-### 2. Dashboard.tsx Módosítás
+### 2. AudiobookTab.tsx - Módosított CostEstimate
 
-A `ProjectCard` komponenseknél átadni az `onRename` prop-ot:
+Új információk hozzáadása:
+- Becsült költség Ft-ban
+- Egyértelmű üzenet, hogy kredit vásárlás szükséges
+- Link/gomb a kredit vásárláshoz közvetlenül itt is
 
-```tsx
-<ProjectCard
-  key={project.id}
-  project={project}
-  onOpen={handleProjectOpen}
-  onDelete={handleProjectDeleteRequest}
-  onArchive={handleArchiveProject}
-  onRename={refetch}  // ÚJ - lista újratöltése átnevezés után
-/>
-```
+### 3. useAudiobook.ts - Hibaüzenet Javítás
 
-Mindkét helyen (desktop és mobil nézet).
+A `useVoicePreview` mutáció `onError` callback-jét módosítani:
+- Ne jelenjen meg a technikai ElevenLabs hibaüzenet
+- Barátságos magyar nyelvű üzenet helyette
+
+---
 
 ## Implementációs Sorrend
 
-1. `ProjectCard.tsx` - `onRename` prop hozzáadása az interface-hez és átadása a modal-nak
-2. `Dashboard.tsx` - `onRename={refetch}` átadása minden `ProjectCard` komponensnek
+1. **Adatbázis migráció** - Voice ID-k cseréje működő hangokra
+2. **AudiobookTab.tsx** - Árazási információ és kredit vásárlás kommunikáció
+3. **useAudiobook.ts** - Hibaüzenet javítása
 
+---
+
+## Várt Eredmény
+
+- ✅ Az „Előnézet" gomb működik a 4 narrátornál
+- ✅ A felhasználó látja, hogy kb. mennyibe kerül a hangoskönyv
+- ✅ Egyértelmű üzenet, hogy kredit vásárlás szükséges
+- ✅ Barátságos hibaüzenetek API hiba esetén
