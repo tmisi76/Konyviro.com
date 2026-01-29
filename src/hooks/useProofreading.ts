@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -31,9 +31,11 @@ export function calculateProofreadingPrice(wordCount: number): number {
 export function useProofreading(projectId: string) {
   const queryClient = useQueryClient();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const prevStatusRef = useRef<string | null>(null);
+  const [realtimeOrder, setRealtimeOrder] = useState<ProofreadingOrder | null>(null);
 
   // Fetch current order for the project
-  const { data: order, isLoading: orderLoading, refetch: refetchOrder } = useQuery({
+  const { data: fetchedOrder, isLoading: orderLoading, refetch: refetchOrder } = useQuery({
     queryKey: ["proofreading-order", projectId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -53,6 +55,9 @@ export function useProofreading(projectId: string) {
     },
     enabled: !!projectId,
   });
+
+  // Use realtime order if available, otherwise use fetched order
+  const order = realtimeOrder || fetchedOrder;
 
   // Calculate word count from chapters
   const { data: wordCount = 0, isLoading: wordCountLoading } = useQuery({
@@ -84,6 +89,103 @@ export function useProofreading(projectId: string) {
     },
     enabled: !!projectId,
   });
+
+  // Realtime subscription for proofreading_orders
+  useEffect(() => {
+    if (!projectId) return;
+
+    const channel = supabase
+      .channel(`proofreading-order-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'proofreading_orders',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          console.log("[Proofreading] Realtime update:", payload.new);
+          setRealtimeOrder(payload.new as ProofreadingOrder);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'proofreading_orders',
+          filter: `project_id=eq.${projectId}`
+        },
+        (payload) => {
+          console.log("[Proofreading] Realtime insert:", payload.new);
+          setRealtimeOrder(payload.new as ProofreadingOrder);
+        }
+      )
+      .subscribe((status) => {
+        console.log("[Proofreading] Realtime subscription status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [projectId]);
+
+  // Polling fallback for active statuses only
+  useEffect(() => {
+    const isActive = order?.status === "paid" || order?.status === "processing";
+    
+    // Clear existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    
+    if (isActive) {
+      pollingIntervalRef.current = setInterval(() => {
+        refetchOrder();
+      }, 3000);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [order?.status, refetchOrder]);
+
+  // Handle status changes for toasts and cache invalidation
+  useEffect(() => {
+    if (!order) return;
+    
+    const currentStatus = order.status;
+    const previousStatus = prevStatusRef.current;
+    
+    // Only react to actual status changes
+    if (previousStatus !== null && previousStatus !== currentStatus) {
+      if (currentStatus === "completed") {
+        toast.success("A lektorálás sikeresen befejeződött!", {
+          description: "A könyved szövege frissült a lektorált verzióra.",
+          duration: 10000,
+        });
+        // Invalidate chapters to refresh editor
+        queryClient.invalidateQueries({ queryKey: ["chapters", projectId] });
+        queryClient.invalidateQueries({ queryKey: ["blocks"] });
+      } else if (currentStatus === "failed") {
+        toast.error("Hiba történt a lektorálás során", {
+          description: order.error_message || "Kérjük, próbáld újra később.",
+          duration: 10000,
+        });
+      } else if (currentStatus === "processing" && previousStatus === "paid") {
+        toast.info("A lektorálás elkezdődött", {
+          description: "A háttérben fut, bármikor bezárhatod az oldalt.",
+        });
+      }
+    }
+    
+    prevStatusRef.current = currentStatus;
+  }, [order?.status, order?.error_message, projectId, queryClient]);
 
   // Purchase proofreading
   const purchaseMutation = useMutation({
@@ -131,48 +233,6 @@ export function useProofreading(projectId: string) {
       toast.error(error instanceof Error ? error.message : "Hiba történt a teszt lektorálás során");
     },
   });
-
-  // Poll for order status updates when processing
-  useEffect(() => {
-    const shouldPoll = order?.status === "paid" || order?.status === "processing";
-    
-    // Clear existing interval if any
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    
-    if (shouldPoll) {
-      pollingIntervalRef.current = setInterval(() => {
-        refetchOrder();
-      }, 3000); // Poll every 3 seconds
-    }
-
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [order?.status, refetchOrder]);
-
-  // Show toast when order completes
-  useEffect(() => {
-    if (order?.status === "completed") {
-      toast.success("A lektorálás sikeresen befejeződött!", {
-        description: "A könyved szövege frissült a lektorált verzióra.",
-        duration: 10000,
-      });
-      // Invalidate chapters to refresh editor
-      queryClient.invalidateQueries({ queryKey: ["chapters", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["blocks"] });
-    } else if (order?.status === "failed") {
-      toast.error("Hiba történt a lektorálás során", {
-        description: order.error_message || "Kérjük, próbáld újra később.",
-        duration: 10000,
-      });
-    }
-  }, [order?.status, order?.error_message, projectId, queryClient]);
 
   const price = calculateProofreadingPrice(wordCount);
   const progress = order ? (order.current_chapter_index / order.total_chapters) * 100 : 0;
