@@ -29,6 +29,7 @@ const BookCoach = lazy(() => import("./pages/BookCoach"));
 const CoverDesigner = lazy(() => import("./pages/CoverDesigner"));
 const CreateStorybook = lazy(() => import("./pages/CreateStorybook"));
 const StorybookViewer = lazy(() => import("./pages/StorybookViewer"));
+const PublicBookReader = lazy(() => import("./pages/PublicBookReader"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -58,6 +59,11 @@ function AppContent() {
       <SkipToContent />
       <Routes>
         <Route path="/" element={<Index />} />
+        <Route path="/read/:shareToken" element={
+          <Suspense fallback={<FullPageLoader message="Könyv betöltése..." />}>
+            <PublicBookReader />
+          </Suspense>
+        } />
         <Route path="/pricing" element={
           <Suspense fallback={<FullPageLoader message="Árak betöltése..." />}>
             <Pricing />

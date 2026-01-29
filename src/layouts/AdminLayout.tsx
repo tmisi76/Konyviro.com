@@ -60,6 +60,7 @@ const ADMIN_NAV_ITEMS = [
     section: "Rendszer",
     items: [
       { name: "AI Beállítások", href: "/admin/ai-settings", icon: Bot },
+      { name: "TTS Hangok", href: "/admin/voices", icon: Bot },
       { name: "Email Sablonok", href: "/admin/emails", icon: Mail },
       { name: "Support Ticketek", href: "/admin/support", icon: LifeBuoy },
       { name: "Beállítások", href: "/admin/settings", icon: Settings },

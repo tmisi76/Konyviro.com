@@ -137,3 +137,6 @@ verify_jwt = false
 
 [functions.recover-missing-scenes]
 verify_jwt = false
+
+[functions.elevenlabs-tts-preview]
+verify_jwt = false
