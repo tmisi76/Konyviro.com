@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Headphones, Mic, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,8 +7,41 @@ import { useAudiobook } from "@/hooks/useAudiobook";
 import { VoicePicker } from "./VoicePicker";
 import { AudiobookProgress } from "./AudiobookProgress";
 import { AudiobookPlayer } from "./AudiobookPlayer";
+import type { Audiobook, TTSVoice } from "@/types/audiobook";
 
-interface AudiobookTabProps {
+interface AudiobookPlayerWrapperProps {
+  audiobook: Audiobook & { voice: TTSVoice };
+  getAudioUrl: (path: string) => Promise<string | null>;
+  onDownload: () => void;
+}
+
+function AudiobookPlayerWrapper({ audiobook, getAudioUrl, onDownload }: AudiobookPlayerWrapperProps) {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  
+  useEffect(() => {
+    if (audiobook.audio_url) {
+      getAudioUrl(audiobook.audio_url).then(setAudioUrl);
+    }
+  }, [audiobook.audio_url, getAudioUrl]);
+
+  if (!audioUrl) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <AudiobookPlayer
+      audioUrl={audioUrl}
+      title="Hangoskönyv"
+      voiceName={audiobook.voice?.name}
+      duration={audiobook.duration_seconds || undefined}
+      onDownload={onDownload}
+    />
+  );
+}
   projectId: string;
   sampleText?: string;
 }
@@ -48,12 +81,23 @@ export function AudiobookTab({ projectId, sampleText }: AudiobookTabProps) {
 
   // Show player if audiobook is completed
   if (audiobook && audiobook.status === "completed") {
+    const handleDownload = async () => {
+      if (!audiobook.audio_url) return;
+      const signedUrl = await getAudioUrl(audiobook.audio_url);
+      if (signedUrl) {
+        const a = document.createElement("a");
+        a.href = signedUrl;
+        a.download = `audiobook-${projectId}.mp3`;
+        a.click();
+      }
+    };
+
     return (
       <div className="space-y-4">
-        <AudiobookPlayer
+        <AudiobookPlayerWrapper
           audiobook={audiobook}
-          chapters={chapters || []}
           getAudioUrl={getAudioUrl}
+          onDownload={handleDownload}
         />
         <Button
           variant="outline"
