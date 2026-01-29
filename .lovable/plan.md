@@ -1,113 +1,156 @@
 
+# Lektorálás Háttérfolyamat Javítási Terv
 
-# Lektorálás Javítási Terv
+## Jelenlegi vs. Könyvírás Architektúra
 
-## Azonosított Problémák
+| Aspektus | Könyvírás | Lektorálás (jelenlegi) |
+|----------|-----------|------------------------|
+| Tábla | `projects` | `proofreading_orders` |
+| Realtime | ✅ Supabase Realtime subscription | ❌ Nincs |
+| Polling | ✅ 5mp-es fallback | ⚠️ 3mp-es polling (egyetlen módszer) |
+| UI | `WritingProgressModal` dedikált modal | Egyszerű Progress bar kártyán |
+| Bezárható | ✅ Igen, háttérben fut | ⚠️ Elméletben igen, de nincs feedback |
 
-### 1. Edge Function Timeout Probléma
+## Javasolt Változtatások
 
-**Hiba:** Az `admin-test-proofreading` szinkron módon (`await fetch(...)`) hívja meg a `process-proofreading` funkciót és VÁRJA a választ. Mivel a lektorálás 14 fejezetnél percekig tart, a kapcsolat timeout-ol.
+### 1. Supabase Realtime engedélyezése a `proofreading_orders` táblára
 
-**Bizonyíték a logokból:**
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.proofreading_orders;
 ```
-Processing chapter 1/14: A telefon
-Process proofreading failed:
-Http: connection closed before message completed
-```
 
-**Megoldás:** A `proofreading-webhook`-hoz hasonlóan fire-and-forget módon kell hívni:
+### 2. Hook Átírás - `useProofreading.ts`
+
+A `useBackgroundWriter.ts` mintáját követve:
+- **Realtime subscription** a `proofreading_orders` táblára
+- **Polling fallback** csak aktív státuszokhoz
+- **Automatikus UI frissítés** minden változáskor
+
 ```typescript
-// JELENLEGI (rossz):
-const processResponse = await fetch(processUrl, {...});
-
-// JAVÍTOTT (jó):
-fetch(processUrl, {...}).catch((err) => {
-  console.error("Failed to trigger proofreading process:", err);
-});
-```
-
-### 2. Infinite Loop a useProofreading Hook-ban
-
-**Hiba:** A polling useEffect-ben az `isPolling` state a dependency listában van, és az effect-en belül is változtatjuk - ez infinite loop-ot okoz.
-
-**Console Error:**
-```
-Maximum update depth exceeded... at ProofreadingTab
-```
-
-**Probléma kód (135-155. sor):**
-```typescript
+// Új architektúra
 useEffect(() => {
-  if (shouldPoll && !isPolling) {
-    setIsPolling(true);  // ← Ez triggereli újra az effect-et
-    // ...
-  }
-}, [order?.status, isPolling, refetchOrder]); // ← isPolling itt van
+  // Realtime subscription
+  const channel = supabase
+    .channel(`proofreading-${projectId}`)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'proofreading_orders',
+      filter: `project_id=eq.${projectId}`
+    }, (payload) => {
+      setOrder(payload.new);
+    })
+    .subscribe();
+
+  return () => supabase.removeChannel(channel);
+}, [projectId]);
 ```
 
-**Megoldás:** useRef használata az isPolling helyett, vagy a polling logika átstrukturálása.
+### 3. Polling Finomítás
 
----
+A polling megmarad backup-ként, de csak aktív státuszokhoz (`paid`, `processing`):
+- 3 másodperces intervallum az aktív feldolgozás alatt
+- Automatikus leállítás `completed` vagy `failed` státusznál
 
-## Javítási Terv
+### 4. Toast Üzenetek Javítása
 
-### Fázis 1: Edge Function Fix
+Jelenlegi probléma: A toast üzenetek `order?.status` useEffect dependency-ként vannak, de a `completed`/`failed` ellenőrzés túl korán fut.
 
-**Fájl:** `supabase/functions/admin-test-proofreading/index.ts`
+Javítás: Csak realtime/poll update után fusson le, ne minden renderkor.
 
-Módosítás a 125-151. sor környékén:
-- Változtatás `await fetch(...)` → `fetch(...).catch(...)`
-- Azonnal visszatérés sikerrel, ne várjuk meg a feldolgozást
-- A frontend majd a polling-gel követi az előrehaladást
+## Implementációs Terv
 
-### Fázis 2: Hook Infinite Loop Fix
+### Fázis 1: Adatbázis - Realtime Engedélyezés
+
+**Migráció:**
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.proofreading_orders;
+```
+
+### Fázis 2: Hook Újraírás
 
 **Fájl:** `src/hooks/useProofreading.ts`
 
-Módosítás a polling useEffect-ben (136-155. sor):
-- `useState` helyett `useRef` használata az `isPolling` állapothoz
-- Vagy a dependency array átszervezése, hogy ne okozzon circular update-et
+Változások:
+1. Realtime subscription hozzáadása
+2. Polling logika finomítása (csak aktív státuszoknál)
+3. Toast logika javítása (csak státusz változáskor)
+4. `useRef` az előző státusz tárolásához
 
----
+### Fázis 3: UI (Opcionális Bővítés)
 
-## Elvárt Viselkedés Javítás Után
+Opcionálisan a `ProofreadingTab` is kaphat egy modernebb progress megjelenítést:
+- Jelenlegi fejezet neve
+- Becsült hátralevő idő
+- "Háttérben fut" jelzés
 
-```text
-┌────────────────────────────────────────────────────────────────┐
-│  Admin kattint "TESZT Lektorálás" gombra                      │
-└────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────────────┐
-│  admin-test-proofreading:                                      │
-│  1. Létrehoz order-t (status: "paid")                         │
-│  2. Fire-and-forget hívja process-proofreading-ot             │
-│  3. AZONNAL visszatér: { success: true, orderId: "..." }      │
-└────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────────────┐
-│  Frontend:                                                     │
-│  - Toast: "Teszt lektorálás elindítva!"                       │
-│  - Polling elindul (3 másodpercenként)                        │
-│  - Progress bar megjelenik                                     │
-└────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼ (háttérben)
-┌────────────────────────────────────────────────────────────────┐
-│  process-proofreading (fut a háttérben):                       │
-│  - Fejezetenként lektorál Claude Opus-szal                    │
-│  - Minden fejezet után frissíti current_chapter_index-et      │
-│  - Végén status: "completed"                                   │
-└────────────────────────────────────────────────────────────────┘
+## Technikai Részletek
+
+### Realtime Subscription Minta (useBackgroundWriter-ből)
+
+```typescript
+const channel = supabase
+  .channel(`proofreading-order-${projectId}`)
+  .on(
+    'postgres_changes',
+    {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'proofreading_orders',
+      filter: `project_id=eq.${projectId}`
+    },
+    (payload) => {
+      const order = payload.new as ProofreadingOrder;
+      // Frissítés
+    }
+  )
+  .subscribe();
 ```
 
----
+### Polling + Realtime Kombináció
 
-## Technikai Módosítások Összefoglalva
+```typescript
+// 1. Realtime a fő csatorna
+// 2. Polling backup az aktív státuszokhoz
+useEffect(() => {
+  const isActive = order?.status === "paid" || order?.status === "processing";
+  
+  if (!isActive) {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    return;
+  }
+  
+  pollingRef.current = setInterval(refetchOrder, 3000);
+  return () => clearInterval(pollingRef.current);
+}, [order?.status]);
+```
 
-| Fájl | Módosítás |
-|------|-----------|
-| `supabase/functions/admin-test-proofreading/index.ts` | `await fetch()` → `fetch().catch()` fire-and-forget |
-| `src/hooks/useProofreading.ts` | useRef az isPolling-hoz, dependency array fix |
+### Toast Javítás - Előző Státusz Figyelése
 
+```typescript
+const prevStatusRef = useRef<string | null>(null);
+
+useEffect(() => {
+  if (!order) return;
+  
+  // Csak ha a státusz tényleg VÁLTOZOTT
+  if (prevStatusRef.current !== order.status) {
+    if (order.status === "completed" && prevStatusRef.current === "processing") {
+      toast.success("Lektorálás befejezve!");
+    } else if (order.status === "failed") {
+      toast.error(order.error_message || "Hiba történt");
+    }
+    prevStatusRef.current = order.status;
+  }
+}, [order?.status]);
+```
+
+## Összefoglaló
+
+| Változás | Fájl | Típus |
+|----------|------|-------|
+| Realtime engedélyezés | Migráció | SQL |
+| Hook újraírás | `src/hooks/useProofreading.ts` | TypeScript |
+| (Opcionális) UI bővítés | `src/components/proofreading/ProofreadingTab.tsx` | React |
+
+A fő cél: A lektorálás ugyanúgy működjön, mint a könyvírás - **realtime frissítésekkel**, **megbízható háttérfolyamattal**, és **felhasználóbarát feedback-kel**.
