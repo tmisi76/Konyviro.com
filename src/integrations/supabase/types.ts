@@ -1197,6 +1197,62 @@ export type Database = {
         }
         Relationships: []
       }
+      proofreading_orders: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          current_chapter_index: number | null
+          error_message: string | null
+          id: string
+          project_id: string
+          started_at: string | null
+          status: string
+          stripe_session_id: string
+          total_chapters: number | null
+          user_id: string
+          word_count: number
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          current_chapter_index?: number | null
+          error_message?: string | null
+          id?: string
+          project_id: string
+          started_at?: string | null
+          status?: string
+          stripe_session_id: string
+          total_chapters?: number | null
+          user_id: string
+          word_count: number
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          current_chapter_index?: number | null
+          error_message?: string | null
+          id?: string
+          project_id?: string
+          started_at?: string | null
+          status?: string
+          stripe_session_id?: string
+          total_chapters?: number | null
+          user_id?: string
+          word_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proofreading_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quality_issues: {
         Row: {
           chapter_id: string

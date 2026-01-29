@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export type ViewMode = "editor" | "outline" | "characters" | "research" | "audiobook";
+export type ViewMode = "editor" | "outline" | "characters" | "research" | "audiobook" | "proofreading";
 
 export interface CursorPosition {
   blockId: string;
