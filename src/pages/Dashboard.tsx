@@ -351,6 +351,7 @@ export default function Dashboard() {
                         onOpen={handleProjectOpen}
                         onDelete={handleProjectDeleteRequest}
                         onArchive={handleArchiveProject}
+                        onRename={refetch}
                       />
                     ))}
                   </div>
@@ -371,6 +372,7 @@ export default function Dashboard() {
                         onOpen={handleProjectOpen}
                         onDelete={handleProjectDeleteRequest}
                         onArchive={handleArchiveProject}
+                        onRename={refetch}
                       />
                     ))}
                   </div>
@@ -525,6 +527,7 @@ export default function Dashboard() {
                     onOpen={handleProjectOpen}
                     onDelete={handleProjectDeleteRequest}
                     onArchive={handleArchiveProject}
+                    onRename={refetch}
                   />
                 ))}
               </div>
@@ -545,6 +548,7 @@ export default function Dashboard() {
                     onOpen={handleProjectOpen}
                     onDelete={handleProjectDeleteRequest}
                     onArchive={handleArchiveProject}
+                    onRename={refetch}
                   />
                 ))}
               </div>

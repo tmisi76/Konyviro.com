@@ -35,6 +35,7 @@ interface ProjectCardProps {
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onArchive?: (id: string) => void;
+  onRename?: () => void;
 }
 
 const genreConfig: Record<string, { label: string; className: string }> = {
@@ -80,7 +81,7 @@ function formatRelativeTime(date: Date): string {
   return `${Math.floor(diffInDays / 30)} hónapja`;
 }
 
-export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCardProps) {
+export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: ProjectCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [liveWordCount, setLiveWordCount] = useState(project.wordCount);
   const [liveStatus, setLiveStatus] = useState(project.writingStatus);
@@ -309,6 +310,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
         onOpenChange={setShowRenameModal}
         projectId={project.id}
         currentTitle={project.title}
+        onSuccess={onRename}
       />
     </div>
   );
