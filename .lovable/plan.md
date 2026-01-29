@@ -1,291 +1,211 @@
 
-# Implementációs Terv: Könyv Megosztás + Hangoskönyv Készítő
+# Terv: Hangoskönyv Kredit Rendszer & Árazás
 
-## Áttekintés
+## Összefoglaló
 
-Két fő funkció implementálása:
-1. **Könyv megosztás** - Nyilvános/jelszóval védett linkek + interaktív olvasó nézetek
-2. **Hangoskönyv készítő** - ElevenLabs TTS integráció hangválasztóval
-
-## Megadott ElevenLabs Voice ID-k
-
-| Voice ID | Használat |
-|----------|-----------|
-| NOpBlnGInO9m6vDvFkFC | Hang 1 |
-| IRHApOXLvnW57QJPQH2P | Hang 2 |
-| xjlfQQ3ynqiEyRpArrT8 | Hang 3 |
-| XfNU2rGpBa01ckF309OY | Hang 4 |
+ElevenLabs API árazás alapján dolgozzuk ki a hangoskönyv kredit rendszert:
+- **Egyik csomagban sincs alapból hangoskönyv kredit** (0 kredit alap)
+- **Külön vásárolható kredit csomagok** a hangoskönyvekhez
+- **4x API költség** az árazáshoz
+- Az előfizetési csomag max 25%-a lehet a költség
 
 ---
 
-## 1. RÉSZ: Adatbázis Változtatások
+## ElevenLabs Árazás Elemzése
 
-### 1.1 book_shares tábla
+Az ElevenLabs oldalról:
+- **Creator terv ($22/hó)**: 100k kredit = ~100 perc audio = **~$0.22/perc**
+- **Pro terv ($99/hó)**: 500k kredit = ~500 perc audio = **~$0.20/perc**
+- **Scale terv ($330/hó)**: 2M kredit = ~2,000 perc audio = **~$0.165/perc**
+- **Business terv**: ~$0.12/perc
+
+Átlagos könyv kalkuláció:
+| Könyv típus | Szó | Karakter | Audio idő |
+|-------------|-----|----------|-----------|
+| Novella | 20,000 | ~100,000 | ~40 perc |
+| Regény | 50,000 | ~250,000 | ~100 perc |
+| Nagyregény | 100,000 | ~500,000 | ~200 perc |
+
+---
+
+## Árazási Kalkuláció
+
+### ElevenLabs API Költség (Pro terv: $0.20/perc)
+
+| Könyv típus | Audio | API költség | 4x ár (eladási) |
+|-------------|-------|-------------|-----------------|
+| Novella (40 perc) | 40 perc | ~$8 (~3,200 Ft) | ~$32 (~12,800 Ft) |
+| Regény (100 perc) | 100 perc | ~$20 (~8,000 Ft) | ~$80 (~32,000 Ft) |
+| Nagyregény (200 perc) | 200 perc | ~$40 (~16,000 Ft) | ~$160 (~64,000 Ft) |
+
+*Árfolyam: 1 USD = ~400 HUF*
+
+### Előfizetési Csomag Ellenőrzés (max 25% költség)
+
+| Csomag | Éves ár | 25% költségkeret | Elég könyvre? |
+|--------|---------|------------------|---------------|
+| HOBBI (éves) | 29,940 Ft | 7,485 Ft | ~3 novella API költsége |
+| PROFI (éves) | 89,940 Ft | 22,485 Ft | ~2-3 regény API költsége |
+| PRO (éves) | 179,940 Ft | 44,985 Ft | ~5 regény API költsége |
+
+**Következtetés**: A 4x árazás mellett nem tudunk ingyen audio creditet adni a csomagokhoz anélkül, hogy túllépnénk a 25%-os költségkeretet. Ezért **minden hangoskönyv kredit külön vásárolandó**.
+
+---
+
+## Új Kredit Rendszer: "Audiobook Minutes"
+
+### Mértékegység: Hangoskönyv Percek
+
+1 perc audio = 1 kredit
+
+### Kredit Csomagok
+
+| Csomag | Percek | ElevenLabs költség | 4x eladási ár | Per perc |
+|--------|--------|-------------------|---------------|----------|
+| Alap | 30 perc | ~$6 (2,400 Ft) | **9,990 Ft** | 333 Ft/perc |
+| Népszerű | 100 perc | ~$20 (8,000 Ft) | **29,990 Ft** | 300 Ft/perc |
+| Profi | 250 perc | ~$50 (20,000 Ft) | **69,990 Ft** | 280 Ft/perc |
+
+*A 4x szorzó miatt jó margó marad (75%)*
+
+---
+
+## Adatbázis Változások
+
+### Új mezők a `profiles` táblában:
+
 ```sql
-CREATE TABLE public.book_shares (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE NOT NULL,
-  user_id UUID NOT NULL,
-  share_token TEXT UNIQUE NOT NULL,
-  is_public BOOLEAN DEFAULT true,
-  password_hash TEXT,
-  view_mode TEXT DEFAULT 'scroll' CHECK (view_mode IN ('flipbook', 'scroll')),
-  allow_download BOOLEAN DEFAULT false,
-  expires_at TIMESTAMPTZ,
-  view_count INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+ALTER TABLE profiles ADD COLUMN audiobook_minutes_balance INTEGER DEFAULT 0;
 ```
 
-### 1.2 tts_voices tábla (Admin kezeli)
-```sql
-CREATE TABLE public.tts_voices (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  elevenlabs_voice_id TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL,
-  description TEXT,
-  gender TEXT DEFAULT 'neutral' CHECK (gender IN ('male', 'female', 'neutral')),
-  language TEXT DEFAULT 'hu',
-  sample_text TEXT,
-  is_active BOOLEAN DEFAULT true,
-  sort_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+### Új tábla: `audiobook_credit_purchases`
 
--- Előre kitöltjük a megadott hangokkal
-INSERT INTO public.tts_voices (elevenlabs_voice_id, name, description, gender, language, sort_order) VALUES
-  ('NOpBlnGInO9m6vDvFkFC', 'Narrátor 1', 'Magyar férfi hang', 'male', 'hu', 1),
-  ('IRHApOXLvnW57QJPQH2P', 'Narrátor 2', 'Magyar női hang', 'female', 'hu', 2),
-  ('xjlfQQ3ynqiEyRpArrT8', 'Narrátor 3', 'Magyar semleges hang', 'neutral', 'hu', 3),
-  ('XfNU2rGpBa01ckF309OY', 'Narrátor 4', 'Magyar hang', 'neutral', 'hu', 4);
-```
-
-### 1.3 audiobooks tábla
 ```sql
-CREATE TABLE public.audiobooks (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE NOT NULL,
+CREATE TABLE audiobook_credit_purchases (
+  id UUID PRIMARY KEY,
   user_id UUID NOT NULL,
-  voice_id UUID REFERENCES public.tts_voices(id) NOT NULL,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-  progress INTEGER DEFAULT 0,
-  total_chapters INTEGER DEFAULT 0,
-  completed_chapters INTEGER DEFAULT 0,
-  audio_url TEXT,
-  file_size BIGINT,
-  duration_seconds INTEGER,
-  error_message TEXT,
+  stripe_session_id TEXT NOT NULL,
+  minutes_purchased INTEGER NOT NULL,
+  amount INTEGER NOT NULL, -- Forintban
+  status TEXT DEFAULT 'pending',
   created_at TIMESTAMPTZ DEFAULT now(),
   completed_at TIMESTAMPTZ
 );
 ```
 
-### 1.4 audiobook_chapters tábla
-```sql
-CREATE TABLE public.audiobook_chapters (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  audiobook_id UUID REFERENCES public.audiobooks(id) ON DELETE CASCADE NOT NULL,
-  chapter_id UUID REFERENCES public.chapters(id) ON DELETE CASCADE NOT NULL,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-  audio_url TEXT,
-  duration_seconds INTEGER,
-  sort_order INTEGER DEFAULT 0,
-  error_message TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+---
+
+## Új Fájlok
+
+### Frontend
+
+```
+src/constants/audiobookCredits.ts       # Kredit költségek és csomagok
+src/components/audiobook/BuyAudiobookCreditModal.tsx  # Kredit vásárlás modal
+src/hooks/useAudiobookCredits.ts        # Kredit kezelés hook
 ```
 
-### 1.5 RLS Policies
-- **book_shares**: Tulajdonos CRUD + nyilvános token-alapú olvasás
-- **tts_voices**: Mindenki olvashat, csak admin írhat
-- **audiobooks**: Tulajdonos CRUD
-- **audiobook_chapters**: Tulajdonos olvasás (audiobook-on keresztül)
+### Backend
+
+```
+supabase/functions/create-audiobook-credit-purchase/  # Stripe checkout
+supabase/functions/audiobook-credit-webhook/          # Webhook handler
+```
 
 ---
 
-## 2. RÉSZ: Könyv Megosztás
+## Kredit Fogyasztás Logika
 
-### 2.1 Új Fájlok
+### Hangoskönyv generálás előtt:
 
-```
-src/types/share.ts                    # TypeScript típusok
-src/hooks/useBookShare.ts             # Megosztás logika hook
-src/pages/PublicBookReader.tsx        # Nyilvános olvasó oldal
-src/components/reader/
-  ├── ShareBookModal.tsx              # Megosztás beállítások modal
-  ├── BookScrollView.tsx              # Görgetős Word-szerű nézet
-  ├── BookFlipView.tsx                # Könyv lapozós nézet
-  ├── ReaderViewToggle.tsx            # Nézet váltó gomb
-  └── PasswordGate.tsx                # Jelszó bekérés modal
-```
+1. Kiszámítjuk a szöveg karakterszámát
+2. Becsült percek = karakterszám / 1000 (kb. 1000 karakter = 1 perc)
+3. Ellenőrizzük van-e elég kredit
+4. Ha nincs → megjelenítjük a vásárlás modalt
+5. Ha van → levonjuk és elindítjuk a generálást
 
-### 2.2 Route Hozzáadása
-```typescript
-// App.tsx - Új public route (nincs ProtectedRoute)
-<Route path="/read/:shareToken" element={
-  <Suspense fallback={<FullPageLoader message="Könyv betöltése..." />}>
-    <PublicBookReader />
-  </Suspense>
-} />
-```
+### Pontos fogyasztás:
 
-### 2.3 ShareBookModal Funkciók
-- Toggle: Nyilvános / Jelszóval védett
-- Nézet választás: Flipbook / Scroll
-- Letöltés engedélyezése
-- Lejárat beállítása
-- Link másolás + QR kód
-
-### 2.4 Olvasó Nézetek
-
-**BookScrollView** (Word-szerű):
-- Fejezetek egymás alatt folyamatosan
-- Sidebar fejezet navigációval
-- Szép tipográfia
-
-**BookFlipView** (könyv-szerű):
-- 2 oldalas lapozós nézet
-- FlipBook komponens adaptálása könyvekhez
-- Billentyűzet + touch navigáció
+A generálás végén a tényleges audio hossz alapján korrigáljuk (ha rövidebb lett, visszaadjuk a különbséget).
 
 ---
 
-## 3. RÉSZ: Hangoskönyv Készítő
+## UI Változások
 
-### 3.1 Secret Hozzáadása
-- `ELEVENLABS_API_KEY` - Supabase secret
+### 1. AudiobookTab-ban:
 
-### 3.2 Új Fájlok
+- Kredit egyenleg megjelenítése
+- "Kredit vásárlás" gomb
+- Becsült költség megjelenítése generálás előtt
 
-```
-src/types/audiobook.ts                # TypeScript típusok
-src/hooks/useAudiobook.ts             # Hangoskönyv logika hook
-src/hooks/admin/useTTSVoices.ts       # Admin hangok kezelése
-src/pages/admin/AdminVoices.tsx       # Admin hangok oldal
-src/components/audiobook/
-  ├── VoicePicker.tsx                 # Hangválasztó komponens
-  ├── AudiobookProgress.tsx           # Generálás állapot
-  ├── AudiobookPlayer.tsx             # Mini lejátszó
-  └── AdminVoiceCard.tsx              # Admin hang kártya
+### 2. UsagePanel-ben (Dashboard):
 
-supabase/functions/
-  ├── elevenlabs-tts-preview/         # Hang előnézet
-  ├── start-audiobook-generation/     # Generálás indítása
-  └── process-audiobook-chapter/      # Fejezet feldolgozás
-```
+- Hangoskönyv kredit egyenleg
+- "Kredit vásárlás" link
 
-### 3.3 Admin Voices Oldal (/admin/voices)
-- Hangok listázása kártyákon
-- Hang hozzáadása/szerkesztése/törlése
-- ElevenLabs voice ID, név, leírás, nem
-- Minta szöveg beállítása
-- Drag & drop rendezés
+### 3. Új Modal: BuyAudiobookCreditModal
 
-### 3.4 VoicePicker Működése
-1. Lekéri a projektből 1-1 mondatot (első fejezet első 200 karakter)
-2. Aktív hangok listázása kártyákon
-3. "Előnézet" gomb → ElevenLabs TTS hívás a minta szöveggel
-4. Kiválasztás → hangoskönyv generálás indítása
-
-### 3.5 Edge Function-ök
-
-**elevenlabs-tts-preview**:
-- Input: elevenlabs_voice_id, sample_text
-- ElevenLabs API hívás
-- Return: audio base64 / blob
-
-**start-audiobook-generation**:
-- Audiobook rekord létrehozása
-- Audiobook_chapters rekordok létrehozása minden fejezethez
-- Első fejezet feldolgozás indítása
-
-**process-audiobook-chapter**:
-- Fejezet szöveg lekérése
-- ElevenLabs TTS hívás (request stitching használata)
-- Audio mentése Storage-ba
-- Következő fejezet feldolgozás indítása
-- Ha minden kész → audiobook státusz frissítése
-
-### 3.6 Storage Bucket
-- `audiobooks` bucket létrehozása (private)
-- Signed URL-ek használata lejátszáshoz/letöltéshez
-
-### 3.7 UI Integráció
-
-**ProjectEditor-ban**:
-- Új "Hangoskönyv" gomb/tab
-- Ha nincs hangoskönyv: VoicePicker modal
-- Ha generálás folyamatban: AudiobookProgress
-- Ha kész: AudiobookPlayer + letöltés
-
-**BookExportModal-ban**:
-- Ha van kész hangoskönyv: "Hangoskönyv (MP3)" formátum opció
-- Letöltés a meglévő fájlból
+Hasonló a meglévő BuyCreditModal-hoz, de percekre vonatkozik.
 
 ---
 
-## 4. Implementációs Sorrend
+## Implementáció Sorrendje
 
-### Fázis 1: Adatbázis + Megosztás Alapok
-1. SQL migráció (book_shares, tts_voices, audiobooks, audiobook_chapters)
-2. ELEVENLABS_API_KEY secret kérése
-3. Típus definíciók
-4. ShareBookModal komponens
-5. useBookShare hook
+### Fázis 1: Adatbázis
 
-### Fázis 2: Olvasó Nézetek
-6. PublicBookReader oldal
-7. BookScrollView komponens
-8. BookFlipView komponens
-9. PasswordGate + ReaderViewToggle
-10. App.tsx route hozzáadása
+1. Új mező: `profiles.audiobook_minutes_balance`
+2. Új tábla: `audiobook_credit_purchases`
+3. RPC függvény: `use_audiobook_minutes(p_minutes INTEGER)`
 
-### Fázis 3: Hangoskönyv Admin
-11. AdminVoices oldal
-12. useTTSVoices hook
-13. AdminVoiceCard komponens
-14. AdminLayout nav bővítése
+### Fázis 2: Kredit Konstansok
 
-### Fázis 4: Hangoskönyv Generálás
-15. elevenlabs-tts-preview edge function
-16. start-audiobook-generation edge function
-17. process-audiobook-chapter edge function
-18. audiobooks storage bucket
-19. VoicePicker komponens
-20. useAudiobook hook
-21. AudiobookProgress + AudiobookPlayer komponensek
+4. `src/constants/audiobookCredits.ts` - csomagok és árak
 
-### Fázis 5: Integráció
-22. ProjectEditor hangoskönyv gomb
-23. BookExportModal hangoskönyv opció
+### Fázis 3: Backend
+
+5. `create-audiobook-credit-purchase` edge function
+6. `audiobook-credit-webhook` edge function (ha szükséges, vagy a meglévő credit-webhook bővítése)
+
+### Fázis 4: Frontend
+
+7. `useAudiobookCredits.ts` hook
+8. `BuyAudiobookCreditModal.tsx` komponens
+9. `AudiobookTab.tsx` frissítés (kredit ellenőrzés, megjelenítés)
+10. `UsagePanel.tsx` frissítés
+
+### Fázis 5: Generálás Integrálása
+
+11. `start-audiobook-generation` frissítés (kredit ellenőrzés)
+12. Kredit levonás a tényleges audio hossz alapján
 
 ---
 
-## 5. Technikai Részletek
+## Stripe Termékek
 
-### ElevenLabs API Használat
-- Model: `eleven_multilingual_v2` (magyar támogatás)
-- Request stitching: `previous_text` + `next_text` paraméterek
-- Output format: `mp3_44100_128`
+Létre kell hozni 3 új Stripe terméket:
 
-### Biztonsági Szempontok
-- Jelszó hash: bcrypt
-- Share token: 32 karakteres cryptographically secure random string
-- Audio fájlok: Private storage + signed URLs
-- Rate limiting: max 10 jelszó próbálkozás
-
-### Költség Becslés (ElevenLabs)
-- ~1000 karakter = ~1 perc audio
-- 50,000 szavas könyv ≈ 250,000 karakter ≈ 250 perc
-- Javaslat: PRO előfizetőknek, vagy kredit alapú
+1. **Audiobook Credits - 30 perc** - 9,990 Ft
+2. **Audiobook Credits - 100 perc** - 29,990 Ft
+3. **Audiobook Credits - 250 perc** - 69,990 Ft
 
 ---
 
-## 6. Érintett Meglévő Fájlok
+## Biztonsági Szempontok
 
-- `src/App.tsx` - Új route
-- `src/layouts/AdminLayout.tsx` - Admin nav bővítés
-- `src/components/export/BookExportModal.tsx` - Hangoskönyv opció
-- `src/pages/ProjectEditor.tsx` - Megosztás + Hangoskönyv gombok
-- `supabase/config.toml` - Új edge function-ök
+- Kredit levonás service role-lal
+- RPC függvény `auth.uid()` alapú
+- Rate limiting a generálás endpoint-on
+- Webhook signature verification
+
+---
+
+## Összefoglaló
+
+| Elem | Érték |
+|------|-------|
+| ElevenLabs költség | ~$0.20/perc (~80 Ft) |
+| Eladási ár | ~300 Ft/perc (4x) |
+| Legkisebb csomag | 30 perc = 9,990 Ft |
+| Legnagyobb csomag | 250 perc = 69,990 Ft |
+| Előfizetésben | 0 perc (külön vásárolandó) |
+| Margó | ~75% |
