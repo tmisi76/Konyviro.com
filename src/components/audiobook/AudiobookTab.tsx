@@ -122,6 +122,9 @@ export function AudiobookTab({ projectId, sampleText }: AudiobookTabProps) {
   const CostEstimate = () => {
     if (totalCharacters === 0) return null;
     
+    // Becsült költség ~300 Ft/perc átlagárral
+    const estimatedCostHuf = Math.ceil(estimatedMinutes * 300);
+    
     return (
       <div className="rounded-lg border p-3 space-y-2">
         <div className="flex items-center justify-between text-sm">
@@ -135,12 +138,22 @@ export function AudiobookTab({ projectId, sampleText }: AudiobookTabProps) {
           </span>
         </div>
         {!canGenerate && (
-          <Alert variant="destructive" className="mt-2">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Nincs elég kredit. Szükséges: {formatAudioMinutes(estimatedMinutes - balance)} további.
-            </AlertDescription>
-          </Alert>
+          <>
+            <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>Becsült költség:</strong> kb. {estimatedCostHuf.toLocaleString("hu-HU")} Ft
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                A hangoskönyv készítéshez előbb kredit vásárlás szükséges.
+              </p>
+            </div>
+            <Alert variant="destructive" className="mt-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Nincs elég kredit. Szükséges: {formatAudioMinutes(estimatedMinutes - balance)} további.
+              </AlertDescription>
+            </Alert>
+          </>
         )}
       </div>
     );

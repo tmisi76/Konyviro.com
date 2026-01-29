@@ -135,8 +135,8 @@ export function useVoicePreview() {
       const audioBlob = await response.blob();
       return URL.createObjectURL(audioBlob);
     },
-    onError: (error) => {
-      toast.error(error.message);
+    onError: () => {
+      toast.error("Hang előnézet nem elérhető. Kérlek próbáld újra később.");
     },
   });
 }
