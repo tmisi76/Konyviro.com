@@ -1,211 +1,180 @@
 
-# Terv: Hangoskönyv Kredit Rendszer & Árazás
+# Implementációs Terv: Könyv Átnevezés + Hangoskönyv Kredit Láthatóság
 
-## Összefoglaló
+## Problémák Összefoglalása
 
-ElevenLabs API árazás alapján dolgozzuk ki a hangoskönyv kredit rendszert:
-- **Egyik csomagban sincs alapból hangoskönyv kredit** (0 kredit alap)
-- **Külön vásárolható kredit csomagok** a hangoskönyvekhez
-- **4x API költség** az árazáshoz
-- Az előfizetési csomag max 25%-a lehet a költség
+### 1. Könyv Átnevezés
+A felhasználók nem tudják átnevezni a könyveiket. Hiányzik:
+- Átnevezés funkció a `useProjects` hook-ból
+- "Átnevezés" menüpont a projekt kártyákon és sidebar-ban
+- Modal az új cím megadásához
 
----
-
-## ElevenLabs Árazás Elemzése
-
-Az ElevenLabs oldalról:
-- **Creator terv ($22/hó)**: 100k kredit = ~100 perc audio = **~$0.22/perc**
-- **Pro terv ($99/hó)**: 500k kredit = ~500 perc audio = **~$0.20/perc**
-- **Scale terv ($330/hó)**: 2M kredit = ~2,000 perc audio = **~$0.165/perc**
-- **Business terv**: ~$0.12/perc
-
-Átlagos könyv kalkuláció:
-| Könyv típus | Szó | Karakter | Audio idő |
-|-------------|-----|----------|-----------|
-| Novella | 20,000 | ~100,000 | ~40 perc |
-| Regény | 50,000 | ~250,000 | ~100 perc |
-| Nagyregény | 100,000 | ~500,000 | ~200 perc |
+### 2. Hangoskönyv Kredit Vásárlás
+A hangoskönyv funkció és kredit vásárlás nem látható, mert:
+- A Dashboard-on csak a sidebar compact `UsagePanel` jelenik meg
+- Compact módban a hangoskönyv kredit csak akkor látszik, **ha már van egyenleg (>0)**
+- A "Hangoskönyv kredit vásárlás" gomb csak a teljes `UsagePanel`-ben van, ami nem jelenik meg a Dashboard főoldalán
 
 ---
 
-## Árazási Kalkuláció
+## Megoldások
 
-### ElevenLabs API Költség (Pro terv: $0.20/perc)
+### 1. Könyv Átnevezés Funkció
 
-| Könyv típus | Audio | API költség | 4x ár (eladási) |
-|-------------|-------|-------------|-----------------|
-| Novella (40 perc) | 40 perc | ~$8 (~3,200 Ft) | ~$32 (~12,800 Ft) |
-| Regény (100 perc) | 100 perc | ~$20 (~8,000 Ft) | ~$80 (~32,000 Ft) |
-| Nagyregény (200 perc) | 200 perc | ~$40 (~16,000 Ft) | ~$160 (~64,000 Ft) |
+**Új komponens:**
+```
+src/components/projects/RenameProjectModal.tsx
+```
+- Egyszerű modal input mezővel
+- Props: `open`, `onOpenChange`, `projectId`, `currentTitle`, `onSuccess`
 
-*Árfolyam: 1 USD = ~400 HUF*
+**Hook bővítés: `useProjects.ts`**
+- Új `renameProject(projectId: string, newTitle: string)` funkció
 
-### Előfizetési Csomag Ellenőrzés (max 25% költség)
+**UI integráció:**
+- `ProjectCard.tsx` dropdown menü → "Átnevezés" opció hozzáadása
+- `DashboardSidebar.tsx` projekt menü → "Átnevezés" opció hozzáadása
 
-| Csomag | Éves ár | 25% költségkeret | Elég könyvre? |
-|--------|---------|------------------|---------------|
-| HOBBI (éves) | 29,940 Ft | 7,485 Ft | ~3 novella API költsége |
-| PROFI (éves) | 89,940 Ft | 22,485 Ft | ~2-3 regény API költsége |
-| PRO (éves) | 179,940 Ft | 44,985 Ft | ~5 regény API költsége |
+### 2. Hangoskönyv Kredit Láthatóság
 
-**Következtetés**: A 4x árazás mellett nem tudunk ingyen audio creditet adni a csomagokhoz anélkül, hogy túllépnénk a 25%-os költségkeretet. Ezért **minden hangoskönyv kredit külön vásárolandó**.
+**UsagePanel.tsx módosítás (compact mód):**
+- Mindig mutassa a hangoskönyv kredit sort, **akkor is ha 0**
+- Ha 0, mutassa: "0 perc" + "Vásárlás" ikon/link
+- Kattintásra nyissa meg a `BuyAudiobookCreditModal`-t
 
----
-
-## Új Kredit Rendszer: "Audiobook Minutes"
-
-### Mértékegység: Hangoskönyv Percek
-
-1 perc audio = 1 kredit
-
-### Kredit Csomagok
-
-| Csomag | Percek | ElevenLabs költség | 4x eladási ár | Per perc |
-|--------|--------|-------------------|---------------|----------|
-| Alap | 30 perc | ~$6 (2,400 Ft) | **9,990 Ft** | 333 Ft/perc |
-| Népszerű | 100 perc | ~$20 (8,000 Ft) | **29,990 Ft** | 300 Ft/perc |
-| Profi | 250 perc | ~$50 (20,000 Ft) | **69,990 Ft** | 280 Ft/perc |
-
-*A 4x szorzó miatt jó margó marad (75%)*
+**Dashboard.tsx módosítás:**
+- A főoldalon (desktop) adjunk hozzá egy dedikált "Hangoskönyv kredit" kártyát/gombot
+- Vagy: A `UsagePanel` teljes verzióját jelenítsük meg a desktop dashboardon is
 
 ---
 
-## Adatbázis Változások
+## Érintett Fájlok
 
-### Új mezők a `profiles` táblában:
+| Fájl | Változás |
+|------|----------|
+| `src/hooks/useProjects.ts` | + `renameProject` funkció |
+| `src/components/projects/RenameProjectModal.tsx` | **ÚJ** - átnevezés modal |
+| `src/components/dashboard/ProjectCard.tsx` | + átnevezés menüpont + modal integráció |
+| `src/components/dashboard/DashboardSidebar.tsx` | + átnevezés menüpont + callback |
+| `src/components/dashboard/UsagePanel.tsx` | Compact mód: mindig mutassa hangoskönyv kreditet |
+| `src/pages/Dashboard.tsx` | + Hangoskönyv kredit vásárlás gomb/kártya |
 
-```sql
-ALTER TABLE profiles ADD COLUMN audiobook_minutes_balance INTEGER DEFAULT 0;
+---
+
+## Részletes Implementáció
+
+### 1. RenameProjectModal.tsx
+
+```tsx
+interface RenameProjectModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  projectId: string;
+  currentTitle: string;
+  onSuccess?: () => void;
+}
+
+// - Input mező az új címmel (előre kitöltve a jelenlegi címmel)
+// - Validáció: min 1 karakter, max 100 karakter
+// - Mentés gomb → updateProject API hívás
+// - Toast üzenet sikeres mentés után
 ```
 
-### Új tábla: `audiobook_credit_purchases`
+### 2. useProjects.ts - renameProject
 
-```sql
-CREATE TABLE audiobook_credit_purchases (
-  id UUID PRIMARY KEY,
-  user_id UUID NOT NULL,
-  stripe_session_id TEXT NOT NULL,
-  minutes_purchased INTEGER NOT NULL,
-  amount INTEGER NOT NULL, -- Forintban
-  status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  completed_at TIMESTAMPTZ
-);
+```typescript
+const renameProject = async (projectId: string, newTitle: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from("projects")
+      .update({ title: newTitle })
+      .eq("id", projectId);
+
+    if (error) throw error;
+
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, title: newTitle } : p))
+    );
+    return true;
+  } catch (err) {
+    console.error("Error renaming project:", err);
+    return false;
+  }
+};
+```
+
+### 3. ProjectCard Dropdown Bővítés
+
+```tsx
+// Új menüpont az "Exportálás" alatt:
+<DropdownMenuItem onClick={() => setShowRenameModal(true)}>
+  <Type className="mr-2 h-4 w-4" />
+  Átnevezés
+</DropdownMenuItem>
+
+// + RenameProjectModal a komponens végén
+```
+
+### 4. UsagePanel Compact Mód Javítás
+
+A 166-178. sor módosítása:
+
+```tsx
+{/* Audiobook credits in compact mode - ALWAYS show, even if 0 */}
+{!audiobookLoading && (
+  <button 
+    onClick={() => setShowAudiobookCreditModal(true)}
+    className="flex justify-between text-xs w-full hover:text-primary transition-colors"
+  >
+    <span className="flex items-center gap-1 text-primary">
+      <Headphones className="h-3 w-3" />
+      Hangoskönyv
+    </span>
+    <span className="text-primary font-medium flex items-center gap-1">
+      {audiobookBalance > 0 ? formatAudioMinutes(audiobookBalance) : (
+        <>
+          <span>0 perc</span>
+          <Plus className="h-3 w-3" />
+        </>
+      )}
+    </span>
+  </button>
+)}
+```
+
+### 5. Dashboard Hangoskönyv Gomb (Opcionális)
+
+A statscard-ok mellé egy új kártya vagy gomb:
+
+```tsx
+{/* Audiobook promo - csak ha nincs kredit */}
+{audiobookBalance === 0 && (
+  <div className="mb-8">
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <Headphones className="h-8 w-8 text-primary" />
+        <div>
+          <h3 className="font-semibold">Készíts hangoskönyvet!</h3>
+          <p className="text-sm text-muted-foreground">
+            Változtasd át könyveidet professzionális hanganyaggá
+          </p>
+        </div>
+      </div>
+      <Button onClick={() => setShowAudiobookModal(true)}>
+        Kredit vásárlás
+      </Button>
+    </div>
+  </div>
+)}
 ```
 
 ---
 
-## Új Fájlok
+## Implementációs Sorrend
 
-### Frontend
-
-```
-src/constants/audiobookCredits.ts       # Kredit költségek és csomagok
-src/components/audiobook/BuyAudiobookCreditModal.tsx  # Kredit vásárlás modal
-src/hooks/useAudiobookCredits.ts        # Kredit kezelés hook
-```
-
-### Backend
-
-```
-supabase/functions/create-audiobook-credit-purchase/  # Stripe checkout
-supabase/functions/audiobook-credit-webhook/          # Webhook handler
-```
-
----
-
-## Kredit Fogyasztás Logika
-
-### Hangoskönyv generálás előtt:
-
-1. Kiszámítjuk a szöveg karakterszámát
-2. Becsült percek = karakterszám / 1000 (kb. 1000 karakter = 1 perc)
-3. Ellenőrizzük van-e elég kredit
-4. Ha nincs → megjelenítjük a vásárlás modalt
-5. Ha van → levonjuk és elindítjuk a generálást
-
-### Pontos fogyasztás:
-
-A generálás végén a tényleges audio hossz alapján korrigáljuk (ha rövidebb lett, visszaadjuk a különbséget).
-
----
-
-## UI Változások
-
-### 1. AudiobookTab-ban:
-
-- Kredit egyenleg megjelenítése
-- "Kredit vásárlás" gomb
-- Becsült költség megjelenítése generálás előtt
-
-### 2. UsagePanel-ben (Dashboard):
-
-- Hangoskönyv kredit egyenleg
-- "Kredit vásárlás" link
-
-### 3. Új Modal: BuyAudiobookCreditModal
-
-Hasonló a meglévő BuyCreditModal-hoz, de percekre vonatkozik.
-
----
-
-## Implementáció Sorrendje
-
-### Fázis 1: Adatbázis
-
-1. Új mező: `profiles.audiobook_minutes_balance`
-2. Új tábla: `audiobook_credit_purchases`
-3. RPC függvény: `use_audiobook_minutes(p_minutes INTEGER)`
-
-### Fázis 2: Kredit Konstansok
-
-4. `src/constants/audiobookCredits.ts` - csomagok és árak
-
-### Fázis 3: Backend
-
-5. `create-audiobook-credit-purchase` edge function
-6. `audiobook-credit-webhook` edge function (ha szükséges, vagy a meglévő credit-webhook bővítése)
-
-### Fázis 4: Frontend
-
-7. `useAudiobookCredits.ts` hook
-8. `BuyAudiobookCreditModal.tsx` komponens
-9. `AudiobookTab.tsx` frissítés (kredit ellenőrzés, megjelenítés)
-10. `UsagePanel.tsx` frissítés
-
-### Fázis 5: Generálás Integrálása
-
-11. `start-audiobook-generation` frissítés (kredit ellenőrzés)
-12. Kredit levonás a tényleges audio hossz alapján
-
----
-
-## Stripe Termékek
-
-Létre kell hozni 3 új Stripe terméket:
-
-1. **Audiobook Credits - 30 perc** - 9,990 Ft
-2. **Audiobook Credits - 100 perc** - 29,990 Ft
-3. **Audiobook Credits - 250 perc** - 69,990 Ft
-
----
-
-## Biztonsági Szempontok
-
-- Kredit levonás service role-lal
-- RPC függvény `auth.uid()` alapú
-- Rate limiting a generálás endpoint-on
-- Webhook signature verification
-
----
-
-## Összefoglaló
-
-| Elem | Érték |
-|------|-------|
-| ElevenLabs költség | ~$0.20/perc (~80 Ft) |
-| Eladási ár | ~300 Ft/perc (4x) |
-| Legkisebb csomag | 30 perc = 9,990 Ft |
-| Legnagyobb csomag | 250 perc = 69,990 Ft |
-| Előfizetésben | 0 perc (külön vásárolandó) |
-| Margó | ~75% |
+1. **RenameProjectModal.tsx** létrehozása
+2. **useProjects.ts** bővítése `renameProject` funkcióval
+3. **ProjectCard.tsx** - átnevezés menüpont + modal
+4. **DashboardSidebar.tsx** - átnevezés menüpont + callback
+5. **UsagePanel.tsx** - compact mód javítás (mindig mutassa hangoskönyv kreditet)
+6. **Dashboard.tsx** - hangoskönyv promo kártya/gomb hozzáadása
