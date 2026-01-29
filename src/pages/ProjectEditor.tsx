@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save, ImageIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save, ImageIcon, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
@@ -23,6 +23,7 @@ import { AIAction } from "@/hooks/useAIGeneration";
 import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
+import { AudiobookTab } from "@/components/audiobook/AudiobookTab";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -334,6 +335,10 @@ export default function ProjectEditor() {
                   Kutatás
                 </TabsTrigger>
               )}
+              <TabsTrigger value="audiobook" className="gap-2">
+                <Headphones className="h-4 w-4" />
+                Hangoskönyv
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           
@@ -383,6 +388,15 @@ export default function ProjectEditor() {
           <CharacterList projectId={projectId} />
         ) : viewMode === "research" ? (
           <ResearchView projectId={projectId} />
+        ) : viewMode === "audiobook" ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-2xl mx-auto">
+              <AudiobookTab 
+                projectId={projectId} 
+                sampleText={blocks.slice(0, 3).map(b => b.content).join(" ").slice(0, 200)}
+              />
+            </div>
+          </div>
         ) : null}
           </main>
 
