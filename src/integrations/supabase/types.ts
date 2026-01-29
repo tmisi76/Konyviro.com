@@ -277,6 +277,39 @@ export type Database = {
           },
         ]
       }
+      audiobook_credit_purchases: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          minutes_purchased: number
+          status: string
+          stripe_session_id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          minutes_purchased: number
+          status?: string
+          stripe_session_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          minutes_purchased?: number
+          status?: string
+          stripe_session_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       audiobooks: {
         Row: {
           audio_url: string | null
@@ -908,6 +941,7 @@ export type Database = {
           admin_notes: string | null
           adult_content_verified: boolean
           adult_verified_at: string | null
+          audiobook_minutes_balance: number
           avatar_url: string | null
           billing_period: string | null
           bio: string | null
@@ -945,6 +979,7 @@ export type Database = {
           admin_notes?: string | null
           adult_content_verified?: boolean
           adult_verified_at?: string | null
+          audiobook_minutes_balance?: number
           avatar_url?: string | null
           billing_period?: string | null
           bio?: string | null
@@ -982,6 +1017,7 @@ export type Database = {
           admin_notes?: string | null
           adult_content_verified?: boolean
           adult_verified_at?: string | null
+          audiobook_minutes_balance?: number
           avatar_url?: string | null
           billing_period?: string | null
           bio?: string | null
@@ -1880,6 +1916,10 @@ export type Database = {
       }
     }
     Functions: {
+      add_audiobook_minutes_internal: {
+        Args: { p_minutes: number; p_user_id: string }
+        Returns: undefined
+      }
       add_extra_credits_internal: {
         Args: { p_user_id: string; p_word_count: number }
         Returns: undefined
@@ -1895,6 +1935,12 @@ export type Database = {
       get_admin_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_role"]
+      }
+      get_audiobook_credits: {
+        Args: never
+        Returns: {
+          minutes_balance: number
+        }[]
       }
       get_storybook_credits:
         | {
@@ -1924,6 +1970,7 @@ export type Database = {
         | { Args: { p_word_count: number }; Returns: undefined }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      use_audiobook_minutes: { Args: { p_minutes: number }; Returns: boolean }
       use_extra_credits:
         | {
             Args: { p_user_id: string; p_word_count: number }

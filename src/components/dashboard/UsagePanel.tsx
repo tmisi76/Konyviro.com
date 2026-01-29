@@ -1,15 +1,18 @@
 import { useMemo, useState } from "react";
-import { Zap, FolderOpen, Calendar, ArrowUpRight, TrendingUp, Coins, Plus } from "lucide-react";
+import { Zap, FolderOpen, Calendar, ArrowUpRight, TrendingUp, Coins, Plus, Headphones } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, addMonths, startOfMonth } from "date-fns";
 import { hu } from "date-fns/locale";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useAudiobookCredits } from "@/hooks/useAudiobookCredits";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
+import { BuyAudiobookCreditModal } from "@/components/audiobook/BuyAudiobookCreditModal";
+import { formatAudioMinutes } from "@/constants/audiobookCredits";
 
 const TIER_NAMES: Record<string, string> = {
   free: "Ingyenes",
@@ -25,7 +28,9 @@ interface UsagePanelProps {
 export function UsagePanel({ compact = false }: UsagePanelProps) {
   const navigate = useNavigate();
   const { subscription, usage, activeProjectCount, isLoading } = useSubscription();
+  const { balance: audiobookBalance, isLoading: audiobookLoading } = useAudiobookCredits();
   const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
+  const [showAudiobookCreditModal, setShowAudiobookCreditModal] = useState(false);
 
   // Calculate next reset date based on subscription start date
   const nextResetDate = useMemo(() => {
@@ -157,6 +162,19 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
             </span>
           </div>
         )}
+        
+        {/* Audiobook credits in compact mode */}
+        {!audiobookLoading && audiobookBalance > 0 && (
+          <div className="flex justify-between text-xs">
+            <span className="flex items-center gap-1 text-primary">
+              <Headphones className="h-3 w-3" />
+              Hangoskönyv
+            </span>
+            <span className="text-primary font-medium">
+              {formatAudioMinutes(audiobookBalance)}
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -275,6 +293,24 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
         )}
       </div>
 
+      {/* Audiobook Credits */}
+      {audiobookBalance > 0 && (
+        <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Headphones className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">Hangoskönyv kredit</span>
+            </div>
+            <span className="text-lg font-bold text-primary">
+              {formatAudioMinutes(audiobookBalance)}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Soha nem jár le
+          </p>
+        </div>
+      )}
+
       {/* Reset date */}
       <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
         <Calendar className="h-3.5 w-3.5" />
@@ -295,6 +331,16 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
           </Button>
         )}
         
+        <Button 
+          onClick={() => setShowAudiobookCreditModal(true)} 
+          variant="outline"
+          className="w-full gap-2"
+          size="sm"
+        >
+          <Headphones className="h-4 w-4" />
+          Hangoskönyv kredit
+        </Button>
+        
         {(wordUsage.percent >= 75 || projectUsage.percent >= 75) && (
           <Button 
             onClick={() => navigate("/pricing")} 
@@ -310,6 +356,10 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
       <BuyCreditModal 
         open={showBuyCreditModal} 
         onOpenChange={setShowBuyCreditModal} 
+      />
+      <BuyAudiobookCreditModal 
+        open={showAudiobookCreditModal} 
+        onOpenChange={setShowAudiobookCreditModal} 
       />
     </div>
   );
