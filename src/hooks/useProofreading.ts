@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -30,6 +31,7 @@ export function calculateProofreadingPrice(wordCount: number): number {
 
 export function useProofreading(projectId: string) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const prevStatusRef = useRef<string | null>(null);
   const [realtimeOrder, setRealtimeOrder] = useState<ProofreadingOrder | null>(null);
@@ -223,10 +225,12 @@ export function useProofreading(projectId: string) {
       return data;
     },
     onSuccess: () => {
-      toast.success("Teszt lektorálás elindítva!", {
-        description: "A folyamat a háttérben fut.",
+      toast.success("Lektorálás elindítva!", {
+        description: "A Dashboard-on követheted az előrehaladást.",
       });
       refetchOrder();
+      // Redirect to dashboard
+      navigate("/dashboard");
     },
     onError: (error) => {
       console.error("Test proofreading error:", error);
