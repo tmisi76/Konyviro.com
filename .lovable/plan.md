@@ -1,113 +1,85 @@
 
-# Javítási Terv: Magyar Kiejtés a Hangoskönyv Rendszerben
 
-## Probléma Azonosítása
+# Javítási Terv: Magyar Kiejtés az `eleven_turbo_v2_5` Modellel
 
-Az ElevenLabs API-nak **nincs megadva a nyelv** (`language_code` paraméter), ezért:
-- Automatikusan angol szövegként értelmezi a magyar szöveget
-- A kiejtés angol akcentussal történik, ami nem megfelelő
+## Probléma Összefoglalása
+
+A jelenlegi ElevenLabs API hívások a `eleven_multilingual_v2` modellt használják, ami **nem támogatja** a `language_code: "hu"` paramétert. Ezért az API 400-as hibát ad vissza:
+
+```
+"unsupported_language": "Model 'eleven_multilingual_v2' does not support the language_code hu."
+```
 
 ## Megoldás
 
-Az ElevenLabs API támogatja a `language_code` paramétert (ISO 639-1 formátum). A magyar nyelv kódja: **`hu`**
-
-Ezt hozzá kell adni mindkét Edge Function-höz:
-
----
+Az `eleven_turbo_v2_5` modellre váltás, amely:
+- Támogatja a magyar nyelvet (`hu` language_code)
+- Gyorsabb (alacsonyabb késleltetés)
+- Kiváló minőségű hang 32 nyelven
 
 ## Érintett Fájlok
 
 | Fájl | Változás |
 |------|----------|
-| `supabase/functions/elevenlabs-tts-preview/index.ts` | + `language_code: "hu"` paraméter |
-| `supabase/functions/process-audiobook-chapter/index.ts` | + `language_code: "hu"` paraméter |
+| `supabase/functions/elevenlabs-tts-preview/index.ts` | `model_id` csere: `eleven_multilingual_v2` → `eleven_turbo_v2_5` |
+| `supabase/functions/process-audiobook-chapter/index.ts` | `model_id` csere: `eleven_multilingual_v2` → `eleven_turbo_v2_5` |
 
----
-
-## Részletes Implementáció
+## Technikai Részletek
 
 ### 1. elevenlabs-tts-preview/index.ts
 
-**Jelenlegi kód (33-40. sor):**
+**Jelenlegi kód (33-36. sor):**
 ```typescript
 body: JSON.stringify({
   text: sampleText,
   model_id: "eleven_multilingual_v2",
-  voice_settings: {
-    stability: 0.5,
-    similarity_boost: 0.75,
-  },
-}),
+  language_code: "hu",
+  ...
+})
 ```
 
 **Javított kód:**
 ```typescript
 body: JSON.stringify({
   text: sampleText,
-  model_id: "eleven_multilingual_v2",
-  language_code: "hu",  // Magyar kiejtés
-  voice_settings: {
-    stability: 0.5,
-    similarity_boost: 0.75,
-  },
-}),
+  model_id: "eleven_turbo_v2_5",
+  language_code: "hu",
+  ...
+})
 ```
 
 ### 2. process-audiobook-chapter/index.ts
 
-**Jelenlegi kód (148-157. sor):**
+**Jelenlegi kód (148-151. sor):**
 ```typescript
 body: JSON.stringify({
   text: fullText,
   model_id: "eleven_multilingual_v2",
-  voice_settings: {
-    stability: 0.5,
-    similarity_boost: 0.75,
-  },
-  previous_text: previousText,
-  next_text: nextText,
-}),
+  language_code: "hu",
+  ...
+})
 ```
 
 **Javított kód:**
 ```typescript
 body: JSON.stringify({
   text: fullText,
-  model_id: "eleven_multilingual_v2",
-  language_code: "hu",  // Magyar kiejtés
-  voice_settings: {
-    stability: 0.5,
-    similarity_boost: 0.75,
-  },
-  previous_text: previousText,
-  next_text: nextText,
-}),
+  model_id: "eleven_turbo_v2_5",
+  language_code: "hu",
+  ...
+})
 ```
-
----
-
-## Technikai Háttér
-
-Az ElevenLabs `eleven_multilingual_v2` modell:
-- Támogat 29+ nyelvet, köztük a magyart
-- A `language_code` paraméter biztosítja a helyes kiejtést
-- ISO 639-1 kódot használ (magyar = `hu`)
-
-Az API dokumentáció szerint:
-> "Language code (ISO 639-1) used to enforce a language for the model and text normalization."
-
----
 
 ## Implementációs Sorrend
 
-1. `elevenlabs-tts-preview/index.ts` módosítása - minta hangok
-2. `process-audiobook-chapter/index.ts` módosítása - teljes hangoskönyvek
-3. Edge Function-ök újratelepítése
-
----
+1. `elevenlabs-tts-preview/index.ts` módosítása
+2. `process-audiobook-chapter/index.ts` módosítása
+3. Mindkét Edge Function újratelepítése
 
 ## Várt Eredmény
 
-- A 4 narrátor előnézete **magyar kiejtéssel** szól
-- A generált hangoskönyvek **magyar kiejtéssel** készülnek
-- A szöveg minden esetben érthetően, magyarul lesz felolvasva
+- Az „Előnézet" gomb működik a 4 narrátornál
+- A hangok magyar kiejtéssel szólalnak meg
+- A generált hangoskönyvek magyar nyelvűek lesznek
+- Nincs több `unsupported_language` hiba
+
