@@ -1,105 +1,109 @@
 
-# Terv: Történet leírás mező hozzáadása az Adatok lépéshez
+# Terv: Fejezet váltás loading állapot
 
-## Összefoglaló
-Hozzáadunk egy nagyobb szövegmezőt (textarea) az "Alapadatok megadása" wizard lépéshez, ahol a felhasználó részletesen leírhatja a könyve történetét. Ez az adat lesz a legfontosabb (80%) input az AI ötletgenerálásnál.
+## Probléma
+Amikor egy másik fejezetre kattintunk, 2-4 másodperc telik el a blokkok betöltésével, de ez idő alatt az előző fejezet tartalma marad látható. Ez zavaró UX, mert a felhasználó azt hiheti, hogy nem történt semmi.
+
+## Megoldás
+Bevezetünk egy `isLoadingBlocks` állapotot a `useEditorData` hookba, ami jelzi a fejezet blokkok betöltési folyamatát. Amíg a blokkok töltődnek, az `EditorView` komponens helyett egy szép skeleton loadert jelenítünk meg.
 
 ## Változtatások
 
-### 1. Típus definíció bővítése
-**Fájl:** `src/types/wizard.ts`
+### 1. useEditorData hook bővítése
+**Fájl:** `src/hooks/useEditorData.ts`
 
-Új mező a WizardData interface-hez:
-- `storyDescription: string` - a könyv történetének részletes leírása
-
-### 2. Wizard hook frissítése
-**Fájl:** `src/hooks/useBookWizard.ts`
-
-- Kezdeti állapot: `storyDescription: ""`
-- `setBasicInfo` függvény: fogadja és kezeli az új mezőt
-- `reset` függvény: visszaállítja üresre
-- `saveProject`: mentse az adatbázisba (optional - ha szükséges)
-
-### 3. Adatok lépés UI frissítése
-**Fájl:** `src/components/wizard/steps/Step3BasicInfo.tsx`
-
-Új textarea mező hozzáadása a "Könyv címe" alatt:
-
-```text
-┌─────────────────────────────────────────┐
-│ Könyv címe (opcionális)                 │
-│ [________________________]              │
-│                                         │
-│ Történet röviden * (FONTOS!)            │
-│ ┌─────────────────────────────────────┐ │
-│ │ Nagy textarea (min-h-[150px])       │ │
-│ │ Placeholder: "Írd le részletesen,   │ │
-│ │ miről szóljon a könyved. Ez 80%-ban │ │
-│ │ befolyásolja a generált ötleteket." │ │
-│ │                                     │ │
-│ └─────────────────────────────────────┘ │
-│                                         │
-│ Célközönség                             │
-│ ...                                     │
-└─────────────────────────────────────────┘
-```
-
-Props és state frissítése:
-- `initialData.storyDescription` prop hozzáadása
-- `storyDescription` local state
-- `onSubmit` callback-ba bekerül az új mező
-
-### 4. Wizard komponens frissítése
-**Fájl:** `src/components/wizard/BookCreationWizard.tsx`
-
-- Step3BasicInfo-nak átadni: `storyDescription: data.storyDescription`
-- Step4StoryIdeas-nak átadni: `storyDescription` prop
-
-### 5. Ötlet generáló komponens frissítése
-**Fájl:** `src/components/wizard/steps/Step4StoryIdeas.tsx`
-
-- Új prop: `storyDescription: string`
-- Edge function hívásba bekerül: `storyDescription` paraméter
-
-### 6. Edge Function prompt frissítése
-**Fájl:** `supabase/functions/generate-story-ideas/index.ts`
-
-A prompt-ba bekerül a storyDescription mint **legfontosabb** input:
+- Új state: `isLoadingBlocks: boolean`
+- A `fetchBlocks` függvény elején: `setIsLoadingBlocks(true)`
+- A `fetchBlocks` végén (finally): `setIsLoadingBlocks(false)`
+- A `setActiveChapterId` wrapperben: azonnal `setIsLoadingBlocks(true)` és blokkok ürítése
 
 ```typescript
-const storyDescriptionSection = storyDescription
-  ? `\n\n🎯 A SZERZŐ SAJÁT TÖRTÉNETE/ÖTLETE (KIEMELT FONTOSSÁGÚ - 80%):
-"${storyDescription}"
+const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
 
-Az ötleteknek KÖTELEZŐEN ezen a történeten/ötleten kell alapulniuk! 
-Ne generálj teljesen eltérő témákat!`
-  : "";
+// Custom setActiveChapterId wrapper
+const handleSetActiveChapterId = useCallback((chapterId: string | null) => {
+  if (chapterId !== activeChapterId) {
+    setIsLoadingBlocks(true);
+    setBlocks([]); // Azonnal ürítjük az előző fejezet blokkjait
+  }
+  setActiveChapterId(chapterId);
+}, [activeChapterId]);
+
+// fetchBlocks-ban:
+const fetchBlocks = useCallback(async () => {
+  if (!activeChapterId) return;
+  
+  setIsLoadingBlocks(true);
+  try {
+    // ... meglévő logika
+  } finally {
+    setIsLoadingBlocks(false);
+  }
+}, [activeChapterId]);
 ```
 
-## Technikai részletek
+Return-ben: `isLoadingBlocks` és a wrappelt `setActiveChapterId` függvény
 
-### Interface változások
+### 2. ProjectEditor frissítése
+**Fájl:** `src/pages/ProjectEditor.tsx`
+
+- Fogadja az `isLoadingBlocks` értéket a hookból
+- Átadja az `EditorView`-nak
+
 ```typescript
-// types/wizard.ts
-interface WizardData {
-  // ... meglévő mezők
-  storyDescription: string;  // ÚJ
+const {
+  // ... meglévő
+  isLoadingBlocks,
+} = useEditorData(projectId || "");
+
+// EditorView-nak átadás:
+<EditorView
+  isLoading={isLoadingBlocks}
+  // ... többi prop
+/>
+```
+
+### 3. EditorView loading skeleton
+**Fájl:** `src/components/editor/EditorView.tsx`
+
+- Új prop: `isLoading?: boolean`
+- Ha `isLoading === true`, akkor skeleton megjelenítése a blokkok helyett
+
+```typescript
+interface EditorViewProps {
+  isLoading?: boolean;
+  // ... többi prop
+}
+
+export function EditorView({
+  isLoading,
+  blocks,
+  // ...
+}: EditorViewProps) {
+  if (isLoading) {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[700px] px-16 py-8">
+          <ContentSkeleton variant="editor" count={1} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    // ... meglévő render
+  );
 }
 ```
 
-### UI specifikus
-- Textarea: `min-h-[150px]` vagy nagyobb
-- Label: félkövér "Történet röviden" + csillag (fontos jelzés)
-- Placeholder: részletes magyar nyelvű útmutató
-- Opcionálisan: karakter számláló vagy "legalább X karakter ajánlott" jelzés
+## Vizuális eredmény
 
-### Edge Function prompt prioritás
-A storyDescription mező **első helyen** kerül a prompt-ba, kiemelve hogy ez a legfontosabb input, és az AI-nak erre kell alapoznia az ötleteket.
+Fejezet váltásnál:
+1. Kattintás a fejezetre
+2. **Azonnal** megjelenik a skeleton loader (paragrafus vonalak animációval)
+3. Blokkok betöltése után megjelenik az új fejezet tartalma
 
 ## Fájlok listája
-1. `src/types/wizard.ts` - típus bővítés
-2. `src/hooks/useBookWizard.ts` - state kezelés
-3. `src/components/wizard/steps/Step3BasicInfo.tsx` - UI
-4. `src/components/wizard/BookCreationWizard.tsx` - prop átadás
-5. `src/components/wizard/steps/Step4StoryIdeas.tsx` - API hívás
-6. `supabase/functions/generate-story-ideas/index.ts` - AI prompt
+1. `src/hooks/useEditorData.ts` - isLoadingBlocks state + wrapper
+2. `src/pages/ProjectEditor.tsx` - prop átadás
+3. `src/components/editor/EditorView.tsx` - skeleton megjelenítés
