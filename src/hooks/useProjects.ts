@@ -239,6 +239,27 @@ export function useProjects() {
     return () => clearInterval(interval);
   }, [user, projects, fetchProjects]);
 
+  const renameProject = async (projectId: string, newTitle: string): Promise<boolean> => {
+    try {
+      const { error: renameError } = await supabase
+        .from("projects")
+        .update({ title: newTitle })
+        .eq("id", projectId);
+
+      if (renameError) {
+        throw renameError;
+      }
+
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, title: newTitle } : p))
+      );
+      return true;
+    } catch (err) {
+      console.error("Error renaming project:", err);
+      return false;
+    }
+  };
+
   return {
     projects,
     isLoading,
@@ -248,5 +269,6 @@ export function useProjects() {
     deleteMultipleProjects,
     archiveProject,
     unarchiveProject,
+    renameProject,
   };
 }

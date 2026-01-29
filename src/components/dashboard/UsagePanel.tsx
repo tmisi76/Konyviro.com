@@ -163,18 +163,32 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
           </div>
         )}
         
-        {/* Audiobook credits in compact mode */}
-        {!audiobookLoading && audiobookBalance > 0 && (
-          <div className="flex justify-between text-xs">
+        {/* Audiobook credits in compact mode - ALWAYS show, even if 0 */}
+        {!audiobookLoading && (
+          <button 
+            onClick={() => setShowAudiobookCreditModal(true)}
+            className="flex justify-between text-xs w-full hover:text-primary transition-colors"
+          >
             <span className="flex items-center gap-1 text-primary">
               <Headphones className="h-3 w-3" />
               Hangoskönyv
             </span>
-            <span className="text-primary font-medium">
-              {formatAudioMinutes(audiobookBalance)}
+            <span className="text-primary font-medium flex items-center gap-1">
+              {audiobookBalance > 0 ? formatAudioMinutes(audiobookBalance) : (
+                <>
+                  <span>0 perc</span>
+                  <Plus className="h-3 w-3" />
+                </>
+              )}
             </span>
-          </div>
+          </button>
         )}
+        
+        {/* Audiobook Credit Modal for compact mode */}
+        <BuyAudiobookCreditModal 
+          open={showAudiobookCreditModal} 
+          onOpenChange={setShowAudiobookCreditModal} 
+        />
       </div>
     );
   }
@@ -293,23 +307,21 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
         )}
       </div>
 
-      {/* Audiobook Credits */}
-      {audiobookBalance > 0 && (
-        <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Headphones className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-foreground">Hangoskönyv kredit</span>
-            </div>
-            <span className="text-lg font-bold text-primary">
-              {formatAudioMinutes(audiobookBalance)}
-            </span>
+      {/* Audiobook Credits - Always show */}
+      <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Headphones className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-foreground">Hangoskönyv kredit</span>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Soha nem jár le
-          </p>
+          <span className="text-lg font-bold text-primary">
+            {audiobookBalance > 0 ? formatAudioMinutes(audiobookBalance) : "0 perc"}
+          </span>
         </div>
-      )}
+        <p className="mt-1 text-xs text-muted-foreground">
+          {audiobookBalance > 0 ? "Soha nem jár le" : "Vásárolj kreditet hangoskönyvek készítéséhez"}
+        </p>
+      </div>
 
       {/* Reset date */}
       <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">

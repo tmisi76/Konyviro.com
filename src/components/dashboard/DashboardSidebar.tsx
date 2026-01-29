@@ -12,6 +12,7 @@ import {
   Pencil,
   Archive,
   ArchiveRestore,
+  Type,
   Trash2,
   Lock,
   Shield,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdmin } from "@/hooks/useAdmin";
 import { UsagePanel } from "@/components/dashboard/UsagePanel";
+import { RenameProjectModal } from "@/components/projects/RenameProjectModal";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +54,7 @@ interface DashboardSidebarProps {
   onArchiveProject?: (id: string) => void;
   onUnarchiveProject?: (id: string) => void;
   onDeleteProject?: (id: string) => void;
+  onRenameProject?: (id: string, title: string) => void;
   projectLimitReached?: boolean;
 }
 
@@ -65,6 +68,7 @@ export function DashboardSidebar({
   onArchiveProject,
   onUnarchiveProject,
   onDeleteProject,
+  onRenameProject,
   projectLimitReached = false,
 }: DashboardSidebarProps) {
   const { user, signOut } = useAuth();
@@ -201,6 +205,7 @@ export function DashboardSidebar({
           onArchiveProject={onArchiveProject}
           onUnarchiveProject={onUnarchiveProject}
           onDeleteProject={onDeleteProject}
+          onRenameProject={onRenameProject}
           isArchivedGroup={false}
         />
 
@@ -216,6 +221,7 @@ export function DashboardSidebar({
           onArchiveProject={onArchiveProject}
           onUnarchiveProject={onUnarchiveProject}
           onDeleteProject={onDeleteProject}
+          onRenameProject={onRenameProject}
           isArchivedGroup={false}
         />
 
@@ -231,6 +237,7 @@ export function DashboardSidebar({
           onArchiveProject={onArchiveProject}
           onUnarchiveProject={onUnarchiveProject}
           onDeleteProject={onDeleteProject}
+          onRenameProject={onRenameProject}
           isArchivedGroup={true}
         />
       </div>
@@ -284,6 +291,7 @@ interface ProjectGroupProps {
   onArchiveProject?: (id: string) => void;
   onUnarchiveProject?: (id: string) => void;
   onDeleteProject?: (id: string) => void;
+  onRenameProject?: (id: string, title: string) => void;
   isArchivedGroup: boolean;
 }
 
@@ -298,8 +306,24 @@ function ProjectGroup({
   onArchiveProject,
   onUnarchiveProject,
   onDeleteProject,
+  onRenameProject,
   isArchivedGroup,
 }: ProjectGroupProps) {
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [projectToRename, setProjectToRename] = useState<Project | null>(null);
+
+  const handleRenameClick = (project: Project) => {
+    setProjectToRename(project);
+    setRenameModalOpen(true);
+  };
+
+  const handleRenameSuccess = () => {
+    if (projectToRename && onRenameProject) {
+      // Trigger refetch via parent callback if needed
+    }
+    setRenameModalOpen(false);
+    setProjectToRename(null);
+  };
   if (isCollapsed) {
     return (
       <div className="mb-2 flex flex-col items-center">
@@ -363,6 +387,10 @@ function ProjectGroup({
                       <Pencil className="mr-2 h-3.5 w-3.5" />
                       Szerkesztés
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleRenameClick(project)}>
+                      <Type className="mr-2 h-3.5 w-3.5" />
+                      Átnevezés
+                    </DropdownMenuItem>
                     {isArchivedGroup ? (
                       onUnarchiveProject && (
                         <DropdownMenuItem onClick={() => onUnarchiveProject(project.id)}>
@@ -393,6 +421,17 @@ function ProjectGroup({
             ))
           )}
         </div>
+      )}
+
+      {/* Rename Modal */}
+      {projectToRename && (
+        <RenameProjectModal
+          open={renameModalOpen}
+          onOpenChange={setRenameModalOpen}
+          projectId={projectToRename.id}
+          currentTitle={projectToRename.title}
+          onSuccess={handleRenameSuccess}
+        />
       )}
     </div>
   );
