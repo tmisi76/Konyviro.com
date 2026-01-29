@@ -1,112 +1,145 @@
 
+# AI Motor Váltás Adminisztrációs Panel
 
-# Lektorálás Timeout Javítás
+## Áttekintés
 
-## Gyökérokoz Azonosítása
+Az admin panelen lehetőség lesz dinamikusan választani a Lovable AI Gateway által támogatott modellek közül. A beállítás a `system_settings` táblában tárolódik, és a frontend + backend egyaránt onnan olvassa ki az aktuális modellt.
 
-A `process-proofreading` edge function a **Claude Opus 4** modellt használja közvetlenül az Anthropic API-n keresztül. Egy ~10000 karakteres fejezet lektorálása Claude Opus-szal **2-3 percig** is tarthat, de:
+## Jelenlegi Helyzet
 
-- A `fetchWithRetry` timeout: **120 másodperc**
-- Az Edge Function wall-time limit: **~90 másodperc**
+| Komponens | Probléma |
+|-----------|----------|
+| `AdminAISettings.tsx` | A modell választás már létezik, de nem használja a backend |
+| `generate/index.ts` | Hardcoded `claude-sonnet-4-20250514` modell |
+| `process-proofreading/index.ts` | Hardcoded `google/gemini-2.5-pro` modell |
+| `AIAssistantPanel.tsx` | Hardcoded "Gemini Flash" badge |
+| `system_settings` tábla | Van `ai_default_model` kulcs, de a backend nem olvassa |
 
-**Eredmény:** A function timeout-ol az első fejezet közben, mielőtt bármit elmenthetne.
+## Támogatott Modellek (Lovable AI Gateway)
 
-## Megoldási Lehetőségek
-
-| Opció | Előny | Hátrány |
-|-------|-------|---------|
-| **A) Lovable AI Gateway használata** | Nincs API key szükséges, gyorsabb modellek | Nincs Claude Opus, de van Gemini Pro |
-| **B) Claude Sonnet használata Opus helyett** | 2-3x gyorsabb válaszidő, Anthropic API marad | Valamivel kisebb minőség |
-| **C) Streaming válasz** | Megakadályozza a timeout-ot | Bonyolultabb implementáció |
-
-## Javasolt Megoldás: Opció A - Lovable AI Gateway
-
-A `refine-chapter` function már sikeresen használja a Lovable AI Gateway-t. Ugyanezt a mintát alkalmazzuk a lektorálásra is:
-
-- **Modell:** `google/gemini-2.5-pro` (legerősebb a komplex lektoráláshoz)
-- **Timeout:** Nincs szükség AbortController-re, a gateway gyorsabban válaszol
-- **Költség:** Nincs API költség (beépített a Lovable-ba)
+| Model ID | Név | Használat |
+|----------|-----|-----------|
+| `google/gemini-3-flash-preview` | Gemini 3 Flash | Gyors, kiegyensúlyozott (alapértelmezett) |
+| `google/gemini-2.5-pro` | Gemini 2.5 Pro | Komplex feladatok, lektorálás |
+| `google/gemini-2.5-flash` | Gemini 2.5 Flash | Gyors multimodális |
+| `openai/gpt-5` | GPT-5 | Legerősebb következtetés |
+| `openai/gpt-5-mini` | GPT-5 Mini | Költséghatékony |
+| `openai/gpt-5.2` | GPT-5.2 | Legújabb OpenAI |
 
 ## Implementációs Terv
 
-### Módosítandó Fájl
+### 1. Edge Function Módosítások
 
-**`supabase/functions/process-proofreading/index.ts`**
+**A) `supabase/functions/generate/index.ts`**
+- Átállás Anthropic API-ról Lovable AI Gateway-re
+- `system_settings` tábla olvasása az aktuális modellhez
+- Fallback modell: `google/gemini-3-flash-preview`
 
-### Változtatások
-
-1. **API végpont cseréje:**
-   - Régi: `https://api.anthropic.com/v1/messages`
-   - Új: `https://ai.gateway.lovable.dev/v1/chat/completions`
-
-2. **Modell cseréje:**
-   - Régi: `claude-opus-4-20250514`
-   - Új: `google/gemini-2.5-pro` (vagy `openai/gpt-5` a még jobb minőséghez)
-
-3. **Header és body formátum:**
-   - Régi: Anthropic formátum (`x-api-key`, `anthropic-version`, `system` mező)
-   - Új: OpenAI-kompatibilis formátum (`Authorization: Bearer`, `messages` tömb `system` role-lal)
-
-4. **Válasz parse:**
-   - Régi: `data.content[0].text`
-   - Új: `data.choices[0].message.content`
-
-5. **Timeout csökkentése:**
-   - Régi: 120s
-   - Új: 60s (a Lovable Gateway gyorsabb)
-
-### Kód Változtatások
-
-```typescript
-// ELŐTTE (Anthropic API)
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const result = await fetchWithRetry({
-  url: "https://api.anthropic.com/v1/messages",
-  options: {
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-opus-4-20250514",
-      system: PROOFREADING_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: ... }],
-    }),
-  },
-  timeoutMs: 120000,
-});
-const text = data.content[0].text;
-
-// UTÁNA (Lovable AI Gateway)
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-const result = await fetchWithRetry({
-  url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-  options: {
-    headers: {
-      "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-pro",
-      messages: [
-        { role: "system", content: PROOFREADING_SYSTEM_PROMPT },
-        { role: "user", content: ... }
-      ],
-      max_tokens: 16000,
-    }),
-  },
-  timeoutMs: 60000,
-});
-const text = data.choices[0].message.content;
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  generate/index.ts                                              │
+│  1. Lekéri system_settings.ai_default_model értékét            │
+│  2. Ha nincs beállítva → google/gemini-3-flash-preview         │
+│  3. Lovable AI Gateway hívás az adott modellel                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Összefoglaló
+**B) `supabase/functions/process-proofreading/index.ts`**
+- Opcionálisan: külön lektorálási modell beállítás (`ai_proofreading_model`)
+- Vagy: ugyanaz az alapértelmezett modell
 
-| Változás | Fájl | Leírás |
-|----------|------|--------|
-| API csere | `process-proofreading/index.ts` | Anthropic → Lovable AI Gateway |
-| Modell csere | `process-proofreading/index.ts` | Claude Opus → Gemini 2.5 Pro |
-| Timeout csökkentés | `process-proofreading/index.ts` | 120s → 60s |
-| Válasz formátum | `process-proofreading/index.ts` | Anthropic → OpenAI format |
+### 2. Frontend Módosítások
 
-Ez a javítás megoldja a timeout problémát, mivel a Lovable AI Gateway sokkal gyorsabban válaszol, és nem kell API kulcsot fizetni az Anthropic-nak.
+**A) `src/hooks/useAIModel.ts` (új hook)**
+- Lekéri és cache-eli az aktuális AI modell beállítást
+- React Query-vel frissül, ha az admin módosítja
 
+```typescript
+export function useAIModel() {
+  return useQuery({
+    queryKey: ['ai-model'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'ai_default_model')
+        .single();
+      return data?.value || 'google/gemini-3-flash-preview';
+    },
+    staleTime: 60000,
+  });
+}
+```
+
+**B) `src/components/editor/AIAssistantPanel.tsx`**
+- `getModelBadge()` függvény dinamikus modell név megjelenítése
+- Hook használata a modell név lekéréséhez
+
+```typescript
+const { data: modelId } = useAIModel();
+
+const getModelBadge = () => {
+  const modelMap: Record<string, string> = {
+    'google/gemini-3-flash-preview': 'Gemini 3 Flash',
+    'google/gemini-2.5-pro': 'Gemini 2.5 Pro',
+    'openai/gpt-5': 'GPT-5',
+    // ...
+  };
+  return modelMap[modelId] || 'AI';
+};
+```
+
+**C) `src/pages/admin/AdminAISettings.tsx`**
+- A modell választás már működik, csak a mentést kell tesztelni
+- Új "Lektorálási modell" választó hozzáadása (opcionális)
+
+### 3. Adatbázis
+
+A `system_settings` tábla már tartalmazza az `ai_default_model` kulcsot. Új rekord hozzáadása:
+
+| key | value | category | description |
+|-----|-------|----------|-------------|
+| `ai_proofreading_model` | `google/gemini-2.5-pro` | ai | Lektoráláshoz használt AI modell |
+
+### 4. Fájl Változtatások Összefoglalója
+
+| Fájl | Változás |
+|------|----------|
+| `supabase/functions/generate/index.ts` | Anthropic → Lovable AI Gateway, modell beolvasás DB-ből |
+| `supabase/functions/process-proofreading/index.ts` | Modell beolvasás DB-ből (opcionális külön beállítás) |
+| `src/hooks/useAIModel.ts` | ÚJ: Hook a modell lekéréséhez |
+| `src/components/editor/AIAssistantPanel.tsx` | Dinamikus modell badge |
+| `src/pages/admin/AdminAISettings.tsx` | Lektorálási modell választó (opcionális) |
+
+## Biztonsági Megfontolások
+
+- A `system_settings` tábla RLS-sel védett (csak adminok módosíthatják)
+- Az edge function service role-lal olvassa a beállításokat
+- A frontend csak olvasási jogosultsággal rendelkezik
+
+## Technikai Flow
+
+```text
+Admin beállítja a modellt
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  system_settings.ai_default_model = "google/gemini-2.5-pro"    │
+└─────────────────────────────────────────────────────────────────┘
+         │
+         ├──────────────────────────────────────┐
+         │                                      │
+         ▼                                      ▼
+┌─────────────────────────┐    ┌─────────────────────────────────┐
+│  Frontend (React Query) │    │  Edge Functions (on each call)  │
+│  useAIModel() hook      │    │  SELECT FROM system_settings    │
+│  → Badge frissül        │    │  → Modell használata            │
+└─────────────────────────┘    └─────────────────────────────────┘
+```
+
+## Következő Lépések
+
+1. **generate/index.ts** átírása Lovable AI Gateway-re + DB olvasás
+2. **useAIModel.ts** hook létrehozása
+3. **AIAssistantPanel.tsx** badge dinamikussá tétele
+4. Opcionális: külön lektorálási modell beállítás
