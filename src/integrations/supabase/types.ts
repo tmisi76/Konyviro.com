@@ -226,6 +226,123 @@ export type Database = {
         }
         Relationships: []
       }
+      audiobook_chapters: {
+        Row: {
+          audio_url: string | null
+          audiobook_id: string
+          chapter_id: string
+          created_at: string | null
+          duration_seconds: number | null
+          error_message: string | null
+          id: string
+          sort_order: number | null
+          status: string | null
+        }
+        Insert: {
+          audio_url?: string | null
+          audiobook_id: string
+          chapter_id: string
+          created_at?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          sort_order?: number | null
+          status?: string | null
+        }
+        Update: {
+          audio_url?: string | null
+          audiobook_id?: string
+          chapter_id?: string
+          created_at?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          sort_order?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiobook_chapters_audiobook_id_fkey"
+            columns: ["audiobook_id"]
+            isOneToOne: false
+            referencedRelation: "audiobooks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiobook_chapters_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audiobooks: {
+        Row: {
+          audio_url: string | null
+          completed_at: string | null
+          completed_chapters: number | null
+          created_at: string | null
+          duration_seconds: number | null
+          error_message: string | null
+          file_size: number | null
+          id: string
+          progress: number | null
+          project_id: string
+          status: string | null
+          total_chapters: number | null
+          user_id: string
+          voice_id: string
+        }
+        Insert: {
+          audio_url?: string | null
+          completed_at?: string | null
+          completed_chapters?: number | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          file_size?: number | null
+          id?: string
+          progress?: number | null
+          project_id: string
+          status?: string | null
+          total_chapters?: number | null
+          user_id: string
+          voice_id: string
+        }
+        Update: {
+          audio_url?: string | null
+          completed_at?: string | null
+          completed_chapters?: number | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          file_size?: number | null
+          id?: string
+          progress?: number | null
+          project_id?: string
+          status?: string | null
+          total_chapters?: number | null
+          user_id?: string
+          voice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiobooks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiobooks_voice_id_fkey"
+            columns: ["voice_id"]
+            isOneToOne: false
+            referencedRelation: "tts_voices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blocks: {
         Row: {
           chapter_id: string
@@ -263,6 +380,59 @@ export type Database = {
             columns: ["chapter_id"]
             isOneToOne: false
             referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      book_shares: {
+        Row: {
+          allow_download: boolean | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_public: boolean | null
+          password_hash: string | null
+          project_id: string
+          share_token: string
+          updated_at: string | null
+          user_id: string
+          view_count: number | null
+          view_mode: string | null
+        }
+        Insert: {
+          allow_download?: boolean | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          password_hash?: string | null
+          project_id: string
+          share_token: string
+          updated_at?: string | null
+          user_id: string
+          view_count?: number | null
+          view_mode?: string | null
+        }
+        Update: {
+          allow_download?: boolean | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_public?: boolean | null
+          password_hash?: string | null
+          project_id?: string
+          share_token?: string
+          updated_at?: string | null
+          user_id?: string
+          view_count?: number | null
+          view_mode?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_shares_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -1260,6 +1430,45 @@ export type Database = {
           updated_at?: string | null
           updated_by?: string | null
           value?: Json
+        }
+        Relationships: []
+      }
+      tts_voices: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          elevenlabs_voice_id: string
+          gender: string | null
+          id: string
+          is_active: boolean | null
+          language: string | null
+          name: string
+          sample_text: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          elevenlabs_voice_id: string
+          gender?: string | null
+          id?: string
+          is_active?: boolean | null
+          language?: string | null
+          name: string
+          sample_text?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          elevenlabs_voice_id?: string
+          gender?: string | null
+          id?: string
+          is_active?: boolean | null
+          language?: string | null
+          name?: string
+          sample_text?: string | null
+          sort_order?: number | null
         }
         Relationships: []
       }
