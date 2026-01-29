@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload, Play } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload, Play, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { BookExportModal } from "@/components/export/BookExportModal";
+import { RenameProjectModal } from "@/components/projects/RenameProjectModal";
 import { useBackgroundWriter } from "@/hooks/useBackgroundWriter";
 
 export interface Project {
@@ -85,6 +86,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
   const [liveStatus, setLiveStatus] = useState(project.writingStatus);
   const [sceneProgress, setSceneProgress] = useState({ total: 0, completed: 0, currentChapter: "" });
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   
   // Hook for starting background writing
   const { startWriting, isLoading: isStartingWrite, canStart } = useBackgroundWriter(project.id);
@@ -172,6 +174,10 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
             <DropdownMenuItem onClick={() => setShowExportModal(true)}>
               <Upload className="mr-2 h-4 w-4" />
               Exportálás
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowRenameModal(true)}>
+              <Type className="mr-2 h-4 w-4" />
+              Átnevezés
             </DropdownMenuItem>
             {onArchive && (
               <DropdownMenuItem onClick={() => onArchive(project.id)}>
@@ -295,6 +301,14 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive }: ProjectCar
         onOpenChange={setShowExportModal}
         projectId={project.id}
         projectTitle={project.title}
+      />
+
+      {/* Rename Modal */}
+      <RenameProjectModal
+        open={showRenameModal}
+        onOpenChange={setShowRenameModal}
+        projectId={project.id}
+        currentTitle={project.title}
       />
     </div>
   );
