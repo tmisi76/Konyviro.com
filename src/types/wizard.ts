@@ -222,6 +222,7 @@ export interface WizardData {
   nonfictionBookType: NonfictionBookType | null;
   bookTypeSpecificData: BookTypeSpecificData | null;
   title: string;
+  storyDescription: string;
   targetAudience: string;
   tone: Tone | null;
   length: BookLength | null;
@@ -245,6 +246,7 @@ export const INITIAL_WIZARD_DATA: WizardData = {
   nonfictionBookType: null,
   bookTypeSpecificData: null,
   title: "",
+  storyDescription: "",
   targetAudience: "",
   tone: null,
   length: null,

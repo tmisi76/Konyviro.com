@@ -38,7 +38,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, authorProfile, previousIdeas } = await req.json();
+    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas } = await req.json();
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) {
@@ -52,6 +52,11 @@ serve(async (req) => {
     // Előző ötletek kizárása az újragenerálásnál
     const previousIdeasClause = previousIdeas?.length > 0 
       ? `\n\nKRITIKUS SZABÁLY - KERÜLD AZ ALÁBBI ÖTLETEKET:\n${previousIdeas.map((t: string, i: number) => `${i+1}. "${t}"`).join('\n')}\n\nGenerálj TELJESEN MÁS témákat, megközelítéseket, címeket és koncepciókat! Az új ötletek NE hasonlítsanak az előzőekre semmilyen módon.`
+      : "";
+
+    // Szerző által megadott történet leírás (80% súly)
+    const storyDescriptionClause = storyDescription?.trim() 
+      ? `\n\n🎯 A SZERZŐ SAJÁT TÖRTÉNETE/ÖTLETE (KIEMELT FONTOSSÁGÚ - 80% SÚLY):\n"${storyDescription}"\n\nAz ötleteknek KÖTELEZŐEN ezen a történeten/ötleten kell alapulniuk! Ne generálj teljesen eltérő témákat - a fenti leírás a legfontosabb input!`
       : "";
 
     const systemPrompt = isFiction 
@@ -71,6 +76,7 @@ Mindig érvényes JSON-t adj vissza.`;
     
     const prompt = isFiction 
       ? `Generálj 3 egyedi sztori ötletet a következő paraméterek alapján:
+${storyDescriptionClause}
 
 Műfaj: Fiction
 Alkategória: ${subcategory}
@@ -94,6 +100,7 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
   ]
 }`
       : `Generálj 3 egyedi SZAKKÖNYV ötletet a következő paraméterek alapján:
+${storyDescriptionClause}
 
 Téma: ${subcategory}
 Hangnem: ${tone}
