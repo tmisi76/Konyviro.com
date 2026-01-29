@@ -116,7 +116,7 @@ serve(async (req) => {
               name: `AI Lektorálás - ${project.title}`,
               description: `${totalWordCount.toLocaleString("hu-HU")} szó professzionális AI lektorálása`,
             },
-            unit_amount: finalPrice, // HUF doesn't use subunits
+            unit_amount: finalPrice * 100, // HUF uses fillér (100 fillér = 1 Ft)
           },
           quantity: 1,
         },
