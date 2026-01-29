@@ -29,6 +29,7 @@ const SUBSCRIPTION_TIERS = ['free', 'hobby', 'writer', 'pro'] as const;
 
 interface AISettings {
   default_model: string;
+  proofreading_model: string;
   available_models: string[];
   temperature: number;
   token_limits: Record<string, number>;
@@ -36,7 +37,8 @@ interface AISettings {
 }
 
 const DEFAULT_SETTINGS: AISettings = {
-  default_model: "google/gemini-2.5-flash",
+  default_model: "google/gemini-3-flash-preview",
+  proofreading_model: "google/gemini-2.5-pro",
   available_models: AI_MODELS.map(m => m.id),
   temperature: 0.7,
   token_limits: {
@@ -64,6 +66,7 @@ export default function AdminAISettings() {
     if (savedSettings) {
       setSettings({
         default_model: savedSettings.ai_default_model || DEFAULT_SETTINGS.default_model,
+        proofreading_model: savedSettings.ai_proofreading_model || DEFAULT_SETTINGS.proofreading_model,
         available_models: savedSettings.ai_available_models || DEFAULT_SETTINGS.available_models,
         temperature: savedSettings.ai_temperature || DEFAULT_SETTINGS.temperature,
         token_limits: savedSettings.ai_token_limits || DEFAULT_SETTINGS.token_limits,
@@ -111,6 +114,7 @@ export default function AdminAISettings() {
     try {
       await updateSettings.mutateAsync({
         ai_default_model: settings.default_model,
+        ai_proofreading_model: settings.proofreading_model,
         ai_available_models: settings.available_models,
         ai_temperature: settings.temperature,
         ai_token_limits: settings.token_limits,
@@ -182,15 +186,49 @@ export default function AdminAISettings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
-              Alapértelmezett Modell
+              Könyvírási Modell
             </CardTitle>
-            <CardDescription>A könyvíráshoz használt fő AI modell</CardDescription>
+            <CardDescription>A könyvíráshoz és szövegszerkesztőhöz használt AI modell</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Select 
               value={settings.default_model} 
               onValueChange={(value) => {
                 setSettings(prev => ({ ...prev, default_model: value }));
+                setHasChanges(true);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Válassz modellt" />
+              </SelectTrigger>
+              <SelectContent>
+                {AI_MODELS.map(model => (
+                  <SelectItem key={model.id} value={model.id}>
+                    <div className="flex flex-col">
+                      <span>{model.name}</span>
+                      <span className="text-xs text-muted-foreground">{model.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        {/* Proofreading Model */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Lektorálási Modell
+            </CardTitle>
+            <CardDescription>A lektoráláshoz használt AI modell (ajánlott: Pro modellek)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Select 
+              value={settings.proofreading_model} 
+              onValueChange={(value) => {
+                setSettings(prev => ({ ...prev, proofreading_model: value }));
                 setHasChanges(true);
               }}
             >
