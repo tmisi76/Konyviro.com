@@ -1,80 +1,17 @@
 
-# Javítási Terv: Hangoskönyv Előnézet Hiba + Árazási Információ
+# Javítási Terv: Magyar Kiejtés a Hangoskönyv Rendszerben
 
-## Azonosított Problémák
+## Probléma Azonosítása
 
-### 1. ElevenLabs API 400 Hiba
-A logok egyértelműen mutatják:
-```
-"voice_limit_reached": "You have reached your maximum amount of custom voices (30 / 30)"
-```
+Az ElevenLabs API-nak **nincs megadva a nyelv** (`language_code` paraméter), ezért:
+- Automatikusan angol szövegként értelmezi a magyar szöveget
+- A kiejtés angol akcentussal történik, ami nem megfelelő
 
-**Probléma**: A 4 narrátor (`NOpBlnGInO9m6vDvFkFC`, `IRHApOXLvnW57QJPQH2P` stb.) custom/klónozott hangok, és az ElevenLabs fiók elérte a 30 custom voice limitjét.
+## Megoldás
 
-**Megoldás**: A `tts_voices` táblában cserélni kell az `elevenlabs_voice_id` értékeket ElevenLabs standard hangokra. Magyar hangok helyett angol hangokat kell használni, mert a standard hangok között nincsenek magyar nyelvűek, de a `eleven_multilingual_v2` modell magyar szöveget is képes felolvasni angol hangokkal.
+Az ElevenLabs API támogatja a `language_code` paramétert (ISO 639-1 formátum). A magyar nyelv kódja: **`hu`**
 
-### 2. Hiányzó Árazási Információ
-A felhasználónak tudnia kell, hogy:
-- A hangoskönyv készítés extra költséggel jár
-- Előbb krediteket kell vásárolnia
-- Mennyibe kerül kb. a könyve
-
----
-
-## Megoldások
-
-### 1. Narrátor Hangok Frissítése (Adatbázis)
-
-A `tts_voices` táblában az `elevenlabs_voice_id` értékeket cserélni kell működő ElevenLabs standard hangokra:
-
-| Név | Jelenlegi (hibás) | Új voice_id | Hang típusa |
-|-----|-------------------|-------------|-------------|
-| Narrátor 1 | `NOpBlnGInO9m6vDvFkFC` | `JBFqnCBsd6RMkjVDRZzb` | George - férfi |
-| Narrátor 2 | `IRHApOXLvnW57QJPQH2P` | `EXAVITQu4vr4xnSDxMaL` | Sarah - női |
-| Narrátor 3 | `xjlfQQ3ynqiEyRpArrT8` | `onwK4e9ZLuTAKqWW03F9` | Daniel - férfi |
-| Narrátor 4 | `XfNU2rGpBa01ckF309OY` | `pFZP5JQG7iQjIQuC4Bku` | Lily - női |
-
-### 2. AudiobookTab.tsx Módosítás - Árazási Információ
-
-A `CostEstimate` komponenst bővíteni kell:
-
-```tsx
-const CostEstimate = () => {
-  // Kiszámítjuk a becsült költséget a legkisebb csomag áráig
-  const cheapestPackage = AUDIOBOOK_CREDIT_PACKAGES[0]; // 30 perc / 9990 Ft
-  const estimatedCostHuf = Math.ceil(estimatedMinutes * 300); // ~300 Ft/perc átlag
-  
-  return (
-    <div className="rounded-lg border p-3 space-y-2">
-      {/* Becsült hossz és egyenleg (már megvan) */}
-      
-      {/* ÚJ: Becsült költség kiírása */}
-      {!canGenerate && (
-        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm text-amber-800">
-            <strong>Becsült költség:</strong> kb. {estimatedCostHuf.toLocaleString("hu-HU")} Ft
-          </p>
-          <p className="text-xs text-amber-600 mt-1">
-            A hangoskönyv készítéshez előbb kredit vásárlás szükséges.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
-```
-
-### 3. VoicePicker.tsx - Hibaüzenet Javítás
-
-A hibakezelést javítani kell, hogy ne az ElevenLabs technikai hibaüzenetét mutassa:
-
-```tsx
-// useVoicePreview onError:
-onError: (error) => {
-  // Barátságosabb hibaüzenet
-  toast.error("Hang előnézet nem elérhető. Kérlek próbáld újra később.");
-}
-```
+Ezt hozzá kell adni mindkét Edge Function-höz:
 
 ---
 
@@ -82,57 +19,95 @@ onError: (error) => {
 
 | Fájl | Változás |
 |------|----------|
-| **Adatbázis migráció** | `tts_voices` tábla `elevenlabs_voice_id` frissítése |
-| `src/components/audiobook/AudiobookTab.tsx` | + Becsült költség kiírása, kredit vásárlás szükségességének kommunikálása |
-| `src/hooks/useAudiobook.ts` | Hibaüzenet javítása a voice preview-nál |
+| `supabase/functions/elevenlabs-tts-preview/index.ts` | + `language_code: "hu"` paraméter |
+| `supabase/functions/process-audiobook-chapter/index.ts` | + `language_code: "hu"` paraméter |
 
 ---
 
 ## Részletes Implementáció
 
-### 1. SQL Migráció - Voice ID-k Cseréje
+### 1. elevenlabs-tts-preview/index.ts
 
-```sql
--- Update voice IDs to working ElevenLabs standard voices
-UPDATE tts_voices SET 
-  elevenlabs_voice_id = 'JBFqnCBsd6RMkjVDRZzb',
-  description = 'Mély, nyugodt férfi hang'
-WHERE id = 'e0ef7984-457e-4edc-94e5-4979531d5e37';
-
-UPDATE tts_voices SET 
-  elevenlabs_voice_id = 'EXAVITQu4vr4xnSDxMaL',
-  description = 'Kellemes női hang'
-WHERE id = '0f35d413-97e8-4acb-907a-45ef1c836b76';
-
--- stb...
+**Jelenlegi kód (33-40. sor):**
+```typescript
+body: JSON.stringify({
+  text: sampleText,
+  model_id: "eleven_multilingual_v2",
+  voice_settings: {
+    stability: 0.5,
+    similarity_boost: 0.75,
+  },
+}),
 ```
 
-### 2. AudiobookTab.tsx - Módosított CostEstimate
+**Javított kód:**
+```typescript
+body: JSON.stringify({
+  text: sampleText,
+  model_id: "eleven_multilingual_v2",
+  language_code: "hu",  // Magyar kiejtés
+  voice_settings: {
+    stability: 0.5,
+    similarity_boost: 0.75,
+  },
+}),
+```
 
-Új információk hozzáadása:
-- Becsült költség Ft-ban
-- Egyértelmű üzenet, hogy kredit vásárlás szükséges
-- Link/gomb a kredit vásárláshoz közvetlenül itt is
+### 2. process-audiobook-chapter/index.ts
 
-### 3. useAudiobook.ts - Hibaüzenet Javítás
+**Jelenlegi kód (148-157. sor):**
+```typescript
+body: JSON.stringify({
+  text: fullText,
+  model_id: "eleven_multilingual_v2",
+  voice_settings: {
+    stability: 0.5,
+    similarity_boost: 0.75,
+  },
+  previous_text: previousText,
+  next_text: nextText,
+}),
+```
 
-A `useVoicePreview` mutáció `onError` callback-jét módosítani:
-- Ne jelenjen meg a technikai ElevenLabs hibaüzenet
-- Barátságos magyar nyelvű üzenet helyette
+**Javított kód:**
+```typescript
+body: JSON.stringify({
+  text: fullText,
+  model_id: "eleven_multilingual_v2",
+  language_code: "hu",  // Magyar kiejtés
+  voice_settings: {
+    stability: 0.5,
+    similarity_boost: 0.75,
+  },
+  previous_text: previousText,
+  next_text: nextText,
+}),
+```
+
+---
+
+## Technikai Háttér
+
+Az ElevenLabs `eleven_multilingual_v2` modell:
+- Támogat 29+ nyelvet, köztük a magyart
+- A `language_code` paraméter biztosítja a helyes kiejtést
+- ISO 639-1 kódot használ (magyar = `hu`)
+
+Az API dokumentáció szerint:
+> "Language code (ISO 639-1) used to enforce a language for the model and text normalization."
 
 ---
 
 ## Implementációs Sorrend
 
-1. **Adatbázis migráció** - Voice ID-k cseréje működő hangokra
-2. **AudiobookTab.tsx** - Árazási információ és kredit vásárlás kommunikáció
-3. **useAudiobook.ts** - Hibaüzenet javítása
+1. `elevenlabs-tts-preview/index.ts` módosítása - minta hangok
+2. `process-audiobook-chapter/index.ts` módosítása - teljes hangoskönyvek
+3. Edge Function-ök újratelepítése
 
 ---
 
 ## Várt Eredmény
 
-- ✅ Az „Előnézet" gomb működik a 4 narrátornál
-- ✅ A felhasználó látja, hogy kb. mennyibe kerül a hangoskönyv
-- ✅ Egyértelmű üzenet, hogy kredit vásárlás szükséges
-- ✅ Barátságos hibaüzenetek API hiba esetén
+- A 4 narrátor előnézete **magyar kiejtéssel** szól
+- A generált hangoskönyvek **magyar kiejtéssel** készülnek
+- A szöveg minden esetben érthetően, magyarul lesz felolvasva
