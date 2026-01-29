@@ -275,27 +275,17 @@ async function processOutlineJob(supabase: any, job: any, project: any, chapter:
 }
 
 // Scene írás - meghívja a write-section edge function-t
+// ATOMIKUS verzió - append_chapter_content RPC-t használ a race condition elkerüléséhez
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processSceneJob(supabase: any, job: any, project: any, chapter: any): Promise<boolean> {
   const sceneIndex = job.scene_index;
   
-  // FRISSÍTETT chapter lekérése a legújabb content-tel
-  const { data: currentChapter } = await supabase
-    .from("chapters")
-    .select("*")
-    .eq("id", chapter.id)
-    .single();
-  
-  if (!currentChapter) {
-    throw new Error("Chapter not found");
-  }
-  
-  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${currentChapter.title}`);
+  console.log(`Writing scene ${sceneIndex + 1} for chapter: ${chapter.title}`);
   
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   
-  const sceneOutlineArray = currentChapter.scene_outline || [];
+  const sceneOutlineArray = chapter.scene_outline || [];
   
   const response = await fetch(`${supabaseUrl}/functions/v1/write-section`, {
     method: 'POST',
@@ -305,10 +295,10 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
     },
     body: JSON.stringify({
       projectId: project.id,
-      chapterId: currentChapter.id,
+      chapterId: chapter.id,
       sectionOutline: job.scene_outline,
       sectionIndex: sceneIndex,
-      chapterTitle: currentChapter.title,
+      chapterTitle: chapter.title,
       totalSections: sceneOutlineArray.length || 1,
       previousContent: ""
     })
@@ -323,27 +313,24 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
   const sceneContent = result.content || "";
   const wordCount = result.wordCount || 0;
   
-  // Hozzáfűzés a meglévő tartalomhoz
-  const existingContent = currentChapter.content || "";
-  const separator = existingContent.length > 0 ? "\n\n" : "";
-  const newContent = existingContent + separator + sceneContent;
-  const totalWords = newContent.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
-  
-  // Fejezet frissítése A TARTALOMMAL
-  await supabase.from("chapters")
-    .update({ 
-      content: newContent,
-      word_count: totalWords,
-      scenes_completed: (currentChapter.scenes_completed || 0) + 1,
-      writing_status: 'writing'
-    })
-    .eq("id", currentChapter.id);
+  // ATOMIKUS content hozzáfűzés - RPC-vel, row-level lock-kal
+  // Ez megakadályozza, hogy párhuzamos scene írások felülírják egymást
+  const { error: rpcError } = await supabase.rpc('append_chapter_content', {
+    p_chapter_id: chapter.id,
+    p_new_content: sceneContent,
+    p_word_count_delta: wordCount
+  });
 
-  console.log(`Scene ${sceneIndex + 1} completed with ${wordCount} words, total chapter: ${totalWords} words`);
+  if (rpcError) {
+    console.error("append_chapter_content RPC error:", rpcError);
+    throw new Error(`Failed to append content: ${rpcError.message}`);
+  }
+
+  console.log(`Scene ${sceneIndex + 1} completed with ${wordCount} words (atomic append)`);
   return true;
 }
 
-// Projekt progress frissítése
+// Projekt progress frissítése - JAVÍTOTT verzió szószám validációval
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function updateProjectProgress(supabase: any, projectId: string) {
   // Számoljuk a completed scene job-okat
@@ -366,7 +353,7 @@ async function updateProjectProgress(supabase: any, projectId: string) {
     .eq("project_id", projectId)
     .in("status", ["pending", "processing"]);
 
-  // Számoljuk a teljes word count-ot
+  // Számoljuk a teljes word count-ot a chapters táblából
   const { data: chapters } = await supabase
     .from("chapters")
     .select("word_count")
@@ -375,14 +362,31 @@ async function updateProjectProgress(supabase: any, projectId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const totalWords = chapters?.reduce((sum: number, ch: any) => sum + (ch.word_count || 0), 0) || 0;
 
-  // Projekt frissítése
-  const isCompleted = pendingCount === 0;
+  // Projekt target word count lekérése
+  const { data: project } = await supabase
+    .from("projects")
+    .select("target_word_count")
+    .eq("id", projectId)
+    .single();
+
+  const targetWordCount = project?.target_word_count || 50000;
   
-  // Ha most fejeződött be, küldjünk email értesítést - DE CSAK HA VAN TARTALOM
-  if (isCompleted) {
-    const hasContent = chapters?.some((ch: any) => (ch.word_count || 0) > 0);
+  // JAVÍTOTT befejezési logika:
+  // 1. Nincs pending job
+  // 2. ÉS a szószám eléri a cél 70%-át (megelőzi a hamis completed státuszt)
+  const noMoreJobs = pendingCount === 0;
+  const hasReachedWordTarget = totalWords >= targetWordCount * 0.7;
+  const isActuallyCompleted = noMoreJobs && hasReachedWordTarget;
+  
+  // Ha nincs több job de nem értük el a célt, loggoljuk
+  if (noMoreJobs && !hasReachedWordTarget) {
+    console.warn(`Project ${projectId}: No pending jobs but word count (${totalWords}) is below 70% of target (${targetWordCount}). Status: incomplete`);
+  }
+  
+  // Ha most fejeződött be TÉNYLEGESEN, küldjünk email értesítést
+  if (isActuallyCompleted) {
+    const hasContent = chapters?.some((ch: { word_count?: number }) => (ch.word_count || 0) > 0);
     
-    // Csak akkor küldünk emailt, ha van tényleges tartalom
     if (hasContent && totalWords > 0) {
       await sendCompletionEmail(supabase, projectId);
     } else {
@@ -394,8 +398,8 @@ async function updateProjectProgress(supabase: any, projectId: string) {
     completed_scenes: completedCount || 0,
     total_scenes: totalCount || 0,
     word_count: totalWords,
-    writing_status: isCompleted ? 'completed' : 'writing',
-    writing_completed_at: isCompleted ? new Date().toISOString() : null,
+    writing_status: isActuallyCompleted ? 'completed' : (noMoreJobs ? 'incomplete' : 'writing'),
+    writing_completed_at: isActuallyCompleted ? new Date().toISOString() : null,
     last_activity_at: new Date().toISOString()
   }).eq("id", projectId);
 }

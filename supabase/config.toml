@@ -134,3 +134,6 @@ verify_jwt = false
 
 [functions.admin-ban-user]
 verify_jwt = false
+
+[functions.recover-missing-scenes]
+verify_jwt = false

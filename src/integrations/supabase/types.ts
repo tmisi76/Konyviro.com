@@ -1675,6 +1675,14 @@ export type Database = {
         Args: { p_user_id: string; p_word_count: number }
         Returns: undefined
       }
+      append_chapter_content: {
+        Args: {
+          p_chapter_id: string
+          p_new_content: string
+          p_word_count_delta?: number
+        }
+        Returns: undefined
+      }
       get_admin_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_role"]
