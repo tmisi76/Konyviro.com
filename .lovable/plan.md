@@ -1,16 +1,21 @@
 
 
-# Javítás: Stripe Audiobook Kredit Árazás
+# Javítás: Lektorálás Stripe Árazás
 
 ## Probléma
 
-A Stripe `unit_amount` mezője **fillérben** várja az összeget (a legkisebb pénzegységben), de a kód forintban adja át:
+A `create-proofreading-purchase` Edge Function 119. sorában hibás a logika:
 
-| Csomag | Helyes ár | Jelenleg beállított |
-|--------|-----------|---------------------|
-| 30 perc | 9 990 Ft | 99,90 Ft |
-| 100 perc | 29 990 Ft | 299,90 Ft |
-| 250 perc | 69 990 Ft | 699,90 Ft |
+```typescript
+unit_amount: finalPrice, // HUF doesn't use subunits  ← HIBÁS komment és kód!
+```
+
+A HUF valóban **használ** alegységeket (fillér), tehát a Stripe API-nak fillérben kell megkapnia az összeget.
+
+| Szószám | Helyes ár | Jelenleg beállított |
+|---------|-----------|---------------------|
+| 50 000 szó | 5 000 Ft | 50 Ft |
+| 100 000 szó | 10 000 Ft | 100 Ft |
 
 ## Megoldás
 
@@ -18,30 +23,27 @@ A `unit_amount` értékét meg kell szorozni 100-zal:
 
 ```typescript
 // Jelenlegi (HIBÁS):
-unit_amount: selectedPackage.priceHuf,
+unit_amount: finalPrice, // HUF doesn't use subunits
 
 // Javított (HELYES):
-unit_amount: selectedPackage.priceHuf * 100,
+unit_amount: finalPrice * 100, // HUF uses fillér (100 fillér = 1 Ft)
 ```
 
 ## Érintett Fájl
 
 | Fájl | Változás |
 |------|----------|
-| `supabase/functions/create-audiobook-credit-purchase/index.ts` | 84. sor: `unit_amount: selectedPackage.priceHuf * 100` |
+| `supabase/functions/create-proofreading-purchase/index.ts` | 119. sor: `unit_amount: finalPrice * 100` |
 
 ## Technikai Részletek
 
-A Stripe API-nál a HUF (forint) valuta esetén:
+A Stripe API-nál a HUF valuta esetén:
 - `unit_amount: 100` = 1 Ft
-- `unit_amount: 6999000` = 69 990 Ft
-
-Tehát a javítás után:
-- 30 perc csomag: `9990 * 100 = 999000` fillér = **9 990 Ft**
-- 100 perc csomag: `29990 * 100 = 2999000` fillér = **29 990 Ft**
-- 250 perc csomag: `69990 * 100 = 6999000` fillér = **69 990 Ft**
+- `unit_amount: 199000` = 1 990 Ft (minimum ár)
+- `unit_amount: 500000` = 5 000 Ft (50k szó)
 
 ## Implementáció
 
-Egyetlen sor módosítása a 84. sorban, majd az Edge Function újratelepítése.
+1. Módosítás a 119. sorban
+2. Edge Function újratelepítése
 
