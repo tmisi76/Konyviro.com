@@ -1,217 +1,112 @@
 
 
-# Lektorálás Edge Function Hibakeresés és Javítás
+# Lektorálás Timeout Javítás
 
-## Azonosított Problémák
+## Gyökérokoz Azonosítása
 
-### 1. Státusz Ellenőrzés Blokkolja az Újraindítást
+A `process-proofreading` edge function a **Claude Opus 4** modellt használja közvetlenül az Anthropic API-n keresztül. Egy ~10000 karakteres fejezet lektorálása Claude Opus-szal **2-3 percig** is tarthat, de:
 
-**Probléma helye:** `process-proofreading/index.ts` 99-105. sor
+- A `fetchWithRetry` timeout: **120 másodperc**
+- Az Edge Function wall-time limit: **~90 másodperc**
 
-```typescript
-if (order.status !== "paid") {
-  console.log("Order not in paid status, skipping:", order.status);
-  return new Response(
-    JSON.stringify({ message: "Order not ready for processing" }),
-    ...
-  );
-}
-```
+**Eredmény:** A function timeout-ol az első fejezet közben, mielőtt bármit elmenthetne.
 
-**Következmény:** Amikor a function timeout-ol vagy crash-el a 2. fejezetnél, az order már `processing` státuszban van. A következő híváskor a function azonnal visszatér "Order not ready" üzenettel, és SOHA nem folytatja a munkát.
+## Megoldási Lehetőségek
 
-**Bizonyíték a tesztből:**
-```
-curl POST /process-proofreading { orderId: "b7ba3156..." }
-Response: { "message": "Order not ready for processing" }
-```
+| Opció | Előny | Hátrány |
+|-------|-------|---------|
+| **A) Lovable AI Gateway használata** | Nincs API key szükséges, gyorsabb modellek | Nincs Claude Opus, de van Gemini Pro |
+| **B) Claude Sonnet használata Opus helyett** | 2-3x gyorsabb válaszidő, Anthropic API marad | Valamivel kisebb minőség |
+| **C) Streaming válasz** | Megakadályozza a timeout-ot | Bonyolultabb implementáció |
 
-### 2. Nincs Retry Logika az AI Hívásnál
+## Javasolt Megoldás: Opció A - Lovable AI Gateway
 
-**Probléma helye:** `process-proofreading/index.ts` 36-69. sor
+A `refine-chapter` function már sikeresen használja a Lovable AI Gateway-t. Ugyanezt a mintát alkalmazzuk a lektorálásra is:
 
-A `proofreadChapter` function közvetlenül hívja az Anthropic API-t:
-- **Nincs timeout kezelés** (AbortController)
-- **Nincs retry logika** (429, 502, 503, 504 hibákra)
-- **Nincs exponential backoff**
-
-**Összehasonlítás a `write-section/index.ts`-sel:**
-- 7 próbálkozás
-- 120 mp timeout
-- Exponential backoff (5s → 60s)
-- Rate limit (429) és gateway error (502/503/504) kezelés
-
-### 3. Nincs Folytatási Logika
-
-**Probléma:** A function mindig a 0. fejezettől indul, nem a `current_chapter_index`-től.
-
-```typescript
-// Jelenlegi kód (129. sor):
-for (const chapter of chapters) {
-  // Minden fejezetet újra feldolgoz az elejétől
-}
-
-// Javított logika kellene:
-for (let i = order.current_chapter_index; i < chapters.length; i++) {
-  // Csak a még nem feldolgozott fejezeteket dolgozza fel
-}
-```
-
-### 4. Hosszú Futási Idő → Edge Function Timeout
-
-**Probléma:** A Claude Opus API hívás egy fejezetre ~30-60 másodpercig tart. 14 fejezetnél ez 7-14 perc, de az edge function timeout ~60-90 másodperc.
-
-**Megoldási lehetőségek:**
-1. **Job queue architektúra** (mint a könyvírás): Minden fejezet külön edge function hívás
-2. **Chunked processing**: Egy hívás = 1 fejezet, majd újrahívja magát
-
-## Javasolt Megoldás: Job Queue Architektúra
-
-A könyvíráshoz hasonlóan, a lektorálásnak is job queue-t kellene használnia:
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  1. start-proofreading (trigger)                                │
-│     - Order létrehozás                                          │
-│     - Első job queue bejegyzés                                  │
-└─────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  2. process-proofreading-chapter (worker)                       │
-│     - Egy fejezet feldolgozása                                  │
-│     - Ha van még fejezet → következő job enqueue               │
-│     - Ha nincs → status: completed                              │
-└─────────────────────────────────────────────────────────────────┘
-```
+- **Modell:** `google/gemini-2.5-pro` (legerősebb a komplex lektoráláshoz)
+- **Timeout:** Nincs szükség AbortController-re, a gateway gyorsabban válaszol
+- **Költség:** Nincs API költség (beépített a Lovable-ba)
 
 ## Implementációs Terv
 
-### Fázis 1: Azonnali Javítások (process-proofreading refactor)
+### Módosítandó Fájl
 
-| Módosítás | Leírás |
-|-----------|--------|
-| Státusz ellenőrzés | `paid` VAGY `processing` esetén fusson |
-| Folytatás | Használja `current_chapter_index`-et kezdőpontnak |
-| Retry logika | `fetchWithRetry` használata az AI híváshoz |
-| Timeout | AbortController 120s timeout-tal |
-| Egy fejezet/hívás | Egy hívás = 1 fejezet, majd fire-and-forget újrahívás |
+**`supabase/functions/process-proofreading/index.ts`**
 
-### Fázis 2: Edge Function Módosítások
+### Változtatások
 
-**Fájl:** `supabase/functions/process-proofreading/index.ts`
+1. **API végpont cseréje:**
+   - Régi: `https://api.anthropic.com/v1/messages`
+   - Új: `https://ai.gateway.lovable.dev/v1/chat/completions`
 
-1. **Státusz ellenőrzés javítása:**
+2. **Modell cseréje:**
+   - Régi: `claude-opus-4-20250514`
+   - Új: `google/gemini-2.5-pro` (vagy `openai/gpt-5` a még jobb minőséghez)
+
+3. **Header és body formátum:**
+   - Régi: Anthropic formátum (`x-api-key`, `anthropic-version`, `system` mező)
+   - Új: OpenAI-kompatibilis formátum (`Authorization: Bearer`, `messages` tömb `system` role-lal)
+
+4. **Válasz parse:**
+   - Régi: `data.content[0].text`
+   - Új: `data.choices[0].message.content`
+
+5. **Timeout csökkentése:**
+   - Régi: 120s
+   - Új: 60s (a Lovable Gateway gyorsabb)
+
+### Kód Változtatások
+
 ```typescript
-// Folytatható, ha "paid" VAGY "processing"
-if (order.status !== "paid" && order.status !== "processing") {
-  return ...;
-}
-```
-
-2. **Folytatási logika:**
-```typescript
-const startIndex = order.current_chapter_index || 0;
-const chapter = chapters[startIndex];
-
-// Csak 1 fejezet feldolgozása hívásonként
-```
-
-3. **Retry logika hozzáadása:**
-```typescript
-import { fetchWithRetry, RETRY_CONFIG } from "../_shared/retry-utils.ts";
-
-async function proofreadChapter(content: string, chapterTitle: string): Promise<string> {
-  const result = await fetchWithRetry({
-    url: "https://api.anthropic.com/v1/messages",
-    options: {
-      method: "POST",
-      headers: { ... },
-      body: JSON.stringify({ ... }),
+// ELŐTTE (Anthropic API)
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+const result = await fetchWithRetry({
+  url: "https://api.anthropic.com/v1/messages",
+  options: {
+    headers: {
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
     },
-    maxRetries: 7,
-    timeoutMs: 120000,
-    onRetry: (attempt, status) => {
-      console.log(`Retry ${attempt} for chapter "${chapterTitle}", status: ${status}`);
+    body: JSON.stringify({
+      model: "claude-opus-4-20250514",
+      system: PROOFREADING_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: ... }],
+    }),
+  },
+  timeoutMs: 120000,
+});
+const text = data.content[0].text;
+
+// UTÁNA (Lovable AI Gateway)
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const result = await fetchWithRetry({
+  url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+  options: {
+    headers: {
+      "Authorization": `Bearer ${LOVABLE_API_KEY}`,
     },
-  });
-  
-  if (!result.response?.ok) {
-    throw new Error(`API error after ${result.attempts} attempts`);
-  }
-  
-  const data = await result.response.json();
-  return data.content[0].text;
-}
+    body: JSON.stringify({
+      model: "google/gemini-2.5-pro",
+      messages: [
+        { role: "system", content: PROOFREADING_SYSTEM_PROMPT },
+        { role: "user", content: ... }
+      ],
+      max_tokens: 16000,
+    }),
+  },
+  timeoutMs: 60000,
+});
+const text = data.choices[0].message.content;
 ```
 
-4. **Önhívó architektúra (1 fejezet/hívás):**
-```typescript
-// Egy fejezet feldolgozása után újrahívja magát
-if (nextChapterIndex < chapters.length) {
-  fetch(processUrl, {
-    method: "POST",
-    headers: { ... },
-    body: JSON.stringify({ orderId }),
-  }).catch(console.error);
-}
-```
+## Összefoglaló
 
-## Összefoglaló Táblázat
+| Változás | Fájl | Leírás |
+|----------|------|--------|
+| API csere | `process-proofreading/index.ts` | Anthropic → Lovable AI Gateway |
+| Modell csere | `process-proofreading/index.ts` | Claude Opus → Gemini 2.5 Pro |
+| Timeout csökkentés | `process-proofreading/index.ts` | 120s → 60s |
+| Válasz formátum | `process-proofreading/index.ts` | Anthropic → OpenAI format |
 
-| Probléma | Megoldás | Prioritás |
-|----------|----------|-----------|
-| Státusz blokkolás | `paid` VAGY `processing` elfogadása | Kritikus |
-| Nincs folytatás | `current_chapter_index` használata | Kritikus |
-| Nincs retry | `fetchWithRetry` integrálás | Magas |
-| Timeout | 1 fejezet/hívás + önhívás | Magas |
-
-## Technikai Részletek
-
-### Javított Státusz Logika
-
-```typescript
-// RÉGI (hibás):
-if (order.status !== "paid") { return; }
-
-// ÚJ (helyes):
-if (order.status !== "paid" && order.status !== "processing") { 
-  console.log("Order completed or failed, skipping:", order.status);
-  return; 
-}
-
-// Csak paid → processing váltás, ha még nem processing
-if (order.status === "paid") {
-  await supabaseAdmin
-    .from("proofreading_orders")
-    .update({ status: "processing" })
-    .eq("id", orderId);
-}
-```
-
-### Önhívó Architektúra Flow
-
-```text
-1. admin-test-proofreading létrehoz ordert (status: paid)
-2. Meghívja process-proofreading (orderId)
-3. process-proofreading:
-   a. Ellenőrzi státuszt (paid VAGY processing → OK)
-   b. Lekéri current_chapter_index (pl. 0)
-   c. Feldolgozza a 0. fejezetet
-   d. Frissíti current_chapter_index = 1
-   e. Fire-and-forget hívja önmagát (orderId)
-   f. Visszatér sikerrel
-4. Következő hívás:
-   a. current_chapter_index = 1
-   b. Feldolgozza az 1. fejezetet
-   c. ... és így tovább
-5. Utolsó fejezet után:
-   a. status: completed
-   b. Nem hívja újra magát
-```
-
-Ez a megközelítés:
-- Elkerüli az edge function timeout-ot
-- Lehetővé teszi a folytatást hiba után
-- Megbízhatóbbá teszi a hosszú feldolgozásokat
+Ez a javítás megoldja a timeout problémát, mivel a Lovable AI Gateway sokkal gyorsabban válaszol, és nem kell API kulcsot fizetni az Anthropic-nak.
 
