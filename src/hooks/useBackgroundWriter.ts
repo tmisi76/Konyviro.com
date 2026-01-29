@@ -12,6 +12,7 @@ export type WritingStatus =
   | 'in_progress'
   | 'paused' 
   | 'completed' 
+  | 'incomplete'  // Új: job-ok befejeződtek de nem érte el a cél szószámot
   | 'failed';
 
 export interface WritingProgress {
@@ -274,6 +275,35 @@ export function useBackgroundWriter(projectId: string | null) {
     }
   }, [projectId, toast]);
 
+  // Hiányzó jelenetek helyreállítása
+  const recoverMissingScenes = useCallback(async () => {
+    if (!projectId) return;
+    
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('recover-missing-scenes', {
+        body: { projectId }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Helyreállítás elindítva",
+        description: data?.message || "A hiányzó jelenetek írása elindult.",
+      });
+    } catch (error) {
+      console.error("Failed to recover missing scenes:", error);
+      toast({
+        title: "Hiba",
+        description: error instanceof Error ? error.message : "Nem sikerült elindítani a helyreállítást.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectId, toast]);
+
   // Számított értékek
   const progressPercent = progress.totalScenes > 0 
     ? Math.round((progress.completedScenes / progress.totalScenes) * 100) 
@@ -287,6 +317,10 @@ export function useBackgroundWriter(projectId: string | null) {
   const canStart = progress.status === 'idle' || progress.status === 'failed' || progress.status === 'in_progress';
   const canPause = isWriting;
   const canResume = progress.status === 'paused';
+  
+  // Új: helyreállítás lehetséges ha "completed" de nem érte el a célt, vagy "incomplete" státusz
+  const canRecover = progress.status === 'incomplete' || 
+    (progress.status === 'completed' && progress.targetWordCount > 0 && progress.wordCount < progress.targetWordCount * 0.8);
 
   return {
     progress,
@@ -297,9 +331,11 @@ export function useBackgroundWriter(projectId: string | null) {
     canStart,
     canPause,
     canResume,
+    canRecover,
     startWriting,
     resumeWriting,
     pauseWriting,
     cancelWriting,
+    recoverMissingScenes,
   };
 }

@@ -11,7 +11,8 @@ import {
   Loader2,
   BookOpen,
   Clock,
-  FileText
+  FileText,
+  RefreshCw
 } from "lucide-react";
 import { useBackgroundWriter, WritingStatus } from "@/hooks/useBackgroundWriter";
 import { formatDistanceToNow } from "date-fns";
@@ -32,6 +33,7 @@ const statusConfig: Record<WritingStatus, { label: string; color: string; icon: 
   in_progress: { label: "Írás folyamatban", color: "bg-green-500", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
   paused: { label: "Szüneteltetve", color: "bg-orange-500", icon: <Pause className="h-3 w-3" /> },
   completed: { label: "Elkészült", color: "bg-emerald-500", icon: <CheckCircle className="h-3 w-3" /> },
+  incomplete: { label: "Nem teljes", color: "bg-amber-500", icon: <AlertCircle className="h-3 w-3" /> },
   failed: { label: "Hiba történt", color: "bg-destructive", icon: <AlertCircle className="h-3 w-3" /> },
 };
 
@@ -44,9 +46,11 @@ export function WritingStatusCard({ projectId, projectTitle }: WritingStatusCard
     canStart,
     canPause,
     canResume,
+    canRecover,
     startWriting,
     resumeWriting,
     pauseWriting,
+    recoverMissingScenes,
   } = useBackgroundWriter(projectId);
 
   const status = statusConfig[progress.status] || statusConfig.idle;
@@ -126,7 +130,7 @@ export function WritingStatusCard({ projectId, projectTitle }: WritingStatusCard
         </div>
 
         {/* Akció gombok */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {canStart && (
             <Button 
               size="sm" 
@@ -151,6 +155,13 @@ export function WritingStatusCard({ projectId, projectTitle }: WritingStatusCard
             <Button size="sm" onClick={resumeWriting} disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
               Folytatás
+            </Button>
+          )}
+
+          {canRecover && (
+            <Button size="sm" variant="secondary" onClick={recoverMissingScenes} disabled={isLoading}>
+              {isLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+              Hiányzó jelenetek pótlása
             </Button>
           )}
         </div>
