@@ -3,8 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// Characters per minute for estimation
+const CHARACTERS_PER_MINUTE = 1000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -35,10 +38,10 @@ serve(async (req) => {
       throw new Error("Invalid user token");
     }
 
-    // Get chapters for the project
+    // Get chapters for the project with content
     const { data: chapters, error: chaptersError } = await supabase
       .from("chapters")
-      .select("id, title, sort_order")
+      .select("id, title, sort_order, content")
       .eq("project_id", project_id)
       .order("sort_order");
 
@@ -46,6 +49,41 @@ serve(async (req) => {
     if (!chapters || chapters.length === 0) {
       throw new Error("No chapters found for this project");
     }
+
+    // Calculate total characters and estimated minutes
+    const totalCharacters = chapters.reduce((acc, ch) => acc + (ch.content?.length || 0), 0);
+    const estimatedMinutes = Math.ceil(totalCharacters / CHARACTERS_PER_MINUTE);
+
+    if (estimatedMinutes === 0) {
+      throw new Error("No content found in chapters");
+    }
+
+    // Check user's audiobook credit balance
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("audiobook_minutes_balance")
+      .eq("user_id", user.id)
+      .single();
+
+    if (profileError) throw profileError;
+
+    const balance = profile?.audiobook_minutes_balance || 0;
+    if (balance < estimatedMinutes) {
+      throw new Error(`Insufficient audiobook credits. Required: ${estimatedMinutes} minutes, Available: ${balance} minutes`);
+    }
+
+    // Deduct credits upfront
+    const { error: deductError } = await supabase
+      .from("profiles")
+      .update({ 
+        audiobook_minutes_balance: balance - estimatedMinutes,
+        updated_at: new Date().toISOString()
+      })
+      .eq("user_id", user.id);
+
+    if (deductError) throw deductError;
+
+    console.log(`Deducted ${estimatedMinutes} audiobook minutes from user ${user.id}`);
 
     // Create audiobook record
     const { data: audiobook, error: audiobookError } = await supabase
@@ -62,7 +100,14 @@ serve(async (req) => {
       .select()
       .single();
 
-    if (audiobookError) throw audiobookError;
+    if (audiobookError) {
+      // Refund credits if audiobook creation fails
+      await supabase
+        .from("profiles")
+        .update({ audiobook_minutes_balance: balance })
+        .eq("user_id", user.id);
+      throw audiobookError;
+    }
 
     // Create audiobook_chapters records
     const chapterRecords = chapters.map((chapter, index) => ({
@@ -91,7 +136,9 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         audiobook_id: audiobook.id,
-        total_chapters: chapters.length 
+        total_chapters: chapters.length,
+        estimated_minutes: estimatedMinutes,
+        credits_deducted: estimatedMinutes,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
