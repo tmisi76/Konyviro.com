@@ -7,25 +7,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const PROOFREADING_SYSTEM_PROMPT = `Te egy tapasztalt magyar lektor vagy, aki szépirodalmi, ismeretterjesztő és szakmai könyvek szövegét ellenőrzi.
+const PROOFREADING_SYSTEM_PROMPT = `Feladat: Javítsd az alábbi szöveget publikálható, profi magyar minőségre.
 
-FELADATOD:
-Elemezd és javítsd a következő könyvrészletet az alábbi szempontok szerint:
-1. Nyelvtan és helyesírás - magyar helyesírási szabályok szerinti javítás
-2. Stilisztika - felesleges ismétlődések, klisék kiküszöbölése
-3. Mondatszerkezet - gördülékenyebb, logikusabb megfogalmazás
-4. Érthetőség - természetesebb ritmus, világos gondolatvezetés
-5. Bekezdések - szükség esetén javasolj tagolást
+Instrukciók a javításhoz:
+1. Javítsd a nyelvtani és helyesírási hibákat.
+2. Egészítsd ki a hiányos vagy félbehagyott mondatokat a kontextus alapján (ez kritikus!).
+3. Cseréld a magyartalan (angolból tükörfordított) kifejezéseket természetes magyar fordulatokra.
+4. Javítsd a logikai bukfenceket a szövegfolyamban.
 
-SZABÁLYOK:
-- Tartsd meg a szerző eredeti hangját és stílusát
-- Tedd gördülékenyebbé, logikusabbá és természetesebb ritmusúvá a szöveget
-- Ha szükséges, javasolj finom átfogalmazásokat vagy bekezdés-tagolást
-- NE változtasd meg az üzenetet vagy a szerző nézőpontját
-- NE adj hozzá új tartalmakat vagy jeleneteket
-- NE töröld ki a fontos részeket
-
-A válaszod KIZÁRÓLAG a javított szöveg legyen, semmilyen magyarázat vagy megjegyzés nélkül.`;
+KIMENETI SZABÁLYOK (Szigorúan tartsd be!):
+- KIZÁRÓLAG a javított szöveget add válaszul.
+- NE írj bevezetőt (pl. "Itt a javított szöveg...").
+- NE írj magyarázatot vagy felsorolást a hibákról.
+- A kimenet azonnal a szöveg első mondatával kezdődjön.`;
 
 const DEFAULT_PROOFREADING_MODEL = "google/gemini-2.5-pro";
 
