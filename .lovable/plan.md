@@ -1,98 +1,187 @@
 
-# Fejezet Lektorálás Szövegfrissítés Javítás
+# Lektorálás Javítási Terv
 
-## Probléma Azonosítása
+## Azonosított Problémák
 
-A lektorálás sikeresen lefut a backend oldalon (lásd logok: "Completed chapter ... 1263 words"), de a szerkesztőben nem frissül a szöveg.
+### 1. JSON Parse Hiba a Model Lekérésnél
+A `proofread-chapter` és `process-proofreading` edge function-ökben a `getProofreadingModel` függvény hibásan próbálja JSON-ként parse-olni a model stringet, ami már eleve string formátumban van az adatbázisban.
 
-**Gyökérok**: A `useEditorData` hook **saját React state-et** (`useState`) használ a chapters és blocks tárolására, **nem React Query**-t. Ezért a `queryClient.invalidateQueries(["chapters"])` hívás a `useChapterProofreading` hookból **hatástalan**.
-
-```text
-useChapterProofreading                     useEditorData
-        │                                        │
-        │ queryClient.invalidate()               │ useState(chapters)
-        └──────────────X────────────────────────►│ useState(blocks)
-                   (nincs kapcsolat!)            │
+**Hiba log:**
+```
+Error fetching proofreading model: SyntaxError: Unexpected token 'g', "google/gem"... is not valid JSON
 ```
 
-## Megoldás
+### 2. Fejezet Lektorálás - Editor Nem Frissül Megfelelően
+Bár a `onRefreshChapter` hívódik, a `fetchBlocks` függvény logikája problémás:
+- Ha a chapter-ben van content ÉS nincsenek "valódi tartalommal rendelkező" blokkok → újrakonvertálja
+- DE ha már vannak blokkok (a korábbi szövegből) → nem frissülnek, mert a régi blokkok "valódi tartalomnak" számítanak
 
-Két lehetőség van:
+### 3. Teljes Könyv Lektorálás - Editor Nem Értesül
+A `useProofreading` hook `queryClient.invalidateQueries()`-t használ, de a `useEditorData` hook **useState**-et használ, nem React Query-t. Ez azt jelenti, hogy a cache invalidálás hatástalan.
 
-**A) useEditorData bővítése refetch függvénnyel (Javasolt)**
-- Exponáljuk a `fetchBlocks` és `fetchChapters` függvényeket
-- A ChapterSidebar ezeket hívja meg lektorálás után
+## Javítási Terv
 
-**B) Callback átadása a hooknak**
-- A `useChapterProofreading` kap egy `onComplete` callbacket
-- Ez manuálisan frissíti a szerkesztő state-ét
+### 1. Edge Function JSON Parse Fix
+
+**Fájlok:** 
+- `supabase/functions/proofread-chapter/index.ts`
+- `supabase/functions/process-proofreading/index.ts`
+
+**Változtatás:**
+```typescript
+// ELŐTTE (hibás):
+const model = typeof value === "string" ? JSON.parse(value) : value;
+
+// UTÁNA (javítva):
+const model = typeof value === "string" ? value : String(value);
+```
+
+### 2. Blokk Frissítés Lektorálás Után
+
+**Fájl:** `src/hooks/useEditorData.ts`
+
+A `fetchBlocks` függvény jelenleg csak akkor konvertálja újra a content-et blokkokká, ha nincsenek "valódi" blokkok. Lektorálás után a régiek megmaradnak.
+
+**Megoldás:** Új `forceRefreshBlocks` függvény hozzáadása, ami:
+1. Törli a meglévő blokkokat
+2. Újrakonvertálja a chapter.content-et blokkokká
+
+### 3. Teljes Könyv Lektorálás Frissítés
+
+**Fájl:** `src/hooks/useProofreading.ts`
+
+A status change figyelésnél (156-185 sorok) hozzáadni egy callback-et a `useEditorData` frissítéséhez.
+
+**Vagy:** A Dashboard-ról navigál vissza a felhasználó, ezért az editor úgyis újratölt.
+
+### 4. Dialog "Bezárás" Gomb - Auto Frissítés
+
+**Fájl:** `src/components/editor/ChapterSidebar.tsx`
+
+A "Bezárás" gomb megnyomásakor (lektorálás után) is frissíteni kell az adatokat.
 
 ## Technikai Változtatások
 
-### 1. useEditorData.ts Módosítás
-- Exportálni a `fetchBlocks` és `fetchChapters` függvényeket a return objektumban
+| Fájl | Változtatás |
+|------|-------------|
+| `supabase/functions/proofread-chapter/index.ts` | JSON parse fix |
+| `supabase/functions/process-proofreading/index.ts` | JSON parse fix |
+| `src/hooks/useEditorData.ts` | `forceRefreshBlocks(chapterId)` függvény |
+| `src/components/editor/ChapterSidebar.tsx` | Bezárásnál is refresh |
 
-### 2. ProjectEditor.tsx Módosítás  
-- Átadni a `fetchBlocks` és `fetchChapters` függvényeket a ChapterSidebar komponensnek
+## Implementációs Részletek
 
-### 3. ChapterSidebar.tsx Módosítás
-- Új props: `onRefreshChapter?: () => void`
-- Lektorálás befejezése után meghívni a refresh funkciót
-- A blokkokat is újra kell tölteni, nem csak a fejezetet
-
-### 4. useChapterProofreading.ts Opcionális Javítás
-- Az `onComplete` callback már létezik, de jelenleg nem használjuk ki
-- Jobb elnevezés: `onContentUpdated`
-
-## Fájl Változtatások
-
-| Fájl | Változás |
-|------|----------|
-| `src/hooks/useEditorData.ts` | `fetchBlocks` és `fetchChapters` exportálása |
-| `src/pages/ProjectEditor.tsx` | Refresh props átadása ChapterSidebar-nak |
-| `src/components/editor/ChapterSidebar.tsx` | Refresh hívása lektorálás után |
-| `src/hooks/useChapterProofreading.ts` | React Query invalidate eltávolítása (felesleges) |
-
-## Implementáció Részletei
-
-### useEditorData.ts
+### Edge Function Fix
 ```typescript
+// getProofreadingModel függvényben:
+async function getProofreadingModel(supabaseAdmin: any): Promise<string> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("system_settings")
+      .select("value")
+      .eq("key", "ai_proofreading_model")
+      .single();
+
+    if (error || !data) {
+      return DEFAULT_PROOFREADING_MODEL;
+    }
+
+    // FIX: A value lehet JSON string VAGY sima string
+    let modelValue = data.value;
+    if (typeof modelValue === "string") {
+      // Próbáljuk JSON-ként parse-olni, de ha nem sikerül, használjuk sima stringként
+      try {
+        modelValue = JSON.parse(modelValue);
+      } catch {
+        // Már sima string, használjuk közvetlenül
+      }
+    }
+    return modelValue || DEFAULT_PROOFREADING_MODEL;
+  } catch (err) {
+    console.error("Error fetching proofreading model:", err);
+    return DEFAULT_PROOFREADING_MODEL;
+  }
+}
+```
+
+### useEditorData Bővítés
+```typescript
+// Új függvény a fejezet blokkjainak kényszerített újratöltésére
+const forceRefreshBlocks = useCallback(async (chapterId: string) => {
+  if (!chapterId) return;
+  
+  // 1. Töröljük a meglévő blokkokat
+  await supabase.from("blocks").delete().eq("chapter_id", chapterId);
+  
+  // 2. Lekérjük a friss chapter content-et
+  const { data: chapterData } = await supabase
+    .from("chapters")
+    .select("content")
+    .eq("id", chapterId)
+    .single();
+  
+  if (!chapterData?.content) {
+    setBlocks([]);
+    return;
+  }
+  
+  // 3. Újrakonvertáljuk blokkokká
+  const paragraphs = chapterData.content.split('\n\n').filter((p: string) => p.trim());
+  const newBlocks: Block[] = [];
+  
+  for (let i = 0; i < paragraphs.length; i++) {
+    const { data: block } = await supabase
+      .from("blocks")
+      .insert({
+        chapter_id: chapterId,
+        type: 'paragraph',
+        content: paragraphs[i].trim(),
+        sort_order: i,
+      })
+      .select()
+      .single();
+    
+    if (block) {
+      newBlocks.push(block as Block);
+    }
+  }
+  
+  setBlocks(newBlocks);
+}, []);
+
+// Return-ben exportálni:
 return {
-  // ... meglévő
-  refetchChapters: fetchChapters,  // Új
-  refetchBlocks: fetchBlocks,       // Új
+  // ... existing
+  forceRefreshBlocks,
 };
 ```
 
-### ProjectEditor.tsx
-```tsx
-<ChapterSidebar
-  // ... meglévő props
-  onRefreshChapter={async () => {
-    await fetchChapters();
-    await fetchBlocks();
-  }}
-/>
-```
-
-### ChapterSidebar.tsx
-```tsx
-interface ChapterSidebarProps {
-  // ... meglévő
-  onRefreshChapter?: () => Promise<void>;
-}
-
-// handleConfirmProofreading-ban:
-const success = await proofreadChapter(...);
-if (success) {
-  await onRefreshChapter?.();
-}
+### ChapterSidebar Frissítés
+```typescript
+const handleCloseProofreadingDialog = async () => {
+  if (!isProofreading) {
+    // Ha volt lektorálás (streamedContent van), frissítjük az adatokat
+    if (streamedContent && onRefreshChapter) {
+      await onRefreshChapter();
+    }
+    setProofreadingChapter(null);
+    reset();
+  }
+};
 ```
 
 ## Tesztelési Lépések
 
-1. Nyiss meg egy projektet a szerkesztőben
-2. Jobb klikk egy fejezeten -> "Fejezet lektorálása"
-3. Várd meg a stream befejezését
-4. Ellenőrizd: a fejezet szövege frissült-e a szerkesztőben
-5. Ellenőrizd: a szószám badge frissült-e a sidebarban
+1. **Fejezet Lektorálás:**
+   - Nyiss meg egy projektet a szerkesztőben
+   - Jobb klikk egy fejezeten → "Fejezet lektorálása"
+   - Várd meg a stream befejezését
+   - Klikkelj "Bezárás"
+   - Ellenőrizd: a fejezet szövege frissült az editorban
+
+2. **Teljes Könyv Lektorálás:**
+   - Menj a "Lektorálás" fülre
+   - Indítsd el a teljes könyv lektorálást
+   - Várj a befejezésre a Dashboard-on
+   - Menj vissza a szerkesztőbe
+   - Ellenőrizd: minden fejezet szövege frissült
