@@ -3,14 +3,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { calculateProofreadingCredits } from "@/constants/credits";
 
 interface ProofreadingOrder {
   id: string;
   user_id: string;
   project_id: string;
-  stripe_session_id: string;
+  stripe_session_id: string | null;
   amount: number;
   word_count: number;
+  credits_used: number;
   status: "pending" | "paid" | "processing" | "completed" | "failed";
   current_chapter_index: number;
   total_chapters: number;
@@ -20,14 +22,7 @@ interface ProofreadingOrder {
   created_at: string;
 }
 
-// Price per word in HUF
-const PRICE_PER_WORD = 0.1;
-const MINIMUM_PRICE = 1990;
-
-export function calculateProofreadingPrice(wordCount: number): number {
-  const calculatedPrice = Math.round(wordCount * PRICE_PER_WORD);
-  return Math.max(calculatedPrice, MINIMUM_PRICE);
-}
+export { calculateProofreadingCredits };
 
 export function useProofreading(projectId: string) {
   const queryClient = useQueryClient();
@@ -189,10 +184,10 @@ export function useProofreading(projectId: string) {
     prevStatusRef.current = currentStatus;
   }, [order?.status, order?.error_message, projectId, queryClient]);
 
-  // Purchase proofreading
-  const purchaseMutation = useMutation({
+  // Start proofreading with credits
+  const startMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("create-proofreading-purchase", {
+      const { data, error } = await supabase.functions.invoke("start-proofreading", {
         body: { projectId },
       });
 
@@ -202,13 +197,16 @@ export function useProofreading(projectId: string) {
       return data;
     },
     onSuccess: (data) => {
-      if (data.url) {
-        window.open(data.url, "_blank");
-      }
+      toast.success("Lektorálás elindítva!", {
+        description: `${data.creditsUsed.toLocaleString()} kredit levonva.`,
+      });
+      refetchOrder();
+      // Redirect to dashboard to track progress
+      navigate("/dashboard");
     },
     onError: (error) => {
-      console.error("Purchase error:", error);
-      toast.error(error instanceof Error ? error.message : "Hiba történt a vásárlás során");
+      console.error("Start proofreading error:", error);
+      toast.error(error instanceof Error ? error.message : "Hiba történt a lektorálás indításakor");
     },
   });
 
@@ -238,7 +236,7 @@ export function useProofreading(projectId: string) {
     },
   });
 
-  const price = calculateProofreadingPrice(wordCount);
+  const creditsNeeded = calculateProofreadingCredits(wordCount);
   const progress = order ? (order.current_chapter_index / order.total_chapters) * 100 : 0;
 
   return {
@@ -247,14 +245,14 @@ export function useProofreading(projectId: string) {
     wordCount,
     wordCountLoading,
     chapterCount,
-    price,
+    creditsNeeded,
     progress,
     isProcessing: order?.status === "processing" || order?.status === "paid",
     isCompleted: order?.status === "completed",
     isFailed: order?.status === "failed",
-    canPurchase: !order || order.status === "failed" || order.status === "completed",
-    purchaseProofreading: purchaseMutation.mutate,
-    isPurchasing: purchaseMutation.isPending,
+    canStart: !order || order.status === "failed" || order.status === "completed",
+    startProofreading: startMutation.mutate,
+    isStarting: startMutation.isPending,
     testProofreading: testMutation.mutate,
     isTesting: testMutation.isPending,
     refetchOrder,

@@ -1,11 +1,15 @@
-import { AlertTriangle, BookCheck, CheckCircle2, FlaskConical, Loader2, Lock, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, BookCheck, CheckCircle2, FlaskConical, Loader2, Sparkles, XCircle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { useProofreading, calculateProofreadingPrice } from "@/hooks/useProofreading";
+import { useProofreading } from "@/hooks/useProofreading";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useSubscription } from "@/hooks/useSubscription";
+import { AIModelBadge } from "@/components/ui/ai-model-badge";
+import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
+import { useState } from "react";
 
 interface ProofreadingTabProps {
   projectId: string;
@@ -21,23 +25,29 @@ const FEATURES = [
 
 export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
   const { isAdmin } = useAdmin();
+  const { getRemainingWords, isLoading: subscriptionLoading } = useSubscription();
+  const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
+  
   const {
     order,
     orderLoading,
     wordCount,
     wordCountLoading,
     chapterCount,
-    price,
+    creditsNeeded,
     progress,
     isProcessing,
     isCompleted,
     isFailed,
-    canPurchase,
-    purchaseProofreading,
-    isPurchasing,
+    canStart,
+    startProofreading,
+    isStarting,
     testProofreading,
     isTesting,
   } = useProofreading(projectId);
+
+  const availableCredits = getRemainingWords();
+  const hasEnoughCredits = availableCredits >= creditsNeeded;
 
   if (orderLoading || wordCountLoading) {
     return (
@@ -139,12 +149,19 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
         {/* AI Proofreading Service Card */}
         <Card>
           <CardHeader className="pb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              <CardTitle>AI Lektor Szolgáltatás</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <CardTitle>AI Lektor Szolgáltatás</CardTitle>
+              </div>
+              <AIModelBadge 
+                modelId="google/gemini-2.5-pro" 
+                variant="default"
+              />
             </div>
-            <CardDescription>
-              Professzionális AI lektorálás Claude Opus 4.5 modellel
+            <CardDescription className="mt-2">
+              A <strong>Gemini 2.5 Pro</strong> a legfejlettebb AI modell a magyar nyelvtan, 
+              helyesírás és stilisztika terén. Professzionális minőségű lektorálást biztosít.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -160,16 +177,36 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
               </div>
             </div>
 
-            {/* Price */}
+            {/* Credit Cost */}
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 text-center">
-              <p className="text-sm text-muted-foreground mb-1">Lektorálás díja (egyszeri)</p>
+              <p className="text-sm text-muted-foreground mb-1">Szükséges szó kredit</p>
               <p className="text-3xl font-bold text-primary">
-                {price.toLocaleString("hu-HU")} Ft
+                {creditsNeeded.toLocaleString("hu-HU")}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                ~{(price / wordCount * 1000).toFixed(1)} Ft / 1000 szó
-              </p>
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <span className={`text-sm ${hasEnoughCredits ? "text-green-600" : "text-destructive"}`}>
+                  {hasEnoughCredits ? "✓" : "✗"} Elérhető: {availableCredits.toLocaleString("hu-HU")}
+                </span>
+              </div>
             </div>
+
+            {/* No credits warning */}
+            {!hasEnoughCredits && !subscriptionLoading && (
+              <Alert variant="destructive" className="bg-destructive/10">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Nincs elég kredit!</AlertTitle>
+                <AlertDescription className="flex items-center justify-between">
+                  <span>Vásárolj extra krediteket a lektoráláshoz.</span>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setShowBuyCreditModal(true)}
+                  >
+                    Kredit vásárlás
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <Separator />
 
@@ -201,23 +238,23 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
               </AlertDescription>
             </Alert>
 
-            {/* Purchase Button */}
-            {canPurchase ? (
+            {/* Start Button */}
+            {canStart ? (
               <Button
                 size="lg"
                 className="w-full"
-                onClick={() => purchaseProofreading()}
-                disabled={isPurchasing || wordCount < 100}
+                onClick={() => startProofreading()}
+                disabled={isStarting || wordCount < 100 || !hasEnoughCredits}
               >
-                {isPurchasing ? (
+                {isStarting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Átirányítás...
+                    Indítás...
                   </>
                 ) : (
                   <>
-                    <Lock className="h-4 w-4 mr-2" />
-                    Lektorálás megvásárlása – {price.toLocaleString("hu-HU")} Ft
+                    <Zap className="h-4 w-4 mr-2" />
+                    Lektorálás Indítása – {creditsNeeded.toLocaleString("hu-HU")} kredit
                   </>
                 )}
               </Button>
@@ -235,7 +272,7 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
             )}
 
             {/* Admin Test Button */}
-            {isAdmin && canPurchase && wordCount >= 100 && (
+            {isAdmin && canStart && wordCount >= 100 && (
               <>
                 <Separator />
                 <Button
@@ -265,6 +302,11 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      <BuyCreditModal 
+        open={showBuyCreditModal} 
+        onOpenChange={setShowBuyCreditModal} 
+      />
     </div>
   );
 }
