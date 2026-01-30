@@ -1202,13 +1202,14 @@ export type Database = {
           amount: number
           completed_at: string | null
           created_at: string
+          credits_used: number | null
           current_chapter_index: number | null
           error_message: string | null
           id: string
           project_id: string
           started_at: string | null
           status: string
-          stripe_session_id: string
+          stripe_session_id: string | null
           total_chapters: number | null
           user_id: string
           word_count: number
@@ -1217,13 +1218,14 @@ export type Database = {
           amount: number
           completed_at?: string | null
           created_at?: string
+          credits_used?: number | null
           current_chapter_index?: number | null
           error_message?: string | null
           id?: string
           project_id: string
           started_at?: string | null
           status?: string
-          stripe_session_id: string
+          stripe_session_id?: string | null
           total_chapters?: number | null
           user_id: string
           word_count: number
@@ -1232,13 +1234,14 @@ export type Database = {
           amount?: number
           completed_at?: string | null
           created_at?: string
+          credits_used?: number | null
           current_chapter_index?: number | null
           error_message?: string | null
           id?: string
           project_id?: string
           started_at?: string | null
           status?: string
-          stripe_session_id?: string
+          stripe_session_id?: string | null
           total_chapters?: number | null
           user_id?: string
           word_count?: number

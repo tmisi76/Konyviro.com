@@ -102,9 +102,15 @@ export function AutoWritePanel({
               {isNonFiction ? "Automatikus Szakkönyvírás" : "Automatikus Könyvírás"}
             </h2>
           </div>
-          <Badge variant={progress.status === "error" ? "destructive" : "secondary"}>
-            {STATUS_LABELS[progress.status]}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="gap-1.5 text-xs bg-primary/5 border-primary/20">
+              <Sparkles className="h-3 w-3 text-primary" />
+              Gemini 3 Flash
+            </Badge>
+            <Badge variant={progress.status === "error" ? "destructive" : "secondary"}>
+              {STATUS_LABELS[progress.status]}
+            </Badge>
+          </div>
         </div>
 
         {/* Credit Warning */}

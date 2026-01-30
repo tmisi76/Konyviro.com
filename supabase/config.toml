@@ -164,3 +164,9 @@ verify_jwt = false
 
 [functions.admin-test-proofreading]
 verify_jwt = false
+
+[functions.start-proofreading]
+verify_jwt = false
+
+[functions.proofread-chapter]
+verify_jwt = false
