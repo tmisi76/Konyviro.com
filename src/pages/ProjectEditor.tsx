@@ -72,6 +72,8 @@ export default function ProjectEditor() {
     deleteBlock,
     reorderBlocks,
     flushPendingChanges,
+    refetchChapters,
+    refetchBlocks,
   } = useEditorData(projectId || "");
 
   // Research hooks for Szakkönyv projects
@@ -296,6 +298,10 @@ export default function ProjectEditor() {
             onReorderChapters={reorderChapters}
             isCollapsed={chapterSidebarCollapsed}
             onToggleCollapse={() => setChapterSidebarCollapsed(!chapterSidebarCollapsed)}
+            onRefreshChapter={async () => {
+              await refetchChapters();
+              await refetchBlocks();
+            }}
           />
         )}
 

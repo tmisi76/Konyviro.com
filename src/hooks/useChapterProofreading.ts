@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -21,7 +20,6 @@ export function useChapterProofreading(options?: UseChapterProofreadingOptions) 
   const [isProofreading, setIsProofreading] = useState(false);
   const [streamedContent, setStreamedContent] = useState("");
   const [progress, setProgress] = useState(0);
-  const queryClient = useQueryClient();
   const { getRemainingWords } = useSubscription();
 
   const proofreadChapter = useCallback(async (chapterId: string, wordCount: number) => {
@@ -94,10 +92,6 @@ export function useChapterProofreading(options?: UseChapterProofreadingOptions) 
                 setProgress(100);
                 options?.onComplete?.(fullContent);
                 
-                // Invalidate queries to refresh chapter data
-                queryClient.invalidateQueries({ queryKey: ["chapters"] });
-                queryClient.invalidateQueries({ queryKey: ["blocks"] });
-                
                 toast.success("Fejezet sikeresen lektorálva!", {
                   description: `${json.wordCount || 0} szó`,
                 });
@@ -119,7 +113,7 @@ export function useChapterProofreading(options?: UseChapterProofreadingOptions) 
     } finally {
       setIsProofreading(false);
     }
-  }, [getRemainingWords, queryClient, options]);
+  }, [getRemainingWords, options]);
 
   const reset = useCallback(() => {
     setStreamedContent("");
