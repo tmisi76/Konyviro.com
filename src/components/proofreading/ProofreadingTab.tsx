@@ -155,12 +155,12 @@ export function ProofreadingTab({ projectId }: ProofreadingTabProps) {
                 <CardTitle>AI Lektor Szolgáltatás</CardTitle>
               </div>
               <AIModelBadge 
-                modelId="google/gemini-2.5-pro" 
+                modelId="anthropic/claude-sonnet-4.5" 
                 variant="default"
               />
             </div>
             <CardDescription className="mt-2">
-              A <strong>Gemini 2.5 Pro</strong> a legfejlettebb AI modell a magyar nyelvtan, 
+              A <strong>Claude Sonnet 4.5</strong> a legfejlettebb AI modell a magyar nyelvtan, 
               helyesírás és stilisztika terén. Professzionális minőségű lektorálást biztosít.
             </CardDescription>
           </CardHeader>

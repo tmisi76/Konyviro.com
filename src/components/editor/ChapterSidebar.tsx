@@ -59,7 +59,16 @@ export function ChapterSidebar({
   
   // Proofreading state
   const [proofreadingChapter, setProofreadingChapter] = useState<Chapter | null>(null);
-  const { proofreadChapter, isProofreading, streamedContent, progress: proofProgress, reset } = useChapterProofreading();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { proofreadChapter, isProofreading, streamedContent, progress: proofProgress, reset } = useChapterProofreading({
+    onComplete: async () => {
+      if (onRefreshChapter) {
+        setIsRefreshing(true);
+        await onRefreshChapter();
+        setIsRefreshing(false);
+      }
+    }
+  });
   const { getRemainingWords } = useSubscription();
 
   const handleStartEdit = (chapter: Chapter) => {
@@ -110,23 +119,13 @@ export function ChapterSidebar({
 
   const handleConfirmProofreading = async () => {
     if (!proofreadingChapter) return;
-    
-    const success = await proofreadChapter(proofreadingChapter.id, proofreadingChapter.word_count);
-    
-    if (success && onRefreshChapter) {
-      await onRefreshChapter();
-    }
+    await proofreadChapter(proofreadingChapter.id, proofreadingChapter.word_count);
   };
 
-  const handleCloseProofreadingDialog = async () => {
-    if (!isProofreading) {
-      // If proofreading completed (streamedContent exists), refresh the chapter data
-      if (streamedContent && onRefreshChapter) {
-        await onRefreshChapter();
-      }
-      setProofreadingChapter(null);
-      reset();
-    }
+  const handleCloseProofreadingDialog = () => {
+    if (isProofreading || isRefreshing) return;
+    setProofreadingChapter(null);
+    reset();
   };
 
   const formatWordCount = (count: number) => {
@@ -288,7 +287,7 @@ export function ChapterSidebar({
             </DialogTitle>
             <DialogDescription>
               <Badge variant="outline" className="gap-1 mt-1">
-                Gemini 2.5 Pro
+                Claude Sonnet 4.5
               </Badge>
             </DialogDescription>
           </DialogHeader>
@@ -327,22 +326,19 @@ export function ChapterSidebar({
             </div>
           )}
 
-          {isProofreading && (
+          {(isProofreading || isRefreshing) && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <span className="text-sm">Lektorálás folyamatban...</span>
+                <span className="text-sm">
+                  {isRefreshing ? "Mentés folyamatban..." : "Lektorálás folyamatban..."}
+                </span>
               </div>
-              <Progress value={proofProgress} className="h-2" />
-              {streamedContent && (
-                <div className="max-h-60 overflow-y-auto rounded-lg bg-muted/50 p-3 text-sm">
-                  <p className="whitespace-pre-wrap">{streamedContent.slice(-500)}...</p>
-                </div>
-              )}
+              <Progress value={isRefreshing ? 100 : proofProgress} className="h-2" />
             </div>
           )}
 
-          {!isProofreading && streamedContent && (
+          {!isProofreading && !isRefreshing && streamedContent && (
             <div className="space-y-2">
               <p className="text-sm text-green-600 font-medium">✓ Lektorálás befejezve!</p>
               <p className="text-sm text-muted-foreground">
@@ -352,7 +348,7 @@ export function ChapterSidebar({
           )}
 
           <DialogFooter>
-            {!isProofreading && !streamedContent && proofreadingChapter && (
+            {!isProofreading && !isRefreshing && !streamedContent && proofreadingChapter && (
               <>
                 <Button variant="outline" onClick={handleCloseProofreadingDialog}>
                   Mégse
@@ -366,7 +362,7 @@ export function ChapterSidebar({
                 </Button>
               </>
             )}
-            {!isProofreading && streamedContent && (
+            {!isProofreading && !isRefreshing && streamedContent && (
               <Button onClick={handleCloseProofreadingDialog}>
                 Bezárás
               </Button>

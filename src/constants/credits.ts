@@ -4,7 +4,7 @@ export const COVER_EDIT_COST = 2000;
 export const STORYBOOK_TEXT_COST = 3000;
 export const STORYBOOK_ILLUSTRATION_COST = 500;
 
-// Proofreading costs (8% of word count, based on Gemini 2.5 Pro API pricing)
+// Proofreading costs (8% of word count, based on Claude Sonnet 4.5 API pricing)
 export const PROOFREADING_CREDIT_MULTIPLIER = 0.08;
 export const PROOFREADING_MIN_CREDITS = 500;
 
