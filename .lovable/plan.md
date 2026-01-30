@@ -1,145 +1,235 @@
 
-# AI Motor Váltás Adminisztrációs Panel
+# Lektorálás Átalakítás + Motor Jelzés Mindenhol + Fejezet Szintű Lektorálás
 
 ## Áttekintés
 
-Az admin panelen lehetőség lesz dinamikusan választani a Lovable AI Gateway által támogatott modellek közül. A beállítás a `system_settings` táblában tárolódik, és a frontend + backend egyaránt onnan olvassa ki az aktuális modellt.
+A lektorálás szolgáltatás átalakítása Stripe fizetésről szó kredit alapúra, AI motor jelzések hozzáadása a szoftver minden AI-t használó részéhez, valamint fejezet szintű streaming lektorálás bevezetése a szerkesztőben.
 
-## Jelenlegi Helyzet
+## 1. Szó Kredit Alapú Lektorálás
 
-| Komponens | Probléma |
-|-----------|----------|
-| `AdminAISettings.tsx` | A modell választás már létezik, de nem használja a backend |
-| `generate/index.ts` | Hardcoded `claude-sonnet-4-20250514` modell |
-| `process-proofreading/index.ts` | Hardcoded `google/gemini-2.5-pro` modell |
-| `AIAssistantPanel.tsx` | Hardcoded "Gemini Flash" badge |
-| `system_settings` tábla | Van `ai_default_model` kulcs, de a backend nem olvassa |
+### Költség Képlet
+```
+10,000 szó lektorálás ≈ $0.146 (Gemini 2.5 Pro API)
+$0.146 ≈ 55 Ft
+55 Ft / 0.07 Ft/szó = ~800 szó kredit
 
-## Támogatott Modellek (Lovable AI Gateway)
-
-| Model ID | Név | Használat |
-|----------|-----|-----------|
-| `google/gemini-3-flash-preview` | Gemini 3 Flash | Gyors, kiegyensúlyozott (alapértelmezett) |
-| `google/gemini-2.5-pro` | Gemini 2.5 Pro | Komplex feladatok, lektorálás |
-| `google/gemini-2.5-flash` | Gemini 2.5 Flash | Gyors multimodális |
-| `openai/gpt-5` | GPT-5 | Legerősebb következtetés |
-| `openai/gpt-5-mini` | GPT-5 Mini | Költséghatékony |
-| `openai/gpt-5.2` | GPT-5.2 | Legújabb OpenAI |
-
-## Implementációs Terv
-
-### 1. Edge Function Módosítások
-
-**A) `supabase/functions/generate/index.ts`**
-- Átállás Anthropic API-ról Lovable AI Gateway-re
-- `system_settings` tábla olvasása az aktuális modellhez
-- Fallback modell: `google/gemini-3-flash-preview`
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  generate/index.ts                                              │
-│  1. Lekéri system_settings.ai_default_model értékét            │
-│  2. Ha nincs beállítva → google/gemini-3-flash-preview         │
-│  3. Lovable AI Gateway hívás az adott modellel                 │
-└─────────────────────────────────────────────────────────────────┘
+Szorzó: 8% (0.08)
+Minimum: 500 kredit
 ```
 
-**B) `supabase/functions/process-proofreading/index.ts`**
-- Opcionálisan: külön lektorálási modell beállítás (`ai_proofreading_model`)
-- Vagy: ugyanaz az alapértelmezett modell
-
-### 2. Frontend Módosítások
-
-**A) `src/hooks/useAIModel.ts` (új hook)**
-- Lekéri és cache-eli az aktuális AI modell beállítást
-- React Query-vel frissül, ha az admin módosítja
-
+### Konstansok Bővítése
+**Fájl:** `src/constants/credits.ts`
 ```typescript
-export function useAIModel() {
-  return useQuery({
-    queryKey: ['ai-model'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'ai_default_model')
-        .single();
-      return data?.value || 'google/gemini-3-flash-preview';
-    },
-    staleTime: 60000,
-  });
+export const PROOFREADING_CREDIT_MULTIPLIER = 0.08;
+export const PROOFREADING_MIN_CREDITS = 500;
+
+export function calculateProofreadingCredits(wordCount: number): number {
+  const calculated = Math.round(wordCount * PROOFREADING_CREDIT_MULTIPLIER);
+  return Math.max(calculated, PROOFREADING_MIN_CREDITS);
 }
 ```
 
-**B) `src/components/editor/AIAssistantPanel.tsx`**
-- `getModelBadge()` függvény dinamikus modell név megjelenítése
-- Hook használata a modell név lekéréséhez
+### Hook Módosítása
+**Fájl:** `src/hooks/useProofreading.ts`
+- Stripe vásárlás eltávolítása
+- Kredit ellenőrzés és levonás hozzáadása
+- Új `startProofreading()` függvény
 
-```typescript
-const { data: modelId } = useAIModel();
+### UI Módosítása
+**Fájl:** `src/components/proofreading/ProofreadingTab.tsx`
+- Ár helyett kredit költség megjelenítése
+- "Megvásárlás" gomb → "Indítás" gomb
+- Motor jelzés hozzáadása (Gemini 2.5 Pro badge)
 
-const getModelBadge = () => {
-  const modelMap: Record<string, string> = {
-    'google/gemini-3-flash-preview': 'Gemini 3 Flash',
-    'google/gemini-2.5-pro': 'Gemini 2.5 Pro',
-    'openai/gpt-5': 'GPT-5',
-    // ...
-  };
-  return modelMap[modelId] || 'AI';
-};
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  AI Lektor Szolgáltatás                                         │
+│  ⚡ Powered by Gemini 2.5 Pro                                   │
+│                                                                 │
+│  📊 Könyv hossza: 45,000 szó                                   │
+│  💰 Szükséges kredit: 3,600 szó kredit                         │
+│  ✅ Elérhető: 12,500 szó kredit                                │
+│                                                                 │
+│  [🚀 Lektorálás Indítása]                                       │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**C) `src/pages/admin/AdminAISettings.tsx`**
-- A modell választás már működik, csak a mentést kell tesztelni
-- Új "Lektorálási modell" választó hozzáadása (opcionális)
+### Új Edge Function
+**Fájl:** `supabase/functions/start-proofreading/index.ts`
+- Kredit egyenleg ellenőrzése
+- Kredit levonás (`use_extra_credits` RPC)
+- Order létrehozása (stripe_session_id nullable)
+- `process-proofreading` trigger
 
-### 3. Adatbázis
+### Adatbázis Módosítás
+- `proofreading_orders.stripe_session_id` → nullable
+- Új mező: `credits_used` (integer)
 
-A `system_settings` tábla már tartalmazza az `ai_default_model` kulcsot. Új rekord hozzáadása:
+## 2. AI Motor Jelzés Mindenhol
 
-| key | value | category | description |
-|-----|-------|----------|-------------|
-| `ai_proofreading_model` | `google/gemini-2.5-pro` | ai | Lektoráláshoz használt AI modell |
+### Dinamikus Motor Név Megjelenítés
 
-### 4. Fájl Változtatások Összefoglalója
+| Komponens | Jelenlegi | Új Megjelenítés |
+|-----------|-----------|-----------------|
+| `AIAssistantPanel.tsx` | Gemini Flash badge | Dinamikus: `useAIModel()` |
+| `ProofreadingTab.tsx` | "Claude Opus 4.5" | "⚡ Gemini 2.5 Pro (prémium lektorálás)" |
+| `AutoWritePanel.tsx` | Nincs | Motor badge hozzáadása |
+| `FloatingToolbar.tsx` | Nincs | Tooltip-ben motor név |
+| Fejezet lektorálás | N/A | Motor badge streaming közben |
+
+### Motor Info Komponens
+**Fájl:** `src/components/ui/ai-model-badge.tsx` (ÚJ)
+```typescript
+interface AIModelBadgeProps {
+  modelId: string;
+  variant?: "default" | "minimal" | "detailed";
+}
+
+// Megjelenítés:
+// default: "⚡ Gemini 2.5 Pro"
+// minimal: "AI"
+// detailed: "⚡ Gemini 2.5 Pro - Prémium magyar nyelvtan"
+```
+
+### Lektorálási Motor Leírás
+```text
+"Gemini 2.5 Pro a legfejlettebb AI modell a magyar nyelvtan, 
+helyesírás és stilisztika terén. Professzionális minőségű 
+lektorálást biztosít."
+```
+
+## 3. Fejezet Szintű Streaming Lektorálás
+
+### UI Elhelyezés
+A `ChapterSidebar`-ban jobb klikk menüben vagy a fejezet szerkesztőben:
+
+**Opció A:** Context Menu (jobb klikk a fejezeten)
+```text
+┌─────────────────────┐
+│ Átnevezés           │
+│ Duplikálás          │
+│ ─────────────────── │
+│ 🔍 Fejezet lektorálása │
+│ ─────────────────── │
+│ Törlés              │
+└─────────────────────┘
+```
+
+**Opció B:** FloatingToolbar bővítése
+- Új "Lektorálás" gomb a kijelölt szöveg toolbarban
+- Teljes fejezet lektorálás gomb a szerkesztőben
+
+### Fejezet Lektorálás Flow
+1. Felhasználó kiválasztja a fejezetet
+2. Klikk a "Lektorálás" gombra
+3. Kredit ellenőrzés (fejezet szó × 0.08)
+4. Streaming válasz megjelenítése
+5. Átírás helyben az editorban
+
+### Új Edge Function
+**Fájl:** `supabase/functions/proofread-chapter/index.ts`
+- Egyetlen fejezet lektorálása
+- Streaming válasz (SSE)
+- Kredit levonás a fejezet szavai alapján
+
+### Frontend Streaming
+**Fájl:** `src/hooks/useChapterProofreading.ts` (ÚJ)
+```typescript
+export function useChapterProofreading() {
+  const [isProofreading, setIsProofreading] = useState(false);
+  const [streamedContent, setStreamedContent] = useState("");
+  
+  const proofreadChapter = async (chapterId: string) => {
+    // 1. Kredit ellenőrzés
+    // 2. SSE stream indítása
+    // 3. Token-by-token megjelenítés
+    // 4. Chapter content frissítése befejezéskor
+  };
+}
+```
+
+### Szerkesztő Integrálás
+**Fájl:** `src/pages/ProjectEditor.tsx`
+- Új "Fejezet lektorálása" gomb a fejezet header-ben
+- Streaming közben overlay a tartalmon
+- Animált szöveg csere effekt
+
+## 4. Fájl Változtatások Összefoglalója
 
 | Fájl | Változás |
 |------|----------|
-| `supabase/functions/generate/index.ts` | Anthropic → Lovable AI Gateway, modell beolvasás DB-ből |
-| `supabase/functions/process-proofreading/index.ts` | Modell beolvasás DB-ből (opcionális külön beállítás) |
-| `src/hooks/useAIModel.ts` | ÚJ: Hook a modell lekéréséhez |
-| `src/components/editor/AIAssistantPanel.tsx` | Dinamikus modell badge |
-| `src/pages/admin/AdminAISettings.tsx` | Lektorálási modell választó (opcionális) |
+| `src/constants/credits.ts` | Lektorálási kredit konstansok |
+| `src/hooks/useProofreading.ts` | Stripe → kredit alapú |
+| `src/hooks/useChapterProofreading.ts` | ÚJ: Fejezet szintű streaming |
+| `src/components/proofreading/ProofreadingTab.tsx` | Kredit UI + motor badge |
+| `src/components/ui/ai-model-badge.tsx` | ÚJ: Motor jelző komponens |
+| `src/components/editor/AIAssistantPanel.tsx` | Motor badge már kész ✅ |
+| `src/components/editor/ChapterSidebar.tsx` | Lektorálás context menu |
+| `src/components/editor/AutoWritePanel.tsx` | Motor badge hozzáadása |
+| `supabase/functions/start-proofreading/index.ts` | ÚJ: Kredit alapú indítás |
+| `supabase/functions/proofread-chapter/index.ts` | ÚJ: Streaming fejezet lektorálás |
+| `supabase/functions/create-proofreading-purchase/index.ts` | TÖRLÉS (vagy archív) |
+| Migráció | `stripe_session_id` nullable + `credits_used` mező |
 
-## Biztonsági Megfontolások
+## 5. Törlendő/Archíválandó
 
-- A `system_settings` tábla RLS-sel védett (csak adminok módosíthatják)
-- Az edge function service role-lal olvassa a beállításokat
-- A frontend csak olvasási jogosultsággal rendelkezik
+| Fájl | Ok |
+|------|-----|
+| `create-proofreading-purchase/index.ts` | Stripe már nem kell |
+| `proofreading-webhook/index.ts` | Stripe webhook már nem kell |
 
-## Technikai Flow
+## 6. Biztonsági Megfontolások
 
+- Kredit levonás ELŐTT történik (nem utána)
+- Edge function ellenőrzi a projekt tulajdonjogot
+- Rate limiting a streaming endpoint-on
+- Kredit visszatérítés hiba esetén (opcionális)
+
+## 7. Felhasználói Élmény
+
+### Teljes Könyv Lektorálás (Lektorálás Tab)
 ```text
-Admin beállítja a modellt
-         │
-         ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  system_settings.ai_default_model = "google/gemini-2.5-pro"    │
+│  AI Lektor Szolgáltatás                                         │
+│  ⚡ Powered by Gemini 2.5 Pro                                   │
+│                                                                 │
+│  A Gemini 2.5 Pro a legfejlettebb AI modell a magyar           │
+│  nyelvtan és stilisztika terén. Prémium minőségű lektorálást   │
+│  biztosít könyved számára.                                      │
+│                                                                 │
+│  📊 45,000 szó • 12 fejezet                                    │
+│  💰 3,600 szó kredit szükséges                                 │
+│  ✅ 12,500 kredit elérhető                                     │
+│                                                                 │
+│  [🚀 Teljes Könyv Lektorálása]                                  │
 └─────────────────────────────────────────────────────────────────┘
-         │
-         ├──────────────────────────────────────┐
-         │                                      │
-         ▼                                      ▼
-┌─────────────────────────┐    ┌─────────────────────────────────┐
-│  Frontend (React Query) │    │  Edge Functions (on each call)  │
-│  useAIModel() hook      │    │  SELECT FROM system_settings    │
-│  → Badge frissül        │    │  → Modell használata            │
-└─────────────────────────┘    └─────────────────────────────────┘
 ```
 
-## Következő Lépések
+### Fejezet Szintű Lektorálás (Szerkesztőben)
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  📖 2. fejezet: A titokzatos levél                              │
+│  [Lektorálás ▼] ← kattintásra dropdown                          │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │ ⚡ Gemini 2.5 Pro lektorálás                              │  │
+│  │    Fejezet: 2,400 szó → 192 kredit                       │  │
+│  │    [Indítás]                                             │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  Szöveg stream-ben frissül...                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-1. **generate/index.ts** átírása Lovable AI Gateway-re + DB olvasás
-2. **useAIModel.ts** hook létrehozása
-3. **AIAssistantPanel.tsx** badge dinamikussá tétele
-4. Opcionális: külön lektorálási modell beállítás
+## 8. Implementációs Sorrend
+
+1. **Adatbázis migráció** - nullable stripe_session_id + credits_used
+2. **Konstansok** - lektorálási kredit számítás
+3. **start-proofreading** edge function - kredit alapú indítás
+4. **useProofreading hook** - Stripe eltávolítása
+5. **ProofreadingTab** - kredit UI + motor badge
+6. **ai-model-badge** komponens - újrafelhasználható motor jelző
+7. **proofread-chapter** edge function - streaming fejezet lektorálás
+8. **useChapterProofreading** hook - streaming kezelés
+9. **ChapterSidebar/Editor** - fejezet lektorálás UI
+10. **Törlés** - create-proofreading-purchase, proofreading-webhook
