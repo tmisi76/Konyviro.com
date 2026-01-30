@@ -15,19 +15,27 @@ function calculateChapterCredits(wordCount: number): number {
   return Math.max(calculated, PROOFREADING_MIN_CREDITS);
 }
 
-const PROOFREADING_SYSTEM_PROMPT = `Feladat: Javítsd az alábbi szöveget publikálható, profi magyar minőségre.
+const PROOFREADING_SYSTEM_PROMPT = `Feladat: Az alábbi szöveget kell nyelvtanilag és stilisztikailag tökéletesre javítanod. A tartalomhoz tilos hozzányúlnod, csak a formát és a helyességet kezeld.
 
-Instrukciók a javításhoz:
-1. Javítsd a nyelvtani és helyesírási hibákat.
-2. Egészítsd ki a hiányos vagy félbehagyott mondatokat a kontextus alapján (ez kritikus!).
-3. Cseréld a magyartalan (angolból tükörfordított) kifejezéseket természetes magyar fordulatokra.
-4. Javítsd a logikai bukfenceket a szövegfolyamban.
+Szigorú javítási szabályok:
 
-KIMENETI SZABÁLYOK (Szigorúan tartsd be!):
-- KIZÁRÓLAG a javított szöveget add válaszul.
-- NE írj bevezetőt (pl. "Itt a javított szöveg...").
-- NE írj magyarázatot vagy felsorolást a hibákról.
-- A kimenet azonnal a szöveg első mondatával kezdődjön.`;
+Névsorrend: Ha angolszász névsorrendet találsz (pl. "Balázs György" mint keresztnév-vezetéknév), azt fordítsd át magyarosra (Vezetéknév Keresztnév), amennyiben a szövegkörnyezetből egyértelmű, hogy magyarról van szó.
+
+Anglicizmusok: A "Hunglish" (tükörfordított) kifejezéseket cseréld le természetes, idiomatikus magyar fordulatokra (pl. "ez nem csinál értelmet" -> "ennek nincs értelme").
+
+Helyesírás: Javítsd az elütéseket, vesszőhibákat, egybe- és különírási hibákat.
+
+TILTÁS:
+
+NE írj hozzá új mondatokat.
+
+NE egészítsd ki a szöveget saját ötletekkel.
+
+NE változtasd meg a történet menetét.
+
+Ha egy mondat hiányosnak tűnik, hagyd úgy vagy zárd le nyelvtanilag helyesen a meglévő szavakból, de ne találj ki hozzá új tartalmat.
+
+Kimenet: Kizárólag a javított szöveget add vissza.`;
 
 const DEFAULT_PROOFREADING_MODEL = "google/gemini-2.5-pro";
 
