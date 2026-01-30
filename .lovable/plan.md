@@ -1,112 +1,96 @@
 
-# Magyar Nyelvtan Szabályok Hozzáadása + Lektorálás Claude Sonnet 4.5-re
+# Lektorálás UI Javítások
 
-## Áttekintés
+## Azonosított Problémák
 
-1. **Szövegírás**: Magyar nyelvtani szabályok hozzáadása minden író edge function-höz
-2. **Lektorálás**: Átállítás Claude Sonnet 4.5-re az Anthropic API-n keresztül
+1. **Hibás modell kijelzés**: A modal "Gemini 2.5 Pro"-t mutat, de már Claude Sonnet 4.5-re váltottunk
+2. **Felesleges szöveg streaming**: A modal mutatja az utolsó 500 karaktert, ami zavaró - elég a progress bar
+3. **Mentés nem működik**: Az edge function elmenti a tartalmat, de a frontend nem frissíti megfelelően a blokkokat
+4. **Bezárás gomb problémák**: A modal túl gyorsan bezárul a frissítés előtt
 
-## 1. Új Magyar Nyelvtan Szabály Blokk
+## Technikai Megoldások
 
-Minden szövegíró edge function-höz hozzáadjuk:
-
-```typescript
-const HUNGARIAN_GRAMMAR_RULES = `
-## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
-
-NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
-
-PÁRBESZÉD FORMÁZÁS:
-- Magyar párbeszédjelölés: gondolatjel (–) a sor elején
-- Idézőjel használata: „..." (magyar idézőjel, NEM "...")
-- Példa helyes formátum:
-  – Hová mész? – kérdezte Anna.
-  – A boltba – válaszolta.
-
-ÍRÁSJELEK:
-- Gondolatjel: – (hosszú, NEM -)
-- Három pont: ... (NEM …)
-- Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
-
-KERÜLENDŐ HIBÁK:
-- NE használj angolszász névsorrendet
-- NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
-- NE használj angol idézőjeleket ("..." → „...")
-- NE használj felesleges névelőket angolosan
-
-NYELVTANI HELYESSÉG:
-- Ragozás: ügyelj a magyar ragozás helyességére
-- Szórend: magyar szórend, NEM angol (ige-alany-tárgy)
-- Összetett szavak: egybe vagy külön az MTA szabályai szerint
-`;
-```
-
-## 2. Érintett Fájlok - Szövegírás
+### 1. Modell név javítása
 
 | Fájl | Változás |
 |------|----------|
-| `supabase/functions/generate/index.ts` | HUNGARIAN_GRAMMAR_RULES hozzáadása a SYSTEM_PROMPTS-okhoz |
-| `supabase/functions/write-scene/index.ts` | HUNGARIAN_GRAMMAR_RULES hozzáadása az UNIVERSAL_FICTION_RULES után |
-| `supabase/functions/write-section/index.ts` | HUNGARIAN_GRAMMAR_RULES hozzáadása a FICTION és NONFICTION system promptokhoz |
-| `supabase/functions/process-next-scene/index.ts` | HUNGARIAN_GRAMMAR_RULES hozzáadása a PROMPTS-okhoz |
+| `src/components/editor/ChapterSidebar.tsx` | "Gemini 2.5 Pro" → "Claude Sonnet 4.5" |
+| `src/components/proofreading/ProofreadingTab.tsx` | "Gemini 2.5 Pro" → "Claude Sonnet 4.5" |
+| `src/hooks/useAIModel.ts` | `proofreadingModelName` → "Claude Sonnet 4.5" |
 
-## 3. Lektorálás Átállítása Claude Sonnet 4.5-re
+### 2. Streaming szöveg eltávolítása a modalból
 
-### Érintett Fájlok
+A `ChapterSidebar.tsx` lektorálás dialog-ban:
+- **Eltávolítás**: A `streamedContent.slice(-500)` megjelenítő blokk
+- **Meghagyás**: Csak a progress bar és a "Lektorálás folyamatban..." szöveg
 
-| Fájl | Változás |
-|------|----------|
-| `supabase/functions/proofread-chapter/index.ts` | Lovable Gateway → Anthropic API (Claude Sonnet 4.5) |
-| `supabase/functions/process-proofreading/index.ts` | Lovable Gateway → Anthropic API (Claude Sonnet 4.5) |
+Régi kód:
+```tsx
+{streamedContent && (
+  <div className="max-h-60 overflow-y-auto rounded-lg bg-muted/50 p-3 text-sm">
+    <p className="whitespace-pre-wrap">{streamedContent.slice(-500)}...</p>
+  </div>
+)}
+```
 
-### Technikai Változások
+Új kód: Törlés (nem kell szöveget mutatni)
 
-**Régi (Lovable AI Gateway):**
-```typescript
-const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-  headers: { "Authorization": `Bearer ${LOVABLE_API_KEY}` },
-  body: JSON.stringify({ model, max_tokens: 16000, stream: true, messages: [...] }),
+### 3. Mentés és frissítés javítása
+
+A probléma: A lektorálás sikeres (`proofreadChapter` true-t ad vissza), de a `handleConfirmProofreading` után azonnal visszaáll a modal, és a `handleCloseProofreadingDialog`-ban lévő `onRefreshChapter` nem fut le.
+
+**Megoldás**: A `useChapterProofreading` hook-ban az `onComplete` callback-ben kell meghívni a frissítést, nem a dialog bezáráskor.
+
+A `ChapterSidebar.tsx`-ben:
+```tsx
+const { proofreadChapter, isProofreading, streamedContent, progress: proofProgress, reset } = useChapterProofreading({
+  onComplete: async () => {
+    // Fejezet újratöltése a lektorált tartalommal
+    if (onRefreshChapter) {
+      await onRefreshChapter();
+    }
+  }
 });
 ```
 
-**Új (Anthropic API - Claude Sonnet 4.5):**
-```typescript
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const response = await fetch("https://api.anthropic.com/v1/messages", {
-  headers: {
-    "x-api-key": ANTHROPIC_API_KEY,
-    "anthropic-version": "2023-06-01",
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 32000,
-    system: PROOFREADING_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: `Lektoráld: "${chapter.title}"\n\n${chapter.content}` }],
-  }),
-});
+### 4. Mentés loading state hozzáadása
+
+A bezárás gombhoz loading state, amíg a frissítés fut:
+```tsx
+const [isRefreshing, setIsRefreshing] = useState(false);
+
+const handleCloseProofreadingDialog = async () => {
+  if (isProofreading) return;
+  
+  if (streamedContent && onRefreshChapter) {
+    setIsRefreshing(true);
+    await onRefreshChapter();
+    setIsRefreshing(false);
+  }
+  
+  setProofreadingChapter(null);
+  reset();
+};
+
+// A Bezárás gomb:
+<Button onClick={handleCloseProofreadingDialog} disabled={isRefreshing}>
+  {isRefreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+  Bezárás
+</Button>
 ```
 
-### Miért Claude Sonnet 4.5?
+## Érintett Fájlok
 
-- **Erősebb kontextuskövetés**: Nem "ugrik" szöveget hosszú inputnál
-- **Magyar nyelv**: Jobb teljesítmény agglutináló nyelveken
-- **32K output**: Nagyobb kimenet limit hosszú fejezeteknél
-- **API key már létezik**: `ANTHROPIC_API_KEY` megvan a secrets-ben
+| Fájl | Változások |
+|------|------------|
+| `src/components/editor/ChapterSidebar.tsx` | Modell név, streaming szöveg eltávolítása, refresh logika |
+| `src/components/proofreading/ProofreadingTab.tsx` | Modell név javítás |
+| `src/hooks/useAIModel.ts` | Proofreading model name frissítés |
+| `src/constants/credits.ts` | Komment frissítés (Gemini → Claude) |
 
-## 4. Eltávolítandó Logika
+## Összefoglaló
 
-- `getProofreadingModel()` függvény (már nem kell dinamikus modell)
-- `system_settings` lekérdezés a lektorálás modellhez
-- `DEFAULT_PROOFREADING_MODEL` konstans
-
-## 5. Összefoglaló
-
-| Komponens | Változás |
-|-----------|----------|
-| `generate/index.ts` | + HUNGARIAN_GRAMMAR_RULES |
-| `write-scene/index.ts` | + HUNGARIAN_GRAMMAR_RULES |
-| `write-section/index.ts` | + HUNGARIAN_GRAMMAR_RULES |
-| `process-next-scene/index.ts` | + HUNGARIAN_GRAMMAR_RULES |
-| `proofread-chapter/index.ts` | Lovable Gateway → Claude Sonnet 4.5 |
-| `process-proofreading/index.ts` | Lovable Gateway → Claude Sonnet 4.5 |
+1. **UI**: Claude Sonnet 4.5 felirat mindenhol
+2. **UX**: Csak progress bar, nincs streaming szöveg
+3. **Stabilitás**: Refresh a lektorálás végén, loading state a bezárás gombon
+4. **Blokkok**: `forceRefreshBlocks` garantálja a szinkront
