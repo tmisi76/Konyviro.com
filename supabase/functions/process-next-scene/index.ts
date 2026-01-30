@@ -6,10 +6,40 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" 
 };
 
+const HUNGARIAN_GRAMMAR_RULES = `
+
+## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
+
+NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+
+PÁRBESZÉD FORMÁZÁS:
+- Magyar párbeszédjelölés: gondolatjel (–) a sor elején
+- Idézőjel használata: „..." (magyar idézőjel, NEM "...")
+- Példa helyes formátum:
+  – Hová mész? – kérdezte Anna.
+  – A boltba – válaszolta.
+
+ÍRÁSJELEK:
+- Gondolatjel: – (hosszú, NEM -)
+- Három pont: ... (NEM …)
+- Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
+
+KERÜLENDŐ HIBÁK:
+- NE használj angolszász névsorrendet
+- NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
+- NE használj angol idézőjeleket ("..." → „...")
+- NE használj felesleges névelőket angolosan
+
+NYELVTANI HELYESSÉG:
+- Ragozás: ügyelj a magyar ragozás helyességére
+- Szórend: magyar szórend, NEM angol (ige-alany-tárgy)
+- Összetett szavak: egybe vagy külön az MTA szabályai szerint
+`;
+
 const PROMPTS: Record<string, string> = {
-  fiction: "Te egy bestseller magyar író vagy. Írj gazdag leírásokkal és párbeszédekkel.",
-  erotikus: "Te egy erotikus regényíró vagy. Írj érzéki magyar prózát.",
-  szakkonyv: "Te egy szakkönyvíró vagy. Írj világos, informatív szöveget.",
+  fiction: `Te egy bestseller magyar író vagy. Írj gazdag leírásokkal és párbeszédekkel.${HUNGARIAN_GRAMMAR_RULES}`,
+  erotikus: `Te egy erotikus regényíró vagy. Írj érzéki magyar prózát.${HUNGARIAN_GRAMMAR_RULES}`,
+  szakkonyv: `Te egy szakkönyvíró vagy. Írj világos, informatív szöveget.${HUNGARIAN_GRAMMAR_RULES}`,
 };
 
 serve(async (req) => {

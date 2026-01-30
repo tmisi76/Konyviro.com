@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { fetchWithRetry, RETRY_CONFIG } from "../_shared/retry-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,102 +28,87 @@ Ha egy mondat hiányosnak tűnik, hagyd úgy vagy zárd le nyelvtanilag helyesen
 
 Kimenet: Kizárólag a javított szöveget add vissza.`;
 
-const DEFAULT_PROOFREADING_MODEL = "google/gemini-2.5-pro";
+async function proofreadChapter(content: string, chapterTitle: string): Promise<string> {
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY not configured");
+  }
 
-// Fetch proofreading model from system_settings
-async function getProofreadingModel(supabaseUrl: string, serviceRoleKey: string): Promise<string> {
-  try {
-    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data, error } = await serviceClient
-      .from("system_settings")
-      .select("value")
-      .eq("key", "ai_proofreading_model")
-      .single();
+  console.log(`Starting proofreading for chapter: "${chapterTitle}" (${content.length} chars) with model: claude-sonnet-4-20250514`);
 
-    if (error || !data) {
-      console.log("No proofreading model configured, using default:", DEFAULT_PROOFREADING_MODEL);
-      return DEFAULT_PROOFREADING_MODEL;
-    }
+  // Retry logic with exponential backoff
+  const maxRetries = 5;
+  let lastError: Error | null = null;
 
-    // FIX: Handle both JSON string and plain string formats
-    let modelValue = data.value;
-    if (typeof modelValue === "string") {
-      try {
-        modelValue = JSON.parse(modelValue);
-      } catch {
-        // Already a plain string, use directly
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 32000,
+          system: PROOFREADING_SYSTEM_PROMPT,
+          messages: [
+            { role: "user", content: `Lektoráld a következő fejezetet: "${chapterTitle}"\n\n${content}` },
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      // Handle rate limit and gateway errors
+      if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504 || response.status === 529) {
+        console.error(`Status ${response.status} (attempt ${attempt}/${maxRetries})`);
+        if (attempt < maxRetries) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw new Error(response.status === 429 ? "Rate limited" : `Gateway error ${response.status}`);
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Anthropic API error:", response.status, errorText);
+        throw new Error(`API error (status: ${response.status})`);
+      }
+
+      const data = await response.json();
+      const proofreadText = data.content?.[0]?.text;
+      
+      if (!proofreadText) {
+        throw new Error("Unexpected API response format - no content in response");
+      }
+
+      console.log(`Proofreading completed for "${chapterTitle}": ${proofreadText.length} chars`);
+      return proofreadText;
+
+    } catch (fetchError) {
+      lastError = fetchError as Error;
+      if ((fetchError as Error).name === "AbortError") {
+        console.error(`Timeout (attempt ${attempt}/${maxRetries})`);
+      } else {
+        console.error(`Fetch error (attempt ${attempt}/${maxRetries}):`, fetchError);
+      }
+      if (attempt < maxRetries) {
+        const delay = Math.min(5000 * Math.pow(2, attempt - 1), 60000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
       }
     }
-    console.log("Using proofreading model from settings:", modelValue);
-    return (modelValue as string) || DEFAULT_PROOFREADING_MODEL;
-  } catch (err) {
-    console.error("Error fetching proofreading model:", err);
-    return DEFAULT_PROOFREADING_MODEL;
-  }
-}
-
-async function proofreadChapter(content: string, chapterTitle: string, model: string): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  
-  if (!LOVABLE_API_KEY) {
-    throw new Error("LOVABLE_API_KEY not configured");
   }
 
-  console.log(`Starting proofreading for chapter: "${chapterTitle}" (${content.length} chars) with model: ${model}`);
-
-  const result = await fetchWithRetry({
-    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-    options: {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 16000,
-        messages: [
-          {
-            role: "system",
-            content: PROOFREADING_SYSTEM_PROMPT,
-          },
-          {
-            role: "user",
-            content: `Lektoráld a következő fejezetet: "${chapterTitle}"\n\n${content}`,
-          },
-        ],
-      }),
-    },
-    maxRetries: RETRY_CONFIG.MAX_RETRIES,
-    timeoutMs: 60000, // Reduced timeout - Lovable Gateway is faster
-    onRetry: (attempt, status, error) => {
-      console.log(`Retry ${attempt} for chapter "${chapterTitle}", status: ${status}, error: ${error?.message}`);
-    },
-  });
-
-  if (result.timedOut) {
-    throw new Error(`API timeout after ${result.attempts} attempts`);
-  }
-
-  if (result.rateLimited) {
-    throw new Error(`Rate limited after ${result.attempts} attempts`);
-  }
-
-  if (!result.response || !result.response.ok) {
-    const errorText = result.response ? await result.response.text() : "No response";
-    console.error("Lovable AI Gateway error:", errorText);
-    throw new Error(`API error (status: ${result.response?.status}) after ${result.attempts} attempts`);
-  }
-
-  const data = await result.response.json();
-  
-  const proofreadText = data.choices?.[0]?.message?.content;
-  if (!proofreadText) {
-    throw new Error("Unexpected API response format - no content in response");
-  }
-
-  console.log(`Proofreading completed for "${chapterTitle}": ${proofreadText.length} chars`);
-  return proofreadText;
+  throw lastError || new Error("All retry attempts failed");
 }
 
 serve(async (req) => {
@@ -199,12 +183,7 @@ serve(async (req) => {
         .eq("id", orderId);
     }
 
-    // Get the proofreading model from system settings
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const proofreadingModel = await getProofreadingModel(supabaseUrl, serviceRoleKey);
-
-    console.log(`[PROOFREADING] Processing chapter ${startIndex + 1}/${chapters.length} for order ${orderId} with model: ${proofreadingModel}`);
+    console.log(`[PROOFREADING] Processing chapter ${startIndex + 1}/${chapters.length} for order ${orderId} with model: claude-sonnet-4-20250514`);
 
     // Check if we're already done
     if (startIndex >= chapters.length) {
@@ -269,8 +248,8 @@ serve(async (req) => {
     }
 
     try {
-      // Process the current chapter
-      const proofreadContent = await proofreadChapter(chapter.content, chapter.title, proofreadingModel);
+      // Process the current chapter with Claude Sonnet 4.5
+      const proofreadContent = await proofreadChapter(chapter.content, chapter.title);
 
       // Update the chapter with proofread content
       const wordCount = proofreadContent.split(/\s+/).filter(w => w.length > 0).length;

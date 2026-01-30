@@ -16,10 +16,40 @@ FORMÁZÁSI SZABÁLY (KÖTELEZŐ):
 - Az olvasó tiszta, folyamatos prózát kapjon
 `;
 
+const HUNGARIAN_GRAMMAR_RULES = `
+
+## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
+
+NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+
+PÁRBESZÉD FORMÁZÁS:
+- Magyar párbeszédjelölés: gondolatjel (–) a sor elején
+- Idézőjel használata: „..." (magyar idézőjel, NEM "...")
+- Példa helyes formátum:
+  – Hová mész? – kérdezte Anna.
+  – A boltba – válaszolta.
+
+ÍRÁSJELEK:
+- Gondolatjel: – (hosszú, NEM -)
+- Három pont: ... (NEM …)
+- Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
+
+KERÜLENDŐ HIBÁK:
+- NE használj angolszász névsorrendet
+- NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
+- NE használj angol idézőjeleket ("..." → „...")
+- NE használj felesleges névelőket angolosan
+
+NYELVTANI HELYESSÉG:
+- Ragozás: ügyelj a magyar ragozás helyességére
+- Szórend: magyar szórend, NEM angol (ige-alany-tárgy)
+- Összetett szavak: egybe vagy külön az MTA szabályai szerint
+`;
+
 const SYSTEM_PROMPTS: Record<string, string> = {
-  szakkonyv: `Te egy szakkönyv író asszisztens vagy. Strukturált, didaktikus stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}`,
-  fiction: `Te egy kreatív író asszisztens vagy. Narratív, leíró stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}`,
-  erotikus: `Te egy felnőtt tartalom író asszisztens vagy. Érzéki, intim stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}`,
+  szakkonyv: `Te egy szakkönyv író asszisztens vagy. Strukturált, didaktikus stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
+  fiction: `Te egy kreatív író asszisztens vagy. Narratív, leíró stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
+  erotikus: `Te egy felnőtt tartalom író asszisztens vagy. Érzéki, intim stílusban írj. Magyar nyelven válaszolj.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
 };
 
 const ACTION_PROMPTS: Record<string, string> = {
