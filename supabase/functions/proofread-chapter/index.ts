@@ -233,6 +233,18 @@ serve(async (req) => {
               })
               .eq("id", chapterId);
 
+            // DELETE BLOCKS after chapter update - forces frontend to regenerate from content
+            const { error: deleteBlocksError, count: deletedCount } = await supabaseAdmin
+              .from("blocks")
+              .delete({ count: 'exact' })
+              .eq("chapter_id", chapterId);
+
+            if (deleteBlocksError) {
+              console.error(`[PROOFREAD-CHAPTER] Failed to delete blocks for chapter ${chapterId}:`, deleteBlocksError);
+            } else {
+              console.log(`[PROOFREAD-CHAPTER] Deleted ${deletedCount || 0} blocks for chapter ${chapterId}`);
+            }
+
             console.log(`[PROOFREAD-CHAPTER] Completed chapter "${chapter.title}": ${newWordCount} words`);
           }
 

@@ -268,6 +268,19 @@ serve(async (req) => {
         throw new Error(`Failed to update chapter: ${chapter.title}`);
       }
 
+      // DELETE BLOCKS after chapter update - forces frontend to regenerate from content
+      const { error: deleteBlocksError, count: deletedCount } = await supabaseAdmin
+        .from("blocks")
+        .delete({ count: 'exact' })
+        .eq("chapter_id", chapter.id);
+
+      if (deleteBlocksError) {
+        console.error(`[PROOFREADING] Failed to delete blocks for chapter ${chapter.id}:`, deleteBlocksError);
+        // Non-fatal - continue with proofreading
+      } else {
+        console.log(`[PROOFREADING] Deleted ${deletedCount || 0} blocks for chapter ${chapter.id}`);
+      }
+
       // Update progress
       const nextIndex = startIndex + 1;
       const isLastChapter = nextIndex >= chapters.length;

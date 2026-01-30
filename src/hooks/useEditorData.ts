@@ -45,175 +45,175 @@ export function useEditorData(projectId: string) {
   }, [projectId, activeChapterId]);
 
   // Force refresh blocks - deletes existing and recreates from chapter.content
+  // OPTIMIZED: Uses batch insert instead of individual inserts for performance
   const forceRefreshBlocks = useCallback(async (chapterId: string) => {
     if (!chapterId) return;
     
-    // 1. Delete existing blocks
-    await supabase.from("blocks").delete().eq("chapter_id", chapterId);
+    // Set loading state immediately for UI feedback
+    setIsLoadingBlocks(true);
+    setBlocks([]);
     
-    // 2. Fetch fresh chapter content
-    const { data: chapterData } = await supabase
-      .from("chapters")
-      .select("content")
-      .eq("id", chapterId)
-      .single();
-    
-    if (!chapterData?.content || chapterData.content.trim().length === 0) {
-      // Create empty block if no content
-      const { data: block } = await supabase
-        .from("blocks")
-        .insert({
-          chapter_id: chapterId,
-          type: 'paragraph',
-          content: '',
-          sort_order: 0,
-        })
-        .select()
+    try {
+      // 1. Delete existing blocks (single operation)
+      await supabase.from("blocks").delete().eq("chapter_id", chapterId);
+      
+      // 2. Fetch fresh chapter content
+      const { data: chapterData } = await supabase
+        .from("chapters")
+        .select("content, updated_at")
+        .eq("id", chapterId)
         .single();
       
-      if (block && chapterId === activeChapterId) {
-        setBlocks([{
-          ...block,
-          type: block.type as BlockType,
-          metadata: (block.metadata || {}) as Block['metadata']
-        }]);
+      if (!chapterData?.content || chapterData.content.trim().length === 0) {
+        // Create empty block if no content
+        const { data: block } = await supabase
+          .from("blocks")
+          .insert({
+            chapter_id: chapterId,
+            type: 'paragraph',
+            content: '',
+            sort_order: 0,
+          })
+          .select()
+          .single();
+        
+        if (block && chapterId === activeChapterId) {
+          setBlocks([{
+            ...block,
+            type: block.type as BlockType,
+            metadata: (block.metadata || {}) as Block['metadata']
+          }]);
+        }
+        return;
       }
-      return;
-    }
-    
-    // 3. Convert content to blocks
-    const paragraphs = chapterData.content.split('\n\n').filter((p: string) => p.trim());
-    const newBlocks: Block[] = [];
-    
-    for (let i = 0; i < paragraphs.length; i++) {
-      const { data: block } = await supabase
-        .from("blocks")
-        .insert({
-          chapter_id: chapterId,
-          type: 'paragraph',
-          content: paragraphs[i].trim(),
-          sort_order: i,
-        })
-        .select()
-        .single();
       
-      if (block) {
-        newBlocks.push({
-          ...block,
-          type: block.type as BlockType,
-          metadata: (block.metadata || {}) as Block['metadata']
-        });
+      // 3. Convert content to blocks - prepare batch insert data
+      const paragraphs = chapterData.content.split('\n\n').filter((p: string) => p.trim());
+      
+      const blocksToInsert = paragraphs.map((paragraph: string, index: number) => ({
+        chapter_id: chapterId,
+        type: 'paragraph',
+        content: paragraph.trim(),
+        sort_order: index,
+        metadata: {},
+      }));
+      
+      // 4. Batch insert all blocks at once (single network request)
+      const { data: insertedBlocks, error: insertError } = await supabase
+        .from("blocks")
+        .insert(blocksToInsert)
+        .select();
+      
+      if (insertError) {
+        console.error("Error batch inserting blocks:", insertError);
+        return;
       }
-    }
-    
-    // Only update state if this is still the active chapter
-    if (chapterId === activeChapterId) {
-      setBlocks(newBlocks);
+      
+      // 5. Update state if this is still the active chapter
+      if (chapterId === activeChapterId && insertedBlocks) {
+        const typedBlocks: Block[] = insertedBlocks
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map(block => ({
+            ...block,
+            type: block.type as BlockType,
+            metadata: (block.metadata || {}) as Block['metadata']
+          }));
+        setBlocks(typedBlocks);
+      }
+    } finally {
+      setIsLoadingBlocks(false);
     }
   }, [activeChapterId]);
 
   // Fetch blocks for active chapter - converts chapter.content to blocks if needed
+  // ENHANCED: Auto-detects stale blocks and refreshes from chapter.content
   const fetchBlocks = useCallback(async () => {
     if (!activeChapterId) return;
 
     setIsLoadingBlocks(true);
     
     try {
-    const { data: blocksData, error } = await supabase
-      .from("blocks")
-      .select("*")
-      .eq("chapter_id", activeChapterId)
-      .order("sort_order", { ascending: true });
+      // Fetch blocks AND chapter data in parallel for staleness check
+      const [blocksResult, chapterResult] = await Promise.all([
+        supabase
+          .from("blocks")
+          .select("*")
+          .eq("chapter_id", activeChapterId)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("chapters")
+          .select("content, updated_at")
+          .eq("id", activeChapterId)
+          .single()
+      ]);
 
-    if (error) {
-      console.error("Error fetching blocks:", error);
-      return;
-    }
+      const { data: blocksData, error } = blocksResult;
+      const { data: chapterData } = chapterResult;
 
-    // Ellenőrizzük, hogy vannak-e valódi tartalommal rendelkező blokkok
-    const hasRealContent = blocksData && blocksData.some(
-      block => block.content && block.content.trim().length > 0
-    );
+      if (error) {
+        console.error("Error fetching blocks:", error);
+        return;
+      }
 
-    // Ha nincsenek blokkok VAGY mind üresek, nézzük meg van-e chapter.content
-    if (!blocksData || blocksData.length === 0 || !hasRealContent) {
-      // Lekérjük a chapter content-et közvetlenül
-      const { data: chapterData } = await supabase
-        .from("chapters")
-        .select("content")
-        .eq("id", activeChapterId)
-        .maybeSingle();
-      
-      if (chapterData?.content && chapterData.content.trim().length > 0) {
-        // Töröljük a meglévő üres blokkokat
-        if (blocksData && blocksData.length > 0) {
-          for (const block of blocksData) {
-            await supabase.from("blocks").delete().eq("id", block.id);
-          }
+      // STALENESS CHECK: If chapter was updated more recently than blocks, force refresh
+      if (blocksData && blocksData.length > 0 && chapterData?.updated_at) {
+        const chapterUpdatedAt = new Date(chapterData.updated_at).getTime();
+        const latestBlockUpdatedAt = Math.max(
+          ...blocksData.map(b => new Date(b.updated_at).getTime())
+        );
+        
+        // If chapter is newer than blocks by more than 2 seconds, blocks are stale
+        const STALENESS_THRESHOLD_MS = 2000;
+        if (chapterUpdatedAt > latestBlockUpdatedAt + STALENESS_THRESHOLD_MS) {
+          console.log("[fetchBlocks] Detected stale blocks, forcing refresh from chapter.content");
+          await forceRefreshBlocks(activeChapterId);
+          return;
+        }
+      }
+
+      // Ellenőrizzük, hogy vannak-e valódi tartalommal rendelkező blokkok
+      const hasRealContent = blocksData && blocksData.some(
+        block => block.content && block.content.trim().length > 0
+      );
+
+      // Ha nincsenek blokkok VAGY mind üresek, nézzük meg van-e chapter.content
+      if (!blocksData || blocksData.length === 0 || !hasRealContent) {
+        if (chapterData?.content && chapterData.content.trim().length > 0) {
+          // Use optimized forceRefreshBlocks
+          await forceRefreshBlocks(activeChapterId);
+          return;
         }
         
-        // Van content - konvertáljuk blokkokká
-        const paragraphs = chapterData.content.split('\n\n').filter((p: string) => p.trim());
-        
-        const newBlocks: Block[] = [];
-        for (let i = 0; i < paragraphs.length; i++) {
-          const { data: block } = await supabase
-            .from("blocks")
-            .insert({
-              chapter_id: activeChapterId,
-              type: 'paragraph',
-              content: paragraphs[i].trim(),
-              sort_order: i,
-            })
-            .select()
-            .single();
-          
-          if (block) {
-            newBlocks.push({
-              ...block,
-              type: block.type as BlockType,
-              metadata: (block.metadata || {}) as Block['metadata']
-            });
+        // Ha nincs content sem, üres blokk létrehozása (ha még nincs)
+        if (!blocksData || blocksData.length === 0) {
+          const newBlock = await createBlock("paragraph", "", 0);
+          if (newBlock) {
+            setBlocks([newBlock]);
           }
-        }
-        
-        setBlocks(newBlocks);
-        if (newBlocks.length > 0) {
-          toast.success("Fejezet tartalom betöltve a szerkesztőbe");
+        } else {
+          // Megjelenítjük a létező üres blokkokat
+          const typedData = blocksData.map(block => ({
+            ...block,
+            type: block.type as BlockType,
+            metadata: (block.metadata || {}) as Block['metadata']
+          }));
+          setBlocks(typedData);
         }
         return;
       }
-      
-      // Ha nincs content sem, üres blokk létrehozása (ha még nincs)
-      if (!blocksData || blocksData.length === 0) {
-        const newBlock = await createBlock("paragraph", "", 0);
-        if (newBlock) {
-          setBlocks([newBlock]);
-        }
-      } else {
-        // Megjelenítjük a létező üres blokkokat
-        const typedData = blocksData.map(block => ({
-          ...block,
-          type: block.type as BlockType,
-          metadata: (block.metadata || {}) as Block['metadata']
-        }));
-        setBlocks(typedData);
-      }
-      return;
-    }
 
-    // Normál eset - vannak valódi tartalmú blokkok
-    const typedData = blocksData.map(block => ({
-      ...block,
-      type: block.type as BlockType,
-      metadata: (block.metadata || {}) as Block['metadata']
-    }));
+      // Normál eset - vannak valódi tartalmú blokkok (és nem elavultak)
+      const typedData = blocksData.map(block => ({
+        ...block,
+        type: block.type as BlockType,
+        metadata: (block.metadata || {}) as Block['metadata']
+      }));
 
-    setBlocks(typedData);
+      setBlocks(typedData);
     } finally {
       setIsLoadingBlocks(false);
     }
-  }, [activeChapterId]);
+  }, [activeChapterId, forceRefreshBlocks]);
 
   // Create chapter
   const createChapter = async (title = "Új fejezet") => {
