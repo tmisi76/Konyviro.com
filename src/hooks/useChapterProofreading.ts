@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -12,7 +12,7 @@ export function calculateChapterCredits(wordCount: number): number {
 }
 
 interface UseChapterProofreadingOptions {
-  onComplete?: (newContent: string) => void;
+  onComplete?: (newContent: string) => void | Promise<void>;
   onError?: (error: string) => void;
 }
 
@@ -21,6 +21,16 @@ export function useChapterProofreading(options?: UseChapterProofreadingOptions) 
   const [streamedContent, setStreamedContent] = useState("");
   const [progress, setProgress] = useState(0);
   const { getRemainingWords } = useSubscription();
+
+  // Stabil referenciák a callback-ekhez (stale closure fix)
+  const onCompleteRef = useRef(options?.onComplete);
+  const onErrorRef = useRef(options?.onError);
+
+  // Frissítjük a ref-eket minden renderkor
+  useEffect(() => {
+    onCompleteRef.current = options?.onComplete;
+    onErrorRef.current = options?.onError;
+  }, [options?.onComplete, options?.onError]);
 
   const proofreadChapter = useCallback(async (chapterId: string, wordCount: number) => {
     const creditsNeeded = calculateChapterCredits(wordCount);
@@ -90,7 +100,11 @@ export function useChapterProofreading(options?: UseChapterProofreadingOptions) 
               
               if (json.done) {
                 setProgress(100);
-                options?.onComplete?.(fullContent);
+                
+                // Await-tel hívjuk a ref-ből (mindig friss verzió)
+                if (onCompleteRef.current) {
+                  await onCompleteRef.current(fullContent);
+                }
                 
                 toast.success("Fejezet sikeresen lektorálva!", {
                   description: `${json.wordCount || 0} szó`,
@@ -108,12 +122,12 @@ export function useChapterProofreading(options?: UseChapterProofreadingOptions) 
       console.error("Proofreading error:", error);
       const message = error instanceof Error ? error.message : "Ismeretlen hiba";
       toast.error(message);
-      options?.onError?.(message);
+      onErrorRef.current?.(message);
       return false;
     } finally {
       setIsProofreading(false);
     }
-  }, [getRemainingWords, options]);
+  }, [getRemainingWords]);
 
   const reset = useCallback(() => {
     setStreamedContent("");

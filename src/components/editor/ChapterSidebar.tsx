@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Plus, ChevronLeft, ChevronRight, GripVertical, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -60,14 +60,21 @@ export function ChapterSidebar({
   // Proofreading state
   const [proofreadingChapter, setProofreadingChapter] = useState<Chapter | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const { proofreadChapter, isProofreading, streamedContent, progress: proofProgress, reset } = useChapterProofreading({
-    onComplete: async () => {
-      if (onRefreshChapter) {
-        setIsRefreshing(true);
+  
+  // Stabil callback a proofreading befejezéshez
+  const handleProofreadingComplete = useCallback(async () => {
+    if (onRefreshChapter) {
+      setIsRefreshing(true);
+      try {
         await onRefreshChapter();
+      } finally {
         setIsRefreshing(false);
       }
     }
+  }, [onRefreshChapter]);
+
+  const { proofreadChapter, isProofreading, streamedContent, progress: proofProgress, reset } = useChapterProofreading({
+    onComplete: handleProofreadingComplete,
   });
   const { getRemainingWords } = useSubscription();
 
