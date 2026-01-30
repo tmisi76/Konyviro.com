@@ -1,114 +1,95 @@
 
-# Lektorálás Mentés Javítása
 
-## Azonosított Hibák
+# Lektorálás Teljes Törlése
 
-### 1. Stale Closure Probléma
-A `useChapterProofreading` hook a callback-eket az `options` objektumból olvassa, de ez minden render-nél új referenciát kap. A streaming közben a komponens többször is újra renderelődhet (pl. `streamedContent` változáskor), ami miatt az eredeti `onComplete` callback elavulttá válik.
+A lektorálás funkció teljes eltávolítása az alkalmazásból, beleértve az összes felhasználói felületet, hook-ot, edge function-t és adatbázis táblát.
 
-### 2. Async Callback Nem Várt
-A hook így hívja a callback-et:
-```typescript
-options?.onComplete?.(fullContent);  // Nincs await!
-```
+## Törlendő Komponensek
 
-De a callback async:
-```typescript
-onComplete: async () => {
-  await onRefreshChapter();  // Ez nem fut le, mielőtt a hook továbblép
-}
-```
+### 1. Frontend Fájlok - Teljes Törlés
 
-### 3. Blokkok Nem Töltődnek Újra
-Bár a backend törli a blokkokat, a frontend `forceRefreshBlocks` nem fut le megfelelően, mert az `onComplete` vagy nem hívódik, vagy nem várja meg.
+| Fájl | Típus |
+|------|-------|
+| `src/components/proofreading/ProofreadingTab.tsx` | Teljes komponens |
+| `src/hooks/useProofreading.ts` | Hook |
+| `src/hooks/useChapterProofreading.ts` | Hook |
+| `src/hooks/useActiveProofreadings.ts` | Hook |
+| `src/components/dashboard/ProofreadingStatusCard.tsx` | Komponens |
 
-## Technikai Megoldás
-
-### A) `useChapterProofreading.ts` - Stabil Callback Referenciák
-
-Használjunk `useRef`-et a callback-ekhez, hogy mindig a legfrissebb verziót hívjuk:
-
-```typescript
-import { useState, useCallback, useRef, useEffect } from "react";
-
-export function useChapterProofreading(options?: UseChapterProofreadingOptions) {
-  // ... existing state ...
-  
-  // Stabil referenciák a callback-ekhez
-  const onCompleteRef = useRef(options?.onComplete);
-  const onErrorRef = useRef(options?.onError);
-  
-  // Frissítjük a ref-eket minden renderkor
-  useEffect(() => {
-    onCompleteRef.current = options?.onComplete;
-    onErrorRef.current = options?.onError;
-  }, [options?.onComplete, options?.onError]);
-  
-  const proofreadChapter = useCallback(async (chapterId: string, wordCount: number) => {
-    // ... existing logic ...
-    
-    if (json.done) {
-      setProgress(100);
-      
-      // Await-tel hívjuk, a ref-ből (mindig friss)
-      if (onCompleteRef.current) {
-        await onCompleteRef.current(fullContent);
-      }
-      
-      toast.success("Fejezet sikeresen lektorálva!", ...);
-    }
-    
-    // ... existing logic ...
-  }, [getRemainingWords]);  // options eltávolítva a dependency-ből!
-}
-```
-
-### B) `ChapterSidebar.tsx` - useCallback a Callback-hez
-
-A `ChapterSidebar`-ban a callback-et `useCallback`-kel stabilizáljuk:
-
-```typescript
-import { useState, useRef, useCallback } from "react";
-
-// Stabil callback létrehozása
-const handleProofreadingComplete = useCallback(async (newContent: string) => {
-  if (onRefreshChapter) {
-    setIsRefreshing(true);
-    try {
-      await onRefreshChapter();
-    } finally {
-      setIsRefreshing(false);
-    }
-  }
-}, [onRefreshChapter]);
-
-const { proofreadChapter, isProofreading, progress: proofProgress, reset } = useChapterProofreading({
-  onComplete: handleProofreadingComplete,
-});
-```
-
-### C) Interface Típus Javítása
-
-```typescript
-interface UseChapterProofreadingOptions {
-  onComplete?: (newContent: string) => void | Promise<void>;  // Promise is megengedett
-  onError?: (error: string) => void;
-}
-```
-
-## Érintett Fájlok
+### 2. Frontend Módosítások
 
 | Fájl | Változás |
 |------|----------|
-| `src/hooks/useChapterProofreading.ts` | useRef a callback-ekhez, await az onComplete híváskor, options eltávolítása a dependency-ből |
-| `src/components/editor/ChapterSidebar.tsx` | useCallback a callback stabilizálásához |
+| `src/pages/ProjectEditor.tsx` | "Lektor" tab és ProofreadingTab import eltávolítása |
+| `src/pages/Dashboard.tsx` | Aktív lektorálások szekciók és useActiveProofreadings törlése |
+| `src/components/editor/ChapterSidebar.tsx` | "Fejezet lektorálása" context menu elem és a lektorálási dialog törlése |
+| `src/hooks/useEditorState.ts` | "proofreading" törlése a ViewMode típusból |
+| `src/constants/credits.ts` | Lektorálási konstansok és calculateProofreadingCredits függvény törlése |
+| `src/hooks/useAIModel.ts` | proofreadingModel és proofreadingModelName eltávolítása |
+| `src/pages/admin/AdminAISettings.tsx` | "Lektorálási Modell" szekció törlése |
 
-## Tesztelési Lépések
+### 3. Edge Functions - Teljes Törlés
 
-1. Nyiss meg egy fejezetet
-2. Indítsd el a "Fejezet lektorálása" funkciót
-3. Várd meg a befejezést
-4. Ellenőrizd, hogy:
-   - A szerkesztőben az új, lektorált szöveg jelenik meg
-   - Nem kell manuálisan frissíteni az oldalt
-   - A dialog bezárásakor is marad az új szöveg
+| Funkció | Leírás |
+|---------|--------|
+| `supabase/functions/start-proofreading/` | Teljes lektorálás indítása |
+| `supabase/functions/process-proofreading/` | Háttérben futó lektorálási feldolgozó |
+| `supabase/functions/proofread-chapter/` | Streaming fejezet lektorálás |
+| `supabase/functions/admin-test-proofreading/` | Admin teszt lektorálás |
+
+### 4. Adatbázis Változások
+
+A `proofreading_orders` tábla törlése SQL migrációval:
+
+```sql
+DROP TABLE IF EXISTS public.proofreading_orders;
+```
+
+## Részletes Változások
+
+### ProjectEditor.tsx
+- Import törlése: `ProofreadingTab`
+- ViewMode típusból "proofreading" eltávolítása
+- Tab törlése: `<TabsTrigger value="proofreading">` és a hozzá tartozó panel
+- Ha `viewMode === "proofreading"` ág törlése
+
+### Dashboard.tsx
+- Import törlése: `ProofreadingStatusCard`, `useActiveProofreadings`
+- `const { activeProofreadings } = useActiveProofreadings();` törlése
+- Mindkét "Aktív lektorálások" szekció törlése (mobil és desktop)
+
+### ChapterSidebar.tsx
+- `useChapterProofreading` import és hook hívás törlése
+- `calculateChapterCredits` import törlése
+- Lektorálási state változók törlése: `proofreadingChapter`, `isRefreshing`
+- `handleProofreadingComplete`, `handleProofreadChapter`, `handleConfirmProofreading`, `handleCloseProofreadingDialog`, `getCreditsInfo` függvények törlése
+- "Fejezet lektorálása" ContextMenuItem törlése
+- Proofreading Dialog (teljes `<Dialog>` blokk) törlése
+
+### useEditorState.ts
+- ViewMode típusból "proofreading" eltávolítása
+
+### useAIModel.ts
+- `proofreadingModel` és `proofreadingModelName` mezők eltávolítása az interfészből és a visszatérési értékből
+
+### credits.ts
+- `PROOFREADING_CREDIT_MULTIPLIER`, `PROOFREADING_MIN_CREDITS` konstansok törlése
+- `calculateProofreadingCredits` függvény törlése
+
+### AdminAISettings.tsx
+- `proofreading_model` eltávolítása az AISettings interfészből
+- "Lektorálási Modell" Card komponens törlése
+
+## Sorrend
+
+1. Adatbázis migráció: `proofreading_orders` tábla törlése
+2. Edge function-ök törlése (4 db)
+3. Frontend hook-ok és komponensek törlése (5 fájl)
+4. Frontend fájlok módosítása (7 fájl)
+
+## Megjegyzések
+
+- A kreditekhez nem nyúlunk (nincs refund)
+- A jelenleg "processing" státuszú lektorálás (1 db) a tábla törlésekor elveszik
+- A types.ts fájlban a Supabase típusok automatikusan frissülnek a migráció után
+
