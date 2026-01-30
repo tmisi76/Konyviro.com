@@ -4,49 +4,51 @@
 
 ## Áttekintés
 
-A lektorálási rendszer prompt-jának cseréje mindkét edge function-ben az új, tisztább és célratörőbb verzióra.
+A lektorálási prompt cseréje az új, tartalomvédelmi fókuszú verzióra mindkét edge function-ben.
 
 ## Érintett Fájlok
 
 | Fájl | Változás |
 |------|----------|
-| `supabase/functions/proofread-chapter/index.ts` | Prompt csere (18-36. sor) |
-| `supabase/functions/process-proofreading/index.ts` | Prompt csere (10-28. sor) |
+| `supabase/functions/proofread-chapter/index.ts` | Prompt csere (18-30. sor) |
+| `supabase/functions/process-proofreading/index.ts` | Prompt csere (10-22. sor) |
 
 ## Új Prompt
 
 ```typescript
-const PROOFREADING_SYSTEM_PROMPT = `Feladat: Javítsd az alábbi szöveget publikálható, profi magyar minőségre.
+const PROOFREADING_SYSTEM_PROMPT = `Feladat: Az alábbi szöveget kell nyelvtanilag és stilisztikailag tökéletesre javítanod. A tartalomhoz tilos hozzányúlnod, csak a formát és a helyességet kezeld.
 
-Instrukciók a javításhoz:
-1. Javítsd a nyelvtani és helyesírási hibákat.
-2. Egészítsd ki a hiányos vagy félbehagyott mondatokat a kontextus alapján (ez kritikus!).
-3. Cseréld a magyartalan (angolból tükörfordított) kifejezéseket természetes magyar fordulatokra.
-4. Javítsd a logikai bukfenceket a szövegfolyamban.
+Szigorú javítási szabályok:
 
-KIMENETI SZABÁLYOK (Szigorúan tartsd be!):
-- KIZÁRÓLAG a javított szöveget add válaszul.
-- NE írj bevezetőt (pl. "Itt a javított szöveg...").
-- NE írj magyarázatot vagy felsorolást a hibákról.
-- A kimenet azonnal a szöveg első mondatával kezdődjön.`;
+Névsorrend: Ha angolszász névsorrendet találsz (pl. "Balázs György" mint keresztnév-vezetéknév), azt fordítsd át magyarosra (Vezetéknév Keresztnév), amennyiben a szövegkörnyezetből egyértelmű, hogy magyarról van szó.
+
+Anglicizmusok: A "Hunglish" (tükörfordított) kifejezéseket cseréld le természetes, idiomatikus magyar fordulatokra (pl. "ez nem csinál értelmet" -> "ennek nincs értelme").
+
+Helyesírás: Javítsd az elütéseket, vesszőhibákat, egybe- és különírási hibákat.
+
+TILTÁS:
+
+NE írj hozzá új mondatokat.
+
+NE egészítsd ki a szöveget saját ötletekkel.
+
+NE változtasd meg a történet menetét.
+
+Ha egy mondat hiányosnak tűnik, hagyd úgy vagy zárd le nyelvtanilag helyesen a meglévő szavakból, de ne találj ki hozzá új tartalmat.
+
+Kimenet: Kizárólag a javított szöveget add vissza.`;
 ```
 
-## Változtatások Összefoglalója
+## Fő Változások a Korábbi Prompthoz Képest
 
-### Régi Prompt (Eltávolítva)
-- "Te egy tapasztalt magyar lektor vagy..." szerepleírás
-- 5 pontos elemzési szempont lista
-- "Tartsd meg a szerző hangját" típusú szabályok
-- Stilisztika, bekezdés-tagolás szempontok
-
-### Új Prompt (Hozzáadva)
-- Közvetlen feladat meghatározás: "publikálható, profi magyar minőség"
-- **Kritikus új pont**: Hiányos mondatok kiegészítése
-- Angolból tükörfordított kifejezések javítása
-- Logikai bukfencek javítása
-- Szigorú kimeneti szabályok - semmi bevezető vagy magyarázat
+| Régi Prompt | Új Prompt |
+|-------------|-----------|
+| "Egészítsd ki a hiányos mondatokat (kritikus!)" | "Ha hiányos, hagyd úgy vagy zárd le a meglévő szavakból" |
+| Logikai bukfencek javítása | Történet menetét tilos megváltoztatni |
+| Általános javítási utasítások | Explicit névsorrend-szabály (angolszász → magyar) |
+| Nincs Hunglish példa | Konkrét példa: "ez nem csinál értelmet" |
 
 ## Implementáció
 
-Mindkét fájlban a `PROOFREADING_SYSTEM_PROMPT` konstanst cseréljük le az új verzióra.
+Mindkét edge function-ben a `PROOFREADING_SYSTEM_PROMPT` konstanst cseréljük le az új verzióra.
 
