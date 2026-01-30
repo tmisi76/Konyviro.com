@@ -36,6 +36,7 @@ interface ChapterSidebarProps {
   onReorderChapters: (chapters: Chapter[]) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  onRefreshChapter?: () => Promise<void>;
 }
 
 export function ChapterSidebar({
@@ -49,6 +50,7 @@ export function ChapterSidebar({
   onReorderChapters,
   isCollapsed,
   onToggleCollapse,
+  onRefreshChapter,
 }: ChapterSidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -111,8 +113,8 @@ export function ChapterSidebar({
     
     const success = await proofreadChapter(proofreadingChapter.id, proofreadingChapter.word_count);
     
-    if (success) {
-      // Refresh chapter data will be handled by the hook
+    if (success && onRefreshChapter) {
+      await onRefreshChapter();
     }
   };
 

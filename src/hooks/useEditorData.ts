@@ -505,5 +505,7 @@ export function useEditorData(projectId: string) {
     deleteBlock,
     reorderBlocks,
     flushPendingChanges,
+    refetchChapters: fetchChapters,
+    refetchBlocks: fetchBlocks,
   };
 }
