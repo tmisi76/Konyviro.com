@@ -12,6 +12,7 @@ export const AI_MODEL_NAMES: Record<string, string> = {
   "openai/gpt-5-mini": "GPT-5 Mini",
   "openai/gpt-5-nano": "GPT-5 Nano",
   "openai/gpt-5.2": "GPT-5.2",
+  "anthropic/claude-sonnet-4.5": "Claude Sonnet 4.5",
 };
 
 const DEFAULT_MODEL = "google/gemini-3-flash-preview";
@@ -37,8 +38,8 @@ export function useAIModel() {
         return {
           defaultModel: DEFAULT_MODEL,
           defaultModelName: AI_MODEL_NAMES[DEFAULT_MODEL] || "AI",
-          proofreadingModel: "google/gemini-2.5-pro",
-          proofreadingModelName: AI_MODEL_NAMES["google/gemini-2.5-pro"] || "Gemini 2.5 Pro",
+          proofreadingModel: "anthropic/claude-sonnet-4.5",
+          proofreadingModelName: "Claude Sonnet 4.5",
         };
       }
 
@@ -54,7 +55,7 @@ export function useAIModel() {
       });
 
       const defaultModel = settings.ai_default_model || DEFAULT_MODEL;
-      const proofreadingModel = settings.ai_proofreading_model || "google/gemini-2.5-pro";
+      const proofreadingModel = "anthropic/claude-sonnet-4.5"; // Fixed to Claude Sonnet 4.5
 
       return {
         defaultModel,
