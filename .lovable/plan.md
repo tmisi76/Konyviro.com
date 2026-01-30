@@ -1,43 +1,52 @@
-# Lektorálás Javítási Terv - KÉSZ ✅
 
-## Elvégzett Javítások
 
-### 1. ✅ Edge Function JSON Parse Fix
-**Fájlok:** 
-- `supabase/functions/proofread-chapter/index.ts`
-- `supabase/functions/process-proofreading/index.ts`
+# Lektorálás Prompt Frissítése
 
-A `getProofreadingModel` függvény most biztonságosan kezeli mind a JSON string, mind a sima string formátumokat.
+## Áttekintés
 
-### 2. ✅ Blokk Frissítés Lektorálás Után
-**Fájl:** `src/hooks/useEditorData.ts`
+A lektorálási rendszer prompt-jának cseréje mindkét edge function-ben az új, tisztább és célratörőbb verzióra.
 
-Új `forceRefreshBlocks(chapterId)` függvény hozzáadva, ami:
-1. Törli a meglévő blokkokat
-2. Újrakonvertálja a chapter.content-et blokkokká
+## Érintett Fájlok
 
-### 3. ✅ Dialog "Bezárás" Gomb - Auto Frissítés
-**Fájl:** `src/components/editor/ChapterSidebar.tsx`
+| Fájl | Változás |
+|------|----------|
+| `supabase/functions/proofread-chapter/index.ts` | Prompt csere (18-36. sor) |
+| `supabase/functions/process-proofreading/index.ts` | Prompt csere (10-28. sor) |
 
-A "Bezárás" gomb megnyomásakor (lektorálás után) most automatikusan frissíti az adatokat.
+## Új Prompt
 
-### 4. ✅ ProjectEditor Frissítés
-**Fájl:** `src/pages/ProjectEditor.tsx`
+```typescript
+const PROOFREADING_SYSTEM_PROMPT = `Feladat: Javítsd az alábbi szöveget publikálható, profi magyar minőségre.
 
-Az `onRefreshChapter` callback most a `forceRefreshBlocks`-ot használja a blokkök teljes újratöltéséhez.
+Instrukciók a javításhoz:
+1. Javítsd a nyelvtani és helyesírási hibákat.
+2. Egészítsd ki a hiányos vagy félbehagyott mondatokat a kontextus alapján (ez kritikus!).
+3. Cseréld a magyartalan (angolból tükörfordított) kifejezéseket természetes magyar fordulatokra.
+4. Javítsd a logikai bukfenceket a szövegfolyamban.
 
-## Tesztelési Lépések
+KIMENETI SZABÁLYOK (Szigorúan tartsd be!):
+- KIZÁRÓLAG a javított szöveget add válaszul.
+- NE írj bevezetőt (pl. "Itt a javított szöveg...").
+- NE írj magyarázatot vagy felsorolást a hibákról.
+- A kimenet azonnal a szöveg első mondatával kezdődjön.`;
+```
 
-1. **Fejezet Lektorálás:**
-   - Nyiss meg egy projektet a szerkesztőben
-   - Jobb klikk egy fejezeten → "Fejezet lektorálása"
-   - Várd meg a stream befejezését
-   - Klikkelj "Bezárás"
-   - ✅ A fejezet szövege frissült az editorban
+## Változtatások Összefoglalója
 
-2. **Teljes Könyv Lektorálás:**
-   - Menj a "Lektorálás" fülre
-   - Indítsd el a teljes könyv lektorálást
-   - Várj a befejezésre a Dashboard-on
-   - Menj vissza a szerkesztőbe
-   - ✅ Minden fejezet szövege frissült (újratöltésnél)
+### Régi Prompt (Eltávolítva)
+- "Te egy tapasztalt magyar lektor vagy..." szerepleírás
+- 5 pontos elemzési szempont lista
+- "Tartsd meg a szerző hangját" típusú szabályok
+- Stilisztika, bekezdés-tagolás szempontok
+
+### Új Prompt (Hozzáadva)
+- Közvetlen feladat meghatározás: "publikálható, profi magyar minőség"
+- **Kritikus új pont**: Hiányos mondatok kiegészítése
+- Angolból tükörfordított kifejezések javítása
+- Logikai bukfencek javítása
+- Szigorú kimeneti szabályok - semmi bevezető vagy magyarázat
+
+## Implementáció
+
+Mindkét fájlban a `PROOFREADING_SYSTEM_PROMPT` konstanst cseréljük le az új verzióra.
+
