@@ -20,8 +20,6 @@ const DEFAULT_MODEL = "google/gemini-3-flash-preview";
 interface AIModelSettings {
   defaultModel: string;
   defaultModelName: string;
-  proofreadingModel: string;
-  proofreadingModelName: string;
 }
 
 export function useAIModel() {
@@ -31,15 +29,13 @@ export function useAIModel() {
       const { data, error } = await supabase
         .from("system_settings")
         .select("key, value")
-        .in("key", ["ai_default_model", "ai_proofreading_model"]);
+        .eq("key", "ai_default_model");
 
       if (error) {
         console.error("Failed to fetch AI model settings:", error);
         return {
           defaultModel: DEFAULT_MODEL,
           defaultModelName: AI_MODEL_NAMES[DEFAULT_MODEL] || "AI",
-          proofreadingModel: "anthropic/claude-sonnet-4.5",
-          proofreadingModelName: "Claude Sonnet 4.5",
         };
       }
 
@@ -55,13 +51,10 @@ export function useAIModel() {
       });
 
       const defaultModel = settings.ai_default_model || DEFAULT_MODEL;
-      const proofreadingModel = "anthropic/claude-sonnet-4.5"; // Fixed to Claude Sonnet 4.5
 
       return {
         defaultModel,
         defaultModelName: AI_MODEL_NAMES[defaultModel] || defaultModel.split("/").pop() || "AI",
-        proofreadingModel,
-        proofreadingModelName: AI_MODEL_NAMES[proofreadingModel] || proofreadingModel.split("/").pop() || "AI",
       };
     },
     staleTime: 60000, // 1 minute cache
