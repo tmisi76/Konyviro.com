@@ -44,10 +44,17 @@ async function getProofreadingModel(supabaseUrl: string, serviceRoleKey: string)
       return DEFAULT_PROOFREADING_MODEL;
     }
 
-    const value = data.value as unknown;
-    const model = typeof value === "string" ? JSON.parse(value) : value;
-    console.log("Using proofreading model from settings:", model);
-    return (model as string) || DEFAULT_PROOFREADING_MODEL;
+    // FIX: Handle both JSON string and plain string formats
+    let modelValue = data.value;
+    if (typeof modelValue === "string") {
+      try {
+        modelValue = JSON.parse(modelValue);
+      } catch {
+        // Already a plain string, use directly
+      }
+    }
+    console.log("Using proofreading model from settings:", modelValue);
+    return (modelValue as string) || DEFAULT_PROOFREADING_MODEL;
   } catch (err) {
     console.error("Error fetching proofreading model:", err);
     return DEFAULT_PROOFREADING_MODEL;

@@ -118,8 +118,12 @@ export function ChapterSidebar({
     }
   };
 
-  const handleCloseProofreadingDialog = () => {
+  const handleCloseProofreadingDialog = async () => {
     if (!isProofreading) {
+      // If proofreading completed (streamedContent exists), refresh the chapter data
+      if (streamedContent && onRefreshChapter) {
+        await onRefreshChapter();
+      }
       setProofreadingChapter(null);
       reset();
     }

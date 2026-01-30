@@ -44,6 +44,74 @@ export function useEditorData(projectId: string) {
     }
   }, [projectId, activeChapterId]);
 
+  // Force refresh blocks - deletes existing and recreates from chapter.content
+  const forceRefreshBlocks = useCallback(async (chapterId: string) => {
+    if (!chapterId) return;
+    
+    // 1. Delete existing blocks
+    await supabase.from("blocks").delete().eq("chapter_id", chapterId);
+    
+    // 2. Fetch fresh chapter content
+    const { data: chapterData } = await supabase
+      .from("chapters")
+      .select("content")
+      .eq("id", chapterId)
+      .single();
+    
+    if (!chapterData?.content || chapterData.content.trim().length === 0) {
+      // Create empty block if no content
+      const { data: block } = await supabase
+        .from("blocks")
+        .insert({
+          chapter_id: chapterId,
+          type: 'paragraph',
+          content: '',
+          sort_order: 0,
+        })
+        .select()
+        .single();
+      
+      if (block && chapterId === activeChapterId) {
+        setBlocks([{
+          ...block,
+          type: block.type as BlockType,
+          metadata: (block.metadata || {}) as Block['metadata']
+        }]);
+      }
+      return;
+    }
+    
+    // 3. Convert content to blocks
+    const paragraphs = chapterData.content.split('\n\n').filter((p: string) => p.trim());
+    const newBlocks: Block[] = [];
+    
+    for (let i = 0; i < paragraphs.length; i++) {
+      const { data: block } = await supabase
+        .from("blocks")
+        .insert({
+          chapter_id: chapterId,
+          type: 'paragraph',
+          content: paragraphs[i].trim(),
+          sort_order: i,
+        })
+        .select()
+        .single();
+      
+      if (block) {
+        newBlocks.push({
+          ...block,
+          type: block.type as BlockType,
+          metadata: (block.metadata || {}) as Block['metadata']
+        });
+      }
+    }
+    
+    // Only update state if this is still the active chapter
+    if (chapterId === activeChapterId) {
+      setBlocks(newBlocks);
+    }
+  }, [activeChapterId]);
+
   // Fetch blocks for active chapter - converts chapter.content to blocks if needed
   const fetchBlocks = useCallback(async () => {
     if (!activeChapterId) return;
@@ -507,5 +575,6 @@ export function useEditorData(projectId: string) {
     flushPendingChanges,
     refetchChapters: fetchChapters,
     refetchBlocks: fetchBlocks,
+    forceRefreshBlocks,
   };
 }
