@@ -25,6 +25,33 @@ const UNIVERSAL_FICTION_RULES = `
 - Párbeszédeknél használj magyar idézőjeleket: „szöveg"
 - Gondolatjel: – (nem -)
 - A szöveg folyamatos, olvasható próza legyen, semmilyen jelöléssel
+
+## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
+
+NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+
+PÁRBESZÉD FORMÁZÁS:
+- Magyar párbeszédjelölés: gondolatjel (–) a sor elején
+- Idézőjel használata: „..." (magyar idézőjel, NEM "...")
+- Példa helyes formátum:
+  – Hová mész? – kérdezte Anna.
+  – A boltba – válaszolta.
+
+ÍRÁSJELEK:
+- Gondolatjel: – (hosszú, NEM -)
+- Három pont: ... (NEM …)
+- Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
+
+KERÜLENDŐ HIBÁK:
+- NE használj angolszász névsorrendet
+- NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
+- NE használj angol idézőjeleket ("..." → „...")
+- NE használj felesleges névelőket angolosan
+
+NYELVTANI HELYESSÉG:
+- Ragozás: ügyelj a magyar ragozás helyességére
+- Szórend: magyar szórend, NEM angol (ige-alany-tárgy)
+- Összetett szavak: egybe vagy külön az MTA szabályai szerint
 `;
 
 // Genre-specific prompts

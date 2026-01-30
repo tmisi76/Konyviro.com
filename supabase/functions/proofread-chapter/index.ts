@@ -37,36 +37,6 @@ Ha egy mondat hiányosnak tűnik, hagyd úgy vagy zárd le nyelvtanilag helyesen
 
 Kimenet: Kizárólag a javított szöveget add vissza.`;
 
-const DEFAULT_PROOFREADING_MODEL = "google/gemini-2.5-pro";
-
-async function getProofreadingModel(supabaseAdmin: any): Promise<string> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("system_settings")
-      .select("value")
-      .eq("key", "ai_proofreading_model")
-      .single();
-
-    if (error || !data) {
-      return DEFAULT_PROOFREADING_MODEL;
-    }
-
-    // FIX: Handle both JSON string and plain string formats
-    let modelValue = data.value;
-    if (typeof modelValue === "string") {
-      try {
-        modelValue = JSON.parse(modelValue);
-      } catch {
-        // Already a plain string, use directly
-      }
-    }
-    return (modelValue as string) || DEFAULT_PROOFREADING_MODEL;
-  } catch (err) {
-    console.error("Error fetching proofreading model:", err);
-    return DEFAULT_PROOFREADING_MODEL;
-  }
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -177,29 +147,29 @@ serve(async (req) => {
       });
     }
 
-    // Get model
-    const model = await getProofreadingModel(supabaseAdmin);
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    // Use Claude Sonnet 4.5 via Anthropic API
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
-    console.log(`[PROOFREAD-CHAPTER] Starting for chapter "${chapter.title}" with ${wordCount} words, model: ${model}`);
+    console.log(`[PROOFREAD-CHAPTER] Starting for chapter "${chapter.title}" with ${wordCount} words, model: claude-sonnet-4-20250514`);
 
-    // Call AI with streaming
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Call Anthropic API with streaming
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
       },
       body: JSON.stringify({
-        model,
-        max_tokens: 16000,
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 32000,
         stream: true,
+        system: PROOFREADING_SYSTEM_PROMPT,
         messages: [
-          { role: "system", content: PROOFREADING_SYSTEM_PROMPT },
           { role: "user", content: `Lektoráld a következő fejezetet: "${chapter.title}"\n\n${chapter.content}` },
         ],
       }),
@@ -207,7 +177,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI Gateway error:", errorText);
+      console.error("Anthropic API error:", errorText);
       throw new Error("AI service error");
     }
 
@@ -237,7 +207,8 @@ serve(async (req) => {
               if (line.startsWith('data: ') && line !== 'data: [DONE]') {
                 try {
                   const json = JSON.parse(line.slice(6));
-                  const content = json.choices?.[0]?.delta?.content;
+                  // Anthropic streaming format: content_block_delta with text
+                  const content = json.delta?.text || json.content_block?.text;
                   if (content) {
                     fullContent += content;
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));

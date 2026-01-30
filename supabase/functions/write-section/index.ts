@@ -13,6 +13,36 @@ const SECTION_PROMPTS: Record<string, string> = {
   case_study: "Írj részletes esettanulmányt valós példával, számokkal és tanulságokkal.",
 };
 
+const HUNGARIAN_GRAMMAR_RULES = `
+
+## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
+
+NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+
+PÁRBESZÉD FORMÁZÁS:
+- Magyar párbeszédjelölés: gondolatjel (–) a sor elején
+- Idézőjel használata: „..." (magyar idézőjel, NEM "...")
+- Példa helyes formátum:
+  – Hová mész? – kérdezte Anna.
+  – A boltba – válaszolta.
+
+ÍRÁSJELEK:
+- Gondolatjel: – (hosszú, NEM -)
+- Három pont: ... (NEM …)
+- Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
+
+KERÜLENDŐ HIBÁK:
+- NE használj angolszász névsorrendet
+- NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
+- NE használj angol idézőjeleket ("..." → „...")
+- NE használj felesleges névelőket angolosan
+
+NYELVTANI HELYESSÉG:
+- Ragozás: ügyelj a magyar ragozás helyességére
+- Szórend: magyar szórend, NEM angol (ige-alany-tárgy)
+- Összetett szavak: egybe vagy külön az MTA szabályai szerint
+`;
+
 const NONFICTION_SYSTEM_PROMPT = `Te egy nemzetközileg elismert szakkönyv-író és coach vagy, aki a "Million Dollar Book Method" és a "StoryBrand" keretrendszerek alapján dolgozik. A célod, hogy egyetlen, rendkívül értékes és gyakorlatias szekciót írj meg, amely valódi transzformációt nyújt az olvasónak.
 
 ALAPELVEK (KÖTELEZŐ ALKALMAZNI):
@@ -61,7 +91,8 @@ FORMAI KÖVETELMÉNYEK:
 
 -   Listákhoz használj számozást (1., 2., 3.) vagy gondolatjelet (–).
 
--   NE használj markdown formázást (pl. **, \`).`;
+-   NE használj markdown formázást (pl. **, \`).
+${HUNGARIAN_GRAMMAR_RULES}`;
 
 const FICTION_SYSTEM_PROMPT = `Te egy díjnyertes regényíró vagy, a magyar nyelv mestere. A feladatod, hogy egyetlen, lenyűgöző jelenetet írj meg a kapott instrukciók alapján.
 
@@ -129,7 +160,8 @@ FORMAI KÖVETELMÉNYEK:
 
 -   Tagold a szöveget logikus bekezdésekre.
 
--   NE használj markdown formázást (pl. **, #).`;
+-   NE használj markdown formázást (pl. **, #).
+${HUNGARIAN_GRAMMAR_RULES}`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
