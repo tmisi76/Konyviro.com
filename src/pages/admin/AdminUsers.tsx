@@ -23,6 +23,9 @@ import {
   Shield,
   Bell,
   Loader2,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,14 +72,39 @@ export default function AdminUsers() {
   const [planFilter, setPlanFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const { data: users, isLoading, refetch } = useAdminUsers({
     search,
     status: statusFilter,
     plan: planFilter,
     page,
-    limit: 20,
+    limit: 10,
+    sortBy,
+    sortOrder,
   });
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setSortOrder("desc");
+    }
+    setPage(1);
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortBy !== column) {
+      return <ArrowUpDown className="h-4 w-4 text-muted-foreground/50" />;
+    }
+    return sortOrder === "asc" ? (
+      <ArrowUp className="h-4 w-4" />
+    ) : (
+      <ArrowDown className="h-4 w-4" />
+    );
+  };
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -385,12 +413,52 @@ export default function AdminUsers() {
                     }}
                   />
                 </TableHead>
-                <TableHead>Felhasználó</TableHead>
-                <TableHead>Csomag</TableHead>
-                <TableHead>Projektek</TableHead>
-                <TableHead>Regisztráció</TableHead>
+                <TableHead 
+                  className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort("full_name")}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={sortBy === "full_name" ? "font-bold" : ""}>Felhasználó</span>
+                    <SortIcon column="full_name" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort("subscription_tier")}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={sortBy === "subscription_tier" ? "font-bold" : ""}>Csomag</span>
+                    <SortIcon column="subscription_tier" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort("projects_count")}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={sortBy === "projects_count" ? "font-bold" : ""}>Projektek</span>
+                    <SortIcon column="projects_count" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort("created_at")}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={sortBy === "created_at" ? "font-bold" : ""}>Regisztráció</span>
+                    <SortIcon column="created_at" />
+                  </div>
+                </TableHead>
                 <TableHead>Utolsó aktivitás</TableHead>
-                <TableHead>Státusz</TableHead>
+                <TableHead 
+                  className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className={sortBy === "status" ? "font-bold" : ""}>Státusz</span>
+                    <SortIcon column="status" />
+                  </div>
+                </TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>

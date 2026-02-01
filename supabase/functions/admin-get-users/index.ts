@@ -82,7 +82,9 @@ serve(async (req) => {
     const status = url.searchParams.get("status") || "all";
     const plan = url.searchParams.get("plan") || "all";
     const page = parseInt(url.searchParams.get("page") || "1");
-    const limit = parseInt(url.searchParams.get("limit") || "20");
+    const limit = parseInt(url.searchParams.get("limit") || "10");
+    const sortBy = url.searchParams.get("sortBy") || "created_at";
+    const sortOrder = url.searchParams.get("sortOrder") || "desc";
 
     // Fetch all auth users with service role
     const { data: authUsers, error: authError } = await serviceClient.auth.admin.listUsers({
@@ -172,6 +174,47 @@ serve(async (req) => {
     if (status !== "all") {
       users = users.filter((u) => u.status === status);
     }
+
+    // Sort users
+    const sortMultiplier = sortOrder === "asc" ? 1 : -1;
+    users.sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+      
+      switch (sortBy) {
+        case "full_name":
+          aVal = (a.full_name || a.email || "").toLowerCase();
+          bVal = (b.full_name || b.email || "").toLowerCase();
+          break;
+        case "email":
+          aVal = a.email.toLowerCase();
+          bVal = b.email.toLowerCase();
+          break;
+        case "subscription_tier":
+          const tierOrder: Record<string, number> = { pro: 4, writer: 3, hobby: 2, free: 1 };
+          aVal = tierOrder[a.subscription_tier] || 0;
+          bVal = tierOrder[b.subscription_tier] || 0;
+          break;
+        case "projects_count":
+          aVal = a.projects_count;
+          bVal = b.projects_count;
+          break;
+        case "status":
+          const statusOrder: Record<string, number> = { active: 3, inactive: 2, banned: 1 };
+          aVal = statusOrder[a.status] || 0;
+          bVal = statusOrder[b.status] || 0;
+          break;
+        case "created_at":
+        default:
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+          break;
+      }
+      
+      if (aVal < bVal) return -1 * sortMultiplier;
+      if (aVal > bVal) return 1 * sortMultiplier;
+      return 0;
+    });
 
     // Calculate pagination
     const total = users.length;
