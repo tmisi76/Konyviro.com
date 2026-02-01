@@ -7,6 +7,8 @@ interface UseAdminUsersParams {
   plan?: string;
   page?: number;
   limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 interface AdminUser {
@@ -39,10 +41,12 @@ export function useAdminUsers({
   status = 'all',
   plan = 'all',
   page = 1,
-  limit = 20
+  limit = 10,
+  sortBy = 'created_at',
+  sortOrder = 'desc'
 }: UseAdminUsersParams = {}) {
   return useQuery({
-    queryKey: ['admin-users', search, status, plan, page, limit],
+    queryKey: ['admin-users', search, status, plan, page, limit, sortBy, sortOrder],
     queryFn: async (): Promise<AdminUsersResponse> => {
       // Build URL with query params
       const params = new URLSearchParams({
@@ -51,6 +55,8 @@ export function useAdminUsers({
         plan,
         page: page.toString(),
         limit: limit.toString(),
+        sortBy,
+        sortOrder,
       });
 
       const response = await supabase.functions.invoke(`admin-get-users?${params.toString()}`);
