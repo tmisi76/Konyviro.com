@@ -78,6 +78,19 @@ export default function AdminUsers() {
     limit: 20,
   });
 
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+    setSelectedUsers([]);
+  }, [search, statusFilter, planFilter]);
+
+  // Out-of-range protection: if current page exceeds totalPages, go to last valid page
+  useEffect(() => {
+    if (users?.totalPages && page > users.totalPages) {
+      setPage(Math.max(1, users.totalPages));
+    }
+  }, [users?.totalPages, page]);
+
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isSendEmailOpen, setIsSendEmailOpen] = useState(false);
@@ -420,9 +433,16 @@ export default function AdminUsers() {
               ) : users?.data?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-12">
-                    <p className="text-muted-foreground">
-                      Nem található felhasználó
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground">
+                        Nem található felhasználó
+                      </p>
+                      {(search || statusFilter !== 'all' || planFilter !== 'all') && (
+                        <p className="text-sm text-muted-foreground/70">
+                          Próbáld törölni a szűrőket vagy a keresést
+                        </p>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (

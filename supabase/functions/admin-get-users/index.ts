@@ -20,6 +20,7 @@ interface AdminUser {
   projects_count: number;
   created_at: string;
   is_founder: boolean;
+  status: 'active' | 'inactive' | 'banned';
 }
 
 serve(async (req) => {
@@ -78,6 +79,7 @@ serve(async (req) => {
     // Parse query parameters
     const url = new URL(req.url);
     const search = url.searchParams.get("search") || "";
+    const status = url.searchParams.get("status") || "all";
     const plan = url.searchParams.get("plan") || "all";
     const page = parseInt(url.searchParams.get("page") || "1");
     const limit = parseInt(url.searchParams.get("limit") || "20");
@@ -126,6 +128,13 @@ serve(async (req) => {
       projectCounts[p.user_id] = (projectCounts[p.user_id] || 0) + 1;
     });
 
+    // Derive user status from subscription_status
+    const deriveStatus = (subscriptionStatus: string): 'active' | 'inactive' | 'banned' => {
+      if (subscriptionStatus === 'banned') return 'banned';
+      if (subscriptionStatus === 'active') return 'active';
+      return 'inactive';
+    };
+
     // Map profiles to admin users with emails
     let users: AdminUser[] = (profiles || []).map((profile) => ({
       id: profile.id,
@@ -141,6 +150,7 @@ serve(async (req) => {
       projects_count: projectCounts[profile.user_id] || 0,
       created_at: profile.created_at,
       is_founder: profile.is_founder || false,
+      status: deriveStatus(profile.subscription_status || "active"),
     }));
 
     // Apply search filter
@@ -156,6 +166,11 @@ serve(async (req) => {
     // Apply plan filter
     if (plan !== "all") {
       users = users.filter((u) => u.subscription_tier === plan);
+    }
+
+    // Apply status filter (server-side)
+    if (status !== "all") {
+      users = users.filter((u) => u.status === status);
     }
 
     // Calculate pagination

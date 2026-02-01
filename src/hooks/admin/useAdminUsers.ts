@@ -81,20 +81,21 @@ export function useAdminUsers({
         page: number;
       };
 
-      // Map to expected format with derived status
-      const users: AdminUser[] = result.data.map(user => ({
-        ...user,
-        last_seen_at: null,
-        status: user.subscription_status === 'active' ? 'active' : 'inactive' as const,
-      }));
-
-      // Apply status filter client-side
-      const filteredUsers = status === 'all'
-        ? users
-        : users.filter(u => u.status === status);
+      // Map to expected format - status now comes from backend
+      const users: AdminUser[] = result.data.map(user => {
+        const backendStatus = (user as any).status;
+        const derivedStatus: 'active' | 'inactive' | 'banned' = 
+          backendStatus || (user.subscription_status === 'active' ? 'active' : 'inactive');
+        
+        return {
+          ...user,
+          last_seen_at: null,
+          status: derivedStatus,
+        };
+      });
 
       return {
-        data: filteredUsers,
+        data: users,
         total: result.total,
         totalPages: result.totalPages,
         page: result.page,
