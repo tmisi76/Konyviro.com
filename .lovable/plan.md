@@ -1,95 +1,80 @@
 
+Cél: Megoldani, hogy egy létező felhasználó (pl. szenteskep@gmail.com / “Timi”) biztosan megjelenjen az Admin → Felhasználók (/admin/users) listában, és ne “tűnjön el” lapozás/keresés/szűrés miatt.
 
-# Lektorálás Teljes Törlése
+## Amit már ellenőriztem (diagnózis)
+- A backend admin felhasználó-lista funkció (admin-get-users) a szenteskep@gmail.com felhasználót visszaadja, tehát az adat megvan.
+- A böngésző hálózati logok szerint az /admin/users oldalon ténylegesen jön válasz, és abban benne van a user.
+- Emiatt a “nem jelenik meg” tipikusan UI állapot-kezelési gond:
+  - rossz oldalra van lapozva (page > 1),
+  - a keresés/szűrők változtatásakor nem ugrik vissza az 1. oldalra,
+  - vagy a “találatok oldalszáma” megváltozik, de a UI a régi oldalszámon marad, ami üres listát ad.
 
-A lektorálás funkció teljes eltávolítása az alkalmazásból, beleértve az összes felhasználói felületet, hook-ot, edge function-t és adatbázis táblát.
+## Valószínű ok
+Az AdminUsers.tsx-ben a `page` state nincs automatikusan resetelve, amikor:
+- megváltozik a keresőmező (`search`)
+- megváltozik a státusz szűrő (`statusFilter`)
+- megváltozik a csomag szűrő (`planFilter`)
 
-## Törlendő Komponensek
+Így ha pl. 5–7. oldalon állsz, és rákeresel “szenteskep”-re, a backend 1 oldalt talál (totalPages=1), de a UI továbbra is a 7. oldalt kéri → üres lista → “nem található”.
 
-### 1. Frontend Fájlok - Teljes Törlés
+## Tervezett megoldás (kódmódosítások)
 
-| Fájl | Típus |
-|------|-------|
-| `src/components/proofreading/ProofreadingTab.tsx` | Teljes komponens |
-| `src/hooks/useProofreading.ts` | Hook |
-| `src/hooks/useChapterProofreading.ts` | Hook |
-| `src/hooks/useActiveProofreadings.ts` | Hook |
-| `src/components/dashboard/ProofreadingStatusCard.tsx` | Komponens |
+### 1) Oldalszám reset keresés/szűrő változásakor (fő fix)
+Fájl: `src/pages/admin/AdminUsers.tsx`
 
-### 2. Frontend Módosítások
+- Hozzáadunk egy `useEffect`-et, ami figyeli: `search`, `statusFilter`, `planFilter`.
+- Amint ezek bármelyike változik:
+  - `setPage(1)` (vissza az 1. oldalra)
+  - opcionálisan `setSelectedUsers([])` (kiválasztások törlése, hogy ne legyen “bulk action” tévesen)
+  
+Ezzel a felhasználó keresése mindig az első találati oldalról indul, és nem “üresbe fut”.
 
-| Fájl | Változás |
-|------|----------|
-| `src/pages/ProjectEditor.tsx` | "Lektor" tab és ProofreadingTab import eltávolítása |
-| `src/pages/Dashboard.tsx` | Aktív lektorálások szekciók és useActiveProofreadings törlése |
-| `src/components/editor/ChapterSidebar.tsx` | "Fejezet lektorálása" context menu elem és a lektorálási dialog törlése |
-| `src/hooks/useEditorState.ts` | "proofreading" törlése a ViewMode típusból |
-| `src/constants/credits.ts` | Lektorálási konstansok és calculateProofreadingCredits függvény törlése |
-| `src/hooks/useAIModel.ts` | proofreadingModel és proofreadingModelName eltávolítása |
-| `src/pages/admin/AdminAISettings.tsx` | "Lektorálási Modell" szekció törlése |
+### 2) “Out of range” védelem: ha a page nagyobb, mint totalPages, automatikus korrekció
+Fájl: `src/pages/admin/AdminUsers.tsx`
 
-### 3. Edge Functions - Teljes Törlés
+- Amikor megjön a `users?.totalPages`, ellenőrizzük:
+  - ha `page > totalPages`, akkor `setPage(totalPages || 1)`
+- Ez akkor is megvédi a listát, ha valamiért a totalPages lecsökken (pl. szűrés miatt).
 
-| Funkció | Leírás |
-|---------|--------|
-| `supabase/functions/start-proofreading/` | Teljes lektorálás indítása |
-| `supabase/functions/process-proofreading/` | Háttérben futó lektorálási feldolgozó |
-| `supabase/functions/proofread-chapter/` | Streaming fejezet lektorálás |
-| `supabase/functions/admin-test-proofreading/` | Admin teszt lektorálás |
+### 3) Státusz-szűrés konzisztenciája (opcionális, de erősen ajánlott)
+Jelenleg a `useAdminUsers` kliens-oldalon szűr státuszra úgy, hogy:
+- `status = subscription_status === 'active' ? 'active' : 'inactive'`
+- a “banned” státuszt nem kezeli (a UI-ban van “Tiltott” opció, de a logika nem ad vissza soha `banned`-et)
 
-### 4. Adatbázis Változások
+Javítási irány (2 lehetséges opció):
 
-A `proofreading_orders` tábla törlése SQL migrációval:
+**Opció A (gyors és tiszta):** a backend (admin-get-users) kezelje a `status` paramétert, és a szerveren szűrjön (active/inactive/banned), majd a frontend ne szűrjön utólag.
+- Előny: a `total`, `totalPages` mindig pontos, lapozás helyesen működik.
+- Hátrány: edge function módosítás.
 
-```sql
-DROP TABLE IF EXISTS public.proofreading_orders;
-```
+**Opció B (csak frontend):** a `useAdminUsers` status mapping-et bővítjük:
+- ha `subscription_status === 'banned'` → `status: 'banned'`
+- különben aktív/inaktív
+- és a frontend oldalszám kijelzést a “szűrt” listához igazítjuk (bonyolultabb, mert a backend totál nem egyezik a kliens szűréssel).
 
-## Részletes Változások
+Ajánlás: **Opció A**, mert hosszú távon stabilabb (különösen, ha nő a user-szám).
 
-### ProjectEditor.tsx
-- Import törlése: `ProofreadingTab`
-- ViewMode típusból "proofreading" eltávolítása
-- Tab törlése: `<TabsTrigger value="proofreading">` és a hozzá tartozó panel
-- Ha `viewMode === "proofreading"` ág törlése
+### 4) UX finomítások (kicsi, de segít)
+Fájl: `src/pages/admin/AdminUsers.tsx`
+- Ha nincs találat, mutassunk egy rövid tippet:
+  - “Ellenőrizd: 1. oldal / szűrők ‘Mind’ / keresés törlése”
+- Opcionálisan tegyünk egy “Ugrás az első oldalra” gombot, ha `page > 1`.
 
-### Dashboard.tsx
-- Import törlése: `ProofreadingStatusCard`, `useActiveProofreadings`
-- `const { activeProofreadings } = useActiveProofreadings();` törlése
-- Mindkét "Aktív lektorálások" szekció törlése (mobil és desktop)
+## Teszt terv (end-to-end)
+1. Admin → Felhasználók oldalon lapozz át pl. 3–7. oldalra.
+2. Írd be a keresőbe: `szenteskep` vagy `szenteskep@gmail.com`.
+3. Elvárt: automatikusan visszaugrik 1. oldalra, és a találat megjelenik.
+4. Próbáld a Plan szűrőt “Író”-ra (writer), majd keresés.
+5. Próbáld a státusz szűrőt is (ha megcsináljuk az Opció A-t, a “Tiltott” is értelmesen fog működni).
 
-### ChapterSidebar.tsx
-- `useChapterProofreading` import és hook hívás törlése
-- `calculateChapterCredits` import törlése
-- Lektorálási state változók törlése: `proofreadingChapter`, `isRefreshing`
-- `handleProofreadingComplete`, `handleProofreadChapter`, `handleConfirmProofreading`, `handleCloseProofreadingDialog`, `getCreditsInfo` függvények törlése
-- "Fejezet lektorálása" ContextMenuItem törlése
-- Proofreading Dialog (teljes `<Dialog>` blokk) törlése
+## Érintett fájlok (várható)
+- `src/pages/admin/AdminUsers.tsx` (kötelező)
+- `src/hooks/admin/useAdminUsers.ts` (ha a státusz-szűrés logikát tisztítjuk)
+- `supabase/functions/admin-get-users/index.ts` (ha a státusz-szűrést szerverre visszük – ajánlott)
 
-### useEditorState.ts
-- ViewMode típusból "proofreading" eltávolítása
+## Kockázat és rollback
+- Alacsony kockázat: a page reset és out-of-range korrekció csak UI-állapotot érint, nem nyúl adatokhoz.
+- Rollback: egyszerűen visszavonható a két useEffect (page reset + page clamp).
 
-### useAIModel.ts
-- `proofreadingModel` és `proofreadingModelName` mezők eltávolítása az interfészből és a visszatérési értékből
-
-### credits.ts
-- `PROOFREADING_CREDIT_MULTIPLIER`, `PROOFREADING_MIN_CREDITS` konstansok törlése
-- `calculateProofreadingCredits` függvény törlése
-
-### AdminAISettings.tsx
-- `proofreading_model` eltávolítása az AISettings interfészből
-- "Lektorálási Modell" Card komponens törlése
-
-## Sorrend
-
-1. Adatbázis migráció: `proofreading_orders` tábla törlése
-2. Edge function-ök törlése (4 db)
-3. Frontend hook-ok és komponensek törlése (5 fájl)
-4. Frontend fájlok módosítása (7 fájl)
-
-## Megjegyzések
-
-- A kreditekhez nem nyúlunk (nincs refund)
-- A jelenleg "processing" státuszú lektorálás (1 db) a tábla törlésekor elveszik
-- A types.ts fájlban a Supabase típusok automatikusan frissülnek a migráció után
-
+## Megjegyzés
+Ha a user biztosan benne van a listában, de mégsem látod, a leggyakoribb ok: nem az 1. oldalon vagy, vagy maradt aktív szűrő. A fenti módosítás ezt “bolondbiztossá” teszi.
