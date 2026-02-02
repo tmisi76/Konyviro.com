@@ -64,7 +64,12 @@ export function useSendTicketReply() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ ticketId, message }: { ticketId: string; message: string }) => {
+    mutationFn: async ({ ticketId, message, recipientEmail, ticketSubject }: { 
+      ticketId: string; 
+      message: string; 
+      recipientEmail?: string;
+      ticketSubject?: string;
+    }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nincs bejelentkezve");
 
@@ -87,6 +92,23 @@ export function useSendTicketReply() {
           updated_at: new Date().toISOString()
         })
         .eq("id", ticketId);
+
+      // Send email notification to user
+      if (recipientEmail) {
+        try {
+          await supabase.functions.invoke("send-ticket-reply-email", {
+            body: { 
+              ticketId, 
+              message, 
+              recipientEmail,
+              ticketSubject: ticketSubject || "Support kérés"
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send ticket reply email:", emailError);
+          // Don't throw - the reply was saved, email is secondary
+        }
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "ticket-messages", variables.ticketId] });

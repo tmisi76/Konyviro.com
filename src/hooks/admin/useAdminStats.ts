@@ -14,6 +14,13 @@ export interface AdminStats {
   activeNow: number;
   openTickets: number;
   todayTokens: number;
+  // New stats
+  totalWords: number;
+  totalChapters: number;
+  freeUserBooks: number;
+  paidUserBooks: number;
+  freeUserWords: number;
+  paidUserWords: number;
   subscriptionDistribution: Array<{
     name: string;
     count: number;
@@ -66,6 +73,42 @@ export function useAdminStats() {
       });
 
       const activeSubscriptions = tierCounts.hobby + tierCounts.writer + tierCounts.pro;
+
+      // Total projects and words by subscription tier
+      const { data: projectStats } = await supabase
+        .from("projects")
+        .select("user_id, word_count");
+
+      // Get all profiles to map user subscription tiers
+      const userTiers: Record<string, string> = {};
+      allUsers.forEach((u: { user_id?: string; id?: string; subscription_tier: string }) => {
+        const userId = u.user_id || u.id;
+        if (userId) userTiers[userId] = u.subscription_tier || "free";
+      });
+
+      let freeUserBooks = 0;
+      let paidUserBooks = 0;
+      let freeUserWords = 0;
+      let paidUserWords = 0;
+      let totalWords = 0;
+
+      projectStats?.forEach((p) => {
+        const tier = userTiers[p.user_id] || "free";
+        totalWords += p.word_count || 0;
+        
+        if (tier === "free") {
+          freeUserBooks++;
+          freeUserWords += p.word_count || 0;
+        } else {
+          paidUserBooks++;
+          paidUserWords += p.word_count || 0;
+        }
+      });
+
+      // Total chapters
+      const { count: totalChapters } = await supabase
+        .from("chapters")
+        .select("*", { count: "exact", head: true });
 
       // Total projects (still need to query this separately)
       const { count: totalBooks } = await supabase
@@ -171,6 +214,12 @@ export function useAdminStats() {
         activeNow: activeNowCount,
         openTickets: openTickets || 0,
         todayTokens,
+        totalWords,
+        totalChapters: totalChapters || 0,
+        freeUserBooks,
+        paidUserBooks,
+        freeUserWords,
+        paidUserWords,
         subscriptionDistribution,
       };
     },
