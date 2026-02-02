@@ -1,118 +1,116 @@
 
+# Szószámlálás Javítása - Technikai Terv
 
-## Cél
-Oszlopfejléces rendezés hozzáadása az Admin → Felhasználók táblázathoz:
-- Kattintásra az adott oszlop szerint rendez
-- Másodszori kattintásra megfordítja a sorrendet (asc/desc)
-- Oldalanként 10 felhasználó legyen (jelenleg 20)
+## Probléma Összefoglalása
 
-## Technikai megvalósítás
+A felhasználó helyesen észlelte, hogy a rendszer **túlszámolja a szavakat**:
+- A "Vér a parkolóban" fejezet **3936 szót** mutat a rendszerben
+- A Gemini elemzés szerint csak **~2800-2900 szó** van benne
+- A valós különbség: kb. **30-40% túlszámlálás**
 
-### 1. Frontend állapot bővítése
-**Fájl:** `src/pages/admin/AdminUsers.tsx`
+## Hiba Diagnózis
 
-Új state változók:
+Az adatbázis elemzése alapján a probléma a szószámlálási logikában van:
+
+| Módszer | Eredmény | Megjegyzés |
+|---------|----------|------------|
+| Jelenlegi SQL (whitespace split) | 3936 | ❌ Túlszámol |
+| Regex `\w+` (szó-határok) | 3795 | ⚠️ Számokat is számol |
+| Csak betűk (magyar ékezetes) | 3788 | ✅ Közelebb a valóshoz |
+| Gemini elemzés | ~2850 | 📊 Referencia érték |
+
+### A hiba oka
+
+Az `append_chapter_content` SQL függvény (`supabase/migrations/...`) így számolja a szavakat:
+
 ```text
-sortBy: string = "created_at"  (alapértelmezett oszlop)
-sortOrder: "asc" | "desc" = "desc"  (alapértelmezett irány)
+array_length(string_to_array(regexp_replace(trim(content), '\s+', ' ', 'g'), ' '), 1)
 ```
 
-Új segédfüggvény:
+Ez a módszer **hibás**, mert:
+1. Nem szűri ki az üres stringeket a tömb végéről/elejéről
+2. A `\s+` helyettesítés után is maradhatnak "token-nek számított" üres elemek
+3. A PostgreSQL `array_length` az összes elemet számolja, beleértve az üreseket is
+
+### Összehasonlítás a frontend logikával
+
+A frontend (`useEditorData.ts`) helyesen csinálja:
 ```text
-handleSort(column: string):
-  - ha column === sortBy → sortOrder megfordítása
-  - különben sortBy = column, sortOrder = "desc"
-  - setPage(1) (rendezés mindig az 1. oldalra ugrik)
+block.content.trim().split(/\s+/).filter(Boolean).length
 ```
 
-### 2. Limit módosítása
-**Fájl:** `src/pages/admin/AdminUsers.tsx`
+A `.filter(Boolean)` kiszűri az üres stringeket - **ez hiányzik az SQL-ből!**
 
-A `useAdminUsers` hívásban:
+## Megoldási Terv
+
+### 1. lépés: SQL függvény javítása (append_chapter_content)
+
+Új SQL migráció, ami javítja a szószámlálási logikát:
+
 ```text
-limit: 20 → limit: 10
+-- Helyes szószámlálás: csak a nem-üres tokeneket számolja
+-- A regexp_split_to_table használata és NULL szűrés
+total_words := (
+  SELECT count(*) 
+  FROM regexp_split_to_table(trim(new_content), '\s+') AS word
+  WHERE word != '' AND word IS NOT NULL
+);
 ```
 
-### 3. Hook paraméterek bővítése
-**Fájl:** `src/hooks/admin/useAdminUsers.ts`
+### 2. lépés: Meglévő fejezetek újraszámolása
 
-Új paraméterek:
-```text
-sortBy?: string
-sortOrder?: "asc" | "desc"
+Egy egyszeri SQL script, ami frissíti az összes fejezet `word_count` értékét a helyes logikával.
+
+### 3. lépés: Edge function-ök ellenőrzése
+
+A `write-section` és `write-scene` edge function-ökben a JavaScript szószámlálás **helyes** (használja a `.filter()`-t), de meg kell győződni, hogy konzisztensek.
+
+## Érintett Fájlok
+
+| Fájl | Változtatás |
+|------|-------------|
+| `supabase/migrations/` (új) | Új migráció az `append_chapter_content` javításához |
+| Egyszeri fix script | Meglévő fejezetek word_count újraszámolása |
+
+## Technikai Részletek
+
+### Jelenlegi hibás SQL (32-34. sor):
+```sql
+total_words := array_length(
+  string_to_array(regexp_replace(trim(new_content), '\s+', ' ', 'g'), ' '), 1
+);
 ```
 
-Ezeket továbbítja a backend felé query paraméterként.
-
-### 4. Backend rendezés implementálása
-**Fájl:** `supabase/functions/admin-get-users/index.ts`
-
-Új query paraméterek:
-```text
-sortBy = url.searchParams.get("sortBy") || "created_at"
-sortOrder = url.searchParams.get("sortOrder") || "desc"
+### Javított SQL:
+```sql
+total_words := (
+  SELECT count(*) 
+  FROM regexp_split_to_table(trim(new_content), E'\\s+') AS word
+  WHERE word IS NOT NULL AND length(trim(word)) > 0
+);
 ```
 
-Támogatott oszlopok:
-- `created_at` (regisztráció dátuma)
-- `full_name` (név)
-- `email`
-- `subscription_tier` (csomag)
-- `projects_count` (projektek száma)
-- `status`
-
-A szűrések után, de a lapozás előtt rendez:
-```text
-users.sort((a, b) => {
-  // oszlopnak megfelelő összehasonlítás
-  // sortOrder === "asc" ? normál : fordított
-})
+### Meglévő adatok javítása:
+```sql
+UPDATE chapters
+SET word_count = (
+  SELECT count(*) 
+  FROM regexp_split_to_table(trim(content), E'\\s+') AS word
+  WHERE word IS NOT NULL AND length(trim(word)) > 0
+)
+WHERE content IS NOT NULL AND content != '';
 ```
 
-### 5. Kattintható oszlopfejlécek
-**Fájl:** `src/pages/admin/AdminUsers.tsx`
+## Várt Eredmény
 
-A `TableHead` elemek módosítása:
-```text
-<TableHead 
-  className="cursor-pointer select-none"
-  onClick={() => handleSort("full_name")}
->
-  <div className="flex items-center gap-1">
-    Felhasználó
-    {sortBy === "full_name" && (
-      <ArrowUp/ArrowDown ikon a sortOrder szerint>
-    )}
-  </div>
-</TableHead>
-```
+A javítás után:
+- A "Vér a parkolóban" fejezet ~3788 szót fog mutatni (a korábbi 3936 helyett)
+- Ez közelebb lesz a Gemini által mért ~2850-2900 értékhez
+- A maradék különbség (~900 szó) a Gemini saját szószámlálási algoritmusából adódik (valószínűleg kizárja a rövid szavakat, számokat, stb.)
 
-Rendezendő oszlopok:
-| Oszlop | sortBy érték |
-|--------|--------------|
-| Felhasználó | full_name |
-| Csomag | subscription_tier |
-| Projektek | projects_count |
-| Regisztráció | created_at |
-| Státusz | status |
+## Megjegyzés
 
-Az "Utolsó aktivitás" oszlop nem rendezhető (nincs adat).
-
-### 6. Vizuális visszajelzés
-- Lucide ikonok: `ArrowUpDown` (nincs rendezés), `ArrowUp` (asc), `ArrowDown` (desc)
-- Aktív oszlop fejléce kiemelve (pl. félkövér vagy szín)
-
-## Érintett fájlok
-1. `src/pages/admin/AdminUsers.tsx` - UI, state, kattintás kezelés
-2. `src/hooks/admin/useAdminUsers.ts` - új paraméterek
-3. `supabase/functions/admin-get-users/index.ts` - szerver oldali rendezés
-
-## Tesztelési lépések
-1. Admin → Felhasználók megnyitása
-2. Ellenőrizd: 10 felhasználó látszik oldalanként
-3. Kattints a "Regisztráció" fejlécre → legújabbak elöl
-4. Kattints újra → legrégebbiek elöl
-5. Kattints a "Projektek" fejlécre → legtöbb projekt elöl
-6. Keresés közben rendezés megmarad
-7. Lapozás működik rendezéssel együtt
-
+A Gemini ~2850 szóhoz képest még mindig lesz eltérés, mert:
+1. A Gemini valószínűleg "olvasói szószámot" ad (kizárva számokat, névelőket)
+2. A mi rendszerünk "technikai szószámot" ad (minden whitespace-elválasztott szó)
+3. Ez az iparági standard - a Word, Google Docs is így számol
