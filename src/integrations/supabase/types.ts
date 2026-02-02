@@ -417,6 +417,51 @@ export type Database = {
           },
         ]
       }
+      book_share_access: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ip_address: unknown
+          session_token: string
+          share_id: string
+          verified_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: unknown
+          session_token: string
+          share_id: string
+          verified_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: unknown
+          session_token?: string
+          share_id?: string
+          verified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_share_access_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: false
+            referencedRelation: "book_shares"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "book_share_access_share_id_fkey"
+            columns: ["share_id"]
+            isOneToOne: false
+            referencedRelation: "book_shares_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       book_shares: {
         Row: {
           allow_download: boolean | null
@@ -1821,6 +1866,59 @@ export type Database = {
       }
     }
     Views: {
+      book_shares_public: {
+        Row: {
+          allow_download: boolean | null
+          created_at: string | null
+          expires_at: string | null
+          id: string | null
+          is_public: boolean | null
+          project_id: string | null
+          requires_password: boolean | null
+          share_token: string | null
+          updated_at: string | null
+          user_id: string | null
+          view_count: number | null
+          view_mode: string | null
+        }
+        Insert: {
+          allow_download?: boolean | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          is_public?: boolean | null
+          project_id?: string | null
+          requires_password?: never
+          share_token?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          view_count?: number | null
+          view_mode?: string | null
+        }
+        Update: {
+          allow_download?: boolean | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          is_public?: boolean | null
+          project_id?: string | null
+          requires_password?: never
+          share_token?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          view_count?: number | null
+          view_mode?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_shares_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles_safe: {
         Row: {
           adult_content_verified: boolean | null
