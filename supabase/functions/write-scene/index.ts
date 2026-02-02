@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const countWords = (t: string) => t.trim().split(/\s+/).filter(w => w.length > 0).length;
+// Word-compatible counting: only tokens containing at least one letter
+const countWords = (t: string) => t.trim().split(/\s+/).filter(w => /[a-zA-ZáéíóöőúüűÁÉÍÓÖŐÚÜŰ]/.test(w)).length;
 
 // Universal fiction writing rules
 const UNIVERSAL_FICTION_RULES = `

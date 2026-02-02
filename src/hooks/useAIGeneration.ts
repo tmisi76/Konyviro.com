@@ -4,9 +4,10 @@ import { toast } from "sonner";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Helper to count words in text
+// Helper to count words in text - Word-compatible: only tokens with letters
 const countWords = (text: string): number => {
-  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const wordRegex = /[a-zA-ZáéíóöőúüűÁÉÍÓÖŐÚÜŰ]/;
+  return text.trim().split(/\s+/).filter(word => wordRegex.test(word)).length;
 };
 
 // Helper to update user usage in database

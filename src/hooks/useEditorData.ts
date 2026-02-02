@@ -440,8 +440,10 @@ export function useEditorData(projectId: string) {
 
     // Update chapter word count and project total
     if (activeChapterId) {
+      // Word-compatible counting: only tokens containing at least one letter
+      const wordRegex = /[a-zA-ZáéíóöőúüűÁÉÍÓÖŐÚÜŰ]/;
       const totalWords = blocks.reduce((sum, block) => {
-        const words = block.content.trim().split(/\s+/).filter(Boolean).length;
+        const words = block.content.trim().split(/\s+/).filter(w => wordRegex.test(w)).length;
         return sum + words;
       }, 0);
 
