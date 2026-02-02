@@ -346,6 +346,107 @@ serve(async (req) => {
           extraWordsBalance,
           isFounder 
         });
+
+        // Send admin notification email about new subscription
+        const resendKeyAdmin = Deno.env.get("RESEND_API_KEY");
+        if (resendKeyAdmin) {
+          try {
+            const tierNamesAdmin: Record<string, string> = {
+              hobby: "Hobbi",
+              writer: "Profi",
+              pro: "Pro"
+            };
+            const periodNamesAdmin: Record<string, string> = {
+              monthly: "havi",
+              yearly: "éves"
+            };
+            const tierPricesAdmin = billingPeriod === "yearly" 
+              ? { hobby: 29940, writer: 89940, pro: 179940 }
+              : { hobby: 4990, writer: 14990, pro: 29990 };
+
+            // Get customer info for the email
+            let customerEmailForAdmin = "N/A";
+            let customerNameForAdmin = "N/A";
+            const customerId = session.customer as string;
+            if (customerId) {
+              try {
+                const customerData = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+                if (!customerData.deleted) {
+                  customerEmailForAdmin = customerData.email || "N/A";
+                  customerNameForAdmin = customerData.name || "N/A";
+                }
+              } catch {
+                logStep("Could not retrieve customer for admin email");
+              }
+            }
+
+            const adminEmailHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
+  <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+    <h1 style="color: #7c3aed; margin: 0 0 20px;">🎉 Új előfizetés!</h1>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Név:</td>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${customerNameForAdmin}</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Email:</td>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${customerEmailForAdmin}</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Csomag:</td>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${tierNamesAdmin[tier] || tier}</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Időszak:</td>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${periodNamesAdmin[billingPeriod] || billingPeriod}</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Összeg:</td>
+        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold; color: #22c55e;">${(tierPricesAdmin[tier as keyof typeof tierPricesAdmin] || 0).toLocaleString()} Ft</td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 0; color: #666;">Dátum:</td>
+        <td style="padding: 10px 0; font-weight: bold;">${new Date().toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+      </tr>
+    </table>
+    
+    <p style="margin: 20px 0 0; padding-top: 15px; border-top: 1px solid #eee; color: #888; font-size: 12px; text-align: center;">
+      KönyvÍró Admin Értesítő
+    </p>
+  </div>
+</body>
+</html>`;
+
+            const adminEmailRes = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${resendKeyAdmin}`,
+              },
+              body: JSON.stringify({
+                from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
+                to: ["tmisi76@gmail.com"],
+                subject: `🎉 Új előfizető: ${tierNamesAdmin[tier] || tier} (${periodNamesAdmin[billingPeriod] || billingPeriod})`,
+                html: adminEmailHtml,
+              }),
+            });
+
+            if (adminEmailRes.ok) {
+              logStep("Admin notification email sent", { tier, billingPeriod });
+            } else {
+              const errText = await adminEmailRes.text();
+              logStep("Admin email failed", { error: errText });
+            }
+          } catch (adminEmailError) {
+            logStep("Admin email error", { error: String(adminEmailError) });
+          }
+        }
+
         break;
       }
 

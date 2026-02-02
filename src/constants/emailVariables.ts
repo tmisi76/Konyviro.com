@@ -37,6 +37,7 @@ export const EMAIL_VARIABLES: EmailVariable[] = [
   { name: 'reset_link', description: 'Jelszó visszaállítási link', category: 'auth', example: 'https://app.hu/reset?token=...' },
   { name: 'verification_link', description: 'Email megerősítési link', category: 'auth', example: 'https://app.hu/verify?token=...' },
   { name: 'magic_link', description: 'Bejelentkezési link', category: 'auth', example: 'https://app.hu/login?token=...' },
+  { name: 'login_url', description: 'Bejelentkezési oldal URL', category: 'auth', example: 'https://konyviro.com/auth' },
   
   // Usage variables
   { name: 'words_remaining', description: 'Hátralévő szavak', category: 'usage', example: '15 000' },

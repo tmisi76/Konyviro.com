@@ -16,6 +16,8 @@ import {
   Gift,
   Heart,
   Percent,
+  FileText,
+  PenTool,
 } from "lucide-react";
 import {
   Card,
@@ -123,7 +125,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Secondary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <MiniStatCard title="Mai regisztrációk" value={stats.todaySignups} icon={UserPlus} />
         <MiniStatCard title="Aktív most" value={stats.activeNow} icon={Activity} />
         <MiniStatCard title="Nyitott ticketek" value={stats.openTickets} icon={LifeBuoy} />
@@ -132,6 +134,73 @@ export default function AdminDashboard() {
           value={`${(stats.todayTokens / 1000).toFixed(1)}K`}
           icon={Bot}
         />
+        <MiniStatCard
+          title="Összes szó"
+          value={stats.totalWords >= 1000000 
+            ? `${(stats.totalWords / 1000000).toFixed(1)}M` 
+            : stats.totalWords >= 1000 
+              ? `${(stats.totalWords / 1000).toFixed(0)}K`
+              : stats.totalWords}
+          icon={FileText}
+        />
+        <MiniStatCard
+          title="Fejezetek"
+          value={stats.totalChapters?.toLocaleString() || 0}
+          icon={PenTool}
+        />
+      </div>
+
+      {/* Free vs Paid Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="border-blue-500/20">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Ingyenes felhasználók</h3>
+              <Badge variant="secondary">Free</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-3xl font-bold">{stats.freeUserBooks}</p>
+                <p className="text-sm text-muted-foreground">projekt</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold">
+                  {stats.freeUserWords >= 1000000 
+                    ? `${(stats.freeUserWords / 1000000).toFixed(1)}M` 
+                    : stats.freeUserWords >= 1000 
+                      ? `${(stats.freeUserWords / 1000).toFixed(0)}K`
+                      : stats.freeUserWords}
+                </p>
+                <p className="text-sm text-muted-foreground">szó</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-purple-600/5">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Fizetős felhasználók</h3>
+              <Badge>Premium</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-3xl font-bold">{stats.paidUserBooks}</p>
+                <p className="text-sm text-muted-foreground">projekt</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold">
+                  {stats.paidUserWords >= 1000000 
+                    ? `${(stats.paidUserWords / 1000000).toFixed(1)}M` 
+                    : stats.paidUserWords >= 1000 
+                      ? `${(stats.paidUserWords / 1000).toFixed(0)}K`
+                      : stats.paidUserWords}
+                </p>
+                <p className="text-sm text-muted-foreground">szó</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Charts Row */}

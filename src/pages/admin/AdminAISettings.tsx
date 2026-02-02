@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bot, Save, Loader2, Zap, Brain, Sparkles } from "lucide-react";
@@ -178,13 +179,14 @@ export default function AdminAISettings() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Default Model */}
-        <Card>
+        <Card className="border-green-500/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
               Könyvírási Modell
+              <Badge variant="default" className="ml-2 bg-green-600">✓ Aktív</Badge>
             </CardTitle>
-            <CardDescription>A könyvíráshoz és szövegszerkesztőhöz használt AI modell</CardDescription>
+            <CardDescription>A könyvíráshoz és szövegszerkesztőhöz használt AI modell. Ez a beállítás közvetlenül befolyásolja a generálást.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Select 
@@ -212,13 +214,14 @@ export default function AdminAISettings() {
         </Card>
 
         {/* Temperature */}
-        <Card>
+        <Card className="opacity-60">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
               Kreativitás (Temperature)
+              <Badge variant="secondary" className="ml-2">⏳ Hamarosan</Badge>
             </CardTitle>
-            <CardDescription>AI válaszok variabilitása (0 = konzisztens, 1 = kreatív)</CardDescription>
+            <CardDescription>AI válaszok variabilitása (0 = konzisztens, 1 = kreatív). Még nincs implementálva.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -235,18 +238,20 @@ export default function AdminAISettings() {
               min={0}
               max={1}
               step={0.05}
+              disabled
             />
           </CardContent>
         </Card>
 
         {/* Token Limits */}
-        <Card>
+        <Card className="opacity-60">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5" />
               Token Limitek
+              <Badge variant="secondary" className="ml-2">⏳ Hamarosan</Badge>
             </CardTitle>
-            <CardDescription>Havi szólimit előfizetésenként</CardDescription>
+            <CardDescription>Havi szólimit előfizetésenként. A valós limitek a profiles táblában vannak tárolva.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {SUBSCRIPTION_TIERS.map(tier => (
@@ -257,6 +262,7 @@ export default function AdminAISettings() {
                   value={settings.token_limits[tier] || 0}
                   onChange={(e) => handleTokenLimitChange(tier, e.target.value)}
                   className="flex-1"
+                  disabled
                 />
                 <span className="text-sm text-muted-foreground w-16">szó/hó</span>
               </div>
@@ -265,13 +271,14 @@ export default function AdminAISettings() {
         </Card>
 
         {/* Available Models */}
-        <Card>
+        <Card className="opacity-60">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5" />
               Elérhető Modellek
+              <Badge variant="secondary" className="ml-2">⏳ Hamarosan</Badge>
             </CardTitle>
-            <CardDescription>Rendszerben engedélyezett AI modellek</CardDescription>
+            <CardDescription>Rendszerben engedélyezett AI modellek. Még nincs szűrés implementálva.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {AI_MODELS.map(model => (
@@ -280,6 +287,7 @@ export default function AdminAISettings() {
                   id={model.id}
                   checked={settings.available_models.includes(model.id)}
                   onCheckedChange={(checked) => handleModelToggle(model.id, !!checked)}
+                  disabled
                 />
                 <div className="flex-1">
                   <Label htmlFor={model.id} className="cursor-pointer font-medium">
@@ -294,10 +302,13 @@ export default function AdminAISettings() {
       </div>
 
       {/* Tier-specific Models */}
-      <Card>
+      <Card className="opacity-60">
         <CardHeader>
-          <CardTitle>Előfizetési szintenkénti modellek</CardTitle>
-          <CardDescription>Melyik előfizetési szint milyen modelleket használhat</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            Előfizetési szintenkénti modellek
+            <Badge variant="secondary" className="ml-2">⏳ Hamarosan</Badge>
+          </CardTitle>
+          <CardDescription>Melyik előfizetési szint milyen modelleket használhat. Még nincs implementálva.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

@@ -150,9 +150,9 @@ export default function AdminBilling() {
       </div>
 
       {/* Revenue Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {statsLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 5 }).map((_, i) => (
             <Card key={i}>
               <CardContent className="p-6">
                 <Skeleton className="h-20 w-full" />
@@ -173,24 +173,38 @@ export default function AdminBilling() {
                   {billingStats?.mrr?.toLocaleString()} Ft
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Havi ismétlődő bevétel (MRR)
+                  Összes MRR (havi ekv.)
                 </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
               <CardContent className="p-6">
-                <CreditCard className="h-8 w-8 text-blue-500" />
+                <DollarSign className="h-8 w-8 text-blue-500" />
                 <p className="text-3xl font-bold mt-4">
-                  {billingStats?.activeSubscriptions}
+                  {billingStats?.monthlyMRR?.toLocaleString()} Ft
                 </p>
-                <p className="text-sm text-muted-foreground">Aktív előfizetés</p>
+                <p className="text-sm text-muted-foreground">
+                  Havi előfizetések ({billingStats?.monthlyCount || 0} fő)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+              <CardContent className="p-6">
+                <DollarSign className="h-8 w-8 text-purple-500" />
+                <p className="text-3xl font-bold mt-4">
+                  {billingStats?.yearlyRevenue?.toLocaleString()} Ft
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Éves bevétel ({billingStats?.yearlyCount || 0} fő)
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardContent className="p-6">
-                <TrendingUp className="h-8 w-8 text-purple-500" />
+                <TrendingUp className="h-8 w-8 text-emerald-500" />
                 <p className="text-3xl font-bold mt-4">{billingStats?.newThisMonth}</p>
                 <p className="text-sm text-muted-foreground">Új előfizető (hónap)</p>
               </CardContent>
@@ -394,7 +408,9 @@ export default function AdminBilling() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{sub.amount?.toLocaleString()} Ft/hó</TableCell>
+                    <TableCell>
+                      {sub.amount?.toLocaleString()} Ft{sub.billing_period === 'yearly' ? '/év' : '/hó'}
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
