@@ -455,7 +455,7 @@ export function useBookWizard() {
 
   const startSemiAutomatic = useCallback(async () => {
     let projectIdToUse = data.projectId;
-    
+
     if (!projectIdToUse) {
       const savedProjectId = await saveProject();
       if (!savedProjectId) {
@@ -463,11 +463,11 @@ export function useBookWizard() {
       }
       projectIdToUse = savedProjectId;
     }
-    
+
     // Update project status to draft (wizard completed, manual editing mode)
     await supabase
       .from("projects")
-      .update({ 
+      .update({
         writing_status: "draft",
         wizard_step: 7  // Mark wizard as completed
       })
@@ -477,6 +477,73 @@ export function useBookWizard() {
     reset();
     navigate(`/project/${projectIdToUse}`);
   }, [data.projectId, saveProject, reset, navigate]);
+
+  // Automatikus könyvírás indítása - azonnal elindítja a háttérírást és bezárja a wizard-ot
+  const startAutoWriting = useCallback(async (): Promise<boolean> => {
+    let projectIdToUse = data.projectId;
+
+    if (!projectIdToUse) {
+      const savedProjectId = await saveProject();
+      if (!savedProjectId) {
+        toast.error("Nem sikerült menteni a projektet");
+        return false;
+      }
+      projectIdToUse = savedProjectId;
+    }
+
+    // Build story_structure with all relevant data for AI generation
+    const storyStructure = {} as Record<string, unknown>;
+
+    if (data.genre === "szakkonyv" && data.bookTypeSpecificData) {
+      storyStructure.bookType = data.nonfictionBookType;
+      storyStructure.bookTypeData = data.bookTypeSpecificData;
+      storyStructure.mainTopic = data.selectedStoryIdea?.title || data.title;
+      storyStructure.learningObjectives = data.selectedStoryIdea?.synopsis;
+    } else if (data.selectedStoryIdea) {
+      storyStructure.title = data.selectedStoryIdea.title;
+      storyStructure.synopsis = data.selectedStoryIdea.synopsis;
+      storyStructure.mainElements = data.selectedStoryIdea.mainElements;
+      storyStructure.uniqueSellingPoint = data.selectedStoryIdea.uniqueSellingPoint;
+    }
+
+    storyStructure.detailedConcept = data.detailedConcept;
+    storyStructure.targetAudience = data.targetAudience;
+    storyStructure.tone = data.tone;
+    storyStructure.subcategory = data.subcategory;
+
+    // Update project status
+    const { error: updateError } = await supabase
+      .from("projects")
+      .update({
+        writing_status: "in_progress",
+        story_structure: storyStructure as unknown as Record<string, never>,
+      })
+      .eq("id", projectIdToUse);
+
+    if (updateError) {
+      console.error("Failed to update project status:", updateError);
+      toast.error("Nem sikerült frissíteni a projekt státuszát");
+      return false;
+    }
+
+    // Start background writing by calling the edge function
+    const { error: startError, data: startData } = await supabase.functions.invoke('start-book-writing', {
+      body: { projectId: projectIdToUse, action: 'start' }
+    });
+
+    if (startError || startData?.error) {
+      console.error("Failed to start writing:", startError || startData?.error);
+      toast.error(startData?.error || "Nem sikerült elindítani a könyvírást");
+      return false;
+    }
+
+    toast.success("Könyvírás elindítva! A folyamatot a Dashboard-on követheted.");
+
+    // Reset wizard and navigate to dashboard
+    reset();
+    navigate("/dashboard");
+    return true;
+  }, [data, saveProject, reset, navigate]);
 
   return {
     currentStep,
@@ -506,5 +573,6 @@ export function useBookWizard() {
     reset,
     startWriting,
     startSemiAutomatic,
+    startAutoWriting,
   };
 }
