@@ -12,39 +12,29 @@ export default function Auth() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [showPasswordReset, setShowPasswordReset] = useState(false);
-
+  
   const mode = searchParams.get("mode");
+  
+  // SZINKRON inicializálás - nincs race condition!
+  const [showPasswordReset, setShowPasswordReset] = useState(mode === "reset");
 
   useEffect(() => {
-    // Listen for PASSWORD_RECOVERY event from Supabase
+    // PASSWORD_RECOVERY event figyelése (backup)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setShowPasswordReset(true);
       }
     });
 
-    // Check if we're in reset mode and have a valid session (token was processed)
-    if (mode === "reset") {
-      // The Supabase SDK automatically processes the hash fragment
-      // If there's a valid recovery session, PASSWORD_RECOVERY event will fire
-      // We also set it here in case the event already fired before this component mounted
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          setShowPasswordReset(true);
-        }
-      });
-    }
-
     return () => subscription.unsubscribe();
-  }, [mode]);
+  }, []);
 
   useEffect(() => {
-    // Only redirect if user is logged in AND not in password reset mode
-    if (!loading && user && !showPasswordReset) {
+    // Csak akkor redirect, ha BIZTOSAN nem reset mode
+    if (!loading && user && !showPasswordReset && mode !== "reset") {
       navigate("/dashboard");
     }
-  }, [user, loading, navigate, showPasswordReset]);
+  }, [user, loading, navigate, showPasswordReset, mode]);
 
   if (loading) {
     return (
