@@ -31,6 +31,7 @@ interface Step6ChapterOutlineProps {
   onSave: () => Promise<boolean>;
   onStartWriting: (checkpointMode?: boolean) => void;
   onStartSemiAutomatic?: () => Promise<void>;
+  onStartAutoWriting?: () => Promise<boolean>;
   onEstimatedMinutesChange?: (minutes: number) => void;
   isSaving: boolean;
   isDirty: boolean;
@@ -46,6 +47,7 @@ export function Step6ChapterOutline({
   onSave,
   onStartWriting,
   onStartSemiAutomatic,
+  onStartAutoWriting,
   onEstimatedMinutesChange,
   isSaving,
   isDirty,
@@ -197,12 +199,27 @@ export function Step6ChapterOutline({
     }
 
     if (mode === "automatic") {
-      setShowModeDialog(false);
-      onStartWriting(false);
+      // Ha van új automatikus indítás funkció, használjuk azt
+      // Ez azonnal elindítja az írást és bezárja a wizard-ot
+      if (onStartAutoWriting) {
+        setIsStartingBackground(true);
+        try {
+          await onStartAutoWriting();
+        } catch (error) {
+          console.error("Failed to start automatic writing:", error);
+          toast.error("Hiba történt az automatikus írás indításakor");
+        } finally {
+          setIsStartingBackground(false);
+        }
+      } else {
+        // Fallback a régi viselkedésre
+        setShowModeDialog(false);
+        onStartWriting(false);
+      }
     } else if (mode === "semiAutomatic" && onStartSemiAutomatic) {
       setShowModeDialog(false);
       setIsStartingBackground(true);
-      
+
       try {
         await onStartSemiAutomatic();
       } catch (error) {
