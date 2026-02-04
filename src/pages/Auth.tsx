@@ -1,20 +1,50 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { RegisterForm } from "@/components/auth/RegisterForm";
+import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Auth() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+
+  const mode = searchParams.get("mode");
 
   useEffect(() => {
-    if (!loading && user) {
+    // Listen for PASSWORD_RECOVERY event from Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setShowPasswordReset(true);
+      }
+    });
+
+    // Check if we're in reset mode and have a valid session (token was processed)
+    if (mode === "reset") {
+      // The Supabase SDK automatically processes the hash fragment
+      // If there's a valid recovery session, PASSWORD_RECOVERY event will fire
+      // We also set it here in case the event already fired before this component mounted
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setShowPasswordReset(true);
+        }
+      });
+    }
+
+    return () => subscription.unsubscribe();
+  }, [mode]);
+
+  useEffect(() => {
+    // Only redirect if user is logged in AND not in password reset mode
+    if (!loading && user && !showPasswordReset) {
       navigate("/dashboard");
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, showPasswordReset]);
 
   if (loading) {
     return (
@@ -34,57 +64,73 @@ export default function Auth() {
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-foreground">KönyvÍró AI</h1>
           <p className="mt-2 text-muted-foreground">
-            Írj könyveket mesterséges intelligenciával
+            {showPasswordReset 
+              ? "Állítsd be az új jelszavadat"
+              : "Írj könyveket mesterséges intelligenciával"
+            }
           </p>
         </div>
 
         {/* Auth Card */}
         <div className="rounded-2xl bg-card p-6 shadow-material-3 sm:p-8">
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login" className="text-sm font-medium">
-                Bejelentkezés
-              </TabsTrigger>
-              <TabsTrigger value="register" className="text-sm font-medium">
-                Regisztráció
-              </TabsTrigger>
-            </TabsList>
+          {showPasswordReset ? (
+            <>
+              <h2 className="mb-6 text-xl font-semibold text-center text-foreground">
+                Új jelszó beállítása
+              </h2>
+              <ResetPasswordForm />
+            </>
+          ) : (
+            <>
+              <Tabs defaultValue="login" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="login" className="text-sm font-medium">
+                    Bejelentkezés
+                  </TabsTrigger>
+                  <TabsTrigger value="register" className="text-sm font-medium">
+                    Regisztráció
+                  </TabsTrigger>
+                </TabsList>
 
-            <TabsContent value="login" className="mt-0">
-              <LoginForm />
-            </TabsContent>
+                <TabsContent value="login" className="mt-0">
+                  <LoginForm />
+                </TabsContent>
 
-            <TabsContent value="register" className="mt-0">
-              <RegisterForm />
-            </TabsContent>
-          </Tabs>
+                <TabsContent value="register" className="mt-0">
+                  <RegisterForm />
+                </TabsContent>
+              </Tabs>
 
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">vagy</span>
-            </div>
-          </div>
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">vagy</span>
+                </div>
+              </div>
 
-          {/* Google OAuth */}
-          <GoogleAuthButton />
+              {/* Google OAuth */}
+              <GoogleAuthButton />
+            </>
+          )}
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          A regisztrációval elfogadod az{" "}
-          <a href="#" className="underline hover:text-foreground">
-            Általános Szerződési Feltételeket
-          </a>{" "}
-          és az{" "}
-          <a href="#" className="underline hover:text-foreground">
-            Adatvédelmi Irányelveket
-          </a>
-          .
-        </p>
+        {!showPasswordReset && (
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            A regisztrációval elfogadod az{" "}
+            <a href="#" className="underline hover:text-foreground">
+              Általános Szerződési Feltételeket
+            </a>{" "}
+            és az{" "}
+            <a href="#" className="underline hover:text-foreground">
+              Adatvédelmi Irányelveket
+            </a>
+            .
+          </p>
+        )}
       </div>
     </div>
   );
