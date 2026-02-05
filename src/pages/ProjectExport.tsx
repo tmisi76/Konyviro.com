@@ -104,10 +104,10 @@ export default function ProjectExport() {
           description: projectData.description || undefined,
         });
 
-        // Fetch chapters
+        // Fetch chapters with content field
         const { data: chaptersData, error: chaptersError } = await supabase
           .from("chapters")
-          .select("*")
+          .select("*, content")
           .eq("project_id", projectId)
           .order("sort_order");
 
@@ -120,18 +120,31 @@ export default function ProjectExport() {
         }));
         setChapters(typedChapters);
 
-        // Fetch blocks for each chapter
+        // Fetch content for each chapter
+        // Priority: 1) blocks table (user-edited content), 2) chapters.content (auto-generated)
         const contents: Record<string, string> = {};
         for (const chapter of typedChapters) {
+          // First try blocks table (manual edits have priority)
           const { data: blocksData } = await supabase
             .from("blocks")
             .select("*")
             .eq("chapter_id", chapter.id)
             .order("sort_order");
 
-          contents[chapter.id] = (blocksData || [])
+          const blocksContent = (blocksData || [])
             .map((b) => b.content)
+            .filter(c => c && c.trim())
             .join("\n\n");
+
+          // If blocks exist and have content, use them
+          // Otherwise fall back to chapters.content (from background writer)
+          if (blocksContent.trim()) {
+            contents[chapter.id] = blocksContent;
+          } else {
+            // Use content from chapters table (auto-generated content)
+            const chapterData = typedChapters.find(c => c.id === chapter.id);
+            contents[chapter.id] = (chapterData as any)?.content || "";
+          }
         }
         setChapterContents(contents);
 
