@@ -59,6 +59,8 @@ export function Step6ChapterOutline({
   const [lastConceptHash, setLastConceptHash] = useState<string | null>(null);
   const [showModeDialog, setShowModeDialog] = useState(false);
   const [isStartingBackground, setIsStartingBackground] = useState(false);
+  const [autoWriteStarted, setAutoWriteStarted] = useState(false);
+  const [autoWriteError, setAutoWriteError] = useState<string | null>(null);
 
   const hasOutline = chapters.length > 0;
 
@@ -200,17 +202,22 @@ export function Step6ChapterOutline({
 
     if (mode === "automatic") {
       // Ha van új automatikus indítás funkció, használjuk azt
-      // Ez azonnal elindítja az írást és bezárja a wizard-ot
       if (onStartAutoWriting) {
         setIsStartingBackground(true);
+        setAutoWriteError(null);
         try {
-          await onStartAutoWriting();
+          const success = await onStartAutoWriting();
+          if (success) {
+            // Show success screen in the dialog
+            setAutoWriteStarted(true);
+          } else {
+            setAutoWriteError("Nem sikerült elindítani az automatikus könyvírást. Kérjük, próbáld újra.");
+          }
         } catch (error) {
           console.error("Failed to start automatic writing:", error);
-          toast.error("Hiba történt az automatikus írás indításakor");
-        } finally {
-          setIsStartingBackground(false);
+          setAutoWriteError("Hiba történt az automatikus írás indításakor");
         }
+        setIsStartingBackground(false);
       } else {
         // Fallback a régi viselkedésre
         setShowModeDialog(false);
@@ -456,10 +463,21 @@ export function Step6ChapterOutline({
       {/* Writing Mode Selection Dialog */}
       <WritingModeDialog
         open={showModeDialog}
-        onOpenChange={setShowModeDialog}
+        onOpenChange={(open) => {
+          if (!open && !autoWriteStarted) {
+            // Only allow closing if not in success state
+            setShowModeDialog(false);
+            setAutoWriteError(null);
+          } else if (!open && autoWriteStarted) {
+            // If closing after success, just close - navigation happens via dialog button
+            setShowModeDialog(false);
+          }
+        }}
         onSelectMode={handleModeSelect}
         isStarting={isStartingBackground}
         estimatedMinutes={estimatedMinutes}
+        isStarted={autoWriteStarted}
+        startError={autoWriteError}
       />
     </div>
   );

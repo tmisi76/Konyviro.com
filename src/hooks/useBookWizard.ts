@@ -533,15 +533,19 @@ export function useBookWizard() {
 
     if (startError || startData?.error) {
       console.error("Failed to start writing:", startError || startData?.error);
-      toast.error(startData?.error || "Nem sikerült elindítani a könyvírást");
+      // Revert project status back to draft on failure
+      await supabase
+        .from("projects")
+        .update({ writing_status: "draft" })
+        .eq("id", projectIdToUse);
+      
+      const errorMessage = startData?.error || "Nem sikerült elindítani a könyvírást";
+      toast.error(errorMessage);
       return false;
     }
 
-    toast.success("Könyvírás elindítva! A folyamatot a Dashboard-on követheted.");
-
-    // Reset wizard and navigate to dashboard
+    // Clear wizard data but don't navigate - let the dialog handle navigation
     reset();
-    navigate("/dashboard");
     return true;
   }, [data, saveProject, reset, navigate]);
 
