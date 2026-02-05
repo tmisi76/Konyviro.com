@@ -1,117 +1,155 @@
 
-# Automatikus Könyvírás - Valódi Indítás a Wizard-ból
+
+# Wizard Automatikus Könyvírás - Reset Időzítési Hiba Javítása
 
 ## Probléma
 
-A felhasználó az "Automatikus Könyvírás" opciót választja a wizard végén, de:
-1. A wizard bezáródik és a dashboard-ra navigál
-2. A könyv nem íródik - **a felhasználónak rá kell kattintani az "Indítás" gombra**
-3. Megtévesztő: "Könyvírás elindítva" toast jelenik meg, de valójában nem történik semmi
+Amikor az automatikus könyvírás sikeresen elindul:
+1. A `startAutoWriting()` függvény meghívja a `reset()` metódust
+2. A `reset()` visszaállítja a `currentStep`-et **1-re**
+3. A React újrarendereli a wizard-ot az első lépéssel
+4. A siker dialógus bezáródik és a felhasználó az 1. lépésen találja magát
+
+A dialógus bezárása és a Dashboard navigálás **előtt** történik a reset, ami elrontja a flow-t.
 
 ## Gyökérok
 
-A `useBookWizard.ts` → `startAutoWriting` funkció:
-1. Beállítja a projektet `in_progress` státuszra
-2. Meghívja a `start-book-writing` edge function-t
-3. **DE** ha az edge function hibát ad (pl. "nincsenek fejezetek"), a projekt `in_progress` státuszban marad
-
-A `useBackgroundWriter.ts` → `canStart` feltétel:
+A `useBookWizard.ts` 548. sorában:
 ```typescript
-const canStart = progress.status === 'idle' || progress.status === 'failed' || progress.status === 'in_progress';
+// startAutoWriting sikeresen fut
+reset();  // <- AZONNAL reseteli, de a dialógus még látható!
+return true;
 ```
 
-**Tehát az `in_progress` státusz is "indítható"-nak számít**, ezért jelenik meg az "Indítás" gomb.
+A reset töröl minden adatot és `setCurrentStep(1)` hívással visszaviszi az 1. lépésre - mielőtt a felhasználó rákattintana a "Vissza a Dashboard-ra" gombra.
 
 ## Megoldás
 
-### 1. Módosítás a WritingModeDialog.tsx-ben
+A reset hívást át kell helyezni a **navigálás pillanatára** - ne az edge function sikere után, hanem akkor, amikor a felhasználó ténylegesen a Dashboard-ra navigál.
 
-Amikor az "Automatikus Könyvírás" opciót választják:
-- Ne csak "Tovább" legyen a gomb, hanem **"Automatikus Könyvírás Indítása"**
-- A dialóguson belül **megerősítő állapotot** kell mutatni
-- Sikeres indítás után **záródjon be a dialógus és navigáljon dashboard-ra**
+### 1. `useBookWizard.ts` módosítása
 
-### 2. Új megerősítő képernyő a dialógusban
+A `startAutoWriting()` függvényből **töröljük a `reset()` hívást**:
 
-A WritingModeDialog komponens kiegészítése:
-- Ha `automatic` mód kiválasztva és a "Tovább" gombra kattintanak
-- **Mutasson egy sikeres indítás képernyőt** (zöld pipa, üzenet)
-- "A könyved írása elindult! Zárd be ezt az ablakot."
-- "Vissza a Dashboard-ra" gomb
+```typescript
+// startAutoWriting végén:
+// NE reset()-eljünk itt! Hagyjuk a dialog-ra
+// reset();  // <-- TÖRÖLNI!
+return true;
+```
 
-### 3. Hibakezelés javítása a startAutoWriting-ban
+### 2. `WritingModeDialog.tsx` módosítása
 
-Ha az edge function hibát ad:
-- A projekt státuszát vissza kell állítani (nem `in_progress`)
-- Toast hibaüzenet megjelenítése
-- **Ne navigáljon dashboard-ra hiba esetén**
+A `handleGoToDashboard()` függvényben hívjuk meg a reset-et (callback-ként kapva):
+
+```typescript
+const handleGoToDashboard = () => {
+  onOpenChange(false);
+  onResetWizard?.();  // <-- ÚJ: reset itt történik!
+  navigate("/dashboard");
+};
+```
+
+### 3. Props bővítése
+
+A `WritingModeDialog` kapjon egy új `onResetWizard` callback prop-ot, amit a `Step6ChapterOutline` továbbít a wizard `reset` függvényéből.
 
 ## Érintett fájlok
 
 | Fájl | Változtatás |
 |------|-------------|
-| `src/components/wizard/WritingModeDialog.tsx` | Sikeres indítás képernyő + gomb szöveg |
-| `src/hooks/useBookWizard.ts` | Hibakezelés - státusz visszaállítása |
-| `src/components/wizard/steps/Step6ChapterOutline.tsx` | Dialógus kezelés frissítése |
+| `src/hooks/useBookWizard.ts` | `reset()` hívás törlése a `startAutoWriting`-ból |
+| `src/components/wizard/WritingModeDialog.tsx` | Új `onResetWizard` prop, hívása navigáláskor |
+| `src/components/wizard/steps/Step6ChapterOutline.tsx` | `onResetWizard` prop továbbítása |
 
-## Részletes terv
+## Részletes változtatások
 
-### WritingModeDialog.tsx módosítások
+### useBookWizard.ts (548. sor környéke)
 
-```text
-Új state:
-- isStarted: boolean - sikeres indítás után true
-- startError: string | null - hiba esetén
-
-Új UI állapot:
-- Ha isStarted = true:
-  - Zöld pipa ikon
-  - "Sikeresen elindult a könyved írása!"
-  - "A Dashboard-on követheted a folyamatot."
-  - "Vissza a Dashboard-ra" gomb
-
-Gomb logika:
-- Ha automatic + !isStarted: "Automatikus Könyvírás Indítása"
-- Ha automatic + isStarting: "Indítás..." (loading)
-- Ha automatic + isStarted: "Vissza a Dashboard-ra"
+**Előtte:**
+```typescript
+// Clear wizard data but don't navigate - let the dialog handle navigation
+reset();
+return true;
 ```
 
-### Step6ChapterOutline.tsx módosítások
-
-```text
-handleModeSelect módosítása:
-- automatic mód: 
-  - NE zárja be a dialógust azonnal
-  - Hívja meg az onStartAutoWriting-et
-  - Ha sikeres: setShowSuccessInDialog(true)
-  - Ha hiba: setShowErrorInDialog(error)
+**Utána:**
+```typescript
+// Don't reset here - let the dialog handle it when navigating to dashboard
+// The dialog will call onResetWizard when user clicks "Back to Dashboard"
+return true;
 ```
 
-### useBookWizard.ts hibakezelés
+### WritingModeDialog.tsx
 
-```text
-startAutoWriting:
-- Ha edge function hiba:
-  - Állítsa vissza a projektet 'draft' státuszra (nem in_progress)
-  - Térjen vissza false-al
-  - Toast már megjelenik
-
-- Ha sikeres:
-  - NE navigáljon azonnal - hagyjuk a dialógusra
-  - Térjen vissza true-val
+**Új prop:**
+```typescript
+interface WritingModeDialogProps {
+  // ... meglévő props
+  onResetWizard?: () => void;  // ÚJ
+}
 ```
 
-## Felhasználói élmény a javítás után
+**handleGoToDashboard módosítása:**
+```typescript
+const handleGoToDashboard = () => {
+  onOpenChange(false);
+  if (onResetWizard) {
+    onResetWizard();
+  }
+  navigate("/dashboard");
+};
+```
+
+### Step6ChapterOutline.tsx
+
+**Új prop a komponensben:**
+```typescript
+interface Step6ChapterOutlineProps {
+  // ... meglévő props
+  onResetWizard?: () => void;  // ÚJ
+}
+```
+
+**WritingModeDialog hívása:**
+```typescript
+<WritingModeDialog
+  // ... meglévő props
+  onResetWizard={onResetWizard}  // ÚJ
+/>
+```
+
+### BookCreationWizard.tsx
+
+**Step6ChapterOutline hívása:**
+```typescript
+<Step6ChapterOutline
+  // ... meglévő props
+  onResetWizard={reset}  // ÚJ
+/>
+```
+
+## Folyamat a javítás után
 
 ```text
 1. Felhasználó kiválasztja: "🤖 Automatikus Könyvírás"
-2. Kattint: "Automatikus Könyvírás Indítása"
-3. Loading állapot: "Indítás..."
-4. ✅ Siker esetén: 
-   - Zöld pipa + "A könyved írása elindult!"
-   - "Vissza a Dashboard-ra" gomb
-5. ❌ Hiba esetén:
-   - Hibaüzenet a dialógusban
-   - Lehetőség újrapróbálkozásra
-6. Dashboard-on: A könyv már AKTÍVAN íródik (nincs "Indítás" gomb!)
+2. Kattint: "Írás Indítása"
+3. Edge function sikeresen elindul
+4. → return true (de NEM hívunk reset-et!)
+5. Dialógus mutatja: "Sikeresen elindult!" + zöld pipa
+6. Felhasználó kattint: "Vissza a Dashboard-ra"
+7. → onResetWizard() meghívása (reset itt történik)
+8. → navigate("/dashboard")
+9. Dashboard betölt, a könyv már aktívan íródik
 ```
+
+## Technikai részletek
+
+A reset azért fontos, hogy:
+- Törölje a sessionStorage-ből a wizard adatokat
+- Ne legyen "folytatás" lehetőség ha újra megnyitják a /create-book oldalt
+
+De **csak akkor** szabad meghívni, amikor:
+- A felhasználó ténylegesen elhagyja a wizard-ot
+- A navigálás megtörtént
+
