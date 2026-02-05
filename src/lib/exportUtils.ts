@@ -214,6 +214,12 @@ export async function exportToPdf(data: ExportData): Promise<Blob> {
   const fontSize = parseInt(settings.fontSize) || 12;
   const lineHeight = fontSize * (parseFloat(settings.lineSpacing) || 1.5);
 
+  // Helper: Create new page and return page + starting y position
+  const createNewPage = (): { page: ReturnType<typeof pdfDoc.addPage>; y: number } => {
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    return { page, y: pageHeight - margin };
+  };
+
   // Title page
   if (settings.includeTitlePage) {
     const titlePage = pdfDoc.addPage([pageWidth, pageHeight]);
@@ -235,12 +241,11 @@ export async function exportToPdf(data: ExportData): Promise<Blob> {
     }
   }
 
-  // Table of contents
+  // Table of contents with multi-page support
   if (settings.includeTableOfContents && chapters.length > 0) {
-    const tocPage = pdfDoc.addPage([pageWidth, pageHeight]);
-    let y = pageHeight - margin;
+    let { page, y } = createNewPage();
 
-    tocPage.drawText("Tartalomjegyzék", {
+    page.drawText("Tartalomjegyzék", {
       x: margin,
       y,
       size: fontSize * 1.5,
@@ -249,7 +254,13 @@ export async function exportToPdf(data: ExportData): Promise<Blob> {
     y -= lineHeight * 2;
 
     chapters.forEach((chapter, index) => {
-      tocPage.drawText(`${index + 1}. ${chapter.title}`, {
+      // Check if we need a new page for TOC
+      if (y < margin + lineHeight) {
+        const newPage = createNewPage();
+        page = newPage.page;
+        y = newPage.y;
+      }
+      page.drawText(`${index + 1}. ${chapter.title}`, {
         x: margin,
         y,
         size: fontSize,
@@ -259,13 +270,12 @@ export async function exportToPdf(data: ExportData): Promise<Blob> {
     });
   }
 
-  // Chapters
-  chapters.forEach((chapter, index) => {
-    const page = pdfDoc.addPage([pageWidth, pageHeight]);
-    let y = pageHeight - margin;
+  // Chapters with FULL MULTI-PAGE SUPPORT
+  chapters.forEach((chapter, chapterIndex) => {
+    let { page, y } = createNewPage();
 
     // Chapter title
-    page.drawText(`${index + 1}. ${chapter.title}`, {
+    page.drawText(`${chapterIndex + 1}. ${chapter.title}`, {
       x: margin,
       y,
       size: fontSize * 1.5,
@@ -274,16 +284,48 @@ export async function exportToPdf(data: ExportData): Promise<Blob> {
     });
     y -= lineHeight * 2;
 
-    // Chapter content
+    // Chapter content - RENDER ALL CONTENT with pagination
     const content = chapterContents[chapter.id] || "";
-    const words = content.split(/\s+/);
-    let line = "";
+    const paragraphs = content.split(/\n\n+/);
 
-    for (const word of words) {
-      const testLine = line + (line ? " " : "") + word;
-      const textWidth = font.widthOfTextAtSize(testLine, fontSize);
+    for (const paragraph of paragraphs) {
+      if (!paragraph.trim()) continue;
 
-      if (textWidth > contentWidth && line) {
+      const words = paragraph.split(/\s+/);
+      let line = "";
+
+      for (const word of words) {
+        const testLine = line + (line ? " " : "") + word;
+        const textWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+        if (textWidth > contentWidth && line) {
+          // Check if we need a new page BEFORE drawing
+          if (y < margin) {
+            const newPage = createNewPage();
+            page = newPage.page;
+            y = newPage.y;
+          }
+          
+          page.drawText(line, {
+            x: margin,
+            y,
+            size: fontSize,
+            font: font,
+          });
+          y -= lineHeight;
+          line = word;
+        } else {
+          line = testLine;
+        }
+      }
+
+      // Draw the last line of the paragraph
+      if (line) {
+        if (y < margin) {
+          const newPage = createNewPage();
+          page = newPage.page;
+          y = newPage.y;
+        }
         page.drawText(line, {
           x: margin,
           y,
@@ -291,24 +333,10 @@ export async function exportToPdf(data: ExportData): Promise<Blob> {
           font: font,
         });
         y -= lineHeight;
-        line = word;
-
-        if (y < margin) {
-          // Would need new page - simplified version just stops
-          break;
-        }
-      } else {
-        line = testLine;
       }
-    }
 
-    if (line && y >= margin) {
-      page.drawText(line, {
-        x: margin,
-        y,
-        size: fontSize,
-        font: font,
-      });
+      // Paragraph spacing
+      y -= lineHeight * 0.5;
     }
   });
 
