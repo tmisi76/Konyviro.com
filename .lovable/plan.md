@@ -1,223 +1,69 @@
 
-# Terv: PDF Export Javítása - Hiányzó Tartalom Probléma
+# Terv: Export Javítása - Teljes Könyv Exportálás
 
-## Probléma Azonosítása
+## Probléma Diagnosztizálása
 
-A 60.198 szavas szakkönyvből mindössze ~1.200 szó került a PDF-be, mert a kliens-oldali PDF export (`src/lib/exportUtils.ts`) nem támogatja a többoldalas dokumentumokat.
+A vizsgálat során kiderült, hogy **két különböző probléma** van:
 
-### Gyökérok (279-313. sorok az `exportToPdf` függvényben)
+### 1. Elsődleges Probléma: Hiányzó Tartalom az Adatbázisban
+Az "Új szakkönyv" projektben:
+- **14 fejezet** létezik
+- **193 blokk** van, de **mind az 1. fejezethez** van rendelve
+- A többi 13 fejezet **üres** (0 blokk)
+- A `word_count = 60198`, de a blokkokban csak **~4100 szó** van ténylegesen
 
-```typescript
-chapters.forEach((chapter, index) => {
-    const page = pdfDoc.addPage([pageWidth, pageHeight]);  // ← 1 oldal / fejezet
-    // ...
-    for (const word of words) {
-      // ... szavak renderelése ...
-      
-      if (y < margin) {
-        // Would need new page - simplified version just stops
-        break;  // ← MEGÁLL HA ELFOGYOTT AZ OLDAL!
-      }
-    }
-});
-```
+Ez azt jelenti, hogy az írás során **tartalom veszett el** - a `write-scene` job-ok "completed" státuszúak, de a tartalom nem került be a blokkokba.
 
-**Minden fejezethez csak 1 oldal jön létre, és ha a tartalom nem fér el, a rendszer egyszerűen megáll.**
+### 2. Másodlagos Probléma: Export Nem Ellenőrzi a Tartalmat
+Az export függvények (kliens és szerver oldali egyaránt) nem figyelmeztetnek, ha egy fejezet üres.
 
-## Megoldási Lehetőségek
+---
 
-| Megoldás | Előnyök | Hátrányok |
-|----------|---------|-----------|
-| A) `exportToPdf` javítása többoldalas támogatással | Helyi export, nincs szerverköltség | Bonyolult implementáció, font limitációk |
-| B) ProjectExport átirányítása a CloudConvert-re | Már működik, professzionális minőség | Függőség a szervertől |
-| C) ProjectExport oldal törlése, BookExportModal használata | Egyszerűsítés, egy export rendszer | Kisebb funkcióvesztés |
+## Megoldási Terv
 
-**Javaslat: A) + B) kombináció** - Javítjuk a kliens-oldali PDF exportot, hogy többoldalas legyen.
+### A) Azonnali Javítás: Export Logika Ellenőrzés
 
-## Részletes Változtatások
+Mivel az export helyesen működik (a meglévő blokkokat exportálja), a probléma valójában az, hogy **a tartalomnak kellene létezni a többi fejezetben is**.
 
-### 1. `src/lib/exportUtils.ts` - `exportToPdf` függvény javítása
+Az export rendszer már helyesen működik:
+- Edge function (`export-book`): lekéri az összes fejezetet és blokkokat - ✅
+- Kliens oldali (`exportUtils.ts`): lekéri a blokkokat chapter_id-nként - ✅
 
-A PDF exportot úgy kell módosítani, hogy:
-1. Ha a tartalom túlnyúlik az oldalon, új oldalt hozzon létre
-2. Minden szót helyesen tördeljen oldalak között
-3. A fejezet címét minden új oldal tetején ne ismételje (kivéve az elsőt)
+### B) Gyökérok Megoldása: Tartalom Visszaállítás/Újraírás
 
-**Javított logika:**
+A `writing_jobs` tábla tartalmazza, hogy **melyik jelenet melyik fejezethez tartozik**, de a blokkok nem kerültek be.
+
+**Opció 1**: "Újraírás" gomb a Dashboard-on, ami újra futtatja az elakadt jeleneteket
+**Opció 2**: Migrációs script, ami a `writing_jobs.scene_outline` alapján újra létrehozza a hiányzó blokkokat
+
+### C) Export Figyelmeztetés (Javasolt Javítás Most)
+
+Adjunk figyelmeztetést az export előtt, ha a fejezetek üresek:
 
 ```typescript
-export async function exportToPdf(data: ExportData): Promise<Blob> {
-  const { projectTitle, authorName, chapters, chapterContents, settings } = data;
-
-  const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
-
-  const pageSizes: Record<string, [number, number]> = {
-    A4: [595.28, 841.89],
-    A5: [419.53, 595.28],
-    Letter: [612, 792],
-  };
-
-  const [pageWidth, pageHeight] = pageSizes[settings.pageSize] || pageSizes.A4;
-  const margin = 72;
-  const contentWidth = pageWidth - margin * 2;
-  const fontSize = parseInt(settings.fontSize) || 12;
-  const lineHeight = fontSize * (parseFloat(settings.lineSpacing) || 1.5);
-
-  // Helper: Új oldal létrehozása
-  const createNewPage = () => {
-    const page = pdfDoc.addPage([pageWidth, pageHeight]);
-    return { page, y: pageHeight - margin };
-  };
-
-  // Title page
-  if (settings.includeTitlePage) {
-    const titlePage = pdfDoc.addPage([pageWidth, pageHeight]);
-    titlePage.drawText(projectTitle, {
-      x: margin,
-      y: pageHeight / 2 + 50,
-      size: fontSize * 2,
-      font: boldFont,
-      maxWidth: contentWidth,
-    });
-    if (authorName) {
-      titlePage.drawText(authorName, {
-        x: margin,
-        y: pageHeight / 2 - 50,
-        size: fontSize * 1.5,
-        font: font,
-      });
-    }
-  }
-
-  // Table of contents
-  if (settings.includeTableOfContents && chapters.length > 0) {
-    let { page, y } = createNewPage();
-    page.drawText("Tartalomjegyzék", {
-      x: margin,
-      y,
-      size: fontSize * 1.5,
-      font: boldFont,
-    });
-    y -= lineHeight * 2;
-
-    chapters.forEach((chapter, index) => {
-      if (y < margin + lineHeight) {
-        const newPage = createNewPage();
-        page = newPage.page;
-        y = newPage.y;
-      }
-      page.drawText(`${index + 1}. ${chapter.title}`, {
-        x: margin,
-        y,
-        size: fontSize,
-        font: font,
-      });
-      y -= lineHeight;
-    });
-  }
-
-  // Chapters - JAVÍTOTT TÖBBOLDALAS TÁMOGATÁSSAL
-  chapters.forEach((chapter, chapterIndex) => {
-    let { page, y } = createNewPage();
-
-    // Chapter title
-    page.drawText(`${chapterIndex + 1}. ${chapter.title}`, {
-      x: margin,
-      y,
-      size: fontSize * 1.5,
-      font: boldFont,
-      maxWidth: contentWidth,
-    });
-    y -= lineHeight * 2;
-
-    // Chapter content - TELJES TARTALOM RENDERELÉSE
-    const content = chapterContents[chapter.id] || "";
-    const paragraphs = content.split(/\n\n+/);
-
-    for (const paragraph of paragraphs) {
-      if (!paragraph.trim()) continue;
-
-      const words = paragraph.split(/\s+/);
-      let line = "";
-
-      for (const word of words) {
-        const testLine = line + (line ? " " : "") + word;
-        const textWidth = font.widthOfTextAtSize(testLine, fontSize);
-
-        if (textWidth > contentWidth && line) {
-          // Sor renderelése
-          if (y < margin) {
-            // ÚJ OLDAL LÉTREHOZÁSA ha elfogyott a hely
-            const newPage = createNewPage();
-            page = newPage.page;
-            y = newPage.y;
-          }
-          page.drawText(line, {
-            x: margin,
-            y,
-            size: fontSize,
-            font: font,
-          });
-          y -= lineHeight;
-          line = word;
-        } else {
-          line = testLine;
-        }
-      }
-
-      // Utolsó sor a bekezdésben
-      if (line) {
-        if (y < margin) {
-          const newPage = createNewPage();
-          page = newPage.page;
-          y = newPage.y;
-        }
-        page.drawText(line, {
-          x: margin,
-          y,
-          size: fontSize,
-          font: font,
-        });
-        y -= lineHeight;
-      }
-
-      // Bekezdés utáni térköz
-      y -= lineHeight * 0.5;
-    }
-  });
-
-  const pdfBytes = await pdfDoc.save();
-  return new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
+// BookExportModal.tsx - export előtt ellenőrzés
+const emptyChapters = chapters.filter(ch => !chapterContents[ch.id]?.trim());
+if (emptyChapters.length > chapters.length * 0.5) {
+  // Figyelmeztetés: "A fejezetek több mint fele üres!"
 }
 ```
 
-### 2. Érintett Fájlok
+---
 
-| Fájl | Változtatás |
-|------|-------------|
-| `src/lib/exportUtils.ts` | `exportToPdf` függvény átírása többoldalas támogatással |
+## Összefoglalás
 
-## Folyamat a Javítás Után
+| Probléma | Ok | Megoldás |
+|----------|-----|----------|
+| Csak 1. fejezet exportálódik | A többi fejezet üres az adatbázisban | Az írás során tartalom veszett - újra kell generálni |
+| 60K szó helyett 4K van | A `word_count` frissült, de a blokkok nem mentődtek | Ellenőrizni kell a `write-scene` edge function mentési logikáját |
+| Export nem figyelmeztet | Nincs üres fejezet ellenőrzés | Figyelmeztetés hozzáadása export előtt |
 
-```text
-1. Felhasználó kattint: "Exportálás" → "PDF"
-2. exportBook() → exportToPdf() hívás
-3. Minden fejezet feldolgozása:
-   - Címoldal (ha be van kapcsolva)
-   - Tartalomjegyzék (ha be van kapcsolva)
-   - Fejezetek: ÚJ OLDALAK LÉTREHOZÁSA ha szükséges
-4. 60.000+ szó → ~200-300 oldalas PDF
-5. saveAs() → letöltés
-```
+---
 
-## Alternatív Megoldás (Gyorsabb)
+## Ajánlott Következő Lépések
 
-Ha a kliens-oldali PDF export nem prioritás, egyszerűen **átirányíthatjuk a ProjectExport oldalt a BookExportModal-ra**, ami már a CloudConvert-et használja és helyesen működik.
+1. **Vizsgálat**: A `write-scene` és `process-writing-job` edge function-ök logikájának ellenőrzése - miért nem mentődik a tartalom a blokkokba
+2. **Javítás**: A blokkmentési logika hibájának kijavítása
+3. **Helyreállítás**: Lehetőség biztosítása a felhasználónak, hogy újra futtassa az írást a hiányzó fejezetekre
 
-## Technikai Megjegyzések
-
-- A `pdf-lib` könyvtár támogatja a többoldalas dokumentumokat
-- A font beágyazás limitált (StandardFonts), ezért magyar karakterek problémásak lehetnek
-- A CloudConvert megoldás professzionálisabb eredményt ad (jobb font támogatás, stílusok)
+**Az export logika önmagában helyes** - a probléma az, hogy a tartalom nem létezik az adatbázisban.
