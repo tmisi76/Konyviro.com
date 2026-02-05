@@ -545,9 +545,10 @@ export function useBookWizard() {
     }
 
     // Clear wizard data but don't navigate - let the dialog handle navigation
-    reset();
+    // Don't reset here - let the dialog handle it when navigating to dashboard
+    // The dialog will call onResetWizard when user clicks "Back to Dashboard"
     return true;
-  }, [data, saveProject, reset, navigate]);
+  }, [data, saveProject, navigate]);
 
   return {
     currentStep,
