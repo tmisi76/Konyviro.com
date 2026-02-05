@@ -29,9 +29,8 @@ interface Step6ChapterOutlineProps {
   projectId: string | null;
   onOutlineChange: (outline: ChapterOutlineItem[]) => void;
   onSave: () => Promise<boolean>;
-  onStartWriting: (checkpointMode?: boolean) => void;
   onStartSemiAutomatic?: () => Promise<void>;
-  onStartAutoWriting?: () => Promise<boolean>;
+  onStartAutoWriting: () => Promise<boolean>; // Required - no fallback
   onEstimatedMinutesChange?: (minutes: number) => void;
   isSaving: boolean;
   isDirty: boolean;
@@ -46,7 +45,6 @@ export function Step6ChapterOutline({
   projectId,
   onOutlineChange,
   onSave,
-  onStartWriting,
   onStartSemiAutomatic,
   onStartAutoWriting,
   onEstimatedMinutesChange,
@@ -203,28 +201,22 @@ export function Step6ChapterOutline({
     }
 
     if (mode === "automatic") {
-      // Ha van új automatikus indítás funkció, használjuk azt
-      if (onStartAutoWriting) {
-        setIsStartingBackground(true);
-        setAutoWriteError(null);
-        try {
-          const success = await onStartAutoWriting();
-          if (success) {
-            // Show success screen in the dialog
-            setAutoWriteStarted(true);
-          } else {
-            setAutoWriteError("Nem sikerült elindítani az automatikus könyvírást. Kérjük, próbáld újra.");
-          }
-        } catch (error) {
-          console.error("Failed to start automatic writing:", error);
-          setAutoWriteError("Hiba történt az automatikus írás indításakor");
+      // Always use onStartAutoWriting - no fallback
+      setIsStartingBackground(true);
+      setAutoWriteError(null);
+      try {
+        const success = await onStartAutoWriting();
+        if (success) {
+          // Show success screen in the dialog
+          setAutoWriteStarted(true);
+        } else {
+          setAutoWriteError("Nem sikerült elindítani az automatikus könyvírást. Kérjük, próbáld újra.");
         }
-        setIsStartingBackground(false);
-      } else {
-        // Fallback a régi viselkedésre
-        setShowModeDialog(false);
-        onStartWriting(false);
+      } catch (error) {
+        console.error("Failed to start automatic writing:", error);
+        setAutoWriteError("Hiba történt az automatikus írás indításakor");
       }
+      setIsStartingBackground(false);
     } else if (mode === "semiAutomatic" && onStartSemiAutomatic) {
       setShowModeDialog(false);
       setIsStartingBackground(true);
