@@ -1,148 +1,117 @@
 
-
-# Jelszó Visszaállítás - Race Condition Javítás
+# Automatikus Könyvírás - Valódi Indítás a Wizard-ból
 
 ## Probléma
 
-Amikor a felhasználó rákattint a jelszó-visszaállító linkre, automatikusan be lett léptetve ahelyett, hogy az új jelszó beállító űrlapot látta volna.
+A felhasználó az "Automatikus Könyvírás" opciót választja a wizard végén, de:
+1. A wizard bezáródik és a dashboard-ra navigál
+2. A könyv nem íródik - **a felhasználónak rá kell kattintani az "Indítás" gombra**
+3. Megtévesztő: "Könyvírás elindítva" toast jelenik meg, de valójában nem történik semmi
 
-### Gyökérok: Versenyhelyzet (Race Condition)
+## Gyökérok
 
-Az Auth.tsx-ben két külön `useEffect` fut:
-1. **onAuthStateChange figyelő** - ami a `PASSWORD_RECOVERY` eventre vár
-2. **Redirect logika** - ami átirányít, ha van `user` és nincs `showPasswordReset`
+A `useBookWizard.ts` → `startAutoWriting` funkció:
+1. Beállítja a projektet `in_progress` státuszra
+2. Meghívja a `start-book-writing` edge function-t
+3. **DE** ha az edge function hibát ad (pl. "nincsenek fejezetek"), a projekt `in_progress` státuszban marad
 
-A probléma: Az AuthContext hamarabb állítja be a `user`-t, mint ahogy a `PASSWORD_RECOVERY` event megérkezik az Auth.tsx-be, így a redirect elindul mielőtt a form megjelenne.
-
-```text
-Időrend:
-1. Link kattintás
-2. Supabase SDK feldolgozza a tokent
-3. AuthContext → user = session.user ✅
-4. Auth.tsx redirect useEffect → user létezik, showPasswordReset=false → REDIRECT ❌
-5. Auth.tsx PASSWORD_RECOVERY event → túl késő!
+A `useBackgroundWriter.ts` → `canStart` feltétel:
+```typescript
+const canStart = progress.status === 'idle' || progress.status === 'failed' || progress.status === 'in_progress';
 ```
+
+**Tehát az `in_progress` státusz is "indítható"-nak számít**, ezért jelenik meg az "Indítás" gomb.
 
 ## Megoldás
 
-### 1. stratégia: A `mode=reset` paraméter azonnali ellenőrzése
+### 1. Módosítás a WritingModeDialog.tsx-ben
 
-Ha a URL-ben van `mode=reset`, **azonnal** állítsuk be a `showPasswordReset`-et, mielőtt a redirect logika lefut.
+Amikor az "Automatikus Könyvírás" opciót választják:
+- Ne csak "Tovább" legyen a gomb, hanem **"Automatikus Könyvírás Indítása"**
+- A dialóguson belül **megerősítő állapotot** kell mutatni
+- Sikeres indítás után **záródjon be a dialógus és navigáljon dashboard-ra**
 
-### Módosítandó fájl: `src/pages/Auth.tsx`
+### 2. Új megerősítő képernyő a dialógusban
 
-**Jelenlegi hibás logika:**
-```javascript
-const [showPasswordReset, setShowPasswordReset] = useState(false);
-const mode = searchParams.get("mode");
+A WritingModeDialog komponens kiegészítése:
+- Ha `automatic` mód kiválasztva és a "Tovább" gombra kattintanak
+- **Mutasson egy sikeres indítás képernyőt** (zöld pipa, üzenet)
+- "A könyved írása elindult! Zárd be ezt az ablakot."
+- "Vissza a Dashboard-ra" gomb
 
-useEffect(() => {
-  // onAuthStateChange figyelés...
-  if (mode === "reset") {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setShowPasswordReset(true);  // ← Túl késő, async
-      }
-    });
-  }
-}, [mode]);
+### 3. Hibakezelés javítása a startAutoWriting-ban
 
-useEffect(() => {
-  if (!loading && user && !showPasswordReset) {
-    navigate("/dashboard");  // ← Ez hamarabb fut
-  }
-}, [user, loading, navigate, showPasswordReset]);
-```
-
-**Javított logika:**
-```javascript
-// A mode=reset azonnali felismerése - SZINKRON, nem async!
-const mode = searchParams.get("mode");
-const [showPasswordReset, setShowPasswordReset] = useState(mode === "reset");
-
-useEffect(() => {
-  // PASSWORD_RECOVERY esemény figyelése (plusz biztosíték)
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-    if (event === "PASSWORD_RECOVERY") {
-      setShowPasswordReset(true);
-    }
-  });
-
-  return () => subscription.unsubscribe();
-}, []);
-
-useEffect(() => {
-  // Csak akkor navigálj, ha:
-  // 1. Nincs loading
-  // 2. Van user
-  // 3. NEM vagyunk reset mode-ban (se URL param, se event alapján)
-  if (!loading && user && !showPasswordReset && mode !== "reset") {
-    navigate("/dashboard");
-  }
-}, [user, loading, navigate, showPasswordReset, mode]);
-```
-
-### Kulcs változtatások
-
-| Változás | Előtte | Utána |
-|----------|--------|-------|
-| `showPasswordReset` inicializálás | `useState(false)` | `useState(mode === "reset")` |
-| Redirect feltétel | `!showPasswordReset` | `!showPasswordReset && mode !== "reset"` |
-| `getSession()` hívás | Szükséges | Eltávolítva (nem kell, mert sync init) |
-
-### Miért működik ez?
-
-1. A `useState(mode === "reset")` **szinkron** - azonnal `true` lesz, ha van `mode=reset`
-2. A redirect `useEffect` már **eleve tudja**, hogy reset módban vagyunk
-3. A `PASSWORD_RECOVERY` event továbbra is működik backup-ként
-4. Nincs versenyhelyzet, mert nincs async művelet a state inicializálásban
-
-## Teljes javított Auth.tsx kód
-
-```typescript
-export default function Auth() {
-  const { user, loading } = useAuth();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  
-  const mode = searchParams.get("mode");
-  
-  // SZINKRON inicializálás - nincs race condition!
-  const [showPasswordReset, setShowPasswordReset] = useState(mode === "reset");
-
-  useEffect(() => {
-    // PASSWORD_RECOVERY event figyelése (backup)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setShowPasswordReset(true);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    // Csak akkor redirect, ha BIZTOSAN nem reset mode
-    if (!loading && user && !showPasswordReset && mode !== "reset") {
-      navigate("/dashboard");
-    }
-  }, [user, loading, navigate, showPasswordReset, mode]);
-
-  // ... többi kód változatlan
-}
-```
+Ha az edge function hibát ad:
+- A projekt státuszát vissza kell állítani (nem `in_progress`)
+- Toast hibaüzenet megjelenítése
+- **Ne navigáljon dashboard-ra hiba esetén**
 
 ## Érintett fájlok
 
 | Fájl | Változtatás |
 |------|-------------|
-| `src/pages/Auth.tsx` | Race condition javítása |
+| `src/components/wizard/WritingModeDialog.tsx` | Sikeres indítás képernyő + gomb szöveg |
+| `src/hooks/useBookWizard.ts` | Hibakezelés - státusz visszaállítása |
+| `src/components/wizard/steps/Step6ChapterOutline.tsx` | Dialógus kezelés frissítése |
 
-## Tesztelési terv
+## Részletes terv
 
-1. Kérj jelszó-visszaállító emailt
-2. Kattints a linkre az emailben
-3. **Elvárt:** Új jelszó beállító űrlap jelenik meg (nem redirect!)
-4. Írd be az új jelszót
-5. **Elvárt:** Sikeres mentés, majd redirect a dashboard-ra
+### WritingModeDialog.tsx módosítások
 
+```text
+Új state:
+- isStarted: boolean - sikeres indítás után true
+- startError: string | null - hiba esetén
+
+Új UI állapot:
+- Ha isStarted = true:
+  - Zöld pipa ikon
+  - "Sikeresen elindult a könyved írása!"
+  - "A Dashboard-on követheted a folyamatot."
+  - "Vissza a Dashboard-ra" gomb
+
+Gomb logika:
+- Ha automatic + !isStarted: "Automatikus Könyvírás Indítása"
+- Ha automatic + isStarting: "Indítás..." (loading)
+- Ha automatic + isStarted: "Vissza a Dashboard-ra"
+```
+
+### Step6ChapterOutline.tsx módosítások
+
+```text
+handleModeSelect módosítása:
+- automatic mód: 
+  - NE zárja be a dialógust azonnal
+  - Hívja meg az onStartAutoWriting-et
+  - Ha sikeres: setShowSuccessInDialog(true)
+  - Ha hiba: setShowErrorInDialog(error)
+```
+
+### useBookWizard.ts hibakezelés
+
+```text
+startAutoWriting:
+- Ha edge function hiba:
+  - Állítsa vissza a projektet 'draft' státuszra (nem in_progress)
+  - Térjen vissza false-al
+  - Toast már megjelenik
+
+- Ha sikeres:
+  - NE navigáljon azonnal - hagyjuk a dialógusra
+  - Térjen vissza true-val
+```
+
+## Felhasználói élmény a javítás után
+
+```text
+1. Felhasználó kiválasztja: "🤖 Automatikus Könyvírás"
+2. Kattint: "Automatikus Könyvírás Indítása"
+3. Loading állapot: "Indítás..."
+4. ✅ Siker esetén: 
+   - Zöld pipa + "A könyved írása elindult!"
+   - "Vissza a Dashboard-ra" gomb
+5. ❌ Hiba esetén:
+   - Hibaüzenet a dialógusban
+   - Lehetőség újrapróbálkozásra
+6. Dashboard-on: A könyv már AKTÍVAN íródik (nincs "Indítás" gomb!)
+```
