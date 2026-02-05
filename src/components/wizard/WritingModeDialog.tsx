@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Wand2, Edit3, Clock, Loader2 } from "lucide-react";
+import { Wand2, Edit3, Clock, Loader2, CheckCircle2, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,8 @@ interface WritingModeDialogProps {
   onSelectMode: (mode: WritingMode) => void;
   isStarting?: boolean;
   estimatedMinutes?: number;
+  isStarted?: boolean;
+  startError?: string | null;
 }
 
 export function WritingModeDialog({
@@ -27,14 +30,87 @@ export function WritingModeDialog({
   onSelectMode,
   isStarting = false,
   estimatedMinutes = 45,
+  isStarted = false,
+  startError = null,
 }: WritingModeDialogProps) {
   const [selectedMode, setSelectedMode] = useState<WritingMode | null>(null);
+  const navigate = useNavigate();
 
   const handleStart = () => {
     if (selectedMode) {
       onSelectMode(selectedMode);
     }
   };
+
+  const handleGoToDashboard = () => {
+    onOpenChange(false);
+    navigate("/dashboard");
+  };
+
+  // Success screen after auto-writing started
+  if (isStarted) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="mb-6"
+            >
+              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="h-12 w-12 text-primary" />
+              </div>
+            </motion.div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h2 className="text-2xl font-bold mb-2">Sikeresen elindult! 🎉</h2>
+              <p className="text-muted-foreground mb-6">
+                A könyved írása elkezdődött. A Dashboard-on követheted a folyamatot valós időben.
+              </p>
+              
+              <div className="bg-muted/50 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  <span>Becsült idő: ~{estimatedMinutes} perc</span>
+                </div>
+              </div>
+
+              <Button size="lg" onClick={handleGoToDashboard} className="gap-2">
+                Vissza a Dashboard-ra
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </motion.div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Error screen
+  if (startError) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <span className="text-3xl">❌</span>
+            </div>
+            <h2 className="text-xl font-bold mb-2">Hiba történt</h2>
+            <p className="text-muted-foreground mb-6">{startError}</p>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Bezárás
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -143,6 +219,11 @@ export function WritingModeDialog({
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Indítás...
+              </>
+            ) : selectedMode === "automatic" ? (
+              <>
+                <Wand2 className="mr-2 h-4 w-4" />
+                Írás Indítása
               </>
             ) : (
               "Tovább"
