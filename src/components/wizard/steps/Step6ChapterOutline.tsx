@@ -35,6 +35,7 @@ interface Step6ChapterOutlineProps {
   onEstimatedMinutesChange?: (minutes: number) => void;
   isSaving: boolean;
   isDirty: boolean;
+  onResetWizard?: () => void;
 }
 
 export function Step6ChapterOutline({
@@ -51,6 +52,7 @@ export function Step6ChapterOutline({
   onEstimatedMinutesChange,
   isSaving,
   isDirty,
+  onResetWizard,
 }: Step6ChapterOutlineProps) {
   const [chapters, setChapters] = useState<ChapterOutlineItem[]>(existingOutline);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -478,6 +480,7 @@ export function Step6ChapterOutline({
         estimatedMinutes={estimatedMinutes}
         isStarted={autoWriteStarted}
         startError={autoWriteError}
+        onResetWizard={onResetWizard}
       />
     </div>
   );

@@ -22,6 +22,7 @@ interface WritingModeDialogProps {
   estimatedMinutes?: number;
   isStarted?: boolean;
   startError?: string | null;
+  onResetWizard?: () => void;
 }
 
 export function WritingModeDialog({
@@ -32,6 +33,7 @@ export function WritingModeDialog({
   estimatedMinutes = 45,
   isStarted = false,
   startError = null,
+  onResetWizard,
 }: WritingModeDialogProps) {
   const [selectedMode, setSelectedMode] = useState<WritingMode | null>(null);
   const navigate = useNavigate();
@@ -44,6 +46,7 @@ export function WritingModeDialog({
 
   const handleGoToDashboard = () => {
     onOpenChange(false);
+    onResetWizard?.();
     navigate("/dashboard");
   };
 
