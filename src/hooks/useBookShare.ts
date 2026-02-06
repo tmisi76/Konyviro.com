@@ -176,24 +176,27 @@ export function useSharedBook(shareToken: string) {
         } as SharedBookData;
       }
 
-      // Verify session token if we have one
+      // Verify session token if we have one - via edge function (not direct DB query)
       if (safeShare.requires_password && sessionToken) {
-        const { data: accessData, error: accessError } = await supabase
-          .from("book_share_access")
-          .select("expires_at")
-          .eq("share_id", safeShare.id)
-          .eq("session_token", sessionToken)
-          .maybeSingle();
+        try {
+          const response = await supabase.functions.invoke("verify-session-token", {
+            body: { shareToken, sessionToken },
+          });
 
-        if (accessError || !accessData || new Date(accessData.expires_at) < new Date()) {
-          // Session expired or invalid
+          if (response.error || !response.data?.valid) {
+            // Session expired or invalid
+            setSessionToken(null);
+            localStorage.removeItem(`share_session_${shareToken}`);
+            return {
+              project: { id: "", title: "Védett könyv", description: null, genre: "" },
+              chapters: [],
+              share: safeShare as unknown as BookShare,
+            } as SharedBookData;
+          }
+        } catch {
+          // If verification fails, clear session and require re-auth
           setSessionToken(null);
           localStorage.removeItem(`share_session_${shareToken}`);
-          return {
-            project: { id: "", title: "Védett könyv", description: null, genre: "" },
-            chapters: [],
-            share: safeShare as unknown as BookShare,
-          } as SharedBookData;
         }
       }
 
