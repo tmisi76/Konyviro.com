@@ -83,7 +83,7 @@ export function SubscriptionSettings() {
   
   // Limits from database (profiles table)
   const projectLimit = usageData?.projectLimit === -1 ? Infinity : (usageData?.projectLimit || 1);
-  const wordLimit = usageData?.monthlyWordLimit === -1 ? Infinity : (usageData?.monthlyWordLimit || 1000);
+  const wordLimit = usageData?.monthlyWordLimit === -1 ? Infinity : (usageData?.monthlyWordLimit || 10000);
   const extraCredits = usageData?.extraWordsBalance || 0;
 
   // Calculate days remaining
