@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   Search,
   PenTool,
+  Users2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ const ADMIN_NAV_ITEMS = [
       { name: "Felhasználók", href: "/admin/users", icon: Users },
       { name: "Projektek", href: "/admin/projects", icon: BookOpen },
       { name: "Előfizetések", href: "/admin/billing", icon: CreditCard },
+      { name: "Affiliate", href: "/admin/affiliates", icon: Users2 },
     ],
   },
   {

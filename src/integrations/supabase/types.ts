@@ -1101,6 +1101,8 @@ export type Database = {
           monthly_word_limit: number
           payment_method: string | null
           project_limit: number
+          referral_ban_reason: string | null
+          referral_banned: boolean | null
           referral_bonus_received: boolean | null
           referral_code: string | null
           referred_by: string | null
@@ -1142,6 +1144,8 @@ export type Database = {
           monthly_word_limit?: number
           payment_method?: string | null
           project_limit?: number
+          referral_ban_reason?: string | null
+          referral_banned?: boolean | null
           referral_bonus_received?: boolean | null
           referral_code?: string | null
           referred_by?: string | null
@@ -1183,6 +1187,8 @@ export type Database = {
           monthly_word_limit?: number
           payment_method?: string | null
           project_limit?: number
+          referral_ban_reason?: string | null
+          referral_banned?: boolean | null
           referral_bonus_received?: boolean | null
           referral_code?: string | null
           referred_by?: string | null
@@ -1393,8 +1399,12 @@ export type Database = {
       }
       referrals: {
         Row: {
+          banned_at: string | null
           created_at: string | null
+          fraud_reason: string | null
           id: string
+          ip_address: unknown
+          is_fraud: boolean | null
           referral_code: string
           referred_bonus: number | null
           referred_id: string
@@ -1403,8 +1413,12 @@ export type Database = {
           status: string | null
         }
         Insert: {
+          banned_at?: string | null
           created_at?: string | null
+          fraud_reason?: string | null
           id?: string
+          ip_address?: unknown
+          is_fraud?: boolean | null
           referral_code: string
           referred_bonus?: number | null
           referred_id: string
@@ -1413,8 +1427,12 @@ export type Database = {
           status?: string | null
         }
         Update: {
+          banned_at?: string | null
           created_at?: string | null
+          fraud_reason?: string | null
           id?: string
+          ip_address?: unknown
+          is_fraud?: boolean | null
           referral_code?: string
           referred_bonus?: number | null
           referred_id?: string

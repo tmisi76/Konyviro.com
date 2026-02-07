@@ -165,3 +165,9 @@ verify_jwt = false
 [functions.process-scheduled-campaigns]
 verify_jwt = false
 
+[functions.admin-get-affiliates]
+verify_jwt = false
+
+[functions.admin-ban-referrer]
+verify_jwt = false
+
