@@ -34,6 +34,7 @@ import { useStripeSubscription } from "@/hooks/useStripeSubscription";
 import { useSubscription } from "@/hooks/useSubscription";
 import { RetentionOfferModal } from "./RetentionOfferModal";
 import { PlanComparisonModal } from "./PlanComparisonModal";
+import { ReferralCard } from "./ReferralCard";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -234,6 +235,9 @@ export function SubscriptionSettings() {
           </p>
         </div>
       </div>
+
+      {/* Referral Card - Available for ALL users */}
+      <ReferralCard />
 
       {/* Plan Change */}
       <div className="rounded-xl border bg-card p-6 shadow-material-1">

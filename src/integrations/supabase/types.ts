@@ -1002,6 +1002,9 @@ export type Database = {
           monthly_word_limit: number
           payment_method: string | null
           project_limit: number
+          referral_bonus_received: boolean | null
+          referral_code: string | null
+          referred_by: string | null
           retention_discount_active: boolean | null
           retention_discount_expires_at: string | null
           retention_offer_accepted_at: string | null
@@ -1040,6 +1043,9 @@ export type Database = {
           monthly_word_limit?: number
           payment_method?: string | null
           project_limit?: number
+          referral_bonus_received?: boolean | null
+          referral_code?: string | null
+          referred_by?: string | null
           retention_discount_active?: boolean | null
           retention_discount_expires_at?: string | null
           retention_offer_accepted_at?: string | null
@@ -1078,6 +1084,9 @@ export type Database = {
           monthly_word_limit?: number
           payment_method?: string | null
           project_limit?: number
+          referral_bonus_received?: boolean | null
+          referral_code?: string | null
+          referred_by?: string | null
           retention_discount_active?: boolean | null
           retention_discount_expires_at?: string | null
           retention_offer_accepted_at?: string | null
@@ -1282,6 +1291,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      referrals: {
+        Row: {
+          created_at: string | null
+          id: string
+          referral_code: string
+          referred_bonus: number | null
+          referred_id: string
+          referrer_bonus: number | null
+          referrer_id: string
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          referral_code: string
+          referred_bonus?: number | null
+          referred_id: string
+          referrer_bonus?: number | null
+          referrer_id: string
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          referral_code?: string
+          referred_bonus?: number | null
+          referred_id?: string
+          referrer_bonus?: number | null
+          referrer_id?: string
+          status?: string | null
+        }
+        Relationships: []
       }
       sources: {
         Row: {

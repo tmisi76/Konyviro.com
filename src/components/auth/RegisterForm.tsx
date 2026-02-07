@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { REFERRAL_STORAGE_KEY } from "@/constants/referral";
 
 export function RegisterForm() {
   const [fullName, setFullName] = useState("");
@@ -16,8 +17,17 @@ export function RegisterForm() {
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const { signUp } = useAuth();
   const navigate = useNavigate();
+
+  // Check for stored referral code on mount
+  useEffect(() => {
+    const storedCode = localStorage.getItem(REFERRAL_STORAGE_KEY);
+    if (storedCode) {
+      setReferralCode(storedCode);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +45,7 @@ export function RegisterForm() {
 
     setLoading(true);
 
-    const { error } = await signUp(email, password, fullName);
+    const { error, data } = await signUp(email, password, fullName);
 
     if (error) {
       if (error.message.includes("already registered")) {
@@ -47,9 +57,29 @@ export function RegisterForm() {
       return;
     }
 
+    // Process referral if code exists and user was created
+    if (referralCode && data?.user?.id) {
+      supabase.functions.invoke('process-referral', {
+        body: { 
+          new_user_id: data.user.id, 
+          referral_code: referralCode 
+        }
+      }).then(({ data: refData, error: refError }) => {
+        if (refError) {
+          console.error("Referral processing error:", refError);
+        } else if (refData?.success) {
+          console.log("Referral bonus applied:", refData.bonus);
+        }
+        // Clear the stored referral code after processing
+        localStorage.removeItem(REFERRAL_STORAGE_KEY);
+      }).catch(err => {
+        console.error("Referral error:", err);
+      });
+    }
+
     // Send welcome email (fire and forget, don't block navigation)
     supabase.functions.invoke('send-welcome-email', {
-      body: { email, full_name: fullName }
+      body: { email, full_name: fullName, has_referral: !!referralCode }
     }).catch(err => {
       console.error("Welcome email error:", err);
     });
