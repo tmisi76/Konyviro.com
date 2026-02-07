@@ -1,81 +1,187 @@
 
 
-# Terv: Referral Gomb Feltűnőbbé Tétele
+# Terv: Admin Email Küldő Rendszer
 
-## Probléma
+## Összefoglaló
 
-A jelenlegi referral link a compact sidebar-ban nagyon gyenge:
-- Kis méretű szöveg (`text-xs`)
-- Csak szöveg, nincs vizuális kiemelés
-- Nem vonzza a figyelmet
+Új admin oldal létrehozása (`/admin/email-sender`) ahol:
+1. **Csoport kiválasztása** - kinek küldjük az emailt
+2. **Email szerkesztés** - tárgy és tartalom megírása (RichTextEditor-ral)
+3. **Küldés** - batch-ekben kiküldés
+4. **Előzmények** - minden elküldött email eltárolása és megjelenítése
 
-## Megoldás
+---
 
-Átalakítom egy nagy, színes, gradient hátterű gombra:
+## 1. Adatbázis Séma
+
+### Új tábla: `admin_email_campaigns`
+
+| Oszlop | Típus | Leírás |
+|--------|-------|--------|
+| id | uuid | Elsődleges kulcs |
+| admin_id | uuid | Küldő admin user_id |
+| subject | text | Email tárgya |
+| body_html | text | HTML tartalom |
+| body_text | text | Plain text verzió |
+| recipient_type | text | 'all', 'plan', 'inactive', 'custom' |
+| recipient_filter | jsonb | Szűrési paraméterek |
+| recipient_count | integer | Címzettek száma |
+| sent_count | integer | Sikeresen elküldött |
+| failed_count | integer | Sikertelen küldések |
+| status | text | 'draft', 'sending', 'completed', 'failed' |
+| started_at | timestamptz | Küldés kezdete |
+| completed_at | timestamptz | Küldés befejezése |
+| created_at | timestamptz | Létrehozás ideje |
+
+---
+
+## 2. Címzett Csoportok
+
+Választható opciók:
+
+| Csoport | Leírás |
+|---------|--------|
+| **Minden felhasználó** | Összes regisztrált user |
+| **Előfizetési csomag** | Free / Hobby / Író / Pro |
+| **Inaktív felhasználók** | X napja nem aktív |
+| **Egyéni lista** | Kézzel beírt email címek |
+
+---
+
+## 3. Új Fájlok
+
+| Fájl | Leírás |
+|------|--------|
+| `src/pages/admin/AdminEmailSender.tsx` | Fő oldal komponens |
+| `src/hooks/admin/useEmailCampaigns.ts` | Hook a kampányok kezeléséhez |
+| `supabase/functions/send-campaign-email/index.ts` | Edge function a küldéshez |
+
+---
+
+## 4. UI Felépítés
 
 ```text
-Jelenlegi:
-┌─────────────────────────────────────┐
-│ 🎁 Ajánld egy barátodnak!  +10k szó │  ← apró szöveg
-└─────────────────────────────────────┘
-
-Új dizájn:
-┌─────────────────────────────────────┐
-│  🎁  HÍVD MEG BARÁTAIDAT!           │  ← nagy, feltűnő gomb
-│      +10.000 szó kredit             │     gradient háttér
-└─────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  📧 Email Kampányok                     [+ Új kampány]     │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Új Email Küldése                                    │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ Címzettek: [Minden felhasználó ▼]                   │   │
+│  │                                                     │   │
+│  │ Ha "Előfizetési csomag":  [Free / Hobby / Író / Pro]│   │
+│  │ Ha "Inaktív":             [7/14/30 napja ▼]         │   │
+│  │ Ha "Egyéni":              [Textarea email címek]    │   │
+│  │                                                     │   │
+│  │ Tárgy: [________________________________]           │   │
+│  │                                                     │   │
+│  │ Tartalom:                                           │   │
+│  │ ┌───────────────────────────────────────────────┐   │   │
+│  │ │ [B] [I] [U] │ [Link] │ [Változó▼]  │ [HTML]   │   │   │
+│  │ ├───────────────────────────────────────────────┤   │   │
+│  │ │                                               │   │   │
+│  │ │  RichTextEditor                               │   │   │
+│  │ │                                               │   │   │
+│  │ └───────────────────────────────────────────────┘   │   │
+│  │                                                     │   │
+│  │ [Teszt email küldése]      [📤 Kampány indítása]    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                            │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Előző kampányok                                     │   │
+│  ├─────────────────────────────────────────────────────┤   │
+│  │ Tárgy          │ Címzettek │ Küldve    │ Státusz    │   │
+│  │────────────────┼───────────┼───────────┼────────────│   │
+│  │ Akciós ajánlat │ 156       │ 2026.02.05│ ✓ Kész     │   │
+│  │ Inaktív emléke │ 42        │ 2026.02.01│ ✓ Kész     │   │
+│  │ Új funkció     │ 312       │ 2026.01.28│ ✓ Kész     │   │
+│  └─────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────┘
 ```
 
-## Stílus Részletek
+---
 
-| Tulajdonság | Érték |
-|-------------|-------|
-| Háttér | Gradient: `primary` → `primary/80` |
-| Szövegszín | Fehér (`text-white`) |
-| Méret | Teljes szélesség, nagyobb padding |
-| Ikon | Gift ikon fehér színben |
-| Animáció | Hover: skála növelés + árnyék |
-| Border radius | Kerekített sarkok (`rounded-lg`) |
+## 5. Implementációs Részletek
 
-## Kód Változtatás
+### 5.1 Címzett számláló
 
-**Fájl:** `src/components/dashboard/UsagePanel.tsx`
+A csoport kiválasztásakor a rendszer lekérdezi, hány felhasználó fog emailt kapni:
 
-A 190-202. sorok cseréje:
-
-```tsx
-{/* Referral CTA button - feltűnő */}
-<button 
-  onClick={() => setShowReferralModal(true)}
-  className="w-full mt-3 p-3 rounded-lg bg-gradient-to-r from-primary to-primary/80 
-             text-white font-medium text-sm
-             hover:shadow-lg hover:scale-[1.02] transition-all duration-200
-             flex flex-col items-center gap-1"
->
-  <span className="flex items-center gap-2">
-    <Gift className="h-4 w-4" />
-    Hívd meg barátaidat!
-  </span>
-  <span className="text-xs opacity-90">
-    +{(REFERRAL_BONUS_WORDS).toLocaleString("hu-HU")} szó kredit
-  </span>
-</button>
+```typescript
+const { data: count } = await supabase.rpc('count_campaign_recipients', {
+  recipient_type: 'plan',
+  filter_value: 'hobby'
+});
+// Megjelenik: "~156 címzett"
 ```
 
-## Vizuális Összehasonlítás
+### 5.2 Változók beszúrása
 
-| Aspektus | Előtte | Utána |
-|----------|--------|-------|
-| Betűméret | `text-xs` | `text-sm` + `text-xs` alcím |
-| Háttér | Nincs | Gradient primary |
-| Ikon | 3x3 | 4x4 |
-| Padding | Minimális | `p-3` |
-| Hover | Csak szín | Skála + árnyék animáció |
-| Elrendezés | Egy sor | Két sor (cím + jutalom) |
+A `VariableInserter` komponens használata, ami beilleszti a `{{user_name}}` stb. változókat.
 
-## Érintett Fájl
+### 5.3 Küldés folyamat
 
-| Fájl | Változtatás |
-|------|-------------|
-| `src/components/dashboard/UsagePanel.tsx` | 190-202. sor módosítása |
+1. Admin elindítja a kampányt
+2. Edge function batch-ekben (10/kör) küldi az emaileket
+3. Státusz frissítés minden batch után
+4. Befejezéskor összesítés mentése
+
+---
+
+## 6. Navigáció Frissítése
+
+Az `AdminLayout.tsx`-ben új menüpont:
+
+```typescript
+{ name: "Email Küldés", href: "/admin/email-sender", icon: Send },
+```
+
+Vagy beágyazás az "Email Sablonok" alá al-link-ként.
+
+---
+
+## 7. Routing Frissítése
+
+Az `App.tsx`-ben új route:
+
+```typescript
+<Route
+  path="/admin/email-sender"
+  element={
+    <ProtectedRoute>
+      <AdminLayout>
+        <AdminEmailSender />
+      </AdminLayout>
+    </ProtectedRoute>
+  }
+/>
+```
+
+---
+
+## 8. Változtatandó Fájlok Összesítése
+
+| Fájl | Művelet |
+|------|---------|
+| `src/pages/admin/AdminEmailSender.tsx` | Új fájl - fő oldal |
+| `src/hooks/admin/useEmailCampaigns.ts` | Új fájl - hook |
+| `supabase/functions/send-campaign-email/index.ts` | Új fájl - edge function |
+| `src/layouts/AdminLayout.tsx` | Módosítás - új menüpont |
+| `src/App.tsx` | Módosítás - új route |
+| `src/pages/admin/index.ts` | Módosítás - export |
+| Adatbázis migráció | Új tábla: `admin_email_campaigns` |
+
+---
+
+## 9. RLS Szabályok
+
+A `admin_email_campaigns` táblára:
+
+```sql
+-- Csak adminok láthatják és kezelhetik
+CREATE POLICY "Admins can manage email campaigns"
+ON admin_email_campaigns FOR ALL
+USING (is_admin(auth.uid()));
+```
 
