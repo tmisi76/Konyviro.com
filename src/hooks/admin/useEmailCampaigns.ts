@@ -17,6 +17,7 @@ export interface EmailCampaign {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  scheduled_at: string | null;
 }
 
 export function useEmailCampaigns() {
@@ -45,9 +46,12 @@ export function useCreateCampaign() {
       recipient_type: string;
       recipient_filter?: Record<string, unknown>;
       recipient_count: number;
+      scheduled_at?: string | null;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+
+      const isScheduled = !!campaign.scheduled_at;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase
@@ -60,7 +64,8 @@ export function useCreateCampaign() {
           recipient_type: campaign.recipient_type,
           recipient_filter: campaign.recipient_filter || {},
           recipient_count: campaign.recipient_count,
-          status: "draft",
+          status: isScheduled ? "scheduled" : "draft",
+          scheduled_at: campaign.scheduled_at || null,
         }])
         .select()
         .single();
@@ -118,6 +123,36 @@ export function useCountRecipients() {
 
       if (error) throw error;
       return data as number;
+    },
+  });
+}
+
+export function useCancelCampaign() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { error } = await supabase
+        .from("admin_email_campaigns")
+        .update({ status: "cancelled" })
+        .eq("id", campaignId)
+        .eq("status", "scheduled");
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "email-campaigns"] });
+      toast({
+        title: "Ütemezés törölve",
+        description: "A kampány ütemezése sikeresen törölve.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Hiba",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 }
