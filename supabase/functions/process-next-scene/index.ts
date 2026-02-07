@@ -36,10 +36,19 @@ NYELVTANI HELYESSÉG:
 - Összetett szavak: egybe vagy külön az MTA szabályai szerint
 `;
 
+const NO_MARKDOWN_RULE = `
+
+FORMÁZÁSI SZABÁLY (KÖTELEZŐ):
+- NE használj markdown jelölőket (**, ##, ***, ---, \`\`\`, stb.)
+- Címsorokhoz használj normál mondatformátumot új sorban (NEM csupa nagybetűt)
+- TILOS a CSUPA NAGYBETŰS írás (kivéve rövidítések: EU, AI, stb.)
+- Írj tiszta, folyamatos prózát jelölések nélkül
+`;
+
 const PROMPTS: Record<string, string> = {
-  fiction: `Te egy bestseller magyar író vagy. Írj gazdag leírásokkal és párbeszédekkel.${HUNGARIAN_GRAMMAR_RULES}`,
-  erotikus: `Te egy erotikus regényíró vagy. Írj érzéki magyar prózát.${HUNGARIAN_GRAMMAR_RULES}`,
-  szakkonyv: `Te egy szakkönyvíró vagy. Írj világos, informatív szöveget.${HUNGARIAN_GRAMMAR_RULES}`,
+  fiction: `Te egy bestseller magyar író vagy. Írj gazdag leírásokkal és párbeszédekkel.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
+  erotikus: `Te egy erotikus regényíró vagy. Írj érzéki magyar prózát.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
+  szakkonyv: `Te egy szakkönyvíró vagy. Írj világos, informatív szöveget.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
 };
 
 serve(async (req) => {
@@ -242,8 +251,8 @@ Cél: ~${scene.target_words || 1000} szó
 ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
     // Generate scene content with rock-solid retry logic
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(
         JSON.stringify({ error: "AI nincs konfigurálva" }), 
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -260,18 +269,19 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
 
         console.log(`AI request attempt ${attempt}/${maxRetries} for scene ${targetSceneIndex + 1}`);
 
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
+        const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
-            "x-api-key": ANTHROPIC_API_KEY, 
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "claude-sonnet-4-20250514", 
+            model: "google/gemini-3-flash-preview", 
             max_tokens: 8192,
-            system: PROMPTS[genre],
-            messages: [{ role: "user", content: prompt }]
+            messages: [
+              { role: "system", content: PROMPTS[genre] },
+              { role: "user", content: prompt }
+            ]
           }),
           signal: controller.signal,
         });
@@ -325,7 +335,7 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
           throw new Error("Hibás API válasz formátum");
         }
 
-        sceneText = d.content?.[0]?.text || "";
+        sceneText = d.choices?.[0]?.message?.content || "";
         
         // Retry on empty or too short response
         if (!sceneText || sceneText.trim().length < 100) {

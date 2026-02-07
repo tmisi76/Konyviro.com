@@ -40,8 +40,8 @@ serve(async (req) => {
 
     const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas } = await req.json();
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -161,18 +161,19 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-        response = await fetch("https://api.anthropic.com/v1/messages", {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
+            model: "google/gemini-3-flash-preview",
             max_tokens: 2000,
-            system: systemPrompt,
-            messages: [{ role: "user", content: prompt }],
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt }
+            ],
           }),
           signal: controller.signal,
         });
@@ -206,7 +207,7 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
     }
 
     const aiData = await response.json();
-    let content = aiData.content?.[0]?.text || "";
+    let content = aiData.choices?.[0]?.message?.content || "";
     
     if (content.startsWith("```json")) content = content.slice(7);
     if (content.startsWith("```")) content = content.slice(3);

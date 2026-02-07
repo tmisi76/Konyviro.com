@@ -41,8 +41,8 @@ serve(async (req) => {
 
     const { genre, length, concept, targetWordCount } = await req.json();
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -157,18 +157,19 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
 
         console.log(`AI request attempt ${attempt}/${maxRetries}`);
 
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
-            "x-api-key": ANTHROPIC_API_KEY, 
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "claude-sonnet-4-20250514", 
+            model: "google/gemini-3-flash-preview", 
             max_tokens: 8192,
-            system: systemPrompt,
-            messages: [{ role: "user", content: prompt }]
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt }
+            ]
           }),
           signal: controller.signal,
         });
@@ -216,7 +217,7 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
           throw new Error("Hibás API válasz formátum");
         }
 
-        content = aiData.content?.[0]?.text || "";
+        content = aiData.choices?.[0]?.message?.content || "";
 
         // Retry on empty or too short response (minimum 50 chars for valid chapters)
         if (!content || content.trim().length < 50) {

@@ -189,8 +189,8 @@ serve(async (req) => {
       );
     }
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(
         JSON.stringify({ error: "AI szolgáltatás nincs konfigurálva" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -290,18 +290,19 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 55000);
 
-        response = await fetch("https://api.anthropic.com/v1/messages", {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
+            model: "google/gemini-3-flash-preview",
             max_tokens: 4000,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }],
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ],
           }),
           signal: controller.signal,
         });
@@ -387,7 +388,7 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
       );
     }
 
-    const content = data.content?.[0]?.text;
+    const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
       return new Response(

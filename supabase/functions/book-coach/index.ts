@@ -145,8 +145,8 @@ serve(async (req) => {
     const { messages, genre } = await req.json();
     if (!messages || !genre) return new Response(JSON.stringify({ error: "Hiányzó adatok" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const filteredMessages = messages.filter((m: any) => m.role !== "system").map((m: any) => ({ role: m.role, content: m.content }));
 
@@ -159,19 +159,20 @@ serve(async (req) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-        response = await fetch("https://api.anthropic.com/v1/messages", {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
-            "x-api-key": ANTHROPIC_API_KEY, 
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "claude-sonnet-4-20250514", 
+            model: "google/gemini-3-flash-preview", 
             max_tokens: 2000,
             stream: true,
-            system: GENRE_PROMPTS[genre] || GENRE_PROMPTS.fiction,
-            messages: filteredMessages
+            messages: [
+              { role: "system", content: GENRE_PROMPTS[genre] || GENRE_PROMPTS.fiction },
+              ...filteredMessages
+            ]
           }),
           signal: controller.signal,
         });
@@ -202,36 +203,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: response?.status === 429 ? "Túl sok kérés, próbáld újra később" : "AI hiba" }), { status: response?.status || 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Transform Anthropic SSE to OpenAI-compatible SSE for frontend compatibility
-    const transformStream = new TransformStream({
-      transform(chunk, controller) {
-        const text = new TextDecoder().decode(chunk);
-        const lines = text.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'content_block_delta' && data.delta?.text) {
-                // Transform to OpenAI format
-                const openAIFormat = {
-                  choices: [{
-                    delta: { content: data.delta.text }
-                  }]
-                };
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
-              } else if (data.type === 'message_stop') {
-                controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-              }
-            } catch {
-              // Skip invalid JSON
-            }
-          }
-        }
-      }
-    });
-
-    return new Response(response.body?.pipeThrough(transformStream), { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
+    // Lovable AI Gateway already returns OpenAI-compatible SSE format - pass through directly
+    return new Response(response.body, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }

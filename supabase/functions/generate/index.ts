@@ -10,7 +10,8 @@ const NO_MARKDOWN_RULE = `
 
 FORMÁZÁSI SZABÁLY (KÖTELEZŐ):
 - NE használj markdown jelölőket (**, ##, ***, ---, \`\`\`, stb.)
-- Címsorokhoz írj normál nagybetűs szöveget új sorban
+- Címsorokhoz használj normál mondatformátumot új sorban (pl. "Az első lépés" - NEM "AZ ELSŐ LÉPÉS")
+- TILOS a CSUPA NAGYBETŰS írás (kivéve rövidítések: EU, AI, USA, stb.)
 - Kiemeléshez egyszerűen hangsúlyos szavakat használj, jelölés nélkül
 - Listákhoz használj gondolatjelet (–) és új sort
 - Az olvasó tiszta, folyamatos prózát kapjon
