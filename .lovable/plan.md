@@ -1,115 +1,222 @@
 
 
-# Terv: Referral Link Frissítése - konyviro.com Landing Page
+# Terv: Könyvlista Egyesítése Lapozóval és Rendezéssel
 
 ## Összefoglaló
 
-A referral linket módosítani kell, hogy:
-1. **Fix domain**: `https://konyviro.com` (nem a jelenlegi `window.location.origin`)
-2. **Landing page**: A főoldalra vigyen (`/`), nem az `/auth` oldalra
+A "Legutóbbi könyveim" szekciót átalakítjuk:
+- **12 könyv** megjelenítése oldalanként (6 helyett)
+- **Lapozó (pagination)** hozzáadása
+- **Rendezési opciók** (legutóbbi, név A-Z/Z-A, szószám)
+- **Mesekönyvek és könyvek együtt** egy listában (külön blokk megszüntetése)
 
 ---
 
-## Szükséges Változtatások
+## 1. Változtatások Áttekintése
 
-### 1. useReferral.ts - Link generálás módosítása
+### Jelenlegi állapot:
+```text
+┌─────────────────────────────────────────────┐
+│ Legutóbbi könyveim (max 6 könyv)            │
+│ [Könyv grid - 3x2]                          │
+└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│ Mesekönyveim (max 6 mesekönyv)              │  ← MEGSZŰNIK
+│ [Mesekönyv grid - 3x2]                      │
+└─────────────────────────────────────────────┘
+```
 
-**Fájl:** `src/hooks/useReferral.ts`
+### Új állapot:
+```text
+┌───────────────────────────────────────────────────────────┐
+│ Könyveim                        [Rendezés: Legutóbbi ▼]   │
+├───────────────────────────────────────────────────────────┤
+│ [Könyv + Mesekönyv grid - 3x4 = 12 kártya]                │
+│                                                           │
+│                                                           │
+│                                                           │
+├───────────────────────────────────────────────────────────┤
+│              [← Előző]  1  2  3  [Következő →]            │
+└───────────────────────────────────────────────────────────┘
+```
 
-**Jelenlegi kód (64-70. sor):**
+---
+
+## 2. Új State Változók
+
+A Dashboard komponensben:
+
 ```typescript
-const getReferralLink = () => {
-  if (!referralStats?.referralCode) return null;
+// Lapozás
+const [currentPage, setCurrentPage] = useState(1);
+const ITEMS_PER_PAGE = 12;
+
+// Rendezés
+type SortOption = "recent" | "name_asc" | "name_desc" | "words_desc" | "words_asc";
+const [sortBy, setSortBy] = useState<SortOption>("recent");
+```
+
+---
+
+## 3. Egyesített és Rendezett Projektek
+
+A jelenlegi `bookProjects` és `storybookProjects` helyett egy egyesített lista:
+
+```typescript
+// Összes könyv (könyv + mesekönyv együtt), nem archivált
+const allBooks = useMemo(() => {
+  let sorted = [...cardProjects];
   
-  // Use the production URL
-  const baseUrl = window.location.origin;
-  return `${baseUrl}/auth?ref=${referralStats.referralCode}`;
-};
-```
-
-**Új kód:**
-```typescript
-const getReferralLink = () => {
-  if (!referralStats?.referralCode) return null;
+  switch (sortBy) {
+    case "recent":
+      sorted.sort((a, b) => b.lastEditedAt.getTime() - a.lastEditedAt.getTime());
+      break;
+    case "name_asc":
+      sorted.sort((a, b) => a.title.localeCompare(b.title, 'hu'));
+      break;
+    case "name_desc":
+      sorted.sort((a, b) => b.title.localeCompare(a.title, 'hu'));
+      break;
+    case "words_desc":
+      sorted.sort((a, b) => b.wordCount - a.wordCount);
+      break;
+    case "words_asc":
+      sorted.sort((a, b) => a.wordCount - b.wordCount);
+      break;
+  }
   
-  // Always use the production domain and landing page
-  return `https://konyviro.com/?ref=${referralStats.referralCode}`;
-};
+  return sorted;
+}, [cardProjects, sortBy]);
+
+// Lapozott projektek
+const paginatedBooks = useMemo(() => {
+  const start = (currentPage - 1) * ITEMS_PER_PAGE;
+  return allBooks.slice(start, start + ITEMS_PER_PAGE);
+}, [allBooks, currentPage]);
+
+// Összesen hány oldal
+const totalPages = Math.ceil(allBooks.length / ITEMS_PER_PAGE);
 ```
 
 ---
 
-### 2. Index.tsx - Referral kód kezelése a főoldalon
+## 4. Rendezés UI
 
-**Fájl:** `src/pages/Index.tsx`
+Select komponens a szekció címsorában:
 
-Hozzá kell adni a referral kód localStorage-ba mentését, hogy amikor a user a landing page-re érkezik `?ref=` paraméterrel, az eltárolódjon a későbbi regisztrációhoz.
-
-**Új import és useEffect:**
-```typescript
-import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { REFERRAL_STORAGE_KEY } from "@/constants/referral";
-
-const Index = () => {
-  const [searchParams] = useSearchParams();
-
-  // Store referral code if present in URL
-  useEffect(() => {
-    const refCode = searchParams.get("ref");
-    if (refCode) {
-      localStorage.setItem(REFERRAL_STORAGE_KEY, refCode.toUpperCase());
-      console.log("Referral code stored from landing:", refCode.toUpperCase());
-    }
-  }, [searchParams]);
-
-  return (
-    // ... existing JSX
-  );
-};
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ Könyveim                              Rendezés: [Legutóbbi ▼]
+│                                                             │
+│  Opciók:                                                    │
+│  • Legutóbbi (alapértelmezett)                              │
+│  • Név A-Z                                                  │
+│  • Név Z-A                                                  │
+│  • Szószám (csökkenő)                                       │
+│  • Szószám (növekvő)                                        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Érintett Fájlok
+## 5. Lapozás UI
+
+A kártya grid alatt:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│              [← Előző]  1  2  3  ...  5  [Következő →]      │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Megjegyzés**: Ha 12 vagy kevesebb könyv van, a lapozó nem jelenik meg.
+
+---
+
+## 6. Mobil Nézet
+
+Mobil nézeten ugyanúgy:
+- Egyesített könyv lista (könyv + mesekönyv)
+- Rendezés dropdown a cím mellé
+- Lapozás alul
+- Oldalanként 12 elem (vagy kevesebb mobilon? - marad 12)
+
+---
+
+## 7. Eltávolítandó Kód
+
+A Dashboard.tsx-ből:
+
+| Törlendő | Leírás |
+|----------|--------|
+| `storybookProjects` useMemo | Külön mesekönyv szűrés |
+| `recentBooks` useMemo | Max 6 könyv limit |
+| `recentStorybooks` useMemo | Max 6 mesekönyv limit |
+| "Mesekönyveim" szekció | Desktop és mobil nézet JSX |
+
+---
+
+## 8. Szekció Cím Változás
+
+| Jelenlegi | Új |
+|-----------|-----|
+| "Legutóbbi könyveim" | "Könyveim" |
+| "Mesekönyveim" | *(megszűnik)* |
+
+---
+
+## 9. Érintett Fájl
 
 | Fájl | Változtatás |
 |------|-------------|
-| `src/hooks/useReferral.ts` | Fix domain és `/` útvonal használata |
-| `src/pages/Index.tsx` | Referral kód tárolása localStorage-ban |
+| `src/pages/Dashboard.tsx` | State, useMemo, JSX módosítások |
 
 ---
 
-## Folyamat Áttekintése
+## 10. Implementációs Részletek
 
-```text
-1. User megosztja: https://konyviro.com/?ref=ABC123
-                            ↓
-2. Meghívott kattint, Landing Page-re érkezik
-                            ↓
-3. Index.tsx elmenti a kódot localStorage-ba
-                            ↓
-4. User böngészi az oldalt, majd regisztrál
-                            ↓
-5. RegisterForm kiolvas a localStorage-ból és feldolgozza
-                            ↓
-6. Mindkét fél megkapja a 10.000 szó kreditet
-```
-
----
-
-## Konstans Bővítése (opcionális)
-
-Ha a jövőben módosítani kell a domaint, érdemes központilag tárolni:
-
-**Fájl:** `src/constants/referral.ts`
-
+### 10.1 Import kiegészítés
 ```typescript
-export const REFERRAL_BONUS_WORDS = 10000;
-export const REFERRAL_CODE_LENGTH = 6;
-export const REFERRAL_STORAGE_KEY = 'referral_code';
-export const REFERRAL_BASE_URL = 'https://konyviro.com';
+import { ArrowUpDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 ```
 
-Ez opcionális, de megkönnyíti a jövőbeli karbantartást.
+### 10.2 Rendezés reset lapváltáskor
+Amikor a rendezés változik, az aktuális oldal visszaáll 1-re:
+```typescript
+const handleSortChange = (value: SortOption) => {
+  setSortBy(value);
+  setCurrentPage(1);
+};
+```
+
+### 10.3 Lapozó komponens
+Magyar nyelvű "Előző" / "Következő" gombokkal.
+
+---
+
+## 11. Előnyök
+
+| Előny | Leírás |
+|-------|--------|
+| Egyszerűbb UI | Nincs két külön szekció |
+| Több könyv látható | 12 vs. korábbi 6 |
+| Kereshetőség | Rendezéssel könnyen megtalálható |
+| Skálázható | Bármennyi könyvnél működik |
 
