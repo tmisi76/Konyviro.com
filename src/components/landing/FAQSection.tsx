@@ -16,7 +16,7 @@ const faqs = [
   },
   {
     question: "Van szólimit az AI generálásra?",
-    answer: "Igen, minden csomag tartalmaz havi szókeretet. Az ingyenes csomag 1.000 szó/hó, a Hobbi 50.000, az Író 200.000 szó/hó. A szókeret havonta megújul.",
+    answer: "Igen, minden csomag tartalmaz havi szókeretet. Az ingyenes csomag 10.000 szó/hó, a Hobbi 100.000, a Profi 250.000 szó/hó. A szókeret havonta megújul.",
   },
   {
     question: "Biztonságban van a szövegem?",

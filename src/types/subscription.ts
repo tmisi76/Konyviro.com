@@ -31,13 +31,13 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     monthlyEquivalent: "",
     features: [
       "1 aktív projekt",
-      "1.000 szó / hó AI generálás",
+      "10.000 szó / hó AI generálás",
       "❌ Nincs exportálás",
       "❌ Nincs borító tervező",
       "❌ Nincs támogatás",
     ],
     projectLimit: 1,
-    monthlyWordLimit: 1000,
+    monthlyWordLimit: 10000,
     isFree: true,
   },
   {
