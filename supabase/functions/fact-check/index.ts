@@ -9,8 +9,8 @@ serve(async (req) => {
     const { text, context } = await req.json();
     if (!text) return new Response(JSON.stringify({ error: "Szöveg szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const systemPrompt = "Te egy tényellenőr asszisztens vagy. Ellenőrizd az állítás hitelességét. Válaszolj magyar nyelven.";
     const userPrompt = context ? `Ellenőrizd: "${text}"\nKontextus: ${context}` : `Ellenőrizd: "${text}"`;
@@ -24,18 +24,19 @@ serve(async (req) => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-        response = await fetch("https://api.anthropic.com/v1/messages", {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
-            "x-api-key": ANTHROPIC_API_KEY, 
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "claude-sonnet-4-20250514", 
+            model: "google/gemini-3-flash-preview", 
             max_tokens: 1000,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }]
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ]
           }),
           signal: controller.signal,
         });
@@ -78,7 +79,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const result = data.content?.[0]?.text || "Nem sikerült.";
+    const result = data.choices?.[0]?.message?.content || "Nem sikerült.";
 
     return new Response(JSON.stringify({ success: true, result }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {

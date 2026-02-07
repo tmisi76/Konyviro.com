@@ -62,8 +62,8 @@ serve(async (req) => {
     const { projectId, chapterId, chapterTitle, chapterSummary, bookTopic, targetAudience, genre, chapterType } = await req.json();
     if (!projectId || !chapterId) return new Response(JSON.stringify({ error: "projectId és chapterId szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const isFiction = genre === "fiction";
     const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
@@ -94,18 +94,19 @@ KÖTELEZŐ SZEKCIÓK:
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
-            "x-api-key": ANTHROPIC_API_KEY, 
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "claude-sonnet-4-20250514", 
+            model: "google/gemini-3-flash-preview", 
             max_tokens: 6000,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }]
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ]
           }),
           signal: controller.signal,
         });
@@ -137,7 +138,7 @@ KÖTELEZŐ SZEKCIÓK:
         }
 
         const data = await response.json();
-        const content = data.content?.[0]?.text || "";
+        const content = data.choices?.[0]?.message?.content || "";
 
         // Check for empty or too short response - BE EXTREMELY PATIENT
         if (!content || content.trim().length < 50) {

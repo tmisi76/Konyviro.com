@@ -49,8 +49,8 @@ serve(async (req) => {
     
     if (!projectId || !chapterId) return new Response(JSON.stringify({ error: "projectId és chapterId szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Calculate how many scenes for this chapter based on word target
     const effectiveWordsForChapter = wordsForChapter || (targetWordCount ? Math.round(targetWordCount / (totalChapters || 3)) : 2500);
@@ -99,18 +99,19 @@ Válaszolj CSAK JSON tömbként:
 
         console.log(`AI request attempt ${attempt}/${maxRetries} for chapter: ${chapterTitle}`);
 
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
-            "x-api-key": ANTHROPIC_API_KEY, 
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "claude-sonnet-4-20250514", 
+            model: "google/gemini-3-flash-preview", 
             max_tokens: 4096,
-            system: SYSTEM_PROMPT,
-            messages: [{ role: "user", content: userPrompt }]
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: userPrompt }
+            ]
           }),
           signal: controller.signal,
         });
@@ -137,7 +138,7 @@ Válaszolj CSAK JSON tömbként:
         }
 
         const data = await response.json();
-        content = data.content?.[0]?.text || "";
+        content = data.choices?.[0]?.message?.content || "";
 
         // Retry on empty or suspiciously short response
         if (!content || content.trim().length < 200) {

@@ -15,10 +15,10 @@ serve(async (req) => {
 
   try {
     const character = await req.json();
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (!ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY nincs konfigurálva" }), { 
+    if (!LOVABLE_API_KEY) {
+      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY nincs konfigurálva" }), { 
         status: 500, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 
       });
@@ -43,18 +43,19 @@ Feladat: Készíts részletes "character voice" leírást a fenti adatok alapjá
 
 CSAK a JSON választ add vissza.`;
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { 
-        "x-api-key": ANTHROPIC_API_KEY, 
-        "anthropic-version": "2023-06-01", 
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json" 
       },
       body: JSON.stringify({ 
-        model: "claude-sonnet-4-20250514", 
-        max_tokens: 2048, 
-        system: SYSTEM_PROMPT, 
-        messages: [{ role: "user", content: userPrompt }] 
+        model: "google/gemini-3-flash-preview", 
+        max_tokens: 2048,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userPrompt }
+        ]
       }),
     });
 
@@ -65,7 +66,7 @@ CSAK a JSON választ add vissza.`;
     }
 
     const data = await response.json();
-    const voiceData = JSON.parse(data.content[0].text);
+    const voiceData = JSON.parse(data.choices?.[0]?.message?.content || "{}");
 
     return new Response(JSON.stringify(voiceData), { 
       headers: { ...corsHeaders, "Content-Type": "application/json" } 

@@ -25,8 +25,8 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       throw new Error("AI nincs konfigurálva");
     }
 
@@ -104,18 +104,19 @@ Csak a JSON-t add vissza, semmi mást!`;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-        response = await fetch("https://api.anthropic.com/v1/messages", {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
+            model: "google/gemini-3-flash-preview",
             max_tokens: 1500,
-            system: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban.",
-            messages: [{ role: "user", content: analysisPrompt }],
+            messages: [
+              { role: "system", content: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban." },
+              { role: "user", content: analysisPrompt }
+            ],
           }),
           signal: controller.signal,
         });
@@ -166,7 +167,7 @@ Csak a JSON-t add vissza, semmi mást!`;
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.content?.[0]?.text || "";
+    const content = aiResponse.choices?.[0]?.message?.content || "";
     logStep("AI response received", { length: content.length });
 
     // Parse the JSON response

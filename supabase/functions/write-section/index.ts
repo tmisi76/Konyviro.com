@@ -88,11 +88,13 @@ FORMAI KÖVETELMÉNYEK:
 
 -   Használj rövid bekezdéseket (max. 3-4 mondat).
 
--   Használj informatív alcímeket (NAGYBETŰVEL, # nélkül).
+-   Alcímekhez használj normál mondatformátumot új sorban (pl. "Az első lépés" - NEM "AZ ELSŐ LÉPÉS").
 
 -   Listákhoz használj számozást (1., 2., 3.) vagy gondolatjelet (–).
 
--   NE használj markdown formázást (pl. **, \`).
+-   NE használj markdown formázást (**, ##, \`\`\`).
+
+-   TILOS a CSUPA NAGYBETŰS írás, kivéve rövidítéseket (EU, AI, stb.).
 ${HUNGARIAN_GRAMMAR_RULES}`;
 
 const FICTION_SYSTEM_PROMPT = `Te egy díjnyertes regényíró vagy, a magyar nyelv mestere. A feladatod, hogy egyetlen, lenyűgöző jelenetet írj meg a kapott instrukciók alapján.
@@ -171,8 +173,8 @@ serve(async (req) => {
     const { projectId, chapterId, sectionNumber, sectionOutline, previousContent, bookTopic, targetAudience, chapterTitle, genre, authorProfile } = await req.json();
     if (!projectId || !chapterId || !sectionOutline) return new Response(JSON.stringify({ error: "Hiányzó mezők" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Create Supabase client for deep context fetching
     const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -329,18 +331,19 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
 
         console.log(`AI request attempt ${attempt}/${maxRetries} for section ${sectionNumber}`);
 
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { 
-            "x-api-key": ANTHROPIC_API_KEY, 
-            "anthropic-version": "2023-06-01",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({ 
-            model: "claude-sonnet-4-20250514", 
+            model: "google/gemini-3-flash-preview", 
             max_tokens: 8192,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }]
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ]
           }),
           signal: controller.signal,
         });
@@ -397,7 +400,7 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
           throw new Error("Hibás API válasz formátum");
         }
 
-        sectionContent = data.content?.[0]?.text || "";
+        sectionContent = data.choices?.[0]?.message?.content || "";
 
         // Retry on empty or too short response
         if (!sectionContent || sectionContent.trim().length < 100) {
