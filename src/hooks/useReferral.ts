@@ -64,9 +64,8 @@ export function useReferral() {
   const getReferralLink = () => {
     if (!referralStats?.referralCode) return null;
     
-    // Use the production URL
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/auth?ref=${referralStats.referralCode}`;
+    // Always use the production domain and landing page
+    return `https://konyviro.com/?ref=${referralStats.referralCode}`;
   };
 
   return {
