@@ -1,187 +1,164 @@
 
+# Terv: Email Küldő Javítása + Leiratkozás
 
-# Terv: Admin Email Küldő Rendszer
+## 1. Probléma Azonosítása
 
-## Összefoglaló
+A konzol hibából látszik:
+```
+null value in column "admin_id" of relation "admin_email_campaigns" violates not-null constraint
+```
 
-Új admin oldal létrehozása (`/admin/email-sender`) ahol:
-1. **Csoport kiválasztása** - kinek küldjük az emailt
-2. **Email szerkesztés** - tárgy és tartalom megírása (RichTextEditor-ral)
-3. **Küldés** - batch-ekben kiküldés
-4. **Előzmények** - minden elküldött email eltárolása és megjelenítése
+**Ok:** A `useCreateCampaign` hook-ban az insert nem tartalmazza az `admin_id` mezőt, pedig az kötelező!
 
 ---
 
-## 1. Adatbázis Séma
+## 2. Javítások
 
-### Új tábla: `admin_email_campaigns`
+### 2.1 Admin ID Hozzáadása az Insert-hez
+
+**Fájl:** `src/hooks/admin/useEmailCampaigns.ts`
+
+A 49. sorban már lekérjük a user-t, de nem használjuk:
+```typescript
+const { data: { user } } = await supabase.auth.getUser();
+```
+
+**Javítás:** Hozzáadjuk az `admin_id: user.id` mezőt az inserthez (55-62. sor).
+
+---
+
+### 2.2 Leiratkozási Rendszer
+
+#### Adatbázis: Új tábla `email_unsubscribes`
 
 | Oszlop | Típus | Leírás |
 |--------|-------|--------|
-| id | uuid | Elsődleges kulcs |
-| admin_id | uuid | Küldő admin user_id |
-| subject | text | Email tárgya |
-| body_html | text | HTML tartalom |
-| body_text | text | Plain text verzió |
-| recipient_type | text | 'all', 'plan', 'inactive', 'custom' |
-| recipient_filter | jsonb | Szűrési paraméterek |
-| recipient_count | integer | Címzettek száma |
-| sent_count | integer | Sikeresen elküldött |
-| failed_count | integer | Sikertelen küldések |
-| status | text | 'draft', 'sending', 'completed', 'failed' |
-| started_at | timestamptz | Küldés kezdete |
-| completed_at | timestamptz | Küldés befejezése |
-| created_at | timestamptz | Létrehozás ideje |
+| id | uuid | PK |
+| user_id | uuid | FK a profiles-hoz (nullable) |
+| email | text | Email cím |
+| unsubscribed_at | timestamptz | Leiratkozás időpontja |
+| reason | text | Opcionális ok |
+| token | text | Egyedi token a linkeléshez |
+
+#### Új Edge Function: `unsubscribe-email`
+
+- Fogadja a tokent URL-ből
+- Validálja és elmenti a leiratkozást
+- Visszaad egy megerősítő HTML oldalt
+
+#### Kampány Email Frissítése
+
+A `send-campaign-email` edge function-ben:
+1. Ellenőrzi minden küldés előtt, hogy az email nincs-e a `email_unsubscribes` táblában
+2. Automatikusan hozzáadja a leiratkozási linket minden email végéhez
 
 ---
 
-## 2. Címzett Csoportok
+## 3. Leiratkozási Link Formátum
 
-Választható opciók:
+Minden kampány emailhez automatikusan hozzáadódik:
 
-| Csoport | Leírás |
-|---------|--------|
-| **Minden felhasználó** | Összes regisztrált user |
-| **Előfizetési csomag** | Free / Hobby / Író / Pro |
-| **Inaktív felhasználók** | X napja nem aktív |
-| **Egyéni lista** | Kézzel beírt email címek |
-
----
-
-## 3. Új Fájlok
-
-| Fájl | Leírás |
-|------|--------|
-| `src/pages/admin/AdminEmailSender.tsx` | Fő oldal komponens |
-| `src/hooks/admin/useEmailCampaigns.ts` | Hook a kampányok kezeléséhez |
-| `supabase/functions/send-campaign-email/index.ts` | Edge function a küldéshez |
-
----
-
-## 4. UI Felépítés
-
-```text
-┌────────────────────────────────────────────────────────────┐
-│  📧 Email Kampányok                     [+ Új kampány]     │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Új Email Küldése                                    │   │
-│  ├─────────────────────────────────────────────────────┤   │
-│  │ Címzettek: [Minden felhasználó ▼]                   │   │
-│  │                                                     │   │
-│  │ Ha "Előfizetési csomag":  [Free / Hobby / Író / Pro]│   │
-│  │ Ha "Inaktív":             [7/14/30 napja ▼]         │   │
-│  │ Ha "Egyéni":              [Textarea email címek]    │   │
-│  │                                                     │   │
-│  │ Tárgy: [________________________________]           │   │
-│  │                                                     │   │
-│  │ Tartalom:                                           │   │
-│  │ ┌───────────────────────────────────────────────┐   │   │
-│  │ │ [B] [I] [U] │ [Link] │ [Változó▼]  │ [HTML]   │   │   │
-│  │ ├───────────────────────────────────────────────┤   │   │
-│  │ │                                               │   │   │
-│  │ │  RichTextEditor                               │   │   │
-│  │ │                                               │   │   │
-│  │ └───────────────────────────────────────────────┘   │   │
-│  │                                                     │   │
-│  │ [Teszt email küldése]      [📤 Kampány indítása]    │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                            │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Előző kampányok                                     │   │
-│  ├─────────────────────────────────────────────────────┤   │
-│  │ Tárgy          │ Címzettek │ Küldve    │ Státusz    │   │
-│  │────────────────┼───────────┼───────────┼────────────│   │
-│  │ Akciós ajánlat │ 156       │ 2026.02.05│ ✓ Kész     │   │
-│  │ Inaktív emléke │ 42        │ 2026.02.01│ ✓ Kész     │   │
-│  │ Új funkció     │ 312       │ 2026.01.28│ ✓ Kész     │   │
-│  └─────────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────┘
+```html
+<div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+  <p style="font-size: 12px; color: #94a3b8;">
+    Ha nem szeretnél több emailt kapni, 
+    <a href="https://[PROJECT_URL]/api/unsubscribe?token={{unsubscribe_token}}" style="color: #7c3aed;">
+      kattints ide a leiratkozáshoz
+    </a>.
+  </p>
+</div>
 ```
 
 ---
 
-## 5. Implementációs Részletek
-
-### 5.1 Címzett számláló
-
-A csoport kiválasztásakor a rendszer lekérdezi, hány felhasználó fog emailt kapni:
-
-```typescript
-const { data: count } = await supabase.rpc('count_campaign_recipients', {
-  recipient_type: 'plan',
-  filter_value: 'hobby'
-});
-// Megjelenik: "~156 címzett"
-```
-
-### 5.2 Változók beszúrása
-
-A `VariableInserter` komponens használata, ami beilleszti a `{{user_name}}` stb. változókat.
-
-### 5.3 Küldés folyamat
-
-1. Admin elindítja a kampányt
-2. Edge function batch-ekben (10/kör) küldi az emaileket
-3. Státusz frissítés minden batch után
-4. Befejezéskor összesítés mentése
-
----
-
-## 6. Navigáció Frissítése
-
-Az `AdminLayout.tsx`-ben új menüpont:
-
-```typescript
-{ name: "Email Küldés", href: "/admin/email-sender", icon: Send },
-```
-
-Vagy beágyazás az "Email Sablonok" alá al-link-ként.
-
----
-
-## 7. Routing Frissítése
-
-Az `App.tsx`-ben új route:
-
-```typescript
-<Route
-  path="/admin/email-sender"
-  element={
-    <ProtectedRoute>
-      <AdminLayout>
-        <AdminEmailSender />
-      </AdminLayout>
-    </ProtectedRoute>
-  }
-/>
-```
-
----
-
-## 8. Változtatandó Fájlok Összesítése
+## 4. Érintett Fájlok
 
 | Fájl | Művelet |
 |------|---------|
-| `src/pages/admin/AdminEmailSender.tsx` | Új fájl - fő oldal |
-| `src/hooks/admin/useEmailCampaigns.ts` | Új fájl - hook |
-| `supabase/functions/send-campaign-email/index.ts` | Új fájl - edge function |
-| `src/layouts/AdminLayout.tsx` | Módosítás - új menüpont |
-| `src/App.tsx` | Módosítás - új route |
-| `src/pages/admin/index.ts` | Módosítás - export |
-| Adatbázis migráció | Új tábla: `admin_email_campaigns` |
+| `src/hooks/admin/useEmailCampaigns.ts` | Javítás: admin_id hozzáadása |
+| `supabase/functions/send-campaign-email/index.ts` | Leiratkozás ellenőrzés + link |
+| `supabase/functions/unsubscribe-email/index.ts` | Új: leiratkozás kezelése |
+| Adatbázis migráció | Új tábla: `email_unsubscribes` |
 
 ---
 
-## 9. RLS Szabályok
+## 5. Leiratkozási Folyamat
 
-A `admin_email_campaigns` táblára:
-
-```sql
--- Csak adminok láthatják és kezelhetik
-CREATE POLICY "Admins can manage email campaigns"
-ON admin_email_campaigns FOR ALL
-USING (is_admin(auth.uid()));
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Felhasználó kap egy kampány emailt                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Email tartalma:                                                │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                                                           │  │
+│  │  [Admin által írt tartalom]                               │  │
+│  │                                                           │  │
+│  │  ─────────────────────────────────────────────────────    │  │
+│  │                                                           │  │
+│  │  Ha nem szeretnél több emailt kapni, kattints ide ←───────│──│─── Link
+│  │                                                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+│  Kattintás után:                                                │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                                                           │  │
+│  │  ✓ Sikeresen leiratkoztál!                                │  │
+│  │                                                           │  │
+│  │  Többé nem fogsz marketing emaileket kapni.               │  │
+│  │                                                           │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## 6. Adatbázis Séma (SQL)
+
+```sql
+CREATE TABLE email_unsubscribes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES profiles(user_id),
+  email text NOT NULL,
+  token text NOT NULL UNIQUE,
+  reason text,
+  unsubscribed_at timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now()
+);
+
+-- Index a gyors kereséshez
+CREATE INDEX idx_email_unsubscribes_email ON email_unsubscribes(email);
+CREATE INDEX idx_email_unsubscribes_token ON email_unsubscribes(token);
+
+-- RLS: Service role can manage, users can view their own
+ALTER TABLE email_unsubscribes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role can manage unsubscribes"
+ON email_unsubscribes FOR ALL
+USING (true)
+WITH CHECK (true);
+```
+
+---
+
+## 7. Token Generálás
+
+Minden email küldésekor egyedi token generálása:
+```typescript
+const token = crypto.randomUUID();
+```
+
+A token tartalmazza az email címet titkosítva, így a leiratkozás oldal tudja azonosítani a felhasználót.
+
+---
+
+## 8. Összefoglalás
+
+| Javítás | Leírás |
+|---------|--------|
+| **admin_id bug** | Hozzáadjuk a user.id-t az inserthez |
+| **Leiratkozás tábla** | Új `email_unsubscribes` tábla |
+| **Leiratkozás link** | Automatikusan beillesztve minden emailbe |
+| **Leiratkozás endpoint** | Új edge function a token feldolgozásához |
+| **Küldés előtti ellenőrzés** | Kihagyja a leiratkozott címeket |
