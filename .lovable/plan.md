@@ -1,164 +1,192 @@
 
-# Terv: Email Küldő Javítása + Leiratkozás
+# Terv: Email Időzítés Funkció
 
-## 1. Probléma Azonosítása
+## Összefoglaló
 
-A konzol hibából látszik:
-```
-null value in column "admin_id" of relation "admin_email_campaigns" violates not-null constraint
-```
-
-**Ok:** A `useCreateCampaign` hook-ban az insert nem tartalmazza az `admin_id` mezőt, pedig az kötelező!
+Az admin email küldő rendszerbe új időzítési funkció kerül, amely lehetővé teszi:
+1. **Azonnali küldés** (jelenlegi működés)
+2. **Ütemezett küldés** - megadott dátumra/időpontra
 
 ---
 
-## 2. Javítások
+## 1. Adatbázis Módosítás
 
-### 2.1 Admin ID Hozzáadása az Insert-hez
-
-**Fájl:** `src/hooks/admin/useEmailCampaigns.ts`
-
-A 49. sorban már lekérjük a user-t, de nem használjuk:
-```typescript
-const { data: { user } } = await supabase.auth.getUser();
-```
-
-**Javítás:** Hozzáadjuk az `admin_id: user.id` mezőt az inserthez (55-62. sor).
-
----
-
-### 2.2 Leiratkozási Rendszer
-
-#### Adatbázis: Új tábla `email_unsubscribes`
+Új oszlop az `admin_email_campaigns` táblához:
 
 | Oszlop | Típus | Leírás |
 |--------|-------|--------|
-| id | uuid | PK |
-| user_id | uuid | FK a profiles-hoz (nullable) |
-| email | text | Email cím |
-| unsubscribed_at | timestamptz | Leiratkozás időpontja |
-| reason | text | Opcionális ok |
-| token | text | Egyedi token a linkeléshez |
+| scheduled_at | timestamptz | Ütemezett küldési időpont (NULL = azonnali) |
 
-#### Új Edge Function: `unsubscribe-email`
-
-- Fogadja a tokent URL-ből
-- Validálja és elmenti a leiratkozást
-- Visszaad egy megerősítő HTML oldalt
-
-#### Kampány Email Frissítése
-
-A `send-campaign-email` edge function-ben:
-1. Ellenőrzi minden küldés előtt, hogy az email nincs-e a `email_unsubscribes` táblában
-2. Automatikusan hozzáadja a leiratkozási linket minden email végéhez
+A `status` mező új értéket kap: `scheduled` (ütemezve)
 
 ---
 
-## 3. Leiratkozási Link Formátum
+## 2. UI Módosítások
 
-Minden kampány emailhez automatikusan hozzáadódik:
+### Küldési mód választó
 
-```html
-<div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
-  <p style="font-size: 12px; color: #94a3b8;">
-    Ha nem szeretnél több emailt kapni, 
-    <a href="https://[PROJECT_URL]/api/unsubscribe?token={{unsubscribe_token}}" style="color: #7c3aed;">
-      kattints ide a leiratkozáshoz
-    </a>.
-  </p>
-</div>
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  Küldés időpontja                                          │
+│                                                             │
+│  ○ Azonnali küldés                                          │
+│  ● Ütemezett küldés                                         │
+│                                                             │
+│  ┌──────────────────┐  ┌──────────────────┐                │
+│  │ 📅 2026.02.10    │  │ 🕐 14:30         │                │
+│  └──────────────────┘  └──────────────────┘                │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Új komponensek az AdminEmailSender.tsx-ben:
+
+- Radio group: "Azonnali" vs "Ütemezett"
+- Dátum választó (Calendar komponens)
+- Idő választó (Select vagy Input)
+- Az "Ütemezés" gomb mellett megjelenik az időpont összefoglaló
+
+### Táblázat frissítése
+
+Az előző kampányok táblázatban:
+- Új "scheduled" státusz badge: `🕐 Ütemezve` (narancs)
+- "Küldve" oszlopban az ütemezett időpont is megjelenik
+
+---
+
+## 3. Backend Változások
+
+### Új Edge Function: `process-scheduled-campaigns`
+
+Ez egy **cron-triggered** function, ami percenként fut:
+
+1. Lekérdezi az esedékes kampányokat: `WHERE status = 'scheduled' AND scheduled_at <= NOW()`
+2. Minden esedékes kampánynál meghívja a `send-campaign-email` logikát
+3. Státuszt `sending`-re állítja
+
+### A `send-campaign-email` módosítása
+
+Támogatnia kell az ütemezett kampányokat:
+- Ha a kampány `scheduled` státuszú és `scheduled_at <= NOW()`, akkor küldi
+- Egyébként nem küldi (hibát dob)
+
+---
+
+## 4. Cron Job Beállítása
+
+pg_cron job létrehozása az ütemezett kampányok feldolgozásához:
+
+```sql
+SELECT cron.schedule(
+  'process-scheduled-campaigns',
+  '* * * * *',  -- percenként
+  $$ SELECT net.http_post(...) $$
+);
 ```
 
 ---
 
-## 4. Érintett Fájlok
+## 5. Érintett Fájlok
 
 | Fájl | Művelet |
 |------|---------|
-| `src/hooks/admin/useEmailCampaigns.ts` | Javítás: admin_id hozzáadása |
-| `supabase/functions/send-campaign-email/index.ts` | Leiratkozás ellenőrzés + link |
-| `supabase/functions/unsubscribe-email/index.ts` | Új: leiratkozás kezelése |
-| Adatbázis migráció | Új tábla: `email_unsubscribes` |
+| `src/pages/admin/AdminEmailSender.tsx` | Módosítás: időzítő UI |
+| `src/hooks/admin/useEmailCampaigns.ts` | Módosítás: scheduled_at támogatás |
+| `supabase/functions/send-campaign-email/index.ts` | Módosítás: ütemezett támogatás |
+| `supabase/functions/process-scheduled-campaigns/index.ts` | Új: cron handler |
+| Adatbázis migráció | Új oszlop + cron job |
 
 ---
 
-## 5. Leiratkozási Folyamat
+## 6. UI Részletek
+
+### State kezelés
+
+```typescript
+const [sendMode, setSendMode] = useState<"immediate" | "scheduled">("immediate");
+const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+const [scheduledTime, setScheduledTime] = useState("12:00");
+```
+
+### Időpont összevonása
+
+```typescript
+// Dátum + idő kombinálása
+const getScheduledAt = () => {
+  if (!scheduledDate) return null;
+  const [hours, minutes] = scheduledTime.split(":").map(Number);
+  const date = new Date(scheduledDate);
+  date.setHours(hours, minutes, 0, 0);
+  return date.toISOString();
+};
+```
+
+### Validáció
+
+- Az ütemezett időpontnak a jövőben kell lennie
+- Minimum 5 perces előnyt kérünk (biztonság)
+
+---
+
+## 7. Kampány Létrehozás Frissítése
+
+A `useCreateCampaign` hook-ban:
+
+```typescript
+// Ha ütemezett
+if (campaign.scheduled_at) {
+  status: "scheduled",
+  scheduled_at: campaign.scheduled_at,
+}
+// Ha azonnali
+else {
+  status: "draft",
+}
+```
+
+---
+
+## 8. Kampány Kezelő Gombok
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Felhasználó kap egy kampány emailt                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Email tartalma:                                                │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                                                           │  │
-│  │  [Admin által írt tartalom]                               │  │
-│  │                                                           │  │
-│  │  ─────────────────────────────────────────────────────    │  │
-│  │                                                           │  │
-│  │  Ha nem szeretnél több emailt kapni, kattints ide ←───────│──│─── Link
-│  │                                                           │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-│  Kattintás után:                                                │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                                                           │  │
-│  │  ✓ Sikeresen leiratkoztál!                                │  │
-│  │                                                           │  │
-│  │  Többé nem fogsz marketing emaileket kapni.               │  │
-│  │                                                           │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                                                           │
+│   Küldés: ○ Azonnal  ● Ütemezve: 2026.02.10 14:30        │
+│                                                           │
+│   [Kampány Ütemezése]           [Kampány Indítása]        │
+│        ↑                              ↑                   │
+│   Ütemezett módban              Azonnali módban           │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 6. Adatbázis Séma (SQL)
+## 9. Ütemezett Kampányok Törlése/Módosítása
 
-```sql
-CREATE TABLE email_unsubscribes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES profiles(user_id),
-  email text NOT NULL,
-  token text NOT NULL UNIQUE,
-  reason text,
-  unsubscribed_at timestamptz DEFAULT now(),
-  created_at timestamptz DEFAULT now()
-);
-
--- Index a gyors kereséshez
-CREATE INDEX idx_email_unsubscribes_email ON email_unsubscribes(email);
-CREATE INDEX idx_email_unsubscribes_token ON email_unsubscribes(token);
-
--- RLS: Service role can manage, users can view their own
-ALTER TABLE email_unsubscribes ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Service role can manage unsubscribes"
-ON email_unsubscribes FOR ALL
-USING (true)
-WITH CHECK (true);
-```
+A táblázatban az ütemezett kampányoknál megjelenik:
+- **Törlés** gomb - visszavonja az ütemezést
+- Kattintásra megerősítő modal
 
 ---
 
-## 7. Token Generálás
+## 10. Státusz Badge-ek
 
-Minden email küldésekor egyedi token generálása:
-```typescript
-const token = crypto.randomUUID();
-```
-
-A token tartalmazza az email címet titkosítva, így a leiratkozás oldal tudja azonosítani a felhasználót.
+| Státusz | Badge | Szín |
+|---------|-------|------|
+| draft | Piszkozat | Szürke |
+| **scheduled** | 🕐 Ütemezve | Narancs |
+| sending | Küldés alatt | Kék |
+| completed | Kész | Zöld |
+| failed | Sikertelen | Piros |
 
 ---
 
-## 8. Összefoglalás
+## 11. Implementációs Sorrend
 
-| Javítás | Leírás |
-|---------|--------|
-| **admin_id bug** | Hozzáadjuk a user.id-t az inserthez |
-| **Leiratkozás tábla** | Új `email_unsubscribes` tábla |
-| **Leiratkozás link** | Automatikusan beillesztve minden emailbe |
-| **Leiratkozás endpoint** | Új edge function a token feldolgozásához |
-| **Küldés előtti ellenőrzés** | Kihagyja a leiratkozott címeket |
+1. **Adatbázis migráció** - `scheduled_at` oszlop hozzáadása
+2. **UI frissítése** - Időzítő komponensek
+3. **Hook frissítése** - `scheduled_at` támogatás
+4. **Cron Edge Function** - Ütemezett küldő
+5. **Cron Job beállítása** - pg_cron
+6. **Táblázat frissítése** - Új státusz és törlés lehetőség
