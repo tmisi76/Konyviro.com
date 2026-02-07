@@ -1,6 +1,21 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FolderOpen, FileText, Flame } from "lucide-react";
+import { FolderOpen, FileText, Flame, ArrowUpDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSidebarState } from "@/hooks/useSidebarState";
 import { useProjects } from "@/hooks/useProjects";
@@ -48,6 +63,9 @@ export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileTab, setMobileTab] = useState<"home" | "projects" | "settings">("home");
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<"recent" | "name_asc" | "name_desc" | "words_desc" | "words_asc">("recent");
+  const ITEMS_PER_PAGE = 12;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isOnline, pendingChanges, saveLastProject } = useOfflineSync();
@@ -134,15 +152,43 @@ export default function Dashboard() {
       }));
   }, [projects]);
 
-  // Mesekönyvek külön szűrése
-  const storybookProjects = useMemo(() => {
-    return cardProjects.filter((p) => p.genre === "mesekonyv");
-  }, [cardProjects]);
+  // Összes könyv rendezve (könyv + mesekönyv együtt)
+  const allBooks = useMemo(() => {
+    let sorted = [...cardProjects];
+    
+    switch (sortBy) {
+      case "recent":
+        sorted.sort((a, b) => b.lastEditedAt.getTime() - a.lastEditedAt.getTime());
+        break;
+      case "name_asc":
+        sorted.sort((a, b) => a.title.localeCompare(b.title, 'hu'));
+        break;
+      case "name_desc":
+        sorted.sort((a, b) => b.title.localeCompare(a.title, 'hu'));
+        break;
+      case "words_desc":
+        sorted.sort((a, b) => b.wordCount - a.wordCount);
+        break;
+      case "words_asc":
+        sorted.sort((a, b) => a.wordCount - b.wordCount);
+        break;
+    }
+    
+    return sorted;
+  }, [cardProjects, sortBy]);
 
-  // Normál könyvek (nem mesekönyv)
-  const bookProjects = useMemo(() => {
-    return cardProjects.filter((p) => p.genre !== "mesekonyv");
-  }, [cardProjects]);
+  // Lapozott projektek
+  const paginatedBooks = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return allBooks.slice(start, start + ITEMS_PER_PAGE);
+  }, [allBooks, currentPage]);
+
+  const totalPages = Math.ceil(allBooks.length / ITEMS_PER_PAGE);
+
+  const handleSortChange = (value: "recent" | "name_asc" | "name_desc" | "words_desc" | "words_asc") => {
+    setSortBy(value);
+    setCurrentPage(1);
+  };
 
   // Handlers
   const handleNewProject = () => {
@@ -234,20 +280,6 @@ export default function Dashboard() {
     }
   };
 
-  // Recent books (sorted by last edited, excluding storybooks and archived)
-  const recentBooks = useMemo(() => {
-    return [...bookProjects].slice(0, 6);
-  }, [bookProjects]);
-
-  // Recent storybooks
-  const recentStorybooks = useMemo(() => {
-    return [...storybookProjects].slice(0, 6);
-  }, [storybookProjects]);
-
-  // Count non-archived projects for display
-  const nonArchivedProjectCount = useMemo(() => {
-    return projects.filter(p => p.status !== "archived").length;
-  }, [projects]);
 
   // Loading screen (shown for both mobile and desktop)
   if (loadingProjectId) {
@@ -326,9 +358,22 @@ export default function Dashboard() {
 
               {/* Books section */}
               <div className="mb-6">
-                <h2 className="mb-4 text-lg font-semibold text-foreground">
-                  {bookProjects.length > 0 ? "Legutóbbi könyveim" : "Könyveim"}
-                </h2>
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-semibold text-foreground">Könyveim</h2>
+                  <Select value={sortBy} onValueChange={handleSortChange}>
+                    <SelectTrigger className="w-[140px] h-8 text-xs">
+                      <ArrowUpDown className="mr-1 h-3 w-3" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="recent">Legutóbbi</SelectItem>
+                      <SelectItem value="name_asc">Név A-Z</SelectItem>
+                      <SelectItem value="name_desc">Név Z-A</SelectItem>
+                      <SelectItem value="words_desc">Szószám ↓</SelectItem>
+                      <SelectItem value="words_asc">Szószám ↑</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 {isLoading ? (
                   <div className="mobile-card-stack">
@@ -339,46 +384,56 @@ export default function Dashboard() {
                       />
                     ))}
                   </div>
-                ) : bookProjects.length === 0 && storybookProjects.length === 0 ? (
+                ) : allBooks.length === 0 ? (
                   <EmptyState onCreateProject={handleNewProject} />
-                ) : bookProjects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Még nincs könyved. Készíts egyet!</p>
                 ) : (
-                  <div className="mobile-card-stack">
-                    {recentBooks.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onOpen={handleProjectOpen}
-                        onDelete={handleProjectDeleteRequest}
-                        onArchive={handleArchiveProject}
-                        onRename={refetch}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <div className="mobile-card-stack">
+                      {paginatedBooks.map((project) => (
+                        <ProjectCard
+                          key={project.id}
+                          project={project}
+                          onOpen={handleProjectOpen}
+                          onDelete={handleProjectDeleteRequest}
+                          onArchive={handleArchiveProject}
+                          onRename={refetch}
+                        />
+                      ))}
+                    </div>
+                    
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <Pagination className="mt-4">
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious 
+                              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                              className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                onClick={() => setCurrentPage(page)}
+                                isActive={currentPage === page}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ))}
+                          <PaginationItem>
+                            <PaginationNext 
+                              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                              className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    )}
+                  </>
                 )}
               </div>
-
-              {/* Storybooks section - only show if there are storybooks */}
-              {storybookProjects.length > 0 && (
-                <div>
-                  <h2 className="mb-4 text-lg font-semibold text-foreground">
-                    Mesekönyveim
-                  </h2>
-                  <div className="mobile-card-stack">
-                    {recentStorybooks.map((project) => (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        onOpen={handleProjectOpen}
-                        onDelete={handleProjectDeleteRequest}
-                        onArchive={handleArchiveProject}
-                        onRename={refetch}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </main>
         </PullToRefresh>
@@ -506,9 +561,22 @@ export default function Dashboard() {
 
           {/* Books section - full width */}
           <div className="mb-8">
-            <h2 className="mb-4 text-lg font-semibold text-foreground">
-              {bookProjects.length > 0 ? "Legutóbbi könyveim" : "Könyveim"}
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Könyveim</h2>
+              <Select value={sortBy} onValueChange={handleSortChange}>
+                <SelectTrigger className="w-[160px]">
+                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Legutóbbi</SelectItem>
+                  <SelectItem value="name_asc">Név A-Z</SelectItem>
+                  <SelectItem value="name_desc">Név Z-A</SelectItem>
+                  <SelectItem value="words_desc">Szószám ↓</SelectItem>
+                  <SelectItem value="words_asc">Szószám ↑</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {isLoading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -519,46 +587,56 @@ export default function Dashboard() {
                   />
                 ))}
               </div>
-            ) : bookProjects.length === 0 && storybookProjects.length === 0 ? (
+            ) : allBooks.length === 0 ? (
               <EmptyState onCreateProject={handleNewProject} />
-            ) : bookProjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Még nincs könyved. Készíts egyet!</p>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recentBooks.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    onOpen={handleProjectOpen}
-                    onDelete={handleProjectDeleteRequest}
-                    onArchive={handleArchiveProject}
-                    onRename={refetch}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {paginatedBooks.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      onOpen={handleProjectOpen}
+                      onDelete={handleProjectDeleteRequest}
+                      onArchive={handleArchiveProject}
+                      onRename={refetch}
+                    />
+                  ))}
+                </div>
+                
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <Pagination className="mt-6">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
+              </>
             )}
           </div>
-
-          {/* Storybooks section - only show if there are storybooks */}
-          {storybookProjects.length > 0 && (
-            <div className="mb-8">
-              <h2 className="mb-4 text-lg font-semibold text-foreground">
-                Mesekönyveim
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recentStorybooks.map((project) => (
-                  <ProjectCard
-                    key={project.id}
-                    project={project}
-                    onOpen={handleProjectOpen}
-                    onDelete={handleProjectDeleteRequest}
-                    onArchive={handleArchiveProject}
-                    onRename={refetch}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
 
         </div>
       </main>
