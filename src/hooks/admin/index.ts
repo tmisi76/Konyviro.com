@@ -34,3 +34,6 @@ export type { ActivityLog } from "./useActivityLogs";
 
 export { useRetentionStats } from "./useRetentionStats";
 export type { RetentionStats } from "./useRetentionStats";
+
+export { useEmailCampaigns, useCreateCampaign, useSendCampaign, useCountRecipients } from "./useEmailCampaigns";
+export type { EmailCampaign } from "./useEmailCampaigns";

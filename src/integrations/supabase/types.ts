@@ -58,6 +58,57 @@ export type Database = {
           },
         ]
       }
+      admin_email_campaigns: {
+        Row: {
+          admin_id: string
+          body_html: string
+          body_text: string | null
+          completed_at: string | null
+          created_at: string | null
+          failed_count: number | null
+          id: string
+          recipient_count: number | null
+          recipient_filter: Json | null
+          recipient_type: string
+          sent_count: number | null
+          started_at: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          admin_id: string
+          body_html: string
+          body_text?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          failed_count?: number | null
+          id?: string
+          recipient_count?: number | null
+          recipient_filter?: Json | null
+          recipient_type?: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          admin_id?: string
+          body_html?: string
+          body_text?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          failed_count?: number | null
+          id?: string
+          recipient_count?: number | null
+          recipient_filter?: Json | null
+          recipient_type?: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       admin_users: {
         Row: {
           created_at: string | null
@@ -2071,6 +2122,14 @@ export type Database = {
           p_word_count_delta?: number
         }
         Returns: undefined
+      }
+      count_campaign_recipients: {
+        Args: {
+          p_filter_value?: string
+          p_inactive_days?: number
+          p_recipient_type: string
+        }
+        Returns: number
       }
       get_admin_role: {
         Args: { _user_id: string }
