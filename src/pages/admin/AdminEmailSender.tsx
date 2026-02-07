@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
-import { Send, Mail, Users, Clock, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Send, Mail, Users, Clock, CheckCircle, AlertCircle, Loader2, Calendar as CalendarIcon, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -21,16 +24,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import {
   useEmailCampaigns,
   useCreateCampaign,
   useSendCampaign,
   useCountRecipients,
+  useCancelCampaign,
 } from "@/hooks/admin/useEmailCampaigns";
 import { toast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, addMinutes, isBefore } from "date-fns";
 import { hu } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 const RECIPIENT_TYPES = [
   { value: "all", label: "Minden felhasználó" },
@@ -66,6 +82,38 @@ export default function AdminEmailSender() {
   const createCampaign = useCreateCampaign();
   const sendCampaign = useSendCampaign();
   const countRecipients = useCountRecipients();
+  const cancelCampaign = useCancelCampaign();
+
+  // Scheduling state
+  const [sendMode, setSendMode] = useState<"immediate" | "scheduled">("immediate");
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>();
+  const [scheduledTime, setScheduledTime] = useState("12:00");
+
+  // Generate time options (every 30 minutes)
+  const timeOptions = Array.from({ length: 48 }, (_, i) => {
+    const hours = Math.floor(i / 2);
+    const minutes = i % 2 === 0 ? "00" : "30";
+    return `${hours.toString().padStart(2, "0")}:${minutes}`;
+  });
+
+  // Get scheduled datetime
+  const getScheduledAt = (): string | null => {
+    if (sendMode !== "scheduled" || !scheduledDate) return null;
+    const [hours, minutes] = scheduledTime.split(":").map(Number);
+    const date = new Date(scheduledDate);
+    date.setHours(hours, minutes, 0, 0);
+    return date.toISOString();
+  };
+
+  // Validate scheduled time is in the future (at least 5 minutes)
+  const isValidScheduledTime = (): boolean => {
+    if (sendMode !== "scheduled") return true;
+    if (!scheduledDate) return false;
+    const [hours, minutes] = scheduledTime.split(":").map(Number);
+    const scheduledDateTime = new Date(scheduledDate);
+    scheduledDateTime.setHours(hours, minutes, 0, 0);
+    return !isBefore(scheduledDateTime, addMinutes(new Date(), 5));
+  };
 
   // Count recipients when filters change
   useEffect(() => {
@@ -116,9 +164,19 @@ export default function AdminEmailSender() {
       toast({ title: "Nincs címzett", variant: "destructive" });
       return;
     }
+    if (sendMode === "scheduled" && !isValidScheduledTime()) {
+      toast({ 
+        title: "Érvénytelen időpont", 
+        description: "Az ütemezett időpontnak legalább 5 perccel a jövőben kell lennie.",
+        variant: "destructive" 
+      });
+      return;
+    }
 
     try {
-      // Create campaign first
+      const scheduledAt = getScheduledAt();
+      
+      // Create campaign
       const campaign = await createCampaign.mutateAsync({
         subject,
         body_html: bodyHtml,
@@ -129,10 +187,18 @@ export default function AdminEmailSender() {
           custom_emails: recipientType === "custom" ? customEmails.split(/[\n,;]/).filter((e) => e.trim()) : undefined,
         },
         recipient_count: recipientCount,
+        scheduled_at: scheduledAt,
       });
 
-      // Then send it
-      await sendCampaign.mutateAsync(campaign.id);
+      // If immediate, send now
+      if (!scheduledAt) {
+        await sendCampaign.mutateAsync(campaign.id);
+      } else {
+        toast({
+          title: "Kampány ütemezve",
+          description: `Az email ${format(new Date(scheduledAt), "yyyy.MM.dd HH:mm", { locale: hu })}-kor kerül kiküldésre.`,
+        });
+      }
 
       // Reset form
       setSubject("");
@@ -141,6 +207,9 @@ export default function AdminEmailSender() {
       setPlanFilter("");
       setInactiveDays("");
       setCustomEmails("");
+      setSendMode("immediate");
+      setScheduledDate(undefined);
+      setScheduledTime("12:00");
     } catch (error) {
       console.error("Campaign error:", error);
     }
@@ -150,12 +219,16 @@ export default function AdminEmailSender() {
     switch (status) {
       case "draft":
         return <Badge variant="secondary">Piszkozat</Badge>;
+      case "scheduled":
+        return <Badge className="bg-orange-500 hover:bg-orange-600">🕐 Ütemezve</Badge>;
       case "sending":
-        return <Badge className="bg-blue-500">Küldés alatt</Badge>;
+        return <Badge className="bg-blue-500 hover:bg-blue-600">Küldés alatt</Badge>;
       case "completed":
-        return <Badge className="bg-green-500">Kész</Badge>;
+        return <Badge className="bg-green-500 hover:bg-green-600">Kész</Badge>;
       case "failed":
         return <Badge variant="destructive">Sikertelen</Badge>;
+      case "cancelled":
+        return <Badge variant="outline">Törölve</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -288,19 +361,94 @@ export default function AdminEmailSender() {
             </div>
           </div>
 
+          {/* Scheduling Options */}
+          <div className="space-y-4 rounded-lg border p-4">
+            <Label className="text-base font-medium">Küldés időpontja</Label>
+            <RadioGroup
+              value={sendMode}
+              onValueChange={(value) => setSendMode(value as "immediate" | "scheduled")}
+              className="flex flex-col gap-3"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="immediate" id="immediate" />
+                <Label htmlFor="immediate" className="font-normal cursor-pointer">
+                  Azonnali küldés
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="scheduled" id="scheduled" />
+                <Label htmlFor="scheduled" className="font-normal cursor-pointer">
+                  Ütemezett küldés
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {sendMode === "scheduled" && (
+              <div className="flex flex-wrap gap-3 mt-3">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[200px] justify-start text-left font-normal",
+                        !scheduledDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {scheduledDate ? format(scheduledDate, "yyyy.MM.dd", { locale: hu }) : "Válassz dátumot"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={scheduledDate}
+                      onSelect={setScheduledDate}
+                      disabled={(date) => date < new Date()}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Select value={scheduledTime} onValueChange={setScheduledTime}>
+                  <SelectTrigger className="w-[120px]">
+                    <Clock className="mr-2 h-4 w-4" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeOptions.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {scheduledDate && !isValidScheduledTime() && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Az időpont a múltban van
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Actions */}
           <div className="flex justify-end gap-3">
             <Button
               onClick={handleSendCampaign}
-              disabled={createCampaign.isPending || sendCampaign.isPending}
+              disabled={createCampaign.isPending || sendCampaign.isPending || (sendMode === "scheduled" && !isValidScheduledTime())}
               className="gap-2"
             >
               {(createCampaign.isPending || sendCampaign.isPending) ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : sendMode === "scheduled" ? (
+                <CalendarIcon className="h-4 w-4" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              Kampány Indítása
+              {sendMode === "scheduled" ? "Kampány Ütemezése" : "Kampány Indítása"}
             </Button>
           </div>
         </CardContent>
@@ -325,9 +473,10 @@ export default function AdminEmailSender() {
                 <TableRow>
                   <TableHead>Tárgy</TableHead>
                   <TableHead>Címzettek</TableHead>
-                  <TableHead>Küldve</TableHead>
+                  <TableHead>Küldve / Ütemezve</TableHead>
                   <TableHead>Sikerült</TableHead>
                   <TableHead>Státusz</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -345,9 +494,18 @@ export default function AdminEmailSender() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {campaign.started_at
-                        ? format(new Date(campaign.started_at), "yyyy.MM.dd HH:mm", { locale: hu })
-                        : "-"}
+                      {campaign.status === "scheduled" && campaign.scheduled_at ? (
+                        <div className="flex flex-col">
+                          <span className="text-orange-600 dark:text-orange-400">
+                            {format(new Date(campaign.scheduled_at), "yyyy.MM.dd HH:mm", { locale: hu })}
+                          </span>
+                          <span className="text-xs text-muted-foreground">ütemezve</span>
+                        </div>
+                      ) : campaign.started_at ? (
+                        format(new Date(campaign.started_at), "yyyy.MM.dd HH:mm", { locale: hu })
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -357,6 +515,8 @@ export default function AdminEmailSender() {
                           <AlertCircle className="h-4 w-4 text-destructive" />
                         ) : campaign.status === "sending" ? (
                           <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                        ) : campaign.status === "scheduled" ? (
+                          <Clock className="h-4 w-4 text-orange-500" />
                         ) : (
                           <Clock className="h-4 w-4 text-muted-foreground" />
                         )}
@@ -366,6 +526,34 @@ export default function AdminEmailSender() {
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(campaign.status)}</TableCell>
+                    <TableCell>
+                      {campaign.status === "scheduled" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Ütemezés törlése</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Biztosan törölni szeretnéd az ütemezett kampányt? Ez a művelet nem vonható vissza.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Mégsem</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => cancelCampaign.mutate(campaign.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Törlés
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -70,6 +70,7 @@ export type Database = {
           recipient_count: number | null
           recipient_filter: Json | null
           recipient_type: string
+          scheduled_at: string | null
           sent_count: number | null
           started_at: string | null
           status: string
@@ -86,6 +87,7 @@ export type Database = {
           recipient_count?: number | null
           recipient_filter?: Json | null
           recipient_type?: string
+          scheduled_at?: string | null
           sent_count?: number | null
           started_at?: string | null
           status?: string
@@ -102,6 +104,7 @@ export type Database = {
           recipient_count?: number | null
           recipient_filter?: Json | null
           recipient_type?: string
+          scheduled_at?: string | null
           sent_count?: number | null
           started_at?: string | null
           status?: string
