@@ -187,17 +187,20 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
           </button>
         )}
         
-        {/* Referral link in compact mode */}
+        {/* Referral CTA button - feltűnő */}
         <button 
           onClick={() => setShowReferralModal(true)}
-          className="flex justify-between text-xs w-full hover:text-primary transition-colors pt-2 border-t border-border mt-2"
+          className="w-full mt-3 p-3 rounded-lg bg-gradient-to-r from-primary to-primary/80 
+                     text-primary-foreground font-medium text-sm
+                     hover:shadow-lg hover:scale-[1.02] transition-all duration-200
+                     flex flex-col items-center gap-1"
         >
-          <span className="flex items-center gap-1 text-primary">
-            <Gift className="h-3 w-3" />
-            Ajánld egy barátodnak!
+          <span className="flex items-center gap-2">
+            <Gift className="h-4 w-4" />
+            Hívd meg barátaidat!
           </span>
-          <span className="text-primary font-medium">
-            +{(REFERRAL_BONUS_WORDS / 1000).toLocaleString("hu-HU")}k szó
+          <span className="text-xs opacity-90">
+            +{REFERRAL_BONUS_WORDS.toLocaleString("hu-HU")} szó kredit
           </span>
         </button>
         
