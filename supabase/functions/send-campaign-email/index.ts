@@ -70,6 +70,15 @@ serve(async (req: Request): Promise<Response> => {
       })
       .eq("id", campaignId);
 
+    // Get unsubscribed emails
+    const { data: unsubscribes } = await supabase
+      .from("email_unsubscribes")
+      .select("email");
+    
+    const unsubscribedEmails = new Set(
+      (unsubscribes || []).map((u: { email: string }) => u.email.toLowerCase())
+    );
+
     // Get recipients based on type
     let recipients: { email: string; name: string | null }[] = [];
     const filter = campaign.recipient_filter as Record<string, unknown>;
@@ -121,20 +130,34 @@ serve(async (req: Request): Promise<Response> => {
       recipients = customEmails.map((email) => ({ email, name: null }));
     }
 
+    // Filter out unsubscribed emails
+    const filteredRecipients = recipients.filter(
+      (r) => !unsubscribedEmails.has(r.email.toLowerCase())
+    );
+
+    console.log(`Total recipients: ${recipients.length}, After unsubscribe filter: ${filteredRecipients.length}`);
+
     // Send emails in batches
     let sentCount = 0;
     let failedCount = 0;
     const batchSize = 10;
 
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      const batch = recipients.slice(i, i + batchSize);
+    for (let i = 0; i < filteredRecipients.length; i += batchSize) {
+      const batch = filteredRecipients.slice(i, i + batchSize);
       
       for (const recipient of batch) {
         try {
+          // Generate unsubscribe token
+          const unsubscribeToken = btoa(`${recipient.email}:${crypto.randomUUID()}`);
+          const unsubscribeUrl = `${supabaseUrl}/functions/v1/unsubscribe-email?token=${encodeURIComponent(unsubscribeToken)}`;
+
           // Replace variables in content
           let html = campaign.body_html;
           html = html.replace(/\{\{user_name\}\}/g, recipient.name || "Kedves Felhasználó");
           html = html.replace(/\{\{email\}\}/g, recipient.email);
+
+          // Add unsubscribe footer
+          html += getUnsubscribeFooter(unsubscribeUrl);
 
           await resend.emails.send({
             from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
@@ -172,7 +195,8 @@ serve(async (req: Request): Promise<Response> => {
       JSON.stringify({ 
         success: true, 
         sent: sentCount, 
-        failed: failedCount 
+        failed: failedCount,
+        filtered: recipients.length - filteredRecipients.length,
       }),
       {
         status: 200,
@@ -191,3 +215,16 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 });
+
+function getUnsubscribeFooter(unsubscribeUrl: string): string {
+  return `
+    <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+      <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+        Ha nem szeretnél több marketing emailt kapni, 
+        <a href="${unsubscribeUrl}" style="color: #7c3aed; text-decoration: underline;">
+          kattints ide a leiratkozáshoz
+        </a>.
+      </p>
+    </div>
+  `;
+}

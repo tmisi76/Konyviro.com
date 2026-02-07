@@ -53,6 +53,7 @@ export function useCreateCampaign() {
       const { data, error } = await (supabase
         .from("admin_email_campaigns") as any)
         .insert([{
+          admin_id: user.id,
           subject: campaign.subject,
           body_html: campaign.body_html,
           body_text: campaign.body_text || null,
