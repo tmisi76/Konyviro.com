@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Gift, Copy, Check, Users } from "lucide-react";
+import { Gift, Copy, Check, Users, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useReferral } from "@/hooks/useReferral";
 import { REFERRAL_BONUS_WORDS } from "@/constants/referral";
 import { toast } from "sonner";
@@ -103,6 +104,16 @@ export function ReferralCard() {
           Minden sikeres meghívás után te és a meghívott is kap {formatNumber(REFERRAL_BONUS_WORDS)} szó kreditet.
           Nincs korlát – minél többen csatlakoznak, annál több kreditet kapsz!
         </p>
+
+        {/* Fraud Warning */}
+        <Alert variant="destructive" className="mt-4 border-destructive/50 bg-destructive/10">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            <strong>Fontos figyelmeztetés:</strong> A rendszer visszaéléseit (pl. email alias-ok használata mint name+1@gmail.com, 
+            ugyanazon IP címről több regisztráció) folyamatosan monitorozzuk. 
+            Visszaélés esetén az érintett fiókok <strong>azonnali, örökös tiltással</strong> járnak. Kérjük, ne trükközz!
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   );

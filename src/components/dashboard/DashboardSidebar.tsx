@@ -268,7 +268,7 @@ export function DashboardSidebar({
         <button
           onClick={signOut}
           className={cn(
-            "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            "mt-10 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             isCollapsed && "justify-center px-2"
           )}
         >
