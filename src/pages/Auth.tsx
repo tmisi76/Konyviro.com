@@ -7,6 +7,7 @@ import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { REFERRAL_STORAGE_KEY } from "@/constants/referral";
 
 export default function Auth() {
   const { user, loading } = useAuth();
@@ -14,9 +15,18 @@ export default function Auth() {
   const [searchParams] = useSearchParams();
   
   const mode = searchParams.get("mode");
+  const refCode = searchParams.get("ref");
   
   // SZINKRON inicializálás - nincs race condition!
   const [showPasswordReset, setShowPasswordReset] = useState(mode === "reset");
+
+  // Store referral code in localStorage if present
+  useEffect(() => {
+    if (refCode) {
+      localStorage.setItem(REFERRAL_STORAGE_KEY, refCode.toUpperCase());
+      console.log("Referral code stored:", refCode.toUpperCase());
+    }
+  }, [refCode]);
 
   useEffect(() => {
     // PASSWORD_RECOVERY event figyelése (backup)
