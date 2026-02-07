@@ -1,229 +1,148 @@
 
-
-# Terv: Ajánlói (Referral) Rendszer - MÓDOSÍTOTT
+# Terv: Referral rendszer UI frissítések
 
 ## Összefoglaló
 
-Egy affiliate marketing rendszer bevezetése, ahol:
-- **MINDEN felhasználó** (ingyenes és fizetős is) kap referral linket
-- **Meghívó használatakor**: A meghívó ÉS a meghívott is kap **10.000 szó kreditet**
-- **Példa**: Ha valaki 10 usert hoz be → 10 × 10.000 = **100.000 szó kredit**
+A következő változtatásokat kell végrehajtani:
+
+1. **40px padding a kilépés gomb fölé** - DashboardSidebar-ban
+2. **"Ajánld egy barátodnak" szöveg a kredit kiírás alá** - UsagePanel compact módban
+3. **Referral promóciós doboz a "Folyamatban lévő írások" fölé** - Dashboard főoldalon
+4. **Figyelmeztetés a csalásokról** - ReferralCard komponensben modal vagy kiterjesztett figyelmeztetés
 
 ---
 
-## 1. Adatbázis Változtatások
+## 1. DashboardSidebar - Kilépés gomb padding
 
-### 1.1 Új Oszlopok a `profiles` Táblához
+**Fájl:** `src/components/dashboard/DashboardSidebar.tsx`
 
-| Oszlop | Típus | Leírás |
-|--------|-------|--------|
-| `referral_code` | `text UNIQUE` | Egyedi meghívó kód (pl. "ABC123") |
-| `referred_by` | `uuid` | Ki hívta meg (user_id) |
-| `referral_bonus_received` | `boolean` | Kapott-e már bónuszt a meghívásáért |
-
-### 1.2 Új Tábla: `referrals`
-
-Követi a sikeres meghívásokat és jutalmazásokat.
+A separator és a kilépés gomb közé 40px padding hozzáadása:
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│ referrals                                               │
-├─────────────────────────────────────────────────────────┤
-│ id              UUID PRIMARY KEY                        │
-│ referrer_id     UUID (aki meghívta)                     │
-│ referred_id     UUID (akit meghívtak)                   │
-│ referral_code   TEXT (használt kód)                     │
-│ referrer_bonus  INTEGER DEFAULT 10000                   │
-│ referred_bonus  INTEGER DEFAULT 10000                   │
-│ status          TEXT DEFAULT 'completed'                │
-│ created_at      TIMESTAMPTZ                             │
-└─────────────────────────────────────────────────────────┘
+Jelenlegi struktúra:
+  - Beállítások gomb
+  - Separator (my-2)
+  - Kilépés gomb
+
+Új struktúra:
+  - Beállítások gomb
+  - Separator (my-2)
+  - 40px padding (pt-10)
+  - Kilépés gomb
 ```
+
+**Változtatás:** A separator `my-2` marad, de a kilépés gombon `mt-10` (40px) padding lesz.
 
 ---
 
-## 2. Referral Kód Generálás
+## 2. UsagePanel - Referral szöveg a kredit alá
 
-**MINDEN felhasználónak** automatikusan generálunk egy egyedi kódot regisztrációkor.
+**Fájl:** `src/components/dashboard/UsagePanel.tsx`
 
-**Trigger**: A `handle_new_user` database function-ben, amikor új user jön létre.
+A compact módban az Extra kredit és Hangoskönyv kredit után egy új sor:
 
 ```text
-Példa kód: "KI7X2M"
-Referral link: https://konyviro.com/auth?ref=KI7X2M
+┌─────────────────────────────────────────────┐
+│ ⚡ AI szavak                          75%  │
+│ [=============================        ]     │
+│ 📁 Projektek                         2/3   │
+│ [====================                 ]     │
+│ 🪙 Extra                         10,000    │
+│ 🎧 Hangoskönyv                   30 perc   │
+│                                             │
+│ 🎁 Ajánld egy barátodnak!              →   │
+│    +10.000 szó kredit                       │
+└─────────────────────────────────────────────┘
 ```
+
+Ez kattintható link lesz, ami modal-t nyit meg a ReferralCard tartalmával.
 
 ---
 
-## 3. Folyamat Áttekintése
+## 3. Dashboard - Promóciós doboz a főoldalon
+
+**Fájl:** `src/pages/Dashboard.tsx`
+
+Új komponens a Stats cards és "Folyamatban lévő írások" szekció közé:
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          REFERRAL FLOW                                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  1. BÁRMELY User megosztja a linkjét: konyviro.com/auth?ref=ABC123          │
-│                            ↓                                                │
-│  2. Új User kattint a linkre                                                │
-│                            ↓                                                │
-│  3. Frontend eltárolja a ref kódot localStorage-ban                         │
-│                            ↓                                                │
-│  4. Új User regisztrál (ingyenes vagy fizetős)                              │
-│                            ↓                                                │
-│  5. Backend ellenőrzi a ref kódot:                                          │
-│     - Érvényes-e? (létezik-e user ezzel a kóddal)                           │
-│     - Nem saját maga hívta-e meg?                                           │
-│                            ↓                                                │
-│  6. Ha érvényes:                                                            │
-│     - Meghívott kap +10.000 szó extra_words_balance                         │
-│     - Meghívó kap +10.000 szó extra_words_balance                           │
-│     - Referral record létrehozása                                           │
-│                                                                             │
-│  PÉLDA: 10 meghívott = 10 × 10.000 = 100.000 szó kredit!                    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🎁 Ajánld a Könyvírót barátaidnak!                                  │
+│                                                                     │
+│ Oszd meg a meghívó linkedet és mindketten kaptok 10.000 szó         │
+│ kreditet!                                          [ Megosztás ]    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+Kattintásra/gombra modal nyílik meg a teljes ReferralCard tartalommal.
 
 ---
 
-## 4. Frontend Változtatások
+## 4. ReferralCard - Csalás figyelmeztetés
 
-### 4.1 Auth Oldal (src/pages/Auth.tsx)
+**Fájl:** `src/components/settings/ReferralCard.tsx`
 
-- Referral kód kiolvasása URL-ből (`?ref=ABC123`)
-- Eltárolás `localStorage`-ban regisztrációig
-
-### 4.2 RegisterForm (src/components/auth/RegisterForm.tsx)
-
-- Referral kód átadása a `signUp` funkciónak user metadata-ban
-- Edge function meghívása regisztráció után
-
-### 4.3 Új Komponens: ReferralCard
-
-Megjelenik a **Beállítások > Előfizetés** oldalon MINDEN usernek.
+Új figyelmeztetés blokk az Info szekció után:
 
 ```text
-┌────────────────────────────────────────────────────────┐
-│ 🎁 Hívd meg barátaidat!                                │
-├────────────────────────────────────────────────────────┤
-│                                                        │
-│  Oszd meg az ajánló linkedet és mindketten            │
-│  kaptok 10.000 szó kreditet!                          │
-│                                                        │
-│  ┌──────────────────────────────────────────────────┐ │
-│  │ https://konyviro.com/auth?ref=KI7X2M   [Másolás] │ │
-│  └──────────────────────────────────────────────────┘ │
-│                                                        │
-│  Sikeres meghívások: 3                                │
-│  Szerzett kreditek: 30.000 szó                        │
-│                                                        │
-└────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ ⚠️ Fontos figyelmeztetés                                            │
+│                                                                     │
+│ A rendszer visszaéléseit (pl. email alias-ok használata,            │
+│ ugyanazon IP címről több regisztráció) folyamatosan                │
+│ monitorozzuk. Visszaélés esetén az érintett fiókok azonnali,       │
+│ örökös tiltással járnak. Kérjük, ne trükközz!                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## 5. Backend Változtatások
-
-### 5.1 Database Function: `handle_new_user` Módosítás
-
-Referral kód generálás MINDEN új usernek:
-
-```sql
--- Referral kód generálás
-NEW.referral_code := upper(substr(md5(random()::text), 1, 6));
-```
-
-### 5.2 Új Edge Function: `process-referral`
-
-**Bemenet:**
-```json
-{
-  "new_user_id": "uuid",
-  "referral_code": "ABC123"
-}
-```
-
-**Logika:**
-1. Kód validálás (létezik-e user ezzel a kóddal)
-2. Nem saját maga-e (self-referral check)
-3. Meghívott `extra_words_balance` += 10000
-4. Meghívó `extra_words_balance` += 10000
-5. `referrals` tábla bejegyzés
-6. Email értesítés mindkét félnek (opcionális)
-
-### 5.3 Welcome Email Frissítés
-
-Ha referral kóddal jött, az email tartalmazza:
-- "Kaptál 10.000 bónusz szó kreditet meghívás után!"
+Piros/narancssárga színű AlertTriangle ikonnal és figyelmeztető stílussal.
 
 ---
 
-## 6. Új Fájlok
+## 5. Új komponens: ReferralBanner
 
-| Fájl | Leírás |
-|------|--------|
-| `src/hooks/useReferral.ts` | Referral adatok lekérése és statisztikák |
-| `src/components/settings/ReferralCard.tsx` | Referral UI komponens |
-| `supabase/functions/process-referral/index.ts` | Referral feldolgozás és kredit jóváírás |
+**Fájl:** `src/components/dashboard/ReferralBanner.tsx`
 
----
+Promóciós banner komponens a Dashboard-ra:
 
-## 7. Biztonsági Szabályok
-
-| Szabály | Implementáció |
-|---------|---------------|
-| Nincs önreferral | `referrer_id != referred_id` check |
-| Egy user csak egyszer kaphat referral bónuszt | `referral_bonus_received` flag |
-| Kód validálás szerver oldalon | Edge function-ben |
-| Dupla regisztráció tiltás | Email egyediség (Supabase Auth) |
+| Tulajdonság | Érték |
+|-------------|-------|
+| Stílus | Gradient háttér (primary/5 → transparent) |
+| Ikon | Gift icon |
+| Cím | "Ajánld a Könyvírót!" |
+| Alcím | "10.000 szó kredit mindkettőtöknek" |
+| Gomb | "Megosztás" → modal nyitás |
 
 ---
 
-## 8. RLS Szabályok
+## 6. Új komponens: ReferralModal
 
-```sql
--- referrals tábla: Mindenki láthatja a saját meghívásait
-CREATE POLICY "Users can view their own referrals"
-ON public.referrals FOR SELECT
-USING (auth.uid() = referrer_id OR auth.uid() = referred_id);
+**Fájl:** `src/components/settings/ReferralModal.tsx`
 
--- Csak service role hozhat létre referral rekordot
-CREATE POLICY "Service role can insert referrals"
-ON public.referrals FOR INSERT
-WITH CHECK (true);
-```
+A ReferralCard tartalmát Dialog-ba csomagoljuk, amit több helyről meg lehet nyitni:
+- Dashboard ReferralBanner
+- UsagePanel "Ajánld egy barátodnak" link
 
 ---
 
-## 9. Implementációs Sorrend
+## Érintett fájlok
 
-1. **Adatbázis migráció**: Új oszlopok és `referrals` tábla
-2. **Database function**: `handle_new_user` módosítás (kód generálás)
-3. **Edge Function**: `process-referral` létrehozása
-4. **Frontend**: Auth oldal referral kód kezelés (URL + localStorage)
-5. **Frontend**: RegisterForm módosítás (kód átadása)
-6. **Frontend**: ReferralCard komponens a beállításokba
-7. **Frontend**: useReferral hook a statisztikákhoz
-8. **Backend**: Welcome email frissítés (opcionális)
-
----
-
-## 10. Konstansok
-
-```typescript
-// src/constants/referral.ts
-export const REFERRAL_BONUS_WORDS = 10000;
-export const REFERRAL_CODE_LENGTH = 6;
-```
+| Fájl | Művelet |
+|------|---------|
+| `src/components/dashboard/DashboardSidebar.tsx` | Módosítás (40px padding) |
+| `src/components/dashboard/UsagePanel.tsx` | Módosítás (referral link) |
+| `src/pages/Dashboard.tsx` | Módosítás (ReferralBanner hozzáadás) |
+| `src/components/settings/ReferralCard.tsx` | Módosítás (figyelmeztetés) |
+| `src/components/dashboard/ReferralBanner.tsx` | Új fájl |
+| `src/components/settings/ReferralModal.tsx` | Új fájl |
 
 ---
 
-## Összehasonlítás: Régi vs Új Terv
+## Implementációs sorrend
 
-| Szempont | Régi Terv | Új Terv |
-|----------|-----------|---------|
-| Ki kaphat referral linket | Csak fizetős userek | MINDEN user |
-| Referral kód generálás | Előfizetéskor | Regisztrációkor |
-| Bónusz összege | 10.000 szó | 10.000 szó (változatlan) |
-| Potenciál | Korlátozott | Korlátlan növekedés |
-
+1. `ReferralModal.tsx` - Új modal komponens a ReferralCard tartalmával + figyelmeztetés
+2. `ReferralCard.tsx` - Figyelmeztetés hozzáadása
+3. `ReferralBanner.tsx` - Új banner komponens
+4. `Dashboard.tsx` - Banner integrálása desktop és mobil nézetben
+5. `UsagePanel.tsx` - Referral link compact módban
+6. `DashboardSidebar.tsx` - 40px padding a kilépés gomb fölé
