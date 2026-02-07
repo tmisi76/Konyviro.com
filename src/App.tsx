@@ -49,6 +49,7 @@ const AdminActivityLogs = lazy(() => import("./pages/admin/AdminActivityLogs"));
 const AdminIssues = lazy(() => import("./pages/admin/AdminIssues"));
 const AdminVoices = lazy(() => import("./pages/admin/AdminVoices"));
 const AdminEmailSender = lazy(() => import("./pages/admin/AdminEmailSender"));
+const AdminAffiliates = lazy(() => import("./pages/admin/AdminAffiliates"));
 import { AdminLayout } from "@/layouts/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -367,6 +368,18 @@ function AppContent() {
               <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
                 <AdminLayout>
                   <AdminEmailSender />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/affiliates"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminAffiliates />
                 </AdminLayout>
               </Suspense>
             </ProtectedRoute>
