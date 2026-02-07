@@ -30,6 +30,7 @@ import { OnboardingTour } from "@/components/ui/onboarding-tour";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { RetryError } from "@/components/ui/retry-error";
 import { BugReportFab } from "@/components/support/BugReportFab";
+import { ReferralBanner } from "@/components/dashboard/ReferralBanner";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -479,6 +480,11 @@ export default function Dashboard() {
               subtitle="nap"
               icon={Flame}
             />
+          </div>
+
+          {/* Referral Banner */}
+          <div className="mb-8">
+            <ReferralBanner />
           </div>
 
           {activeWritingProjects.length > 0 && (

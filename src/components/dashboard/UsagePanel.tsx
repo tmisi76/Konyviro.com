@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Zap, FolderOpen, Calendar, ArrowUpRight, TrendingUp, Coins, Plus, Headphones } from "lucide-react";
+import { Zap, FolderOpen, Calendar, ArrowUpRight, TrendingUp, Coins, Plus, Headphones, Gift } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, addMonths, startOfMonth } from "date-fns";
 import { hu } from "date-fns/locale";
@@ -12,7 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { BuyCreditModal } from "@/components/credits/BuyCreditModal";
 import { BuyAudiobookCreditModal } from "@/components/audiobook/BuyAudiobookCreditModal";
+import { ReferralModal } from "@/components/settings/ReferralModal";
 import { formatAudioMinutes } from "@/constants/audiobookCredits";
+import { REFERRAL_BONUS_WORDS } from "@/constants/referral";
 
 const TIER_NAMES: Record<string, string> = {
   free: "Ingyenes",
@@ -31,6 +33,7 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
   const { balance: audiobookBalance, isLoading: audiobookLoading } = useAudiobookCredits();
   const [showBuyCreditModal, setShowBuyCreditModal] = useState(false);
   const [showAudiobookCreditModal, setShowAudiobookCreditModal] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
 
   // Calculate next reset date based on subscription start date
   const nextResetDate = useMemo(() => {
@@ -184,10 +187,28 @@ export function UsagePanel({ compact = false }: UsagePanelProps) {
           </button>
         )}
         
-        {/* Audiobook Credit Modal for compact mode */}
+        {/* Referral link in compact mode */}
+        <button 
+          onClick={() => setShowReferralModal(true)}
+          className="flex justify-between text-xs w-full hover:text-primary transition-colors pt-2 border-t border-border mt-2"
+        >
+          <span className="flex items-center gap-1 text-primary">
+            <Gift className="h-3 w-3" />
+            Ajánld egy barátodnak!
+          </span>
+          <span className="text-primary font-medium">
+            +{(REFERRAL_BONUS_WORDS / 1000).toLocaleString("hu-HU")}k szó
+          </span>
+        </button>
+        
+        {/* Modals for compact mode */}
         <BuyAudiobookCreditModal 
           open={showAudiobookCreditModal} 
           onOpenChange={setShowAudiobookCreditModal} 
+        />
+        <ReferralModal 
+          open={showReferralModal} 
+          onOpenChange={setShowReferralModal} 
         />
       </div>
     );
