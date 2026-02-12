@@ -9,6 +9,7 @@ import {
   Loader2,
   Save
 } from "lucide-react";
+import { ChangePasswordSection } from "./ChangePasswordSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -310,6 +311,9 @@ export function ProfileSettings() {
           )}
         </Button>
       </div>
+
+      {/* Password Change Section */}
+      <ChangePasswordSection />
     </form>
   );
 }
