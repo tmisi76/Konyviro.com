@@ -1,11 +1,20 @@
 import { useState } from "react";
-import { Eye, EyeOff, Loader2, Lock } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export function ChangePasswordSection() {
   const { user } = useAuth();
@@ -16,6 +25,7 @@ export function ChangePasswordSection() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
   const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -57,31 +67,11 @@ export function ChangePasswordSection() {
         return;
       }
 
-      // 4. Wait for session to stabilize after password update
-      await delay(500);
-
-      // 5. Verify new password works
-      const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email,
-        password: newPassword,
-      });
-
-      if (verifyError) {
-        toast({
-          title: "A jelszó módosítva lett, de az ellenőrzés sikertelen.",
-          description: "Kérjük lépjen ki és próbáljon újra bejelentkezni az új jelszóval.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "✅ Jelszó sikeresen módosítva!",
-          description: "Most már az új jelszóval tud bejelentkezni.",
-        });
-      }
-
+      // 4. Success - show popup dialog
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setShowSuccessDialog(true);
     } catch {
       toast({ title: "Váratlan hiba történt.", variant: "destructive" });
     } finally {
@@ -90,6 +80,7 @@ export function ChangePasswordSection() {
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="rounded-xl border bg-card p-6 shadow-material-1">
       <h3 className="mb-4 text-lg font-semibold text-foreground flex items-center gap-2">
         <Lock className="h-5 w-5" />
@@ -181,5 +172,27 @@ export function ChangePasswordSection() {
         </div>
       </div>
     </form>
+
+    <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+            <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+          </div>
+          <AlertDialogTitle className="text-center">
+            Jelszó sikeresen módosítva!
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-center">
+            Most már az új jelszóval tud bejelentkezni.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="sm:justify-center">
+          <AlertDialogAction onClick={() => setShowSuccessDialog(false)}>
+            Rendben
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
