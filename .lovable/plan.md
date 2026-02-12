@@ -1,35 +1,53 @@
 
 
-# Jelszóváltoztatás javítás -- versenyhelyzet megszüntetése
+# Jelszomodositas javitas -- Dialog popup siker eseten
 
-## Probléma
+## Problema
 
-A `signInWithPassword` hívás egy `onAuthStateChange` (SIGNED_IN) eseményt vált ki, ami aszinkron módon frissíti a session-t. Ha az `updateUser` hívás hamarabb fut le, mint ahogy az új session stabilizálódik, a jelszófrissítés csendben sikertelen lehet.
+1. A jelszovaltoztatas nem mukodik megbizhatoan -- a `signInWithPassword` hivasok `onAuthStateChange` esemenyt valtak ki, ami megzavarja a session-t
+2. A siker visszajelzes (toast) nem feltu eleg -- a felhasznalo nem veszi eszre
 
-## Javítás
+## Megoldas
 
-A `ChangePasswordSection.tsx` handleSubmit logikáját az alábbira módosítjuk:
+### 1. Egyszerusitett, megbizhato jelszovaltoztatas logika
 
-1. `signInWithPassword` (jelenlegi jelszó ellenőrzés)
-2. **Rövid várakozás** (500ms) -- session stabilizálódásra
-3. **Session frissítés** (`getSession`) -- biztosítjuk hogy a legfrissebb session-nel dolgozunk
-4. `updateUser({ password: newPassword })`
-5. **Rövid várakozás** (500ms)
-6. `signInWithPassword` (új jelszóval visszaellenőrzés)
-7. Feltűnő siker/hiba toast
+A jelenlegi megkozelites haromszor hiv `signInWithPassword`-ot, ami felesleges auth esemenyeket general. Uj megkozelites:
 
-## Technikai részletek
+- A jelenlegi jelszo ellenorzeset **egy kulon, rovidet eletu Supabase klienssel** vegezzuk, igy az nem zavarja meg a fo session-t
+- Vagy egyszerubben: a mar bejelentkezett felhasznalonak csak `updateUser`-t hivunk (a felhasznalo mar hitelesitett), es a jelenlegi jelszo ellenorzeset a fo klienssel vegezzuk, de utana ujra stabilizaljuk a session-t
 
-### Módosítandó fájl
+A legmegbizhatobb: megtartjuk a jelenlegi jelszoval torteno ellenorzest, de a vegleges "visszaellenorzes" lepest elhagyjuk (az okozza a legtobb gondot), es csak az `updateUser` eredmenyere tamaszkodunk.
 
-| Fájl | Változás |
+### 2. Siker popup (AlertDialog)
+
+A toast helyett egy feltuvo AlertDialog popup jelenik meg:
+- Zold pipa ikon
+- "Jelszó sikeresen módosítva!" cim
+- "Most már az új jelszóval tud bejelentkezni." leiras
+- "Rendben" gomb a bezarashoz
+
+## Technikai reszletek
+
+### Modositando fajl
+
+| Fajl | Valtozas |
 |------|---------|
-| `src/components/settings/ChangePasswordSection.tsx` | Várakozások beiktatása a signIn es updateUser hívások közé, session refresh hozzáadása |
+| `src/components/settings/ChangePasswordSection.tsx` | Logika egyszerusites + AlertDialog popup |
 
-### Kulcsváltozások
+### Uj folyamat
 
-- Segédfüggvény: `const delay = (ms: number) => new Promise(r => setTimeout(r, ms));`
-- 1. lépés után: `await delay(500)` + `await supabase.auth.getSession()`
-- 2. lépés után: `await delay(500)` az updateUser és a verification signIn között
-- Ez biztosítja, hogy az onAuthStateChange lefusson es a session friss legyen mielőtt a következő lépés indul
+```text
+1. signInWithPassword(email, JELENLEGI jelszo) -> ellenorzes
+2. delay(500) + getSession() -> session stabilizalas
+3. updateUser({ password: UJ jelszo }) -> frissites
+4. Ha sikeres -> AlertDialog popup megjelenik
+5. Ha sikertelen -> destructive toast hibauzenettel
+```
+
+### Kulcsvaltozasok
+
+- Elhagyjuk az 5. lepest (signInWithPassword az uj jelszoval) -- ez okozta a versenyhelyzetet
+- Toast helyett AlertDialog popup a sikeres valtoztatasnal
+- `showSuccessDialog` state hozzaadasa
+- AlertDialog importalasa a meglevo `@/components/ui/alert-dialog` komponensbol
 
