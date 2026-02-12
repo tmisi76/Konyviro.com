@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemSettings, useUpdateSystemSettings } from "@/hooks/admin/useSystemSettings";
+import { ChangePasswordSection } from "@/components/settings/ChangePasswordSection";
 
 interface GeneralSettings {
   app_name: string;
@@ -419,6 +420,8 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
       </div>
+
+      <ChangePasswordSection />
     </div>
   );
 }
