@@ -30,10 +30,11 @@ export function ChangePasswordSection() {
     }
 
     setIsSaving(true);
+    const email = user?.email || "";
     try {
-      // Verify current password
+      // 1. Verify current password
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || "",
+        email,
         password: currentPassword,
       });
       if (signInError) {
@@ -42,16 +43,36 @@ export function ChangePasswordSection() {
         return;
       }
 
-      // Update password
+      // 2. Update password
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
         toast({ title: "Hiba történt a jelszó módosítása során.", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Jelszó sikeresen módosítva!" });
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
+        setIsSaving(false);
+        return;
       }
+
+      // 3. Verify new password works by signing in with it
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email,
+        password: newPassword,
+      });
+
+      if (verifyError) {
+        toast({
+          title: "A jelszó módosítva lett, de az ellenőrzés sikertelen.",
+          description: "Kérjük lépjen ki és próbáljon újra bejelentkezni az új jelszóval.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "✅ Jelszó sikeresen módosítva!",
+          description: "Most már az új jelszóval tud bejelentkezni.",
+        });
+      }
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch {
       toast({ title: "Váratlan hiba történt.", variant: "destructive" });
     } finally {
