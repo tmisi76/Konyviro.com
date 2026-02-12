@@ -106,7 +106,8 @@ export function ProfileSettings() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
       {/* Avatar Section */}
       <div className="rounded-xl border bg-card p-6 shadow-material-1">
         <h3 className="mb-4 text-lg font-semibold text-foreground">Profilkép</h3>
@@ -312,8 +313,10 @@ export function ProfileSettings() {
         </Button>
       </div>
 
+    </form>
+
       {/* Password Change Section */}
       <ChangePasswordSection />
-    </form>
+    </div>
   );
 }
