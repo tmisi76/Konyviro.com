@@ -17,6 +17,8 @@ export function ChangePasswordSection() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -43,7 +45,11 @@ export function ChangePasswordSection() {
         return;
       }
 
-      // 2. Update password
+      // 2. Wait for session to stabilize after signIn event
+      await delay(500);
+      await supabase.auth.getSession();
+
+      // 3. Update password
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) {
         toast({ title: "Hiba történt a jelszó módosítása során.", description: error.message, variant: "destructive" });
@@ -51,7 +57,10 @@ export function ChangePasswordSection() {
         return;
       }
 
-      // 3. Verify new password works by signing in with it
+      // 4. Wait for session to stabilize after password update
+      await delay(500);
+
+      // 5. Verify new password works
       const { error: verifyError } = await supabase.auth.signInWithPassword({
         email,
         password: newPassword,
