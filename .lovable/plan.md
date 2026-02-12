@@ -1,25 +1,22 @@
 
 
-# Jelszóváltoztatás hibajavítás
+# Jelszóváltoztatás javítás -- versenyhelyzet megszüntetése
 
 ## Probléma
 
-Az ugyfél (Jaskó István) jelszót változtatott a Profil beállításokban, de:
-1. Nem kapott "sikeres mentés" visszajelzést
-2. Az új jelszóval nem tudott bejelentkezni
-
-## Gyökér ok
-
-A `signInWithPassword` hívás (jelenlegi jelszó ellenőrzéséhez) egy `onAuthStateChange` eseményt vált ki, ami versenyhelyzetet okozhat az utána következő `updateUser` hívással. Emellett nincs visszaellenőrzés, hogy az új jelszó tényleg működik-e.
+A `signInWithPassword` hívás egy `onAuthStateChange` (SIGNED_IN) eseményt vált ki, ami aszinkron módon frissíti a session-t. Ha az `updateUser` hívás hamarabb fut le, mint ahogy az új session stabilizálódik, a jelszófrissítés csendben sikertelen lehet.
 
 ## Javítás
 
-A `ChangePasswordSection.tsx` komponens jelszócsere logikáját az alábbira módosítjuk:
+A `ChangePasswordSection.tsx` handleSubmit logikáját az alábbira módosítjuk:
 
-1. Jelenlegi jelszó ellenőrzése (`signInWithPassword`)
-2. Jelszó frissítése (`updateUser`)
-3. **Visszaellenőrzés**: Újra bejelentkeztetés az **ÚJ** jelszóval (`signInWithPassword`) -- ha ez sikeres, biztosak lehetünk benne, hogy a jelszó tényleg megváltozott
-4. **Feltűnőbb sikeres visszajelzés**: Zöld pipa ikon + "Jelszó sikeresen módosítva!" szöveg a toast-ban, `description` mezővel kiegészítve
+1. `signInWithPassword` (jelenlegi jelszó ellenőrzés)
+2. **Rövid várakozás** (500ms) -- session stabilizálódásra
+3. **Session frissítés** (`getSession`) -- biztosítjuk hogy a legfrissebb session-nel dolgozunk
+4. `updateUser({ password: newPassword })`
+5. **Rövid várakozás** (500ms)
+6. `signInWithPassword` (új jelszóval visszaellenőrzés)
+7. Feltűnő siker/hiba toast
 
 ## Technikai részletek
 
@@ -27,19 +24,12 @@ A `ChangePasswordSection.tsx` komponens jelszócsere logikáját az alábbira m�
 
 | Fájl | Változás |
 |------|---------|
-| `src/components/settings/ChangePasswordSection.tsx` | Jelszócsere logika javítása: visszaellenőrzés hozzáadása, feltűnőbb toast |
+| `src/components/settings/ChangePasswordSection.tsx` | Várakozások beiktatása a signIn es updateUser hívások közé, session refresh hozzáadása |
 
-### Új folyamat
+### Kulcsváltozások
 
-```text
-1. signInWithPassword(email, JELENLEGI jelszó) -> ellenőrzés
-2. updateUser({ password: ÚJ jelszó }) -> frissítés
-3. signInWithPassword(email, ÚJ jelszó) -> visszaellenőrzés
-4. Ha 3. sikeres -> feltűnő siker toast + mezők ürítése
-5. Ha 3. sikertelen -> figyelmeztetés: "Kérjük lépjen ki és próbáljon újra bejelentkezni"
-```
+- Segédfüggvény: `const delay = (ms: number) => new Promise(r => setTimeout(r, ms));`
+- 1. lépés után: `await delay(500)` + `await supabase.auth.getSession()`
+- 2. lépés után: `await delay(500)` az updateUser és a verification signIn között
+- Ez biztosítja, hogy az onAuthStateChange lefusson es a session friss legyen mielőtt a következő lépés indul
 
-### Toast javítás
-
-- Siker esetén: `title` + `description` mező is kitöltve, pl. "Most már az új jelszóval tud bejelentkezni."
-- Hiba esetén: Részletesebb hibaüzenetek minden lépéshez
