@@ -1,53 +1,57 @@
 
 
-# Jelszomodositas javitas -- Dialog popup siker eseten
+# Jelszóváltoztatás javítás -- beágyazott form hiba
 
-## Problema
+## Gyökérok
 
-1. A jelszovaltoztatas nem mukodik megbizhatoan -- a `signInWithPassword` hivasok `onAuthStateChange` esemenyt valtak ki, ami megzavarja a session-t
-2. A siker visszajelzes (toast) nem feltu eleg -- a felhasznalo nem veszi eszre
+A `ProfileSettings.tsx` egy nagy `<form>` elemen belül rendereli a `ChangePasswordSection` komponenst (316. sor). A `ChangePasswordSection` saját `<form>` elemet tartalmaz. Ez **beagyazott form-okat** eredmenyez, ami ervenytelen HTML -- a bongeszo nem tudja megbizhatoan kezelni, a submit esemenyek osszekeverednek vagy egyaltalan nem futnak le.
 
 ## Megoldas
 
-### 1. Egyszerusitett, megbizhato jelszovaltoztatas logika
+Ket modositast kell vegrehajtani:
 
-A jelenlegi megkozelites haromszor hiv `signInWithPassword`-ot, ami felesleges auth esemenyeket general. Uj megkozelites:
+### 1. ProfileSettings.tsx -- ChangePasswordSection kiemelese a form-bol
 
-- A jelenlegi jelszo ellenorzeset **egy kulon, rovidet eletu Supabase klienssel** vegezzuk, igy az nem zavarja meg a fo session-t
-- Vagy egyszerubben: a mar bejelentkezett felhasznalonak csak `updateUser`-t hivunk (a felhasznalo mar hitelesitett), es a jelenlegi jelszo ellenorzeset a fo klienssel vegezzuk, de utana ujra stabilizaljuk a session-t
+A `<ChangePasswordSection />` komponenst a zaro `</form>` tag UTA kell athelyezni, igy a ket form fuggetlen lesz egymasbol.
 
-A legmegbizhatobb: megtartjuk a jelenlegi jelszoval torteno ellenorzest, de a vegleges "visszaellenorzes" lepest elhagyjuk (az okozza a legtobb gondot), es csak az `updateUser` eredmenyere tamaszkodunk.
+### 2. ChangePasswordSection.tsx -- mar rendben van
 
-### 2. Siker popup (AlertDialog)
-
-A toast helyett egy feltuvo AlertDialog popup jelenik meg:
-- Zold pipa ikon
-- "Jelszó sikeresen módosítva!" cim
-- "Most már az új jelszóval tud bejelentkezni." leiras
-- "Rendben" gomb a bezarashoz
+A jelenlegi kod (delay + getSession + updateUser + AlertDialog) logikailag helyes. A problema kizarolag a beagyazott form volt.
 
 ## Technikai reszletek
 
-### Modositando fajl
-
 | Fajl | Valtozas |
 |------|---------|
-| `src/components/settings/ChangePasswordSection.tsx` | Logika egyszerusites + AlertDialog popup |
+| `src/components/settings/ProfileSettings.tsx` | `ChangePasswordSection` athelyezese a form-on kivulre, a komponenst Fragment-be (`<>...</>`) csomagolva |
 
-### Uj folyamat
+### Jelenlegi struktura (hibas)
 
 ```text
-1. signInWithPassword(email, JELENLEGI jelszo) -> ellenorzes
-2. delay(500) + getSession() -> session stabilizalas
-3. updateUser({ password: UJ jelszo }) -> frissites
-4. Ha sikeres -> AlertDialog popup megjelenik
-5. Ha sikertelen -> destructive toast hibauzenettel
+<form onSubmit={handleSubmit}>        <-- profil form
+  ... profil mezok ...
+  <Button type="submit">Mentes</Button>
+  <ChangePasswordSection />           <-- BENNE van a form-ban!
+    <form onSubmit={handlePasswordSubmit}>  <-- BEAGYAZOTT FORM (HIBAS)
+    </form>
+  </ChangePasswordSection>
+</form>
 ```
 
-### Kulcsvaltozasok
+### Javitott struktura
 
-- Elhagyjuk az 5. lepest (signInWithPassword az uj jelszoval) -- ez okozta a versenyhelyzetet
-- Toast helyett AlertDialog popup a sikeres valtoztatasnal
-- `showSuccessDialog` state hozzaadasa
-- AlertDialog importalasa a meglevo `@/components/ui/alert-dialog` komponensbol
+```text
+<>
+  <form onSubmit={handleSubmit}>      <-- profil form
+    ... profil mezok ...
+    <Button type="submit">Mentes</Button>
+  </form>
+  <ChangePasswordSection />          <-- KULSO, fuggetlen
+    <form onSubmit={handlePasswordSubmit}>  <-- SAJAT FORM (HELYES)
+    </form>
+  </ChangePasswordSection>
+</>
+```
 
+Ez a modositas megoldja mind a ket problemat:
+- A jelszomodositas tenylegesen vegrehajtodasik (a form submit rendesen mukodik)
+- Az AlertDialog popup megjelenik sikeres modositas eseten
