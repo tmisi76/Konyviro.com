@@ -1,42 +1,25 @@
 
+# Megoldott hibak elrejtese alapertelmezetten
 
-# Hibalistaban a kuldo neve es emailje megjelenitese
+## Valtozas
 
-## Problema
-
-A hibalistan jelenleg nincs latható, hogy ki kuldte a hibat. A `created_by` mezoben ott van a `user_id`, de nem kerdeztuk le hozza a felhasznalo nevet/emailjet.
-
-## Megoldas
-
-A `support_tickets` lekerdezesehez csatlakoztatjuk a `profiles` tablat, es megjelenítjuk a kuldo nevet a tablazatban es a reszletes nezetben is.
+A `filteredIssues` szurest bovitjuk: alapertelmezetten kiszurjuk a `resolved` es `wont_fix` statuszu issue-kat. Egy uj toggle gomb engedi a felhasznalonak megjeleníteni oket.
 
 ## Technikai reszletek
 
 ### Modositando fajl: `src/pages/admin/AdminIssues.tsx`
 
-**1. Issue interface bovitese**
-- Uj mezo: `sender_name: string | null`
+**1. Uj state** (73. sor korul):
+- `const [showResolved, setShowResolved] = useState(false);`
 
-**2. Query bovitese (84-112. sor)**
-- Az issues lekerdezes utan a `created_by` (user_id) lista alapjan egy masodik lekerdezes a `profiles` tablara (`user_id`, `display_name`, `full_name`)
-- Osszerendeles: minden issue-hoz hozzarendeljuk a nevet
+**2. `filteredIssues` szures bovitese** (218-223. sor):
+- Ha `showResolved === false` ES `statusFilter === "all"`, akkor kiszurjuk a `resolved` es `wont_fix` statuszu issue-kat
+- Ha a felhasznalo kifejezetten a "Megoldva" vagy "Nem javitjuk" szurot valasztja, akkor termeszetesen azok jelennek meg
 
-**3. Tablazat bovitese (294-338. sor)**
-- Uj oszlop: "Kuldo" a "Cim" es "Prioritas" kozott
-- A cellaban megjelenik a felhasznalo neve (vagy `user_id` elso 8 karaktere, ha nincs nev)
+**3. Toggle gomb a szurok melle** (274-295. sor korul):
+- A kereses es statusz szuro melle kerul egy `Button` (variant: outline), ami a `showResolved` allapotot valtja
+- Szoveg: "Megoldottak mutatasa" / "Megoldottak elrejtese"
+- `Eye` / `EyeOff` ikon a lucide-react-bol
 
-**4. Reszletes nezet Dialog bovitese**
-- A fejlecben megjelenik a kuldo neve a datumok mellett
-
-### Lekerdezesi logika
-
-```text
-1. support_tickets lekerdezes (meglevo)
-2. user_id-k osszegyujtese (created_by mezobol)
-3. profiles lekerdezes: SELECT user_id, display_name, full_name WHERE user_id IN (...)
-4. Map: user_id -> display_name || full_name || "user_xxxxxxxx"
-5. Minden issue-hoz hozzarendeles
-```
-
-Nem kell migracio, a `profiles` tabla es a `support_tickets.user_id` mar letezik.
-
+**4. Megoldott issue-k szama** (badge a gombon):
+- A gomb mellett megjelenik a megoldott issue-k szama badge-kent, hogy a felhasznalo tudja, hany el van rejtve
