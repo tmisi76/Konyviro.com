@@ -151,13 +151,6 @@ export function LoginForm() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="login-password">Jelszó</Label>
-          <button
-            type="button"
-            onClick={() => setShowForgotPassword(true)}
-            className="text-xs text-primary hover:text-primary/80 transition-colors"
-          >
-            Elfelejtett jelszó?
-          </button>
         </div>
         <div className="relative">
           <Input
@@ -178,6 +171,14 @@ export function LoginForm() {
           </button>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowForgotPassword(true)}
+        className="text-sm text-primary hover:text-primary/80 transition-colors underline underline-offset-2 w-full text-left"
+      >
+        Elfelejtett jelszó? Kattints ide az új jelszó kéréséhez
+      </button>
 
       {error && (
         <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
