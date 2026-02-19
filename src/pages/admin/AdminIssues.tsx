@@ -27,7 +27,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, AlertCircle, CheckCircle2, Clock, Loader2, Search } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, AlertCircle, CheckCircle2, Clock, Loader2, Search, Send } from "lucide-react";
 import { format } from "date-fns";
 import { hu } from "date-fns/locale";
 import { toast } from "sonner";
@@ -71,6 +72,7 @@ export default function AdminIssues() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [replyText, setReplyText] = useState("");
   const [newIssue, setNewIssue] = useState({
     title: "",
     description: "",
@@ -145,6 +147,53 @@ export default function AdminIssues() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-issues"] });
       toast.success("Státusz frissítve!");
+    },
+  });
+
+  // Fetch messages for selected issue
+  const { data: messages, isLoading: messagesLoading } = useQuery({
+    queryKey: ["admin", "issue-messages", selectedIssue?.id],
+    queryFn: async () => {
+      if (!selectedIssue) return [];
+      const { data, error } = await supabase
+        .from("support_ticket_messages")
+        .select("id, ticket_id, message, is_admin_reply, sender_id, created_at")
+        .eq("ticket_id", selectedIssue.id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedIssue,
+  });
+
+  const sendReply = useMutation({
+    mutationFn: async () => {
+      if (!selectedIssue || !replyText.trim()) return;
+      const { error } = await supabase.from("support_ticket_messages").insert({
+        ticket_id: selectedIssue.id,
+        message: replyText.trim(),
+        is_admin_reply: true,
+        sender_id: user?.id,
+      });
+      if (error) throw error;
+
+      // Auto-update status to in_progress if open
+      if (selectedIssue.status === "open") {
+        await supabase
+          .from("support_tickets")
+          .update({ status: "in_progress", updated_at: new Date().toISOString() })
+          .eq("id", selectedIssue.id);
+        setSelectedIssue((prev) => prev ? { ...prev, status: "in_progress" as Issue["status"] } : null);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "issue-messages", selectedIssue?.id] });
+      queryClient.invalidateQueries({ queryKey: ["admin-issues"] });
+      setReplyText("");
+      toast.success("Válasz elküldve!");
+    },
+    onError: (error: any) => {
+      toast.error("Hiba: " + error.message);
     },
   });
 
@@ -315,8 +364,8 @@ export default function AdminIssues() {
       </Card>
 
       {/* Detail Dialog */}
-      <Dialog open={!!selectedIssue} onOpenChange={(open) => !open && setSelectedIssue(null)}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={!!selectedIssue} onOpenChange={(open) => { if (!open) { setSelectedIssue(null); setReplyText(""); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           {selectedIssue && (() => {
             const sc = STATUS_CONFIG[selectedIssue.status] || STATUS_CONFIG.open;
             const pc = PRIORITY_CONFIG[selectedIssue.priority] || PRIORITY_CONFIG.medium;
@@ -326,7 +375,7 @@ export default function AdminIssues() {
                 <DialogHeader>
                   <DialogTitle>{selectedIssue.title}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge className={pc.className}>{pc.label}</Badge>
                     <Badge variant="outline">{selectedIssue.category || "Egyéb"}</Badge>
@@ -352,6 +401,68 @@ export default function AdminIssues() {
                       </div>
                     </div>
                   )}
+
+                  {/* Messages */}
+                  <div className="flex-1 min-h-0">
+                    <Label className="mb-1 block">Üzenetek</Label>
+                    <ScrollArea className="h-[200px] rounded-md border p-3">
+                      {messagesLoading ? (
+                        <div className="space-y-2">
+                          <Skeleton className="h-10 w-full" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                      ) : !messages?.length ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">Még nincs üzenet</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {messages.map((msg) => (
+                            <div
+                              key={msg.id}
+                              className={`rounded-md p-2 text-sm ${
+                                msg.is_admin_reply
+                                  ? "bg-primary/10 border border-primary/20 ml-4"
+                                  : "bg-muted/50 border mr-4"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-medium text-xs">
+                                  {msg.is_admin_reply ? "Admin" : "Felhasználó"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(msg.created_at), "MM.dd HH:mm", { locale: hu })}
+                                </span>
+                              </div>
+                              <p className="whitespace-pre-wrap">{msg.message}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
+
+                  {/* Reply */}
+                  <div className="space-y-2">
+                    <Label>Válasz írása</Label>
+                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="Írd ide a válaszod..."
+                        rows={2}
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="icon"
+                        onClick={() => sendReply.mutate()}
+                        disabled={!replyText.trim() || sendReply.isPending}
+                        className="self-end"
+                      >
+                        {sendReply.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Status */}
                   <div className="space-y-2">
                     <Label>Státusz módosítása</Label>
                     <Select
@@ -374,7 +485,7 @@ export default function AdminIssues() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setSelectedIssue(null)}>Bezárás</Button>
+                  <Button variant="outline" onClick={() => { setSelectedIssue(null); setReplyText(""); }}>Bezárás</Button>
                 </DialogFooter>
               </>
             );
