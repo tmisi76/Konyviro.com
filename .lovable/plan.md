@@ -1,57 +1,54 @@
 
 
-# Jelszóváltoztatás javítás -- beágyazott form hiba
+# Admin jelszócsere form a Műveletek fülön
 
-## Gyökérok
+## Mit csinálunk
 
-A `ProfileSettings.tsx` egy nagy `<form>` elemen belül rendereli a `ChangePasswordSection` komponenst (316. sor). A `ChangePasswordSection` saját `<form>` elemet tartalmaz. Ez **beagyazott form-okat** eredmenyez, ami ervenytelen HTML -- a bongeszo nem tudja megbizhatoan kezelni, a submit esemenyek osszekeverednek vagy egyaltalan nem futnak le.
+A "Műveletek" fülön a jelszó kezelés szekcióba bekerül egy új form, ahol az admin kétszer beírja az új jelszót, és a "Jelszó mentése" gombbal lecseréli a felhasználó jelszavát. Az új jelszót emailben is elküldi a Resend API-n keresztül.
 
-## Megoldas
+## Változtatások
 
-Ket modositast kell vegrehajtani:
+### 1. EditUserModal.tsx -- Új jelszócsere form
 
-### 1. ProfileSettings.tsx -- ChangePasswordSection kiemelese a form-bol
+A "Jelszó kezelés" szekcióba a meglévő gombok alá bekerül:
+- Két jelszó mező (új jelszó + megerősítés)
+- "Jelszó mentése és küldés emailben" gomb
+- Sikeres/sikertelen visszajelzés toast-tal
+- Minimum 6 karakter validáció
 
-A `<ChangePasswordSection />` komponenst a zaro `</form>` tag UTA kell athelyezni, igy a ket form fuggetlen lesz egymasbol.
+### 2. admin-reset-password edge function -- Új `set_custom_password` action
 
-### 2. ChangePasswordSection.tsx -- mar rendben van
+A meglévő edge function kap egy harmadik action típust: `"set_custom_password"`, ami a request body-ban kapott `password` mezőt használja a generált jelszó helyett. Ugyanúgy elküldi emailben a Resend-en keresztül.
 
-A jelenlegi kod (delay + getSession + updateUser + AlertDialog) logikailag helyes. A problema kizarolag a beagyazott form volt.
+## Technikai részletek
 
-## Technikai reszletek
-
-| Fajl | Valtozas |
+| Fájl | Változás |
 |------|---------|
-| `src/components/settings/ProfileSettings.tsx` | `ChangePasswordSection` athelyezese a form-on kivulre, a komponenst Fragment-be (`<>...</>`) csomagolva |
+| `src/components/admin/EditUserModal.tsx` | Új jelszó form a Műveletek fülön (2 input + gomb), új state-ek (`newPassword`, `confirmPassword`), `handleSetCustomPassword` handler |
+| `supabase/functions/admin-reset-password/index.ts` | Új `set_custom_password` action, `password` paraméter kezelése |
 
-### Jelenlegi struktura (hibas)
-
-```text
-<form onSubmit={handleSubmit}>        <-- profil form
-  ... profil mezok ...
-  <Button type="submit">Mentes</Button>
-  <ChangePasswordSection />           <-- BENNE van a form-ban!
-    <form onSubmit={handlePasswordSubmit}>  <-- BEAGYAZOTT FORM (HIBAS)
-    </form>
-  </ChangePasswordSection>
-</form>
-```
-
-### Javitott struktura
+### Edge function bővítés
 
 ```text
-<>
-  <form onSubmit={handleSubmit}>      <-- profil form
-    ... profil mezok ...
-    <Button type="submit">Mentes</Button>
-  </form>
-  <ChangePasswordSection />          <-- KULSO, fuggetlen
-    <form onSubmit={handlePasswordSubmit}>  <-- SAJAT FORM (HELYES)
-    </form>
-  </ChangePasswordSection>
-</>
+action = "set_custom_password"
+body: { user_id, action, password }
+
+1. Admin ellenőrzés (meglévő)
+2. supabaseAdmin.auth.admin.updateUserById(user_id, { password })
+3. Email küldés Resend-en keresztül az új jelszóval
+4. Activity log
 ```
 
-Ez a modositas megoldja mind a ket problemat:
-- A jelszomodositas tenylegesen vegrehajtodasik (a form submit rendesen mukodik)
-- Az AlertDialog popup megjelenik sikeres modositas eseten
+### Frontend form
+
+```text
+Jelszó kezelés szekción belül:
+  [Meglévő gombok: Reset link | Generálás]
+  
+  Új jelszó beállítása:
+  [Új jelszó input        ]
+  [Jelszó megerősítése    ]
+  [Jelszó mentése és küldés emailben] gomb
+```
+
+A Resend API-t a meglévő edge function már használja -- ugyanaz az email sablon, csak a jelszó az admin által megadott lesz.
