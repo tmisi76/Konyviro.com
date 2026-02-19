@@ -49,6 +49,7 @@ interface Issue {
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
+  sender_name: string | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ComponentType<{ className?: string }> }> = {
@@ -96,7 +97,23 @@ export default function AdminIssues() {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((ticket) => ({
+      const tickets = data || [];
+      const userIds = [...new Set(tickets.map((t) => t.user_id).filter(Boolean))] as string[];
+
+      let profileMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name, full_name")
+          .in("user_id", userIds);
+        if (profiles) {
+          for (const p of profiles) {
+            profileMap[p.user_id] = p.display_name || p.full_name || p.user_id.slice(0, 8);
+          }
+        }
+      }
+
+      return tickets.map((ticket) => ({
         id: ticket.id,
         title: ticket.subject,
         description: ticket.description,
@@ -108,6 +125,7 @@ export default function AdminIssues() {
         created_at: ticket.created_at || "",
         updated_at: ticket.updated_at || "",
         resolved_at: ticket.resolved_at,
+        sender_name: ticket.user_id ? (profileMap[ticket.user_id] || ticket.user_id.slice(0, 8)) : null,
       })) as Issue[];
     },
   });
@@ -294,6 +312,7 @@ export default function AdminIssues() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Cím</TableHead>
+                  <TableHead>Küldő</TableHead>
                   <TableHead>Prioritás</TableHead>
                   <TableHead>Státusz</TableHead>
                   <TableHead>Kategória</TableHead>
@@ -318,6 +337,9 @@ export default function AdminIssues() {
                             </p>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{issue.sender_name || "—"}</span>
                       </TableCell>
                       <TableCell>
                         <Badge className={priorityConfig.className}>
@@ -385,6 +407,9 @@ export default function AdminIssues() {
                     </Badge>
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
+                    {selectedIssue.sender_name && (
+                      <p>Küldő: <span className="font-medium text-foreground">{selectedIssue.sender_name}</span></p>
+                    )}
                     <p>Létrehozva: {format(new Date(selectedIssue.created_at), "yyyy.MM.dd HH:mm", { locale: hu })}</p>
                     {selectedIssue.updated_at && (
                       <p>Frissítve: {format(new Date(selectedIssue.updated_at), "yyyy.MM.dd HH:mm", { locale: hu })}</p>
