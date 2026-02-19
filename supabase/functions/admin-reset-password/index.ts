@@ -62,8 +62,8 @@ serve(async (req) => {
 
     // Parse request body
     const body = await req.json();
-    const { user_id, action = "generate_and_send" } = body;
-    // action can be: "generate_and_send", "send_reset_link"
+    const { user_id, action = "generate_and_send", password: customPassword } = body;
+    // action can be: "generate_and_send", "send_reset_link", "set_custom_password"
 
     if (!user_id) throw new Error("user_id is required");
     logStep("Request parsed", { user_id, action });
@@ -120,8 +120,13 @@ serve(async (req) => {
       });
     }
 
-    // Generate new password and update user
-    const newPassword = generatePassword();
+    // For set_custom_password, validate the provided password
+    if (action === "set_custom_password" && (!customPassword || customPassword.length < 6)) {
+      throw new Error("A jelszónak legalább 6 karakter hosszúnak kell lennie");
+    }
+
+    // Use custom password or generate one
+    const newPassword = action === "set_custom_password" ? customPassword : generatePassword();
     
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
       password: newPassword,

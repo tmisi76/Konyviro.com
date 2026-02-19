@@ -69,6 +69,8 @@ const TIER_INFO = {
 export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Form state - Profile
   const [fullName, setFullName] = useState("");
@@ -223,6 +225,40 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
       setExtraWordsBalance(0);
       toast.success("Kreditek nullázva!");
       onSuccess();
+    } catch (error: any) {
+      toast.error(error.message || "Hiba történt");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSetCustomPassword = async () => {
+    if (!user) return;
+    if (newPassword.length < 6) {
+      toast.error("A jelszónak legalább 6 karakter hosszúnak kell lennie!");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("A két jelszó nem egyezik!");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-password", {
+        body: {
+          user_id: user.user_id,
+          action: "set_custom_password",
+          password: newPassword,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(data?.email_sent ? "Jelszó beállítva és emailben elküldve!" : "Jelszó beállítva (email küldés sikertelen)");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch (error: any) {
       toast.error(error.message || "Hiba történt");
     } finally {
@@ -574,6 +610,38 @@ export function EditUserModal({ open, onOpenChange, user, onSuccess }: EditUserM
                 >
                   <Key className="h-4 w-4 mr-2" />
                   Új jelszó generálása és küldése
+                </Button>
+              </div>
+
+              <Separator className="my-3" />
+
+              <h5 className="text-sm font-medium">Új jelszó beállítása manuálisan</h5>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Új jelszó</Label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Legalább 6 karakter"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Jelszó megerősítése</Label>
+                  <Input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Jelszó újra"
+                  />
+                </div>
+                <Button 
+                  onClick={handleSetCustomPassword} 
+                  disabled={isLoading || !newPassword || !confirmPassword}
+                >
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Mail className="h-4 w-4 mr-2" />
+                  Jelszó mentése és küldés emailben
                 </Button>
               </div>
             </div>
