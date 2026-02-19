@@ -1,54 +1,52 @@
 
 
-# Hibalista -- Reszletes nezet Dialog hozzaadasa
+# Hibalista valasz funkcio + Elfelejtett jelszo lathatosag
 
-## Problema
+## 1. Hibalista -- valasz/komment funkcio (AdminIssues.tsx)
 
-A Hibalista oldalon a tablazat soraira kattintva nem tortenik semmi. A leiras csonkitva jelenik meg (`truncate max-w-[300px]`), es nincs lehetoseg a teljes leirast megnyitni vagy valaszolni ra.
+A reszletes nezet Dialog-ba bekerul:
 
-## Megoldas
+- **Korabbi uzenetek listaja**: a `support_ticket_messages` tablabol lekerdezve a `ticket_id` alapjan, idoben rendezve. Minden uzenet megjelenik kuldo-vel es idobelyeggel, az admin valaszok vizualisan megkulonboztetve (pl. mas hatterszin).
+- **Valasz iras mezo**: egy `Textarea` + "Valasz kuldese" gomb. A gomb `support_ticket_messages`-be szur be (`is_admin_reply: true`, `sender_id: auth.uid()`).
+- A meglevo `useSendTicketReply` hook-ot NEMNHASZNALJUK, mert az a support ticketekhez van -- helyette kozvetlenul a `supabase.from("support_ticket_messages").insert(...)` hivas megy, es a statusz automatikusan `in_progress`-re all, ha `open` volt.
 
-Egy uj **reszletes nezet Dialog** hozzaadasa, ami a sorra kattintva megnyilik, es megjeleníti:
-- A hiba teljes cimet
-- Prioritas es kategoria badge-eket
-- A teljes leirast (nem csonkitva)
-- Statusz valtoztatas lehetoseget
-- Letrehozas es frissites datumot
-
-## Technikai reszletek
-
-### Modositando fajl
-
-| Fajl | Valtozas |
-|------|---------|
-| `src/pages/admin/AdminIssues.tsx` | Uj `selectedIssue` state + reszletes Dialog |
-
-### Valtozasok
-
-1. **Uj state**: `selectedIssue` (`Issue | null`) -- a kivalasztott issue tarolasara
-2. **Sor kattinthato**: A `TableRow`-ra `onClick` es `cursor-pointer` class kerul
-3. **Reszletes Dialog**: Uj `Dialog` komponens, ami a kivalasztott issue minden adatat megjeleníti:
+### Dialog bovitett felepites
 
 ```text
 +------------------------------------------+
 |  [Hiba cime]                         [X] |
-|                                          |
-|  [Prioritas badge] [Kategoria badge]     |
-|  Letrehozva: 2026.02.19                  |
-|  Frissitve: 2026.02.19                   |
+|  [Prioritas] [Kategoria] [Statusz]       |
+|  Letrehozva/Frissitve datumok            |
 |                                          |
 |  Leiras:                                 |
-|  [Teljes leiras szoveg, tordeles         |
-|   megtartasaval, whitespace-pre-wrap]    |
+|  [Teljes leiras szoveg]                  |
 |                                          |
-|  Statusz:                                |
-|  [Select: Nyitott/Folyamatban/stb]       |
+|  --- Uzenetek ---                        |
+|  [Felhasznalo uzenet] [datum]            |
+|  [Admin valasz]       [datum]            |
 |                                          |
+|  [Valasz szoveg iras.................]   |
+|  [Valasz kuldese]                        |
+|                                          |
+|  Statusz: [Select]                       |
 |                          [Bezaras]       |
 +------------------------------------------+
 ```
 
-4. A statusz modositas a meglevo `updateIssueStatus` mutaciot hasznalja
-5. A Dialog bezarasakor `setSelectedIssue(null)`
+## 2. Bejelentkezesi felulet -- Elfelejtett jelszo lathatobb (LoginForm.tsx)
 
-Ez a megoldas a meglevo kodbazist minimalis modositassal boviti -- nem kell uj fajl, nem kell uj hook, csak egy state es egy Dialog komponens.
+Az "Elfelejtett jelszo?" link mar letezik (154-159. sor), de apro es nem feltu. A valtozas:
+- Nagyobb megjelenites: a jelszo mezo ala kerul egy kulon sor, nagyobb betumerettel
+- A szoveg valtozik: "Elfelejtett jelszo? Kattints ide az uj jelszo kereshez"
+
+## Technikai reszletek
+
+| Fajl | Valtozas |
+|------|---------|
+| `src/pages/admin/AdminIssues.tsx` | Uzenetek lekerdezes (useQuery), valasz kuldese (useMutation), ScrollArea az uzenetekhez, Textarea + gomb |
+| `src/components/auth/LoginForm.tsx` | "Elfelejtett jelszo?" link stilusanak bovitese, lathatobba tetele |
+
+### Adatbazis
+
+Nem kell migracio -- a `support_ticket_messages` tabla mar letezik a megfelelo oszlopokkal (`ticket_id`, `sender_id`, `is_admin_reply`, `message`, `created_at`).
+
