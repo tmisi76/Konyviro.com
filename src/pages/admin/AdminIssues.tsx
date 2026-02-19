@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, AlertCircle, CheckCircle2, Clock, Loader2, Search, Send, Eye, EyeOff } from "lucide-react";
+import { Plus, AlertCircle, CheckCircle2, Clock, Loader2, Search, Send } from "lucide-react";
 import { format } from "date-fns";
 import { hu } from "date-fns/locale";
 import { toast } from "sonner";
@@ -71,7 +71,7 @@ export default function AdminIssues() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [showResolved, setShowResolved] = useState(false);
+  
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -216,15 +216,13 @@ export default function AdminIssues() {
     },
   });
 
-  const resolvedCount = issues?.filter((i) => i.status === "resolved" || i.status === "wont_fix").length || 0;
-
   const filteredIssues = issues?.filter((issue) => {
     const matchesSearch =
       !search ||
       issue.title.toLowerCase().includes(search.toLowerCase()) ||
       issue.description?.toLowerCase().includes(search.toLowerCase());
 
-    if (!showResolved && statusFilter === "all" && (issue.status === "resolved" || issue.status === "wont_fix")) {
+    if (statusFilter === "all" && (issue.status === "resolved" || issue.status === "wont_fix")) {
       return false;
     }
 
@@ -302,20 +300,6 @@ export default function AdminIssues() {
                 <SelectItem value="wont_fix">Nem javítjuk</SelectItem>
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowResolved(!showResolved)}
-              className="gap-2 whitespace-nowrap"
-            >
-              {showResolved ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              {showResolved ? "Megoldottak elrejtése" : "Megoldottak mutatása"}
-              {!showResolved && resolvedCount > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
-                  {resolvedCount}
-                </Badge>
-              )}
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
