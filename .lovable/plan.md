@@ -1,25 +1,35 @@
 
-# Megoldott hibak elrejtese alapertelmezetten
 
-## Valtozas
+# Koncepció generálás JSON truncation hiba javítása
 
-A `filteredIssues` szurest bovitjuk: alapertelmezetten kiszurjuk a `resolved` es `wont_fix` statuszu issue-kat. Egy uj toggle gomb engedi a felhasznalonak megjeleníteni oket.
+## Probléma
 
-## Technikai reszletek
+A `generate-story` edge function `max_tokens: 4000`-re van állítva (301. sor), de a fikciós válasz (title + logline + synopsis + protagonist + antagonist + setting + themes + 8 plotPoints + chapters + characters) rendszeresen túllépi ezt a limitet. Az AI válasz félbeszakad, csonka JSON-t ad vissza, amit a repair logika sem tud megjavítani.
 
-### Modositando fajl: `src/pages/admin/AdminIssues.tsx`
+A logból: "Raw response length: 8524" - a gateway válasz ugyan 8524 byte, de a tényleges content az AI-tól a 4000 token limit miatt csonkul.
 
-**1. Uj state** (73. sor korul):
-- `const [showResolved, setShowResolved] = useState(false);`
+## Megoldás
 
-**2. `filteredIssues` szures bovitese** (218-223. sor):
-- Ha `showResolved === false` ES `statusFilter === "all"`, akkor kiszurjuk a `resolved` es `wont_fix` statuszu issue-kat
-- Ha a felhasznalo kifejezetten a "Megoldva" vagy "Nem javitjuk" szurot valasztja, akkor termeszetesen azok jelennek meg
+### 1. `max_tokens` emelése (supabase/functions/generate-story/index.ts, 301. sor)
 
-**3. Toggle gomb a szurok melle** (274-295. sor korul):
-- A kereses es statusz szuro melle kerul egy `Button` (variant: outline), ami a `showResolved` allapotot valtja
-- Szoveg: "Megoldottak mutatasa" / "Megoldottak elrejtese"
-- `Eye` / `EyeOff` ikon a lucide-react-bol
+`max_tokens: 4000` --> `max_tokens: 8000`
 
-**4. Megoldott issue-k szama** (badge a gombon):
-- A gomb mellett megjelenik a megoldott issue-k szama badge-kent, hogy a felhasznalo tudja, hany el van rejtve
+Ez a memory-ban is említett korábbi érték, ami korábban működött. A jelenlegi 4000 túl alacsony a teljes fikciós JSON-hoz (characters tömbbel együtt).
+
+### 2. JSON repair logika javítása (422-435. sor)
+
+A jelenlegi truncation repair csak a `"chapters"` mezőre figyel. Ha a csonkulás a `"characters"` tömbben történik, nem javít. Bovítem:
+- A repair logika ellenőrzi a `"characters"` tömb csonkulását is
+- Ha a legutolsó teljes objektum megtalálható, ott zárja le a JSON-t
+- Robusztusabb bracket-balancing a `repairAndParseJSON` mintájára
+
+### 3. Prompt tömörítése (76-80. sor)
+
+A chapter summary limitet 15-ről 10 szóra csökkentem, és a characters-nél a `backstory` mezőt "max 1 mondat"-ra szűkítem, hogy kevesebb token kelljen.
+
+## Érintett fájl
+
+| Fájl | Változás |
+|------|---------|
+| `supabase/functions/generate-story/index.ts` | max_tokens emelés 8000-re, JSON repair javítás, prompt tömörítés |
+
