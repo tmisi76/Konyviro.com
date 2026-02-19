@@ -65,7 +65,7 @@ A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN (és semmi más):
       "appearance": "Rövid kinézet leírás (haj, szem, testalkat, jellegzetes vonások)",
       "positiveTraits": ["pozitív vonás 1", "pozitív vonás 2"],
       "negativeTraits": ["negatív vonás 1"],
-      "backstory": "Rövid háttértörténet (max 2 mondat)",
+      "backstory": "Rövid háttértörténet (max 1 mondat)",
       "motivation": "Mi hajtja a karaktert",
       "speechStyle": "Hogyan beszél (pl. formális, szlenges, tömör)"
     }
@@ -73,7 +73,7 @@ A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN (és semmi más):
 }
 
 FONTOS:
-- Maximum 6-8 fejezetet javasolj RÖVID összefoglalókkal (max 15 szó/fejezet)
+- Maximum 6-8 fejezetet javasolj RÖVID összefoglalókkal (max 10 szó/fejezet)
 - Generálj legalább 3-5 karaktert a történethez (főszereplő, antagonista, mellékszereplők)
 - A synopsis legyen tömör (max 3 bekezdés)
 - Minden fejezet címe legyen kreatív és utaljon a tartalomra
@@ -298,7 +298,7 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
           },
           body: JSON.stringify({
             model: "google/gemini-3-flash-preview",
-            max_tokens: 4000,
+            max_tokens: 8000,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt }
@@ -419,18 +419,30 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
       return '';
     });
 
-    // Truncated JSON repair: if we have chapters started but JSON doesn't end properly
-    if (jsonContent.includes('"chapters"') && !jsonContent.trim().endsWith('}')) {
+    // Truncated JSON repair: if JSON doesn't end properly, try to close it
+    if (!jsonContent.trim().endsWith('}')) {
       console.log("Detected truncated JSON, attempting repair...");
-      // Find the last complete chapter object
-      const lastCompleteChapter = jsonContent.lastIndexOf('"}');
-      if (lastCompleteChapter > 0) {
-        // Cut at the last complete chapter and close the arrays/objects
-        jsonContent = jsonContent.substring(0, lastCompleteChapter + 2);
-        // Close chapters array and main object
-        if (!jsonContent.endsWith(']}')) {
-          jsonContent += ']}';
+      
+      // Find the last complete JSON object (ending with "}")
+      const lastCompleteObj = jsonContent.lastIndexOf('"}');
+      if (lastCompleteObj > 0) {
+        jsonContent = jsonContent.substring(0, lastCompleteObj + 2);
+        
+        // Balance brackets and braces
+        const openBrackets = (jsonContent.match(/\[/g) || []).length;
+        const closeBrackets = (jsonContent.match(/\]/g) || []).length;
+        const openBraces = (jsonContent.match(/\{/g) || []).length;
+        const closeBraces = (jsonContent.match(/\}/g) || []).length;
+        
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          jsonContent += ']';
         }
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          jsonContent += '}';
+        }
+        
+        // Remove trailing commas that may have been left
+        jsonContent = jsonContent.replace(/,(\s*[\]}])/g, '$1');
       }
     }
 
