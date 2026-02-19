@@ -70,6 +70,7 @@ export default function AdminIssues() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [newIssue, setNewIssue] = useState({
     title: "",
     description: "",
@@ -258,7 +259,7 @@ export default function AdminIssues() {
                   const StatusIcon = statusConfig.icon;
 
                   return (
-                    <TableRow key={issue.id}>
+                    <TableRow key={issue.id} className="cursor-pointer" onClick={() => setSelectedIssue(issue)}>
                       <TableCell>
                         <div>
                           <p className="font-medium">{issue.title}</p>
@@ -312,6 +313,74 @@ export default function AdminIssues() {
           )}
         </CardContent>
       </Card>
+
+      {/* Detail Dialog */}
+      <Dialog open={!!selectedIssue} onOpenChange={(open) => !open && setSelectedIssue(null)}>
+        <DialogContent className="max-w-lg">
+          {selectedIssue && (() => {
+            const sc = STATUS_CONFIG[selectedIssue.status] || STATUS_CONFIG.open;
+            const pc = PRIORITY_CONFIG[selectedIssue.priority] || PRIORITY_CONFIG.medium;
+            const SI = sc.icon;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{selectedIssue.title}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className={pc.className}>{pc.label}</Badge>
+                    <Badge variant="outline">{selectedIssue.category || "Egyéb"}</Badge>
+                    <Badge variant={sc.variant} className="gap-1">
+                      <SI className="h-3 w-3" />
+                      {sc.label}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>Létrehozva: {format(new Date(selectedIssue.created_at), "yyyy.MM.dd HH:mm", { locale: hu })}</p>
+                    {selectedIssue.updated_at && (
+                      <p>Frissítve: {format(new Date(selectedIssue.updated_at), "yyyy.MM.dd HH:mm", { locale: hu })}</p>
+                    )}
+                    {selectedIssue.resolved_at && (
+                      <p>Megoldva: {format(new Date(selectedIssue.resolved_at), "yyyy.MM.dd HH:mm", { locale: hu })}</p>
+                    )}
+                  </div>
+                  {selectedIssue.description && (
+                    <div>
+                      <Label className="mb-1 block">Leírás</Label>
+                      <div className="rounded-md border p-3 text-sm whitespace-pre-wrap bg-muted/50">
+                        {selectedIssue.description}
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>Státusz módosítása</Label>
+                    <Select
+                      value={selectedIssue.status}
+                      onValueChange={(status) => {
+                        updateIssueStatus.mutate({ id: selectedIssue.id, status });
+                        setSelectedIssue((prev) => prev ? { ...prev, status: status as Issue["status"] } : null);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="open">Nyitott</SelectItem>
+                        <SelectItem value="in_progress">Folyamatban</SelectItem>
+                        <SelectItem value="resolved">Megoldva</SelectItem>
+                        <SelectItem value="wont_fix">Nem javítjuk</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setSelectedIssue(null)}>Bezárás</Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Add Issue Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
