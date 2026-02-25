@@ -171,3 +171,9 @@ verify_jwt = false
 [functions.admin-ban-referrer]
 verify_jwt = false
 
+[functions.send-password-reset]
+verify_jwt = false
+
+[functions.send-welcome-email]
+verify_jwt = false
+
