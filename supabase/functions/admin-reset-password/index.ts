@@ -93,7 +93,7 @@ serve(async (req) => {
         type: "recovery",
         email: userEmail,
         options: {
-          redirectTo: "https://konyviro.com/auth?reset=true",
+          redirectTo: "https://konyviro.com/auth?mode=reset",
         },
       });
 

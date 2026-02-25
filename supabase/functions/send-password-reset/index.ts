@@ -31,8 +31,8 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // Check if user exists
-    const { data: users } = await supabaseAdmin.auth.admin.listUsers();
+    // Check if user exists - use perPage to handle large user bases
+    const { data: users } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const user = users?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
 
     if (!user) {
