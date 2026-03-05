@@ -74,6 +74,21 @@ serve(async (req) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Filter: skip unknown products
+        if (session.subscription) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+            const priceId = sub.items.data[0]?.price?.id;
+            if (priceId && !KNOWN_PRICE_IDS[priceId]) {
+              logStep("Unknown product, skipping checkout", { priceId });
+              break;
+            }
+          } catch (e) {
+            logStep("Could not verify product, proceeding", { error: String(e) });
+          }
+        }
+
         let userId = session.metadata?.supabase_user_id;
         const tier = session.metadata?.tier as string;
         const billingPeriod = session.metadata?.billing_period || "yearly";
