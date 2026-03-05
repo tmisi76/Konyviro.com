@@ -20,6 +20,15 @@ const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: numb
   pro: { projectLimit: -1, monthlyWordLimit: -1, storybookLimit: 999 },
 };
 
+// Known price IDs for this app - skip processing for unknown products
+const KNOWN_PRICE_IDS: Record<string, boolean> = {
+  "price_1Ss3QZBqXALGTPIr0z2uRD0a": true, // hobby yearly
+  "price_1Ss3QbBqXALGTPIrjbB9lSCI": true, // writer yearly
+  "price_1Ss3QcBqXALGTPIrStgzIXPu": true, // pro yearly
+  "price_1Ss8bGBqXALGTPIrOVHTHBPA": true, // hobby monthly
+  "price_1Ss8bHBqXALGTPIrEmUEe1Gw": true, // writer monthly
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -65,6 +74,21 @@ serve(async (req) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Filter: skip unknown products
+        if (session.subscription) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+            const priceId = sub.items.data[0]?.price?.id;
+            if (priceId && !KNOWN_PRICE_IDS[priceId]) {
+              logStep("Unknown product, skipping checkout", { priceId });
+              break;
+            }
+          } catch (e) {
+            logStep("Could not verify product, proceeding", { error: String(e) });
+          }
+        }
+
         let userId = session.metadata?.supabase_user_id;
         const tier = session.metadata?.tier as string;
         const billingPeriod = session.metadata?.billing_period || "yearly";
@@ -452,6 +476,14 @@ serve(async (req) => {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Filter: skip unknown products
+        const updPriceId = subscription.items.data[0]?.price?.id;
+        if (updPriceId && !KNOWN_PRICE_IDS[updPriceId]) {
+          logStep("Unknown product, skipping subscription update", { priceId: updPriceId });
+          break;
+        }
+
         logStep("Processing subscription update", { 
           subscriptionId: subscription.id, 
           status: subscription.status,
@@ -510,6 +542,14 @@ serve(async (req) => {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Filter: skip unknown products
+        const delPriceId = subscription.items.data[0]?.price?.id;
+        if (delPriceId && !KNOWN_PRICE_IDS[delPriceId]) {
+          logStep("Unknown product, skipping subscription delete", { priceId: delPriceId });
+          break;
+        }
+
         let deletedUserId = subscription.metadata?.supabase_user_id;
 
         if (!deletedUserId || deletedUserId === "guest") {
