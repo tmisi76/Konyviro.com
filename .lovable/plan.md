@@ -1,44 +1,48 @@
 
 
-# Bejelentkezési és jelszó-visszaállítási hibák diagnosztikája
+# Stripe Webhook Product Szűrés
 
-## Talált problémák
+## Cél
 
-### 1. KRITIKUS: `send-password-reset` hiányzik a config.toml-ból
+Hozzáadni egy `PRODUCT_TIER_MAP` vagy `KNOWN_PRICE_IDS` szűrőt a `stripe-webhook`-hoz, hogy ha egy ismeretlen termék (pl. másik app terméke) triggereli a webhook-ot, az ne próbálja feldolgozni, hanem skip-elje.
 
-A `supabase/config.toml` fájlban **nincs bejegyezve** a `send-password-reset` funkció `verify_jwt = false` beállítással. Ez azt jelenti, hogy a rendszer JWT tokent követel meg a híváshoz, de az elfelejtett jelszó funkciót éppen bejelentkezés nélküli felhasználók használják. Eredmény: **401 Unauthorized** hiba, az email soha nem megy ki. Az edge function logok is megerősítik: egyetlen hívás sem jutott el a funkcióig.
+## Változások
 
-### 2. KRITIKUS: `send-welcome-email` szintén hiányzik a config.toml-ból
+### Fájl: `supabase/functions/stripe-webhook/index.ts`
 
-A regisztrációs üdvözlő email funkció sem szerepel a config.toml-ban, tehát az sem működik.
+**1. `KNOWN_PRICE_IDS` map hozzáadása (a TIER_LIMITS után)**
 
-### 3. BUG: `admin-reset-password` rossz URL paramétert használ
+Ugyanazokat a price ID-kat használjuk, mint a `check-subscription`-ben:
+- `price_1Ss3QZBqXALGTPIr0z2uRD0a` → hobby (yearly)
+- `price_1Ss3QbBqXALGTPIrjbB9lSCI` → writer (yearly)
+- `price_1Ss3QcBqXALGTPIrStgzIXPu` → pro (yearly)
+- `price_1Ss8bGBqXALGTPIrOVHTHBPA` → hobby (monthly)
+- `price_1Ss8bHBqXALGTPIrEmUEe1Gw` → writer (monthly)
 
-A `admin-reset-password/index.ts` 96. sorában a `redirectTo` értéke `?reset=true`, de az `Auth.tsx` a `?mode=reset` paramétert várja. Ha admin küld jelszó-visszaállító linket, a felhasználó a reset űrlap helyett a sima login formot látja.
+**2. `checkout.session.completed` eseménynél** — a session line_items-ből vagy a subscription-ből kinyerni a price ID-t, és ha nem szerepel a map-ben, skip-elni:
 
-### 4. Kisebb kockázat: `listUsers()` paginálás hiánya
+```
+// After getting the session object
+if (session.subscription) {
+  const sub = await stripe.subscriptions.retrieve(session.subscription);
+  const priceId = sub.items.data[0]?.price?.id;
+  if (priceId && !KNOWN_PRICE_IDS[priceId]) {
+    logStep("Unknown product, skipping", { priceId });
+    break;
+  }
+}
+```
 
-A `send-password-reset` funkció az `auth.admin.listUsers()` hívással keresi meg a felhasználót. Ha 1000-nél több felhasználó van, nem találja meg az összes felhasználót. Ez jelenleg valószínűleg nem okoz problémát, de érdemes javítani.
+**3. `customer.subscription.updated` és `customer.subscription.deleted` eseményeknél** — szintén ellenőrizni a price ID-t a subscription items-ből, és ismeretlen termék esetén skip-elni.
 
-## Megoldás
+**4. Deploy** — edge function újratelepítése.
 
-### Fájl: `supabase/config.toml`
-- Hozzáadni: `[functions.send-password-reset]` + `verify_jwt = false`
-- Hozzáadni: `[functions.send-welcome-email]` + `verify_jwt = false`
+## Hatás
 
-### Fájl: `supabase/functions/admin-reset-password/index.ts`
-- 96. sor: `?reset=true` → `?mode=reset`
-
-### Fájl: `supabase/functions/send-password-reset/index.ts`
-- A `listUsers()` hívást lecserélni `listUsers({ page: 1, perPage: 1000 })` vagy email alapú keresésre, hogy ne legyen paginálási probléma
-
-## Összefoglaló hatás
-
-| Funkció | Probléma | Javítás után |
-|---------|----------|-------------|
-| Felhasználói jelszó-emlékeztető | 401 hiba, email nem megy ki | Működik |
-| Regisztrációs üdvözlő email | 401 hiba, email nem megy ki | Működik |
-| Admin kézi jelszó küldés (`admin-send-credentials`) | Működik (config.toml-ban szerepel) | Változatlan |
-| Admin jelszó-visszaállító link | Rossz URL, reset form nem jelenik meg | Helyesen a reset formra irányít |
-| Bejelentkezés (`signIn`) | Kódilag rendben van | Változatlan |
+| Esemény | Ismert termék | Ismeretlen termék |
+|---------|--------------|-------------------|
+| checkout.session.completed | Normál feldolgozás | Skip + log |
+| subscription.updated | Normál feldolgozás | Skip + log |
+| subscription.deleted | Normál feldolgozás | Skip + log |
+| invoice.payment_failed | Customer ID alapú (marad) | Csak ha van profile |
 
