@@ -542,6 +542,14 @@ serve(async (req) => {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Filter: skip unknown products
+        const delPriceId = subscription.items.data[0]?.price?.id;
+        if (delPriceId && !KNOWN_PRICE_IDS[delPriceId]) {
+          logStep("Unknown product, skipping subscription delete", { priceId: delPriceId });
+          break;
+        }
+
         let deletedUserId = subscription.metadata?.supabase_user_id;
 
         if (!deletedUserId || deletedUserId === "guest") {
