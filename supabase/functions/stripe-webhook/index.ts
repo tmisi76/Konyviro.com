@@ -20,6 +20,15 @@ const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: numb
   pro: { projectLimit: -1, monthlyWordLimit: -1, storybookLimit: 999 },
 };
 
+// Known price IDs for this app - skip processing for unknown products
+const KNOWN_PRICE_IDS: Record<string, boolean> = {
+  "price_1Ss3QZBqXALGTPIr0z2uRD0a": true, // hobby yearly
+  "price_1Ss3QbBqXALGTPIrjbB9lSCI": true, // writer yearly
+  "price_1Ss3QcBqXALGTPIrStgzIXPu": true, // pro yearly
+  "price_1Ss8bGBqXALGTPIrOVHTHBPA": true, // hobby monthly
+  "price_1Ss8bHBqXALGTPIrEmUEe1Gw": true, // writer monthly
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
