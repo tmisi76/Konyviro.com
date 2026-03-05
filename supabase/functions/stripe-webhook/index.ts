@@ -476,6 +476,14 @@ serve(async (req) => {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Filter: skip unknown products
+        const updPriceId = subscription.items.data[0]?.price?.id;
+        if (updPriceId && !KNOWN_PRICE_IDS[updPriceId]) {
+          logStep("Unknown product, skipping subscription update", { priceId: updPriceId });
+          break;
+        }
+
         logStep("Processing subscription update", { 
           subscriptionId: subscription.id, 
           status: subscription.status,
