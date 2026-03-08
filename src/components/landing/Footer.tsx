@@ -115,13 +115,17 @@ export function Footer() {
           </p>
           <div className="flex gap-6">
             <a
-              href="#"
+              href="https://konyviro.com/adatvedelem"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               Adatvédelem
             </a>
             <a
-              href="#"
+              href="https://konyviro.com/aszf"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               ÁSZF
