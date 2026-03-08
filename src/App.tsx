@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
+import { I18nProvider } from "@/i18n/I18nContext";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
