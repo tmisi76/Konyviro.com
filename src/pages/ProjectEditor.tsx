@@ -351,6 +351,10 @@ export default function ProjectEditor() {
                 <Headphones className="h-4 w-4" />
                 Hangoskönyv
               </TabsTrigger>
+              <TabsTrigger value="glossary" className="gap-2">
+                <BookText className="h-4 w-4" />
+                Szószedet
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           
