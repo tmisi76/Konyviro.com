@@ -1673,6 +1673,42 @@ export type Database = {
         }
         Relationships: []
       }
+      testimonials: {
+        Row: {
+          author_name: string
+          author_role: string | null
+          avatar_url: string | null
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          rating: number
+          sort_order: number
+        }
+        Insert: {
+          author_name: string
+          author_role?: string | null
+          avatar_url?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          rating?: number
+          sort_order?: number
+        }
+        Update: {
+          author_name?: string
+          author_role?: string | null
+          avatar_url?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          rating?: number
+          sort_order?: number
+        }
+        Relationships: []
+      }
       tts_voices: {
         Row: {
           created_at: string | null
