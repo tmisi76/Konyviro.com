@@ -70,7 +70,7 @@ serve(async (req: Request): Promise<Response> => {
         const filter = campaign.recipient_filter as Record<string, unknown>;
 
         if (campaign.recipient_type === "all") {
-          const { data: users } = await supabase.auth.admin.listUsers();
+          const { data: users } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
           recipients = (users?.users || []).map((u) => ({
             email: u.email!,
             name: u.user_metadata?.full_name || null,
@@ -83,7 +83,7 @@ serve(async (req: Request): Promise<Response> => {
           
           if (profiles) {
             const userIds = profiles.map((p) => p.user_id);
-            const { data: users } = await supabase.auth.admin.listUsers();
+            const { data: users } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
             recipients = (users?.users || [])
               .filter((u) => userIds.includes(u.id))
               .map((u) => ({
@@ -103,7 +103,7 @@ serve(async (req: Request): Promise<Response> => {
 
           if (profiles) {
             const userIds = profiles.map((p) => p.user_id);
-            const { data: users } = await supabase.auth.admin.listUsers();
+            const { data: users } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
             recipients = (users?.users || [])
               .filter((u) => userIds.includes(u.id))
               .map((u) => ({

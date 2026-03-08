@@ -1,92 +1,44 @@
 
 
-# Teljes rendszer audit -- Éles indulás előtti hibák és hiányosságok
+# Bejelentkezési és jelszó-visszaállítási hibák diagnosztikája
 
----
+## Talált problémák
 
-## KRITIKUS HIBÁK (azonnali javítás szükséges)
+### 1. KRITIKUS: `send-password-reset` hiányzik a config.toml-ból
 
-### 1. Edge Functions hiányoznak a config.toml-ból
-A következő edge function-ök léteznek a `supabase/functions/` mappában, de **nincsenek bejegyezve** a `supabase/config.toml`-ba. Alapértelmezésben a JWT verifikáció be van kapcsolva, ami azt jelenti, hogy ezek a függvények **401-et dobhatnak** jogosult hívások esetén is, ha nem autentikált kliensről hívják őket:
+A `supabase/config.toml` fájlban **nincs bejegyezve** a `send-password-reset` funkció `verify_jwt = false` beállítással. Ez azt jelenti, hogy a rendszer JWT tokent követel meg a híváshoz, de az elfelejtett jelszó funkciót éppen bejelentkezés nélküli felhasználók használják. Eredmény: **401 Unauthorized** hiba, az email soha nem megy ki. Az edge function logok is megerősítik: egyetlen hívás sem jutott el a funkcióig.
 
-**Kritikus (felhasználók által közvetlenül hívottak, JWT nélkül is kell működniük):**
-- `proofread` -- a lektorálás funkció, kliensről hívják JWT-vel, de a config.toml-ból hiányzik
-- `verify-share-password` -- publikus könyvolvasó jelszóellenőrzés, nincs auth
-- `generate-story-ideas` -- wizard Step4, autentikált kliens hívja
-- `generate-story` -- wizard Step5, autentikált kliens hívja
-- `generate-chapter-outline` -- wizard Step6
-- `generate-next-outline` -- background writer poller hívja
-- `create-book-share` -- megosztás létrehozása (saját auth-t csinál)
-- `update-book-share` -- megosztás módosítása
-- `export-storybook` -- storybook exportálás
-- `generate-storybook` -- storybook generálás
-- `generate-storybook-illustration` -- illusztrációk generálása
+### 2. KRITIKUS: `send-welcome-email` szintén hiányzik a config.toml-ból
 
-**Közepes (admin/rendszer hívja):**
-- `send-support-notification` -- support ticket értesítés
-- `send-ticket-reply-email` -- ticket válasz email
-- `verify-session-token` -- session token ellenőrzés
-- `process-drip-campaign` -- drip kampány feldolgozás
-- `reset-credits` -- kredit reset (cron job)
+A regisztrációs üdvözlő email funkció sem szerepel a config.toml-ban, tehát az sem működik.
 
-**Megoldás:** Mind hozzáadandó a `supabase/config.toml`-hoz `verify_jwt = false` beállítással.
+### 3. BUG: `admin-reset-password` rossz URL paramétert használ
 
-### 2. Google OAuth gomb nem működik
-A `GoogleAuthButton.tsx` egy placeholder -- csak `console.log`-ot ír, nem csinál semmit. Ez éles rendszerben félrevezető, mert a gomb megjelenik de nem működik.
+A `admin-reset-password/index.ts` 96. sorában a `redirectTo` értéke `?reset=true`, de az `Auth.tsx` a `?mode=reset` paramétert várja. Ha admin küld jelszó-visszaállító linket, a felhasználó a reset űrlap helyett a sima login formot látja.
 
-**Megoldás:** Vagy implementálni kell a Google OAuth-ot, vagy el kell rejteni a gombot amíg nincs konfigurálva.
+### 4. Kisebb kockázat: `listUsers()` paginálás hiánya
 
-### 3. `listUsers()` paginálási probléma (több fájlban)
-Több edge function `auth.admin.listUsers()` hívást használ paginálás nélkül (alapértelmezett: max 1000 felhasználó). Ha 1000+ felhasználó lesz, ezek nem találják meg az összes usert:
-- `send-campaign-email/index.ts` (3 hívás)
-- `send-bulk-email/index.ts`
-- `unsubscribe-email/index.ts`
-- `stripe-webhook/index.ts`
-- `process-scheduled-campaigns/index.ts` (3 hívás)
+A `send-password-reset` funkció az `auth.admin.listUsers()` hívással keresi meg a felhasználót. Ha 1000-nél több felhasználó van, nem találja meg az összes felhasználót. Ez jelenleg valószínűleg nem okoz problémát, de érdemes javítani.
 
-**Megoldás:** Mindenhol `{ page: 1, perPage: 1000 }` paramétert kell adni, vagy email alapú keresést használni ahol egyetlen user kell.
+## Megoldás
 
----
+### Fájl: `supabase/config.toml`
+- Hozzáadni: `[functions.send-password-reset]` + `verify_jwt = false`
+- Hozzáadni: `[functions.send-welcome-email]` + `verify_jwt = false`
 
-## KÖZEPES HIBÁK
+### Fájl: `supabase/functions/admin-reset-password/index.ts`
+- 96. sor: `?reset=true` → `?mode=reset`
 
-### 4. Placeholder linkek az Auth és Footer oldalon
-- `Auth.tsx` 124-129. sor: ÁSZF és Adatvédelem linkek `href="#"` -- nem vezetnek sehova
-- `Footer.tsx`: Social media linkek és ÁSZF/Cookie linkek mind `href="#"`
+### Fájl: `supabase/functions/send-password-reset/index.ts`
+- A `listUsers()` hívást lecserélni `listUsers({ page: 1, perPage: 1000 })` vagy email alapú keresésre, hogy ne legyen paginálási probléma
 
-### 5. DialogContent ref warning (konzol)
-A `KeyboardShortcutsModal` `DialogContent`-je ref warning-ot dob. Nem kritikus, de éles rendszerben zavaró konzol hibaüzenet.
+## Összefoglaló hatás
 
-### 6. React Router v6 deprecation figyelmeztetések
-Két future flag warning (`v7_startTransition` és `v7_relativeSplatPath`). Nem befolyásolja a működést, de éles rendszerben érdemes kezelni.
-
----
-
-## BIZTONSÁGI MEGJEGYZÉSEK
-
-### 7. Stripe kulcs jogosultsági hiba
-A `check-subscription` edge function logja jelzi: `"The provided key does not have the required permissions for this endpoint"` -- a `rak_credit_note_read` jogosultság hiányzik a Stripe restricted key-ről. A számlák lekérdezése jelenleg nem működik (de a kód gracefully kezeli).
-
-### 8. Admin route-ok nem ellenőrzik az admin jogot a router szinten
-Az admin route-ok csak `ProtectedRoute`-on mennek át (bejelentkezés ellenőrzés), az `AdminLayout` komponens ellenőrzi az admin jogot és redirect-el. Ez működik, de egy extra biztonsági réteg (dedicated `AdminRoute` wrapper) robusztusabb lenne.
-
----
-
-## KISEBB PROBLÉMÁK / FEJLESZTÉSI JAVASLATOK
-
-### 9. Sok `.single()` hívás insert utáni select-ekben
-Insert + `.select().single()` használata hiba-érzékeny ha unique constraint violation van. A legtöbb helyen ez rendben van, de érdemes figyelni.
-
-### 10. Hardcoded domain: `konyviro.com`
-75 helyen van hardcoded `konyviro.com` URL az edge function-ökben. Ha a domain változik, mindent kézzel kell átírni. Ideális lenne egy `APP_URL` environment variable központi használata.
-
----
-
-## JAVASOLT VÉGREHAJTÁSI SORREND
-
-1. **config.toml frissítés** -- 16 edge function bejegyzés hozzáadása (KRITIKUS)
-2. **Google OAuth gomb** -- elrejtés vagy implementálás
-3. **listUsers paginálás** -- 7+ edge function javítása
-4. **Placeholder linkek** -- ÁSZF/Adatvédelem oldalak vagy linkek eltávolítása
-5. **Konzol warning-ok** -- DialogContent ref fix, Router future flags
+| Funkció | Probléma | Javítás után |
+|---------|----------|-------------|
+| Felhasználói jelszó-emlékeztető | 401 hiba, email nem megy ki | Működik |
+| Regisztrációs üdvözlő email | 401 hiba, email nem megy ki | Működik |
+| Admin kézi jelszó küldés (`admin-send-credentials`) | Működik (config.toml-ban szerepel) | Változatlan |
+| Admin jelszó-visszaállító link | Rossz URL, reset form nem jelenik meg | Helyesen a reset formra irányít |
+| Bejelentkezés (`signIn`) | Kódilag rendben van | Változatlan |
 

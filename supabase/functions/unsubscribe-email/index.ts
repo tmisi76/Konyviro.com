@@ -64,7 +64,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // Find user by email if exists
-    const { data: users } = await supabase.auth.admin.listUsers();
+    const { data: users } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const user = users?.users?.find(u => u.email === email);
 
     // Insert unsubscribe record

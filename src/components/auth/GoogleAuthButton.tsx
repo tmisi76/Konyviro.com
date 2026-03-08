@@ -1,9 +1,34 @@
 import { Button } from "@/components/ui/button";
+import { lovable } from "@/integrations/lovable/index";
+import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 export function GoogleAuthButton() {
-  const handleGoogleSignIn = () => {
-    // Google OAuth not configured yet - placeholder
-    console.log("Google sign in clicked");
+  const [loading, setLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+
+      if (result.error) {
+        toast({
+          title: "Hiba a Google bejelentkezésnél",
+          description: "Kérjük, próbáld újra később.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Hiba a Google bejelentkezésnél",
+        description: "Kérjük, próbáld újra később.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -11,6 +36,7 @@ export function GoogleAuthButton() {
       type="button"
       variant="outline"
       onClick={handleGoogleSignIn}
+      disabled={loading}
       className="w-full h-11 gap-3 border-border hover:bg-muted"
     >
       <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -31,7 +57,9 @@ export function GoogleAuthButton() {
           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
         />
       </svg>
-      <span className="text-foreground">Folytatás Google fiókkal</span>
+      <span className="text-foreground">
+        {loading ? "Bejelentkezés..." : "Folytatás Google fiókkal"}
+      </span>
     </Button>
   );
 }
