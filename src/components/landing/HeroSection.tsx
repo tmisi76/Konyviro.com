@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, BookOpen, Feather } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "@/i18n/I18nContext";
+
 export function HeroSection() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const scrollToPricing = () => {
     const element = document.getElementById("pricing");
     if (element) {
