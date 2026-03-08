@@ -68,6 +68,7 @@ const ADMIN_NAV_ITEMS = [
       { name: "Email Sablonok", href: "/admin/emails", icon: Mail },
       { name: "Email Küldés", href: "/admin/email-sender", icon: Send },
       { name: "Support Ticketek", href: "/admin/support", icon: LifeBuoy },
+      { name: "Vélemények", href: "/admin/testimonials", icon: MessageSquareQuote },
       { name: "Beállítások", href: "/admin/settings", icon: Settings },
     ],
   },
