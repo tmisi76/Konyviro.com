@@ -86,6 +86,10 @@ export default function AdminSettings() {
   const [security, setSecurity] = useState<SecuritySettings>(DEFAULT_SECURITY);
   const [notification, setNotification] = useState<NotificationSettings>(DEFAULT_NOTIFICATION);
   const [maintenance, setMaintenance] = useState<MaintenanceSettings>(DEFAULT_MAINTENANCE);
+  const [langSettings, setLangSettings] = useState<LanguageSettings>({
+    default_language: "hu",
+    active_languages: ["hu"],
+  });
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {

@@ -60,7 +60,8 @@ export function Navbar() {
           </div>
 
           {/* Desktop CTA */}
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-2 md:flex">
+            <LanguageSwitcher />
             <ThemeToggle />
             {user ? (
               <Button onClick={() => navigate("/dashboard")}>
