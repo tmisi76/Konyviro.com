@@ -51,8 +51,7 @@ export function HeroSection() {
 
           {/* Subheadline */}
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-            A KönyvÍró AI segít megírni, megtervezni és publikálni a könyved. 
-            Használj AI-t a szövegíráshoz, könyvcoach-ot a tervezéshez, és exportálj bármilyen formátumba.
+            {t.hero.subtitle}
           </p>
 
           {/* CTA Buttons */}
