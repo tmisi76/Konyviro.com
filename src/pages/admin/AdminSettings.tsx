@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, Save, Shield, Globe, Bell, Wrench, Loader2, AlertTriangle } from "lucide-react";
+import { Settings, Save, Shield, Globe, Bell, Wrench, Loader2, AlertTriangle, Languages } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
