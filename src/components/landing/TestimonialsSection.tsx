@@ -14,6 +14,7 @@ interface Testimonial {
 }
 
 export function TestimonialsSection() {
+  const { t } = useTranslation();
   const { data: testimonials, isLoading } = useQuery({
     queryKey: ["testimonials"],
     queryFn: async () => {
