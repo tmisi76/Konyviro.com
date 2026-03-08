@@ -2,6 +2,7 @@ import { Star, Quote } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "@/i18n/I18nContext";
 
 interface Testimonial {
   id: string;
