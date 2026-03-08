@@ -21,8 +21,8 @@ const audienceOptions = [
 
 const lengthPresets = [
   { value: 10000, label: "Novella", description: "~10.000 szó" },
-  { value: 80000, label: "Regény", description: "~80.000 szó" },
-  { value: 100000, label: "Hosszú", description: "~100.000 szó" },
+  { value: 50000, label: "Regény", description: "~50.000 szó" },
+  { value: 100000, label: "Hosszú", description: "100.000+ szó" },
 ];
 
 interface StepDetailsProps {

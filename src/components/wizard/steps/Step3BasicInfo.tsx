@@ -165,7 +165,7 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
             value={[length]}
             onValueChange={([value]) => setLength(value)}
             min={1000}
-            max={100000}
+            max={50000}
             step={1000}
             className="py-4"
           />
@@ -173,9 +173,9 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
           {/* Skála jelzők */}
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>1,000</span>
+            <span>10,000</span>
             <span>25,000</span>
             <span>50,000</span>
-            <span>100,000</span>
           </div>
 
           {/* Gyors preset gombok */}

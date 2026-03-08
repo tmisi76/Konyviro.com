@@ -121,11 +121,11 @@ export default function Auth() {
         {!showPasswordReset && (
           <p className="mt-6 text-center text-xs text-muted-foreground">
             A regisztrációval elfogadod az{" "}
-            <a href="https://konyviro.com/aszf" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+            <a href="#" className="underline hover:text-foreground">
               Általános Szerződési Feltételeket
             </a>{" "}
             és az{" "}
-            <a href="https://konyviro.com/adatvedelem" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+            <a href="#" className="underline hover:text-foreground">
               Adatvédelmi Irányelveket
             </a>
             .

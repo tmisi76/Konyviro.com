@@ -74,7 +74,7 @@ serve(async (req) => {
       emails = customEmails;
     } else {
       // Fetch from auth.users via admin API
-      const { data: { users }, error: usersError } = await supabaseClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const { data: { users }, error: usersError } = await supabaseClient.auth.admin.listUsers();
       
       if (usersError) {
         throw new Error("Failed to fetch users");

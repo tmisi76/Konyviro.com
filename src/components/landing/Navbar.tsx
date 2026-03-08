@@ -3,15 +3,11 @@ import { BookOpen, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { LanguageSwitcher } from "@/components/ui/language-switcher";
-import { useTranslation } from "@/i18n/I18nContext";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { t } = useTranslation();
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -39,43 +35,41 @@ export function Navbar() {
               onClick={() => scrollToSection("features")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              {t.nav.features}
+              Funkciók
             </button>
             <button
               onClick={() => scrollToSection("how-it-works")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              {t.nav.howItWorks}
+              Hogyan működik
             </button>
             <button
               onClick={() => scrollToSection("pricing")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              {t.nav.pricing}
+              Árazás
             </button>
             <button
               onClick={() => scrollToSection("faq")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              {t.nav.faq}
+              GYIK
             </button>
           </div>
 
           {/* Desktop CTA */}
-          <div className="hidden items-center gap-2 md:flex">
-            <LanguageSwitcher />
-            <ThemeToggle />
+          <div className="hidden items-center gap-3 md:flex">
             {user ? (
               <Button onClick={() => navigate("/dashboard")}>
-                {t.nav.dashboard}
+                Irányítópult
               </Button>
             ) : (
               <>
                 <Button variant="ghost" onClick={() => navigate("/auth")}>
-                  {t.nav.login}
+                  Bejelentkezés
                 </Button>
                 <Button onClick={() => navigate("/auth?mode=register")}>
-                  {t.nav.register}
+                  Ingyenes próba
                 </Button>
               </>
             )}
@@ -103,42 +97,38 @@ export function Navbar() {
                 onClick={() => scrollToSection("features")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                {t.nav.features}
+                Funkciók
               </button>
               <button
                 onClick={() => scrollToSection("how-it-works")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                {t.nav.howItWorks}
+                Hogyan működik
               </button>
               <button
                 onClick={() => scrollToSection("pricing")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                {t.nav.pricing}
+                Árazás
               </button>
               <button
                 onClick={() => scrollToSection("faq")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                {t.nav.faq}
+                GYIK
               </button>
               <div className="mt-2 flex flex-col gap-2 border-t border-border pt-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <LanguageSwitcher />
-                  <ThemeToggle />
-                </div>
                 {user ? (
                   <Button onClick={() => navigate("/dashboard")} className="w-full">
-                    {t.nav.dashboard}
+                    Irányítópult
                   </Button>
                 ) : (
                   <>
                     <Button variant="outline" onClick={() => navigate("/auth")} className="w-full">
-                      {t.nav.login}
+                      Bejelentkezés
                     </Button>
                     <Button onClick={() => navigate("/auth?mode=register")} className="w-full">
-                      {t.nav.register}
+                      Ingyenes próba
                     </Button>
                   </>
                 )}

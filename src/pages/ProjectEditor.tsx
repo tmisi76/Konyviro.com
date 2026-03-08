@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save, ImageIcon, Headphones, BookText, UserPlus, History, SpellCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save, ImageIcon, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
@@ -24,9 +24,6 @@ import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
 import { AudiobookTab } from "@/components/audiobook/AudiobookTab";
-import { GlossaryView } from "@/components/glossary/GlossaryView";
-import { CollaboratorsList } from "@/components/collaboration/CollaboratorsList";
-import { InviteCollaboratorModal } from "@/components/collaboration/InviteCollaboratorModal";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();
@@ -351,10 +348,6 @@ export default function ProjectEditor() {
                 <Headphones className="h-4 w-4" />
                 Hangoskönyv
               </TabsTrigger>
-              <TabsTrigger value="glossary" className="gap-2">
-                <BookText className="h-4 w-4" />
-                Szószedet
-              </TabsTrigger>
             </TabsList>
           </Tabs>
           
@@ -413,8 +406,6 @@ export default function ProjectEditor() {
               />
             </div>
           </div>
-        ) : viewMode === "glossary" ? (
-          <GlossaryView projectId={projectId} />
         ) : null}
           </main>
 
