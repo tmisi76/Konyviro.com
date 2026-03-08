@@ -97,7 +97,7 @@ serve(async (req: Request): Promise<Response> => {
       
       if (profiles) {
         const userIds = profiles.map((p) => p.user_id);
-        const { data: users } = await supabase.auth.admin.listUsers();
+        const { data: users } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
         recipients = (users?.users || [])
           .filter((u) => userIds.includes(u.id))
           .map((u) => ({
