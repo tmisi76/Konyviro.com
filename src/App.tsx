@@ -412,6 +412,7 @@ const App = () => (
   <ErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
+       <I18nProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
