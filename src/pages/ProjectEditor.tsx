@@ -24,6 +24,9 @@ import { toast } from "sonner";
 import type { Block, BlockType, ProjectGenre } from "@/types/editor";
 import type { Source } from "@/types/research";
 import { AudiobookTab } from "@/components/audiobook/AudiobookTab";
+import { GlossaryView } from "@/components/glossary/GlossaryView";
+import { CollaboratorsList } from "@/components/collaboration/CollaboratorsList";
+import { InviteCollaboratorModal } from "@/components/collaboration/InviteCollaboratorModal";
 
 export default function ProjectEditor() {
   const { id: projectId } = useParams<{ id: string }>();

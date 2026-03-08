@@ -78,6 +78,16 @@ function AppContent() {
           </Suspense>
         } />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/demo" element={
+          <Suspense fallback={<FullPageLoader message="Demo betöltése..." />}>
+            <Demo />
+          </Suspense>
+        } />
+        <Route path="/gallery" element={
+          <Suspense fallback={<FullPageLoader message="Galéria betöltése..." />}>
+            <Gallery />
+          </Suspense>
+        } />
         <Route
           path="/dashboard"
           element={

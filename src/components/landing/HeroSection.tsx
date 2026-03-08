@@ -61,6 +61,10 @@ export function HeroSection() {
             <Button size="lg" variant="outline" onClick={scrollToPricing} className="w-full sm:w-auto">
               Csomagok megtekintése
             </Button>
+            <Button size="lg" variant="ghost" onClick={() => navigate("/demo")} className="w-full sm:w-auto">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Próbáld ki most
+            </Button>
           </div>
 
           {/* Social proof - hidden */}
