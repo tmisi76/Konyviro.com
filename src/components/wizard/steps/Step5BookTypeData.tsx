@@ -86,7 +86,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           {[
             { value: "quick", label: "Gyors útmutató ~10k szó" },
             { value: "comprehensive", label: "Átfogó könyv ~25k szó" },
-            { value: "full-course", label: "Teljes kurzuskönyv ~50k szó" },
+            { value: "full-course", label: "Teljes kurzuskönyv ~100k szó" },
           ].map((opt) => (
             <div key={opt.value} className="flex items-center space-x-2">
               <RadioGroupItem value={opt.value} id={`depth-${opt.value}`} />
