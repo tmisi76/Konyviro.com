@@ -621,7 +621,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           value={formData.referenceLength || "medium"}
           onValueChange={(v) => {
             updateField("referenceLength", v as "short" | "medium" | "comprehensive");
-            setLength(v === "short" ? 15000 : v === "medium" ? 30000 : 50000);
+            setLength(v === "short" ? 15000 : v === "medium" ? 30000 : 100000);
           }}
           className="flex flex-wrap gap-4"
         >
