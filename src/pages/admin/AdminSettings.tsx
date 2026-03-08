@@ -166,6 +166,11 @@ export default function AdminSettings() {
         system_maintenance_mode: maintenance.maintenance_mode,
         system_maintenance_message: maintenance.maintenance_message
       });
+      // Save language settings separately
+      await supabase.from("system_settings").upsert([
+        { key: "default_language", value: JSON.stringify(langSettings.default_language), category: "i18n" },
+        { key: "active_languages", value: JSON.stringify(langSettings.active_languages), category: "i18n" },
+      ], { onConflict: "key" });
       toast.success("Beállítások mentve!");
       setHasChanges(false);
     } catch (error: any) {
