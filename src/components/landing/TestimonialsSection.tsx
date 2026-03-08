@@ -2,6 +2,7 @@ import { Star, Quote } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "@/i18n/I18nContext";
 
 interface Testimonial {
   id: string;
@@ -13,6 +14,7 @@ interface Testimonial {
 }
 
 export function TestimonialsSection() {
+  const { t } = useTranslation();
   const { data: testimonials, isLoading } = useQuery({
     queryKey: ["testimonials"],
     queryFn: async () => {
@@ -51,10 +53,10 @@ export function TestimonialsSection() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Mit mondanak az írók?
+            {t.testimonials.title}
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Csatlakozz a növekvő írói közösséghez
+            {t.testimonials.subtitle}
           </p>
         </div>
 

@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, BookOpen, Feather } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "@/i18n/I18nContext";
+
 export function HeroSection() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const scrollToPricing = () => {
     const element = document.getElementById("pricing");
     if (element) {
@@ -35,35 +38,34 @@ export function HeroSection() {
           {/* Badge */}
           <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
             <Sparkles className="h-4 w-4" />
-            <span>Mesterséges intelligenciával támogatott írás</span>
+            <span>{t.hero.badge}</span>
           </div>
 
           {/* Headline */}
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Írd meg a könyved{" "}
+            {t.hero.title}{" "}
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              mesterséges intelligenciával
+              {t.hero.titleHighlight}
             </span>
           </h1>
 
           {/* Subheadline */}
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-            A KönyvÍró AI segít megírni, megtervezni és publikálni a könyved. 
-            Használj AI-t a szövegíráshoz, könyvcoach-ot a tervezéshez, és exportálj bármilyen formátumba.
+            {t.hero.subtitle}
           </p>
 
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Button size="lg" onClick={() => navigate("/auth?mode=register")} className="group w-full px-8 sm:w-auto">
-              Ingyenesen kipróbálom
+              {t.hero.cta}
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
             <Button size="lg" variant="outline" onClick={scrollToPricing} className="w-full sm:w-auto">
-              Csomagok megtekintése
+              {t.hero.ctaSecondary}
             </Button>
             <Button size="lg" variant="ghost" onClick={() => navigate("/demo")} className="w-full sm:w-auto">
               <Sparkles className="mr-2 h-4 w-4" />
-              Próbáld ki most
+              {t.hero.tryDemo}
             </Button>
           </div>
 
