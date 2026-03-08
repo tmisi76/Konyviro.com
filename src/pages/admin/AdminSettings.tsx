@@ -117,8 +117,33 @@ export default function AdminSettings() {
         maintenance_mode: savedSettings.system_maintenance_mode ?? DEFAULT_MAINTENANCE.maintenance_mode,
         maintenance_message: savedSettings.system_maintenance_message || DEFAULT_MAINTENANCE.maintenance_message
       });
+      // Language settings are loaded from separate i18n keys
     }
   }, [savedSettings]);
+
+  // Load language settings from i18n system_settings
+  const { data: i18nData } = useQuery({
+    queryKey: ["admin-i18n-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["default_language", "active_languages"]);
+      if (error) throw error;
+      const map: Record<string, any> = {};
+      data?.forEach((row) => { map[row.key] = row.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (i18nData) {
+      setLangSettings({
+        default_language: i18nData.default_language || "hu",
+        active_languages: i18nData.active_languages || ["hu"],
+      });
+    }
+  }, [i18nData]);
 
   const handleSave = async () => {
     try {
