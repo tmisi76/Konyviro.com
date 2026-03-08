@@ -41,6 +41,16 @@ interface MaintenanceSettings {
   maintenance_message: string;
 }
 
+interface LanguageSettings {
+  default_language: string;
+  active_languages: string[];
+}
+
+const AVAILABLE_LANGUAGES = [
+  { code: "hu", label: "Magyar", flag: "🇭🇺" },
+  { code: "en", label: "English", flag: "🇬🇧" },
+];
+
 const DEFAULT_GENERAL: GeneralSettings = {
   app_name: 'KönyvÍró AI',
   app_description: 'Írj könyvet mesterséges intelligenciával',
