@@ -32,6 +32,8 @@ const CoverDesigner = lazy(() => import("./pages/CoverDesigner"));
 const CreateStorybook = lazy(() => import("./pages/CreateStorybook"));
 const StorybookViewer = lazy(() => import("./pages/StorybookViewer"));
 const PublicBookReader = lazy(() => import("./pages/PublicBookReader"));
+const Demo = lazy(() => import("./pages/Demo"));
+const Gallery = lazy(() => import("./pages/Gallery"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -76,6 +78,16 @@ function AppContent() {
           </Suspense>
         } />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/demo" element={
+          <Suspense fallback={<FullPageLoader message="Demo betöltése..." />}>
+            <Demo />
+          </Suspense>
+        } />
+        <Route path="/gallery" element={
+          <Suspense fallback={<FullPageLoader message="Galéria betöltése..." />}>
+            <Gallery />
+          </Suspense>
+        } />
         <Route
           path="/dashboard"
           element={
