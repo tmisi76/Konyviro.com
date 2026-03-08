@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, Save, Shield, Globe, Bell, Wrench, Loader2, AlertTriangle } from "lucide-react";
+import { Settings, Save, Shield, Globe, Bell, Wrench, Loader2, AlertTriangle, Languages } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSystemSettings, useUpdateSystemSettings } from "@/hooks/admin/useSystemSettings";
 import { ChangePasswordSection } from "@/components/settings/ChangePasswordSection";
 
@@ -38,6 +42,16 @@ interface MaintenanceSettings {
   maintenance_mode: boolean;
   maintenance_message: string;
 }
+
+interface LanguageSettings {
+  default_language: string;
+  active_languages: string[];
+}
+
+const AVAILABLE_LANGUAGES = [
+  { code: "hu", label: "Magyar", flag: "🇭🇺" },
+  { code: "en", label: "English", flag: "🇬🇧" },
+];
 
 const DEFAULT_GENERAL: GeneralSettings = {
   app_name: 'KönyvÍró AI',
@@ -74,6 +88,10 @@ export default function AdminSettings() {
   const [security, setSecurity] = useState<SecuritySettings>(DEFAULT_SECURITY);
   const [notification, setNotification] = useState<NotificationSettings>(DEFAULT_NOTIFICATION);
   const [maintenance, setMaintenance] = useState<MaintenanceSettings>(DEFAULT_MAINTENANCE);
+  const [langSettings, setLangSettings] = useState<LanguageSettings>({
+    default_language: "hu",
+    active_languages: ["hu"],
+  });
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
@@ -101,8 +119,33 @@ export default function AdminSettings() {
         maintenance_mode: savedSettings.system_maintenance_mode ?? DEFAULT_MAINTENANCE.maintenance_mode,
         maintenance_message: savedSettings.system_maintenance_message || DEFAULT_MAINTENANCE.maintenance_message
       });
+      // Language settings are loaded from separate i18n keys
     }
   }, [savedSettings]);
+
+  // Load language settings from i18n system_settings
+  const { data: i18nData } = useQuery({
+    queryKey: ["admin-i18n-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["default_language", "active_languages"]);
+      if (error) throw error;
+      const map: Record<string, any> = {};
+      data?.forEach((row) => { map[row.key] = row.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (i18nData) {
+      setLangSettings({
+        default_language: i18nData.default_language || "hu",
+        active_languages: i18nData.active_languages || ["hu"],
+      });
+    }
+  }, [i18nData]);
 
   const handleSave = async () => {
     try {
@@ -123,6 +166,11 @@ export default function AdminSettings() {
         system_maintenance_mode: maintenance.maintenance_mode,
         system_maintenance_message: maintenance.maintenance_message
       });
+      // Save language settings separately
+      await supabase.from("system_settings").upsert([
+        { key: "default_language", value: JSON.stringify(langSettings.default_language), category: "i18n" },
+        { key: "active_languages", value: JSON.stringify(langSettings.active_languages), category: "i18n" },
+      ], { onConflict: "key" });
       toast.success("Beállítások mentve!");
       setHasChanges(false);
     } catch (error: any) {
@@ -417,6 +465,64 @@ export default function AdminSettings() {
             <Button variant="outline" onClick={handleClearCache} className="w-full">
               Gyorsítótár törlése
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Language Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Languages className="h-5 w-5" />
+              Nyelvek
+            </CardTitle>
+            <CardDescription>Többnyelvűség beállítása</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Alapértelmezett nyelv</Label>
+              <Select
+                value={langSettings.default_language}
+                onValueChange={(v) => {
+                  setLangSettings(prev => ({ ...prev, default_language: v }));
+                  setHasChanges(true);
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_LANGUAGES.map((l) => (
+                    <SelectItem key={l.code} value={l.code}>
+                      {l.flag} {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-3">
+              <Label>Aktív nyelvek</Label>
+              {AVAILABLE_LANGUAGES.map((l) => (
+                <div key={l.code} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`lang-${l.code}`}
+                    checked={langSettings.active_languages.includes(l.code)}
+                    onCheckedChange={(checked) => {
+                      setLangSettings(prev => {
+                        const langs = checked
+                          ? [...prev.active_languages, l.code]
+                          : prev.active_languages.filter(x => x !== l.code);
+                        return { ...prev, active_languages: langs.length ? langs : [prev.default_language] };
+                      });
+                      setHasChanges(true);
+                    }}
+                  />
+                  <Label htmlFor={`lang-${l.code}`} className="cursor-pointer">
+                    {l.flag} {l.label}
+                  </Label>
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                Ha több nyelv aktív, a nyelvváltó zászlókkal megjelenik a felületen.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

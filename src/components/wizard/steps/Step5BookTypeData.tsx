@@ -79,14 +79,14 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           value={formData.bookDepth || "comprehensive"}
           onValueChange={(v) => {
             updateField("bookDepth", v as "quick" | "comprehensive" | "full-course");
-            setLength(v === "quick" ? 10000 : v === "comprehensive" ? 25000 : 50000);
+            setLength(v === "quick" ? 10000 : v === "comprehensive" ? 25000 : 100000);
           }}
           className="flex flex-wrap gap-4"
         >
           {[
             { value: "quick", label: "Gyors útmutató ~10k szó" },
             { value: "comprehensive", label: "Átfogó könyv ~25k szó" },
-            { value: "full-course", label: "Teljes kurzuskönyv ~50k szó" },
+            { value: "full-course", label: "Teljes kurzuskönyv ~100k szó" },
           ].map((opt) => (
             <div key={opt.value} className="flex items-center space-x-2">
               <RadioGroupItem value={opt.value} id={`depth-${opt.value}`} />
@@ -145,7 +145,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           value={[length]}
           onValueChange={([v]) => setLength(v)}
           min={10000}
-          max={50000}
+          max={100000}
           step={5000}
         />
       </div>
@@ -214,7 +214,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -268,7 +268,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -337,7 +337,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -404,7 +404,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -471,7 +471,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -558,7 +558,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -621,14 +621,14 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           value={formData.referenceLength || "medium"}
           onValueChange={(v) => {
             updateField("referenceLength", v as "short" | "medium" | "comprehensive");
-            setLength(v === "short" ? 15000 : v === "medium" ? 30000 : 50000);
+            setLength(v === "short" ? 15000 : v === "medium" ? 30000 : 100000);
           }}
           className="flex flex-wrap gap-4"
         >
           {[
             { value: "short", label: "Rövid ~15k szó" },
             { value: "medium", label: "Közepes ~30k szó" },
-            { value: "comprehensive", label: "Átfogó ~50k+ szó" },
+            { value: "comprehensive", label: "Átfogó ~100k+ szó" },
           ].map((opt) => (
             <div key={opt.value} className="flex items-center space-x-2">
               <RadioGroupItem value={opt.value} id={`len-${opt.value}`} />
@@ -692,7 +692,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );

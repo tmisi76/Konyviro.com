@@ -1,4 +1,6 @@
 import { lazy, Suspense } from "react";
+import { ThemeProvider } from "next-themes";
+import { I18nProvider } from "@/i18n/I18nContext";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -50,6 +52,7 @@ const AdminIssues = lazy(() => import("./pages/admin/AdminIssues"));
 const AdminVoices = lazy(() => import("./pages/admin/AdminVoices"));
 const AdminEmailSender = lazy(() => import("./pages/admin/AdminEmailSender"));
 const AdminAffiliates = lazy(() => import("./pages/admin/AdminAffiliates"));
+const AdminTestimonials = lazy(() => import("./pages/admin/AdminTestimonials"));
 import { AdminLayout } from "@/layouts/AdminLayout";
 
 const queryClient = new QueryClient();
@@ -385,6 +388,18 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/testimonials"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminTestimonials />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -395,19 +410,23 @@ function AppContent() {
 
 const App = () => (
   <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <main id="main-content">
-              <AppContent />
-            </main>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <QueryClientProvider client={queryClient}>
+       <I18nProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <main id="main-content">
+                <AppContent />
+              </main>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+       </I18nProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   </ErrorBoundary>
 );
 

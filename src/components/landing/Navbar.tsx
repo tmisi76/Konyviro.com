@@ -3,6 +3,8 @@ import { BookOpen, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -58,7 +60,9 @@ export function Navbar() {
           </div>
 
           {/* Desktop CTA */}
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-2 md:flex">
+            <LanguageSwitcher />
+            <ThemeToggle />
             {user ? (
               <Button onClick={() => navigate("/dashboard")}>
                 Irányítópult
