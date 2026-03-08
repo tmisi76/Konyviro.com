@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save, ImageIcon, Headphones } from "lucide-react";
+import { ArrowLeft, Loader2, Cloud, BookOpen, Edit3, Users, FlaskConical, Save, ImageIcon, Headphones, BookText, UserPlus, History, SpellCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AdultBadge } from "@/components/ui/adult-badge";
