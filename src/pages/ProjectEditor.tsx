@@ -413,6 +413,8 @@ export default function ProjectEditor() {
               />
             </div>
           </div>
+        ) : viewMode === "glossary" ? (
+          <GlossaryView projectId={projectId} />
         ) : null}
           </main>
 
