@@ -387,6 +387,18 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/testimonials"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<FullPageLoader message="Admin betöltése..." />}>
+                <AdminLayout>
+                  <AdminTestimonials />
+                </AdminLayout>
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
