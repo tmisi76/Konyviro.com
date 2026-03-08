@@ -51,6 +51,7 @@ const AdminIssues = lazy(() => import("./pages/admin/AdminIssues"));
 const AdminVoices = lazy(() => import("./pages/admin/AdminVoices"));
 const AdminEmailSender = lazy(() => import("./pages/admin/AdminEmailSender"));
 const AdminAffiliates = lazy(() => import("./pages/admin/AdminAffiliates"));
+const AdminTestimonials = lazy(() => import("./pages/admin/AdminTestimonials"));
 import { AdminLayout } from "@/layouts/AdminLayout";
 
 const queryClient = new QueryClient();
