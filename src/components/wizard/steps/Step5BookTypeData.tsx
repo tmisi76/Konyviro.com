@@ -145,7 +145,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           value={[length]}
           onValueChange={([v]) => setLength(v)}
           min={10000}
-          max={50000}
+          max={100000}
           step={5000}
         />
       </div>
