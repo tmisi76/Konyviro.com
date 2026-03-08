@@ -57,15 +57,15 @@ export function HeroSection() {
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Button size="lg" onClick={() => navigate("/auth?mode=register")} className="group w-full px-8 sm:w-auto">
-              Ingyenesen kipróbálom
+              {t.hero.cta}
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
             <Button size="lg" variant="outline" onClick={scrollToPricing} className="w-full sm:w-auto">
-              Csomagok megtekintése
+              {t.hero.ctaSecondary}
             </Button>
             <Button size="lg" variant="ghost" onClick={() => navigate("/demo")} className="w-full sm:w-auto">
               <Sparkles className="mr-2 h-4 w-4" />
-              Próbáld ki most
+              {t.hero.tryDemo}
             </Button>
           </div>
 

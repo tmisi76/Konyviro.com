@@ -53,10 +53,10 @@ export function TestimonialsSection() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Mit mondanak az írók?
+            {t.testimonials.title}
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Csatlakozz a növekvő írói közösséghez
+            {t.testimonials.subtitle}
           </p>
         </div>
 
