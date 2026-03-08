@@ -5,11 +5,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { useTranslation } from "@/i18n/I18nContext";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -37,25 +39,25 @@ export function Navbar() {
               onClick={() => scrollToSection("features")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              Funkciók
+              {t.nav.features}
             </button>
             <button
               onClick={() => scrollToSection("how-it-works")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              Hogyan működik
+              {t.nav.howItWorks}
             </button>
             <button
               onClick={() => scrollToSection("pricing")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              Árazás
+              {t.nav.pricing}
             </button>
             <button
               onClick={() => scrollToSection("faq")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
-              GYIK
+              {t.nav.faq}
             </button>
           </div>
 
@@ -65,15 +67,15 @@ export function Navbar() {
             <ThemeToggle />
             {user ? (
               <Button onClick={() => navigate("/dashboard")}>
-                Irányítópult
+                {t.nav.dashboard}
               </Button>
             ) : (
               <>
                 <Button variant="ghost" onClick={() => navigate("/auth")}>
-                  Bejelentkezés
+                  {t.nav.login}
                 </Button>
                 <Button onClick={() => navigate("/auth?mode=register")}>
-                  Ingyenes próba
+                  {t.nav.register}
                 </Button>
               </>
             )}
@@ -101,38 +103,42 @@ export function Navbar() {
                 onClick={() => scrollToSection("features")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                Funkciók
+                {t.nav.features}
               </button>
               <button
                 onClick={() => scrollToSection("how-it-works")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                Hogyan működik
+                {t.nav.howItWorks}
               </button>
               <button
                 onClick={() => scrollToSection("pricing")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                Árazás
+                {t.nav.pricing}
               </button>
               <button
                 onClick={() => scrollToSection("faq")}
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                GYIK
+                {t.nav.faq}
               </button>
               <div className="mt-2 flex flex-col gap-2 border-t border-border pt-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <LanguageSwitcher />
+                  <ThemeToggle />
+                </div>
                 {user ? (
                   <Button onClick={() => navigate("/dashboard")} className="w-full">
-                    Irányítópult
+                    {t.nav.dashboard}
                   </Button>
                 ) : (
                   <>
                     <Button variant="outline" onClick={() => navigate("/auth")} className="w-full">
-                      Bejelentkezés
+                      {t.nav.login}
                     </Button>
                     <Button onClick={() => navigate("/auth?mode=register")} className="w-full">
-                      Ingyenes próba
+                      {t.nav.register}
                     </Button>
                   </>
                 )}
