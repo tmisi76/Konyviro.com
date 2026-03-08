@@ -38,7 +38,7 @@ export function HeroSection() {
           {/* Badge */}
           <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
             <Sparkles className="h-4 w-4" />
-            <span>Mesterséges intelligenciával támogatott írás</span>
+            <span>{t.hero.badge}</span>
           </div>
 
           {/* Headline */}
