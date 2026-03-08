@@ -79,7 +79,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           value={formData.bookDepth || "comprehensive"}
           onValueChange={(v) => {
             updateField("bookDepth", v as "quick" | "comprehensive" | "full-course");
-            setLength(v === "quick" ? 10000 : v === "comprehensive" ? 25000 : 50000);
+            setLength(v === "quick" ? 10000 : v === "comprehensive" ? 25000 : 100000);
           }}
           className="flex flex-wrap gap-4"
         >
