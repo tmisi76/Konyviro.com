@@ -43,9 +43,9 @@ export function HeroSection() {
 
           {/* Headline */}
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Írd meg a könyved{" "}
+            {t.hero.title}{" "}
             <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              mesterséges intelligenciával
+              {t.hero.titleHighlight}
             </span>
           </h1>
 
