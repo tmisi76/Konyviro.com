@@ -467,6 +467,64 @@ export default function AdminSettings() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Language Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Languages className="h-5 w-5" />
+              Nyelvek
+            </CardTitle>
+            <CardDescription>Többnyelvűség beállítása</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Alapértelmezett nyelv</Label>
+              <Select
+                value={langSettings.default_language}
+                onValueChange={(v) => {
+                  setLangSettings(prev => ({ ...prev, default_language: v }));
+                  setHasChanges(true);
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_LANGUAGES.map((l) => (
+                    <SelectItem key={l.code} value={l.code}>
+                      {l.flag} {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-3">
+              <Label>Aktív nyelvek</Label>
+              {AVAILABLE_LANGUAGES.map((l) => (
+                <div key={l.code} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`lang-${l.code}`}
+                    checked={langSettings.active_languages.includes(l.code)}
+                    onCheckedChange={(checked) => {
+                      setLangSettings(prev => {
+                        const langs = checked
+                          ? [...prev.active_languages, l.code]
+                          : prev.active_languages.filter(x => x !== l.code);
+                        return { ...prev, active_languages: langs.length ? langs : [prev.default_language] };
+                      });
+                      setHasChanges(true);
+                    }}
+                  />
+                  <Label htmlFor={`lang-${l.code}`} className="cursor-pointer">
+                    {l.flag} {l.label}
+                  </Label>
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                Ha több nyelv aktív, a nyelvváltó zászlókkal megjelenik a felületen.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <ChangePasswordSection />
