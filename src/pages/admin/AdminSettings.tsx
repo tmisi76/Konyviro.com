@@ -9,6 +9,8 @@ import { Settings, Save, Shield, Globe, Bell, Wrench, Loader2, AlertTriangle, La
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSystemSettings, useUpdateSystemSettings } from "@/hooks/admin/useSystemSettings";
 import { ChangePasswordSection } from "@/components/settings/ChangePasswordSection";
 
