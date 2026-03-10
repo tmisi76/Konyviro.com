@@ -11,16 +11,25 @@ import type { StoryIdea, Genre, Subcategory, Tone, AuthorProfile, FictionStyleSe
 // Character type from AI response
 interface GeneratedCharacter {
   name: string;
+  nickname?: string;
   role: "protagonist" | "antagonist" | "supporting";
   age?: number;
   gender?: string;
   occupation?: string;
   appearance?: string;
+  hairColor?: string;
+  eyeColor?: string;
+  height?: string;
+  bodyType?: string;
+  distinguishingFeatures?: string;
   positiveTraits?: string[];
   negativeTraits?: string[];
+  fears?: string[];
   backstory?: string;
   motivation?: string;
   speechStyle?: string;
+  characterVoice?: string;
+  keyEvents?: Array<{ title: string; description: string; age?: number }>;
 }
 
 interface Step5StoryDetailProps {

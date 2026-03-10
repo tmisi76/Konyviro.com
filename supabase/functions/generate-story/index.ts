@@ -58,24 +58,39 @@ A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN (és semmi más):
   ],
   "characters": [
     {
-      "name": "Karakter neve",
+      "name": "Karakter teljes neve",
+      "nickname": "Becenév vagy megszólítás (ha van, egyébként null)",
       "role": "protagonist | antagonist | supporting",
       "age": 30,
-      "gender": "férfi vagy nő",
+      "gender": "férfi | nő | egyéb",
       "occupation": "Foglalkozás",
-      "appearance": "Rövid kinézet leírás (haj, szem, testalkat, jellegzetes vonások)",
-      "positiveTraits": ["pozitív vonás 1", "pozitív vonás 2"],
-      "negativeTraits": ["negatív vonás 1"],
-      "backstory": "Rövid háttértörténet (max 1 mondat)",
+      "appearance": "Részletes kinézet leírás (arc, testalkat, öltözködési stílus)",
+      "hairColor": "Hajszín (fekete/barna/szoke/voros/oszes/feher/egyeb)",
+      "eyeColor": "Szemszín (barna/kek/zold/szurke/mogyoro/egyeb)",
+      "height": "Magasság szövegesen (pl. magas, alacsony, 178 cm)",
+      "bodyType": "Testalkat (vekony/atletas/atlagos/telt/izmos)",
+      "distinguishingFeatures": "Jellegzetes vonások (sebhely, tetoválás, járás, stb.)",
+      "positiveTraits": ["pozitív vonás 1", "pozitív vonás 2", "pozitív vonás 3"],
+      "negativeTraits": ["negatív vonás 1", "negatív vonás 2"],
+      "fears": ["félelem 1", "félelem 2"],
+      "backstory": "2-3 mondatos háttértörténet ami formálja a karaktert",
       "motivation": "Mi hajtja a karaktert",
-      "speechStyle": "Hogyan beszél (pl. formális, szlenges, tömör)"
+      "speechStyle": "Hogyan beszél (pl. formális, szlenges, tömör, dadogós)",
+      "characterVoice": "Részletes beszédstílus: szókincs szintje, kedvenc kifejezések, mondatszerkezet, érzelmi tónus",
+      "keyEvents": [
+        {"title": "Meghatározó esemény", "description": "Mi történt és hogyan hatott rá", "age": 15}
+      ]
     }
   ]
 }
 
 FONTOS:
 - Maximum 6-8 fejezetet javasolj RÖVID összefoglalókkal (max 10 szó/fejezet)
-- Generálj legalább 3-5 karaktert a történethez (főszereplő, antagonista, mellékszereplők)
+- Generálj legalább 3-5 karaktert TELJES adatlappal (MINDEN mezőt tölts ki, ne hagyj ki semmit!)
+- A karakterek legyenek összetettek: pozitív ÉS negatív vonásokkal, félelmekkel, kulcseseményekkel
+- Minden karakternek legyen legalább 1-2 keyEvents ami formálta a személyiségét
+- A háttértörténetek legyenek részletesek (2-3 mondat, ne csak 1)
+- A characterVoice legyen egyedi és megkülönböztethető minden karakternél
 - A synopsis legyen tömör (max 3 bekezdés)
 - Minden fejezet címe legyen kreatív és utaljon a tartalomra
 - A válasz CSAK a JSON legyen, semmi más szöveg
