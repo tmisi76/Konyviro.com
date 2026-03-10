@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAISettings } from "../_shared/ai-settings.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -148,6 +149,9 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Fetch AI generation settings
+    const aiSettings = await getAISettings(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
+
     const filteredMessages = messages.filter((m: any) => m.role !== "system").map((m: any) => ({ role: m.role, content: m.content }));
 
     // Retry logic exponenciális backoff-al (429/502/503 kezelés)
@@ -165,9 +169,12 @@ serve(async (req) => {
             "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
-          body: JSON.stringify({ 
-            model: "google/gemini-3-flash-preview", 
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
             max_tokens: 2000,
+            temperature: aiSettings.temperature,
+            frequency_penalty: aiSettings.frequency_penalty,
+            presence_penalty: aiSettings.presence_penalty,
             stream: true,
             messages: [
               { role: "system", content: GENRE_PROMPTS[genre] || GENRE_PROMPTS.fiction },

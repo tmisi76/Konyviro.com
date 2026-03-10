@@ -11,9 +11,10 @@ export function useEditorData(projectId: string) {
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  
+
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingChangesRef = useRef<Map<string, Partial<Block>>>(new Map());
+  const saveFailCountRef = useRef<number>(0);
 
   // Fetch chapters
   const fetchChapters = useCallback(async () => {
@@ -435,6 +436,15 @@ export function useEditorData(projectId: string) {
 
       if (error) {
         console.error("Error updating block:", error);
+        // Re-queue failed changes for retry
+        pendingChangesRef.current.set(blockId, changes);
+        saveFailCountRef.current++;
+        if (saveFailCountRef.current >= 3) {
+          toast.error("A mentés nem sikerült. Kérlek, ellenőrizd az internetkapcsolatot.");
+          saveFailCountRef.current = 0;
+        }
+      } else {
+        saveFailCountRef.current = 0;
       }
     }
 
@@ -546,15 +556,44 @@ export function useEditorData(projectId: string) {
     return () => clearInterval(autoSaveInterval);
   }, []);
 
-  // Cleanup on unmount
+  // Restore pending changes from localStorage on mount (if any were saved during unmount)
+  useEffect(() => {
+    const savedPending = localStorage.getItem(`pending_changes_${projectId}`);
+    if (savedPending) {
+      try {
+        const entries: [string, Partial<Block>][] = JSON.parse(savedPending);
+        for (const [blockId, changes] of entries) {
+          pendingChangesRef.current.set(blockId, changes);
+        }
+        localStorage.removeItem(`pending_changes_${projectId}`);
+        if (entries.length > 0) {
+          flushPendingChanges();
+        }
+      } catch {
+        localStorage.removeItem(`pending_changes_${projectId}`);
+      }
+    }
+  }, [projectId]);
+
+  // Cleanup on unmount - save pending changes to localStorage as backup
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      flushPendingChanges();
+      // Save pending changes to localStorage so they survive unmount
+      if (pendingChangesRef.current.size > 0) {
+        try {
+          const pendingData = JSON.stringify(
+            Array.from(pendingChangesRef.current.entries())
+          );
+          localStorage.setItem(`pending_changes_${projectId}`, pendingData);
+        } catch {
+          // localStorage may be full or unavailable
+        }
+      }
     };
-  }, []);
+  }, [projectId]);
 
   return {
     chapters,

@@ -32,6 +32,8 @@ interface AISettings {
   default_model: string;
   available_models: string[];
   temperature: number;
+  frequency_penalty: number;
+  presence_penalty: number;
   token_limits: Record<string, number>;
   tier_models: Record<string, string[]>;
 }
@@ -39,7 +41,9 @@ interface AISettings {
 const DEFAULT_SETTINGS: AISettings = {
   default_model: "google/gemini-3-flash-preview",
   available_models: AI_MODELS.map(m => m.id),
-  temperature: 0.7,
+  temperature: 0.75,
+  frequency_penalty: 0.4,
+  presence_penalty: 0.3,
   token_limits: {
     free: 1000,
     hobby: 10000,
@@ -66,7 +70,9 @@ export default function AdminAISettings() {
       setSettings({
         default_model: savedSettings.ai_default_model || DEFAULT_SETTINGS.default_model,
         available_models: savedSettings.ai_available_models || DEFAULT_SETTINGS.available_models,
-        temperature: savedSettings.ai_temperature || DEFAULT_SETTINGS.temperature,
+        temperature: savedSettings.ai_temperature ?? DEFAULT_SETTINGS.temperature,
+        frequency_penalty: savedSettings.ai_frequency_penalty ?? DEFAULT_SETTINGS.frequency_penalty,
+        presence_penalty: savedSettings.ai_presence_penalty ?? DEFAULT_SETTINGS.presence_penalty,
         token_limits: savedSettings.ai_token_limits || DEFAULT_SETTINGS.token_limits,
         tier_models: savedSettings.ai_tier_models || DEFAULT_SETTINGS.tier_models
       });
@@ -114,6 +120,8 @@ export default function AdminAISettings() {
         ai_default_model: settings.default_model,
         ai_available_models: settings.available_models,
         ai_temperature: settings.temperature,
+        ai_frequency_penalty: settings.frequency_penalty,
+        ai_presence_penalty: settings.presence_penalty,
         ai_token_limits: settings.token_limits,
         ai_tier_models: settings.tier_models
       });
@@ -213,33 +221,77 @@ export default function AdminAISettings() {
           </CardContent>
         </Card>
 
-        {/* Temperature */}
-        <Card className="opacity-60">
+        {/* Temperature & Penalties */}
+        <Card className="border-green-500/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
-              Kreativitás (Temperature)
-              <Badge variant="secondary" className="ml-2">⏳ Hamarosan</Badge>
+              Generálási Paraméterek
+              <Badge variant="default" className="ml-2 bg-green-600">Aktív</Badge>
             </CardTitle>
-            <CardDescription>AI válaszok variabilitása (0 = konzisztens, 1 = kreatív). Még nincs implementálva.</CardDescription>
+            <CardDescription>AI válaszok kreativitása és ismétlődés-megelőzése. Ezek a paraméterek közvetlenül befolyásolják a generálást.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Alacsony</span>
-              <span className="font-medium">{settings.temperature.toFixed(2)}</span>
-              <span className="text-sm text-muted-foreground">Magas</span>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Kreativitás (Temperature)</span>
+                <span className="font-medium">{settings.temperature.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Konzisztens</span>
+                <span className="text-xs text-muted-foreground">Kreatív</span>
+              </div>
+              <Slider
+                value={[settings.temperature]}
+                onValueChange={([value]) => {
+                  setSettings(prev => ({ ...prev, temperature: value }));
+                  setHasChanges(true);
+                }}
+                min={0}
+                max={1}
+                step={0.05}
+              />
             </div>
-            <Slider
-              value={[settings.temperature]}
-              onValueChange={([value]) => {
-                setSettings(prev => ({ ...prev, temperature: value }));
-                setHasChanges(true);
-              }}
-              min={0}
-              max={1}
-              step={0.05}
-              disabled
-            />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Szóismétlés büntetése (Frequency Penalty)</span>
+                <span className="font-medium">{settings.frequency_penalty.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Nincs büntetés</span>
+                <span className="text-xs text-muted-foreground">Erős büntetés</span>
+              </div>
+              <Slider
+                value={[settings.frequency_penalty]}
+                onValueChange={([value]) => {
+                  setSettings(prev => ({ ...prev, frequency_penalty: value }));
+                  setHasChanges(true);
+                }}
+                min={0}
+                max={1}
+                step={0.05}
+              />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Témaismétlés büntetése (Presence Penalty)</span>
+                <span className="font-medium">{settings.presence_penalty.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Nincs büntetés</span>
+                <span className="text-xs text-muted-foreground">Erős büntetés</span>
+              </div>
+              <Slider
+                value={[settings.presence_penalty]}
+                onValueChange={([value]) => {
+                  setSettings(prev => ({ ...prev, presence_penalty: value }));
+                  setHasChanges(true);
+                }}
+                min={0}
+                max={1}
+                step={0.05}
+              />
+            </div>
           </CardContent>
         </Card>
 

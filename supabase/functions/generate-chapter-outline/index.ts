@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { repairAndParseJSON } from "../_shared/json-utils.ts";
+import { getAISettings } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +46,9 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    // Fetch AI generation settings
+    const aiSettings = await getAISettings(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
 
     // Use targetWordCount (number) if provided, otherwise fall back to legacy length string
     const wordTarget = typeof targetWordCount === "number" && targetWordCount > 0 
@@ -163,9 +167,12 @@ VÁLASZOLJ JSON FORMÁTUMBAN:
             "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
-          body: JSON.stringify({ 
-            model: "google/gemini-3-flash-preview", 
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
             max_tokens: 8192,
+            temperature: aiSettings.temperature,
+            frequency_penalty: aiSettings.frequency_penalty,
+            presence_penalty: aiSettings.presence_penalty,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt }
