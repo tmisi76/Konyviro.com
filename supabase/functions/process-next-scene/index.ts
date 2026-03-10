@@ -2,52 +2,23 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
+import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
+import {
+  NO_MARKDOWN_RULE,
+  HUNGARIAN_GRAMMAR_RULES,
+  buildStylePrompt,
+  buildFictionStylePrompt,
+  buildCharacterContext,
+  buildCharacterHistoryContext,
+  buildPreviousChaptersSummary,
+} from "../_shared/prompt-builder.ts";
 
-const corsHeaders = { 
-  "Access-Control-Allow-Origin": "*", 
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
-const HUNGARIAN_GRAMMAR_RULES = `
-
-## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
-
-NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
-
-PÁRBESZÉD FORMÁZÁS:
-- Magyar párbeszédjelölés: gondolatjel (–) a sor elején
-- Idézőjel használata: „..." (magyar idézőjel, NEM "...")
-- Példa helyes formátum:
-  – Hová mész? – kérdezte Anna.
-  – A boltba – válaszolta.
-
-ÍRÁSJELEK:
-- Gondolatjel: – (hosszú, NEM -)
-- Három pont: ... (NEM …)
-- Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
-
-KERÜLENDŐ HIBÁK:
-- NE használj angolszász névsorrendet
-- NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
-- NE használj angol idézőjeleket ("..." → „...")
-- NE használj felesleges névelőket angolosan
-
-NYELVTANI HELYESSÉG:
-- Ragozás: ügyelj a magyar ragozás helyességére
-- Szórend: magyar szórend, NEM angol (ige-alany-tárgy)
-- Összetett szavak: egybe vagy külön az MTA szabályai szerint
-`;
-
-const NO_MARKDOWN_RULE = `
-
-FORMÁZÁSI SZABÁLY (KÖTELEZŐ):
-- NE használj markdown jelölőket (**, ##, ***, ---, \`\`\`, stb.)
-- Címsorokhoz használj normál mondatformátumot új sorban (NEM csupa nagybetűt)
-- TILOS a CSUPA NAGYBETŰS írás (kivéve rövidítések: EU, AI, stb.)
-- Írj tiszta, folyamatos prózát jelölések nélkül
-`;
-
-const PROMPTS: Record<string, string> = {
+const BASE_PROMPTS: Record<string, string> = {
   fiction: `Te egy bestseller magyar író vagy. Írj gazdag leírásokkal és párbeszédekkel.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
   erotikus: `Te egy erotikus regényíró vagy. Írj érzéki magyar prózát.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
   szakkonyv: `Te egy szakkönyvíró vagy. Írj világos, informatív szöveget.${NO_MARKDOWN_RULE}${HUNGARIAN_GRAMMAR_RULES}`,
@@ -101,10 +72,10 @@ serve(async (req) => {
     // Fetch AI generation settings
     const aiSettings = await getAISettings(supabaseUrl, supabaseServiceKey);
 
-    // Get project - no inner join, just simple query
+    // Get project with extended fields for rich prompts
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .select("id, title, genre, subcategory, user_id, writing_status, story_structure, generated_story")
+      .select("id, title, genre, subcategory, user_id, writing_status, story_structure, generated_story, fiction_style, story_idea, tone, target_audience")
       .eq("id", projectId)
       .single();
     
@@ -132,12 +103,23 @@ serve(async (req) => {
       );
     }
 
-    // Get chapters
+    // Get chapters with summary and character_appearances for continuity
     const { data: chapters, error: chaptersError } = await supabase
       .from("chapters")
       .select("*")
       .eq("project_id", projectId)
       .order("sort_order");
+
+    // Fetch characters and style profile for enriched prompts (parallel)
+    const [charactersResult, styleProfileResult] = await Promise.all([
+      supabase.from("characters")
+        .select("name, role, positive_traits, negative_traits, speech_style")
+        .eq("project_id", projectId),
+      supabase.from("user_style_profiles")
+        .select("*")
+        .eq("user_id", project?.user_id || "")
+        .maybeSingle(),
+    ]);
     
     if (chaptersError || !chapters?.length) {
       await supabase
@@ -221,22 +203,21 @@ serve(async (req) => {
       .select("content")
       .eq("chapter_id", targetChapter.id)
       .order("sort_order");
-    
+
     const prevContent = blocks?.map(b => b.content).join("\n\n") || "";
-    
+
     // Determine genre for prompt
-    const genre = project.genre === "szakkonyv" || project.genre === "szakkönyv" 
-      ? "szakkonyv" 
-      : project.subcategory === "erotikus" 
-        ? "erotikus" 
+    const genre = project.genre === "szakkonyv" || project.genre === "szakkönyv"
+      ? "szakkonyv"
+      : project.subcategory === "erotikus"
+        ? "erotikus"
         : "fiction";
-    
+
     const scene = scenes[targetSceneIndex];
-    
+
     // Explicit null ellenőrzés a jelenet objektumra
     if (!scene || typeof scene !== 'object') {
       console.error(`Invalid scene at index ${targetSceneIndex}:`, scene);
-      // Jelöljük a jelenetet hibásnak és lépjünk tovább
       scenes[targetSceneIndex] = { status: "skipped", error: "Invalid scene data" };
       await supabase.from("chapters").update({ scene_outline: scenes }).eq("id", targetChapter.id);
       return new Response(
@@ -244,16 +225,62 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
-    const prompt = `Írj jelenetet:
-Fejezet: ${targetChapter.title}
-Jelenet ${targetSceneIndex + 1}/${scenes.length}
+
+    // ========== BUILD ENRICHED SYSTEM PROMPT ==========
+    const baseSystemPrompt = BASE_PROMPTS[genre] || BASE_PROMPTS.fiction;
+    const fictionStylePrompt = genre !== "szakkonyv"
+      ? buildFictionStylePrompt(project.fiction_style as Record<string, unknown> | null, project.subcategory)
+      : "";
+    const stylePrompt = buildStylePrompt(styleProfileResult?.data as Record<string, unknown> | null);
+    const systemPrompt = baseSystemPrompt + fictionStylePrompt + stylePrompt;
+
+    // ========== BUILD ENRICHED USER PROMPT ==========
+    // Character context
+    const characterCtx = buildCharacterContext(charactersResult?.data || null);
+
+    // Character history from previous chapters
+    const previousChapters = chapters!.filter(ch => ch.sort_order < targetChapter.sort_order);
+    const charHistoryCtx = buildCharacterHistoryContext(
+      previousChapters.map(ch => ch.character_appearances as { name: string; actions: string[] }[])
+    );
+
+    // Previous chapters summary for continuity
+    const prevChaptersSummary = buildPreviousChaptersSummary(
+      chapters!.map(ch => ({ title: ch.title, summary: ch.summary, sort_order: ch.sort_order })),
+      targetChapter.sort_order
+    );
+
+    // If this is the first scene of a chapter, also get the last content from previous chapter
+    let crossChapterContext = "";
+    if (targetSceneIndex === 0 && previousChapters.length > 0) {
+      const lastPrevChapter = previousChapters[previousChapters.length - 1];
+      const { data: prevChBlocks } = await supabase
+        .from("blocks")
+        .select("content")
+        .eq("chapter_id", lastPrevChapter.id)
+        .order("sort_order", { ascending: false })
+        .limit(3);
+      if (prevChBlocks?.length) {
+        crossChapterContext = `\n\nAz előző fejezet ("${lastPrevChapter.title}") utolsó részlete:\n${prevChBlocks.reverse().map(b => b.content).join("\n").slice(-1000)}`;
+      }
+    }
+
+    const prompt = `ÍRD MEG: ${targetChapter.title} - Jelenet ${targetSceneIndex + 1}/${scenes.length}${scene.title ? `: "${scene.title}"` : ""}
+
 POV: ${scene.pov || "Harmadik személy"}
 Helyszín: ${scene.location || "Ismeretlen"}
-Leírás: ${scene.description || "Folytasd a történetet"}
+Idő: ${scene.time || "Nincs megadva"}
+Mi történik: ${scene.description || "Folytasd a történetet"}
 Kulcsesemények: ${(scene.key_events || []).join(", ") || "Folytasd a cselekményt"}
-Cél: ~${scene.target_words || 1000} szó
-${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
+Érzelmi ív: ${scene.emotional_arc || "Nincs megadva"}
+${scene.pov_goal ? `POV karakter célja: ${scene.pov_goal}` : ""}
+${scene.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${scene.pov_emotion_start}` : ""}
+${scene.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${scene.pov_emotion_end}` : ""}
+Célhossz: ~${scene.target_words || 1000} szó
+${characterCtx}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}
+${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-3000)}` : ""}
+
+CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
 
     // Generate scene content with rock-solid retry logic
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -287,7 +314,7 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
             frequency_penalty: aiSettings.frequency_penalty,
             presence_penalty: aiSettings.presence_penalty,
             messages: [
-              { role: "system", content: PROMPTS[genre] },
+              { role: "system", content: systemPrompt },
               { role: "user", content: prompt }
             ]
           }),
@@ -392,6 +419,19 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
       }
     }
 
+    // Quality check: strip markdown remnants and log issues
+    if (sceneText && sceneText.trim().length >= 100) {
+      const qualityResult = checkSceneQuality(sceneText, scene.target_words || 1000);
+      if (!qualityResult.passed) {
+        console.warn(`Quality issues in scene ${targetSceneIndex + 1}: ${qualityResult.issues.join("; ")}`);
+        // Auto-fix: strip markdown if detected
+        if (qualityResult.issues.some(i => i.includes("Markdown"))) {
+          sceneText = stripMarkdown(sceneText);
+          console.log("Auto-stripped markdown from scene content");
+        }
+      }
+    }
+
     if (!sceneText || sceneText.trim().length < 100) {
       console.error("All retry attempts failed - no valid content");
       // Mark scene as failed and continue with next
@@ -432,16 +472,49 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
     scenes[targetSceneIndex].status = "completed";
     const wordCount = sceneText.split(/\s+/).length;
     const newWordCount = (targetChapter.word_count || 0) + wordCount;
-    const allDone = scenes.every((s: any) => s.status === "completed");
-    
+    const allDone = scenes.every((s: any) => s && s.status === "completed");
+
     await supabase
       .from("chapters")
-      .update({ 
-        scene_outline: scenes, 
-        word_count: newWordCount, 
-        generation_status: allDone ? "completed" : "in_progress" 
+      .update({
+        scene_outline: scenes,
+        word_count: newWordCount,
+        generation_status: allDone ? "completed" : "in_progress"
       })
       .eq("id", targetChapter.id);
+
+    // If chapter is complete, auto-generate chapter summary for continuity
+    if (allDone && !targetChapter.summary) {
+      try {
+        const allChapterBlocks = await supabase
+          .from("blocks")
+          .select("content")
+          .eq("chapter_id", targetChapter.id)
+          .order("sort_order");
+        const chapterContent = allChapterBlocks?.data?.map(b => b.content).join("\n\n") || "";
+        if (chapterContent.length > 100) {
+          const characterNames = charactersResult?.data?.map(c => c.name).join(", ") || "";
+          await fetch(`${supabaseUrl}/functions/v1/generate-chapter-summary`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              chapterId: targetChapter.id,
+              chapterContent: chapterContent.slice(0, 8000),
+              chapterTitle: targetChapter.title,
+              genre: project.genre,
+              characters: characterNames,
+            }),
+          });
+          console.log(`Auto-generated summary for completed chapter: ${targetChapter.title}`);
+        }
+      } catch (summaryError) {
+        console.warn("Failed to auto-generate chapter summary:", summaryError);
+        // Non-critical - don't fail the scene completion
+      }
+    }
 
     // Update project total word count
     const totalWords = chapters.reduce((sum, ch) => {

@@ -276,17 +276,54 @@ async function processOutlineJob(supabase: any, job: any, project: any, chapter:
 
 // Scene írás - meghívja a write-section edge function-t
 // ATOMIKUS verzió - append_chapter_content RPC-t használ a race condition elkerüléséhez
+// JAVÍTOTT: előző fejezet összefoglalók és tartalom átadása a write-section-nek
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processSceneJob(supabase: any, job: any, project: any, chapter: any): Promise<boolean> {
   const sceneIndex = job.scene_index;
-  
+
   console.log(`Writing scene ${sceneIndex + 1} for chapter: ${chapter.title}`);
-  
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  
+
   const sceneOutlineArray = chapter.scene_outline || [];
-  
+
+  // Fetch previous chapters' summaries for continuity
+  let previousChapterSummaries = "";
+  let previousContent = "";
+  try {
+    const { data: allChapters } = await supabase
+      .from("chapters")
+      .select("id, title, summary, sort_order, content")
+      .eq("project_id", project.id)
+      .order("sort_order");
+
+    if (allChapters && allChapters.length > 0) {
+      const currentSortOrder = chapter.sort_order;
+      const prevChapters = allChapters.filter((ch: any) => ch.sort_order < currentSortOrder && ch.summary);
+
+      if (prevChapters.length > 0) {
+        previousChapterSummaries = prevChapters
+          .map((ch: any) => `${ch.title}: ${ch.summary}`)
+          .join("\n\n");
+      }
+
+      // Get last content from current chapter for scene continuity
+      if (chapter.content) {
+        previousContent = chapter.content.slice(-3000);
+      } else if (sceneIndex === 0 && prevChapters.length > 0) {
+        // First scene of chapter: get last content from previous chapter
+        const lastPrevChapter = prevChapters[prevChapters.length - 1];
+        if (lastPrevChapter.content) {
+          previousContent = lastPrevChapter.content.slice(-1500);
+        }
+      }
+    }
+  } catch (contextError) {
+    console.warn("Failed to fetch chapter context:", contextError);
+    // Non-critical - continue without context
+  }
+
   const response = await fetch(`${supabaseUrl}/functions/v1/write-section`, {
     method: 'POST',
     headers: {
@@ -298,9 +335,12 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
       chapterId: chapter.id,
       sectionOutline: job.scene_outline,
       sectionIndex: sceneIndex,
+      sectionNumber: sceneIndex + 1,
       chapterTitle: chapter.title,
       totalSections: sceneOutlineArray.length || 1,
-      previousContent: ""
+      previousContent: previousContent,
+      previousChapterSummaries: previousChapterSummaries,
+      genre: project.genre,
     })
   });
 
@@ -312,7 +352,7 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
   const result = await response.json();
   const sceneContent = result.content || "";
   const wordCount = result.wordCount || 0;
-  
+
   // ATOMIKUS content hozzáfűzés - RPC-vel, row-level lock-kal
   // Ez megakadályozza, hogy párhuzamos scene írások felülírják egymást
   const { error: rpcError } = await supabase.rpc('append_chapter_content', {
@@ -330,7 +370,7 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
   return true;
 }
 
-// Projekt progress frissítése - JAVÍTOTT verzió szószám validációval
+// Projekt progress frissítése - JAVÍTOTT verzió szószám validációval + auto chapter summary
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function updateProjectProgress(supabase: any, projectId: string) {
   // Számoljuk a completed scene job-okat
@@ -356,9 +396,65 @@ async function updateProjectProgress(supabase: any, projectId: string) {
   // Számoljuk a teljes word count-ot a chapters táblából
   const { data: chapters } = await supabase
     .from("chapters")
-    .select("word_count")
+    .select("id, title, word_count, summary, content")
     .eq("project_id", projectId);
-  
+
+  // Auto-generate chapter summaries for completed chapters without summaries
+  if (chapters) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Check for chapters that have content but no summary
+    for (const ch of chapters) {
+      if (!ch.summary && ch.content && ch.word_count > 100) {
+        // Check if ALL scene jobs for this chapter are completed
+        const { count: pendingSceneJobs } = await supabase
+          .from("writing_jobs")
+          .select("*", { count: 'exact', head: true })
+          .eq("chapter_id", ch.id)
+          .eq("job_type", "write_scene")
+          .in("status", ["pending", "processing"]);
+
+        if (pendingSceneJobs === 0) {
+          try {
+            // Fetch characters for this project
+            const { data: characters } = await supabase
+              .from("characters")
+              .select("name")
+              .eq("project_id", projectId);
+            const characterNames = characters?.map((c: any) => c.name).join(", ") || "";
+
+            // Fetch project genre
+            const { data: proj } = await supabase
+              .from("projects")
+              .select("genre")
+              .eq("id", projectId)
+              .single();
+
+            await fetch(`${supabaseUrl}/functions/v1/generate-chapter-summary`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                chapterId: ch.id,
+                chapterContent: ch.content.slice(0, 8000),
+                chapterTitle: ch.title,
+                genre: proj?.genre || "fiction",
+                characters: characterNames,
+              }),
+            });
+            console.log(`Auto-generated summary for completed chapter: ${ch.title}`);
+          } catch (summaryError) {
+            console.warn(`Failed to generate summary for chapter ${ch.title}:`, summaryError);
+            // Non-critical - continue with progress update
+          }
+        }
+      }
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const totalWords = chapters?.reduce((sum: number, ch: any) => sum + (ch.word_count || 0), 0) || 0;
 
