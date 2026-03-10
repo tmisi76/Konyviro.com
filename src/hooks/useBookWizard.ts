@@ -327,16 +327,25 @@ export function useBookWizard() {
   // Save characters from generated story to database
   const saveCharactersFromStory = useCallback(async (projectId: string, characters: Array<{
     name: string;
+    nickname?: string;
     role: string;
     age?: number;
     gender?: string;
     occupation?: string;
     appearance?: string;
+    hairColor?: string;
+    eyeColor?: string;
+    height?: string;
+    bodyType?: string;
+    distinguishingFeatures?: string;
     positiveTraits?: string[];
     negativeTraits?: string[];
+    fears?: string[];
     backstory?: string;
     motivation?: string;
     speechStyle?: string;
+    characterVoice?: string;
+    keyEvents?: Array<{ title: string; description: string; age?: number }>;
   }>): Promise<boolean> => {
     if (!characters || characters.length === 0) return true;
 
@@ -347,22 +356,36 @@ export function useBookWizard() {
         .delete()
         .eq("project_id", projectId);
 
-      // Map characters to DB format
+      // Map characters to DB format (all fields)
       const charactersToInsert = characters.map(char => ({
         project_id: projectId,
         name: char.name,
-        role: char.role === "protagonist" ? "foszereploő" 
-            : char.role === "antagonist" ? "antagonista" 
+        nickname: char.nickname || null,
+        role: char.role === "protagonist" ? "foszereploő"
+            : char.role === "antagonist" ? "antagonista"
             : "mellekszereploő",
         age: char.age || null,
         gender: char.gender || null,
         occupation: char.occupation || null,
         appearance_description: char.appearance || null,
+        hair_color: char.hairColor || null,
+        eye_color: char.eyeColor || null,
+        height: char.height || null,
+        body_type: char.bodyType || null,
+        distinguishing_features: char.distinguishingFeatures || null,
         positive_traits: char.positiveTraits || [],
         negative_traits: char.negativeTraits || [],
+        fears: char.fears || [],
         backstory: char.backstory || null,
         motivations: char.motivation ? [char.motivation] : [],
         speech_style: char.speechStyle || null,
+        character_voice: char.characterVoice || null,
+        key_events: (char.keyEvents || []).map((e, i) => ({
+          id: `gen-${i}`,
+          title: e.title,
+          description: e.description,
+          age: e.age,
+        })),
       }));
 
       const { error } = await supabase
