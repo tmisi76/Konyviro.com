@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
+import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 // Word-compatible counting: only tokens containing at least one letter
@@ -172,7 +173,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { projectId, chapterId, sectionNumber, sectionOutline, previousContent, bookTopic, targetAudience, chapterTitle, genre, authorProfile } = await req.json();
+    const { projectId, chapterId, sectionNumber, sectionOutline, previousContent, bookTopic, targetAudience, chapterTitle, genre, authorProfile, previousChapterSummaries } = await req.json();
     if (!projectId || !chapterId || !sectionOutline) return new Response(JSON.stringify({ error: "Hiányzó mezők" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -267,6 +268,9 @@ KARAKTER INFORMÁCIÓK:
 - POV KARAKTER CÉLJA A JELENETBEN: ${sectionOutline.pov_goal || 'Nincs megadva'}
 - POV KARAKTER ÉRZELMI ÁLLAPOTA A JELENET ELEJÉN: ${sectionOutline.pov_emotion_start || 'Semleges'}
 
+ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
+${previousChapterSummaries || 'Ez az első fejezet.'}
+
 ELŐZMÉNYEK (AZ ELŐZŐ JELENETEK RÖVID ÖSSZEFOGLALÓJA):
 ${previousScenes.length > 0 ? previousScenes.map((s, i) => `${i + 1}. ${s.summary}`).join('\n') : 'Ez az első jelenet a fejezetben.'}
 
@@ -299,6 +303,9 @@ ${authorProfile?.formality === "magaz" ? "- MEGSZÓLÍTÁS: Magázó forma (Ön)
 
 KUTATÁSI ANYAGOK (releváns források a kijelentések alátámasztásához):
 ${sourcesList.length > 0 ? sourcesList.map((s, i) => `- [forrás: ${i + 1}] ${s.title}: ${s.notes || 'Nincs összefoglaló'}`).join('\n') : 'Nincsenek külső források. Támaszkodj a szerzői profilra és a módszertanra.'}
+
+ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
+${previousChapterSummaries || 'Ez az első fejezet.'}
 
 ELŐZŐ SZÖVEGRÉSZ (az utolsó 4000 karakter a folytonosság érdekében):
 ${(previousContent || '').slice(-4000)}
@@ -452,6 +459,17 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
     if (repetitionCheck.isRepetitive) {
       console.warn(`Repetition detected in section (score: ${repetitionCheck.score.toFixed(2)}), using cleaned text`);
       sectionContent = repetitionCheck.cleanedText;
+    }
+
+    // Quality check: strip markdown remnants and log issues
+    const qualityResult = checkSceneQuality(sectionContent, sectionOutline.target_words || 1500);
+    if (!qualityResult.passed) {
+      console.warn(`Quality issues in section ${sectionNumber}: ${qualityResult.issues.join("; ")}`);
+      // Auto-fix: strip markdown if detected
+      if (qualityResult.issues.some((i: string) => i.includes("Markdown"))) {
+        sectionContent = stripMarkdown(sectionContent);
+        console.log("Auto-stripped markdown from section content");
+      }
     }
 
     const wordCount = countWords(sectionContent);
