@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAISettings } from "../_shared/ai-settings.ts";
+import { detectRepetition } from "../_shared/repetition-detector.ts";
 
 const corsHeaders = { 
   "Access-Control-Allow-Origin": "*", 
@@ -95,6 +97,9 @@ serve(async (req) => {
     // ========== END AUTHENTICATION CHECK ==========
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Fetch AI generation settings
+    const aiSettings = await getAISettings(supabaseUrl, supabaseServiceKey);
 
     // Get project - no inner join, just simple query
     const { data: project, error: projectError } = await supabase
@@ -275,9 +280,12 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
             "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
-          body: JSON.stringify({ 
-            model: "google/gemini-3-flash-preview", 
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
             max_tokens: 8192,
+            temperature: aiSettings.temperature,
+            frequency_penalty: aiSettings.frequency_penalty,
+            presence_penalty: aiSettings.presence_penalty,
             messages: [
               { role: "system", content: PROMPTS[genre] },
               { role: "user", content: prompt }
@@ -372,6 +380,15 @@ ${prevContent ? `\n\nFolytasd:\n${prevContent.slice(-2000)}` : ""}`;
           continue;
         }
         throw fetchError;
+      }
+    }
+
+    // Check for repetitive content and clean if needed
+    if (sceneText && sceneText.trim().length >= 100) {
+      const repetitionCheck = detectRepetition(sceneText);
+      if (repetitionCheck.isRepetitive) {
+        console.warn(`Repetition detected in scene (score: ${repetitionCheck.score.toFixed(2)}), using cleaned text`);
+        sceneText = repetitionCheck.cleanedText;
       }
     }
 

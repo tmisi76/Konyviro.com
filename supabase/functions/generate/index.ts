@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAISettings } from "../_shared/ai-settings.ts";
 
 const corsHeaders = { 
   "Access-Control-Allow-Origin": "*", 
@@ -169,9 +170,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get AI model from system settings (using service role for reading)
-    const model = await getAIModel(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    // Get AI model and generation settings from system settings (using service role for reading)
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const model = await getAIModel(supabaseUrl, serviceRoleKey);
+    const aiSettings = await getAISettings(supabaseUrl, serviceRoleKey);
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
     let stylePrompt = "";
     if (settings?.useProjectStyle) {
@@ -207,9 +210,12 @@ serve(async (req) => {
             "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             model,
             max_tokens: maxTokens,
+            temperature: aiSettings.temperature,
+            frequency_penalty: aiSettings.frequency_penalty,
+            presence_penalty: aiSettings.presence_penalty,
             stream: true,
             messages
           }),

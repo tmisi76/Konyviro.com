@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAISettings } from "../_shared/ai-settings.ts";
+import { detectRepetition } from "../_shared/repetition-detector.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,10 +266,12 @@ serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Fetch AI generation settings (temperature, frequency_penalty, presence_penalty)
+    const aiSettings = await getAISettings(supabaseUrl, serviceRoleKey);
 
     // Fetch user style profile and fiction style settings for the project owner
     let stylePrompt = "";
@@ -347,6 +351,9 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
           body: JSON.stringify({
             model: "google/gemini-3-flash-preview",
             max_tokens: dynamicMaxTokens,
+            temperature: aiSettings.temperature,
+            frequency_penalty: aiSettings.frequency_penalty,
+            presence_penalty: aiSettings.presence_penalty,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt }
@@ -465,6 +472,13 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
 
     if (!content) {
       throw new Error("Generálás sikertelen");
+    }
+
+    // Check for repetitive content and clean if needed
+    const repetitionCheck = detectRepetition(content);
+    if (repetitionCheck.isRepetitive) {
+      console.warn(`Repetition detected (score: ${repetitionCheck.score.toFixed(2)}), using cleaned text`);
+      content = repetitionCheck.cleanedText;
     }
 
     const wordCount = countWords(content);

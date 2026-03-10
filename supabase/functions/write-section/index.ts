@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAISettings } from "../_shared/ai-settings.ts";
+import { detectRepetition } from "../_shared/repetition-detector.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 // Word-compatible counting: only tokens containing at least one letter
@@ -177,7 +179,12 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "AI nincs konfigurálva" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Create Supabase client for deep context fetching
-    const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Fetch AI generation settings
+    const aiSettings = await getAISettings(supabaseUrl, serviceRoleKey);
 
     // 1. Fetch Full Project Details
     const { data: project, error: projectError } = await supabaseClient
@@ -337,9 +344,12 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
             "Authorization": `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json" 
           },
-          body: JSON.stringify({ 
-            model: "google/gemini-3-flash-preview", 
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
             max_tokens: 8192,
+            temperature: aiSettings.temperature,
+            frequency_penalty: aiSettings.frequency_penalty,
+            presence_penalty: aiSettings.presence_penalty,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt }
@@ -435,6 +445,13 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
 
     if (!sectionContent || sectionContent.trim().length < 100) {
       return new Response(JSON.stringify({ error: "A generálás sikertelen" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Check for repetitive content and clean if needed
+    const repetitionCheck = detectRepetition(sectionContent);
+    if (repetitionCheck.isRepetitive) {
+      console.warn(`Repetition detected in section (score: ${repetitionCheck.score.toFixed(2)}), using cleaned text`);
+      sectionContent = repetitionCheck.cleanedText;
     }
 
     const wordCount = countWords(sectionContent);

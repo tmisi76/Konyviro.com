@@ -355,8 +355,26 @@ serve(async (req) => {
       throw new Error("Failed to fetch chapters");
     }
 
+    // Create export record early so UI can track progress even if chapter fetch fails
+    const { data: exportRecord, error: exportError } = await supabase
+      .from("exports")
+      .insert({
+        project_id: projectId,
+        user_id: userId,
+        format,
+        settings: { ...settings, ...metadata },
+        status: "processing",
+      })
+      .select()
+      .single();
+
+    if (exportError) {
+      throw new Error("Failed to create export record");
+    }
+
     // Fetch blocks for each chapter, fall back to chapters.content if no blocks
-    const chaptersWithContent = await Promise.all(
+    // Using Promise.allSettled so one chapter failure doesn't kill the entire export
+    const chapterResults = await Promise.allSettled(
       (chapters || []).map(async (chapter: { id: string; title: string; sort_order: number; content?: string }, index: number) => {
         const { data: blocks } = await supabase
           .from("blocks")
@@ -365,11 +383,11 @@ serve(async (req) => {
           .order("sort_order");
 
         // Check if blocks have actual content
-        const blocksHaveContent = blocks && blocks.length > 0 && 
+        const blocksHaveContent = blocks && blocks.length > 0 &&
           blocks.some((b: { content?: string }) => b.content && b.content.trim());
 
         let chapterHtml: string;
-        
+
         if (blocksHaveContent) {
           // Use blocks if they have content (user-edited content takes priority)
           chapterHtml = blocksToHtml(blocks || []);
@@ -394,6 +412,16 @@ serve(async (req) => {
       })
     );
 
+    // Collect successful chapters, log failures
+    const chaptersWithContent = chapterResults
+      .filter((r): r is PromiseFulfilledResult<{ id: string; title: string; sort_order: number; content: string }> => r.status === "fulfilled")
+      .map(r => r.value);
+
+    const failedChapters = chapterResults.filter(r => r.status === "rejected");
+    if (failedChapters.length > 0) {
+      console.error(`${failedChapters.length} chapter(s) failed to fetch:`, failedChapters.map(r => (r as PromiseRejectedResult).reason));
+    }
+
     // Generate complete book HTML
     const bookCSS = generateBookCSS(settings);
     const fullBookHtml = generateCompleteBookHtml({
@@ -402,23 +430,6 @@ serve(async (req) => {
       chapters: chaptersWithContent,
       css: bookCSS,
     });
-
-    // Create export record
-    const { data: exportRecord, error: exportError } = await supabase
-      .from("exports")
-      .insert({
-        project_id: projectId,
-        user_id: userId,
-        format,
-        settings: { ...settings, ...metadata },
-        status: "processing",
-      })
-      .select()
-      .single();
-
-    if (exportError) {
-      throw new Error("Failed to create export record");
-    }
 
     // Build CloudConvert conversion options based on format
     const conversionOptions: Record<string, any> = {

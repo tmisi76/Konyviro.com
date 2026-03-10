@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAISettings } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -138,6 +139,12 @@ Feladat: Javítsd ki a fenti szöveget a hibalista alapján. A válaszod csak a 
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Fetch AI generation settings
+    const aiSettings = await getAISettings(
+      Deno.env.get("SUPABASE_URL") || "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
+    );
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -151,6 +158,9 @@ Feladat: Javítsd ki a fenti szöveget a hibalista alapján. A válaszod csak a 
           { role: "user", content: userPrompt },
         ],
         max_tokens: 8000,
+        temperature: aiSettings.temperature,
+        frequency_penalty: aiSettings.frequency_penalty,
+        presence_penalty: aiSettings.presence_penalty,
       }),
     });
 

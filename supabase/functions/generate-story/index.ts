@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAISettings } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,6 +198,9 @@ serve(async (req) => {
       );
     }
 
+    // Fetch AI generation settings
+    const aiSettings = await getAISettings(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
+
     // Determine if this is a nonfiction book (handle both accented and unaccented versions)
     const isNonfiction = genre === "szakkonyv" || genre === "szakkönyv";
 
@@ -299,6 +303,9 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
           body: JSON.stringify({
             model: "google/gemini-3-flash-preview",
             max_tokens: 8000,
+            temperature: aiSettings.temperature,
+            frequency_penalty: aiSettings.frequency_penalty,
+            presence_penalty: aiSettings.presence_penalty,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt }
