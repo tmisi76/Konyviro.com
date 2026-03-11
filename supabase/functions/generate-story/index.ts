@@ -79,7 +79,13 @@ A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN (és semmi más):
       "characterVoice": "Részletes beszédstílus: szókincs szintje, kedvenc kifejezések, mondatszerkezet, érzelmi tónus",
       "keyEvents": [
         {"title": "Meghatározó esemény", "description": "Mi történt és hogyan hatott rá", "age": 15}
-      ]
+      ],
+      "developmentArc": {
+        "startState": "A karakter kiindulási állapota (érzelmi, mentális) a történet elején",
+        "endState": "Hogyan változik a karakter a történet végére",
+        "turningPoint": "A fordulópont ami a változást hozza",
+        "growth": "pozitív | negatív | ambivalens"
+      }
     }
   ]
 }

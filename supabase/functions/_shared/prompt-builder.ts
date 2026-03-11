@@ -252,12 +252,18 @@ export function buildCharacterContext(characters: Array<{
   positive_traits?: string[];
   negative_traits?: string[];
   speech_style?: string;
+  development_arc?: Record<string, string> | null;
 }> | null): string {
   if (!characters || characters.length === 0) return "";
 
-  return "\n\nKARAKTEREK:\n" + characters.map(c =>
-    `- ${c.name} (${c.role || "szereplő"}): ${(c.positive_traits || []).slice(0, 3).join(", ")}${c.negative_traits?.length ? ` | Hibák: ${c.negative_traits.slice(0, 2).join(", ")}` : ""} | Beszédstílus: ${c.speech_style || "általános"}`
-  ).join("\n");
+  return "\n\nKARAKTEREK:\n" + characters.map(c => {
+    let line = `- ${c.name} (${c.role || "szereplő"}): ${(c.positive_traits || []).slice(0, 3).join(", ")}${c.negative_traits?.length ? ` | Hibák: ${c.negative_traits.slice(0, 2).join(", ")}` : ""} | Beszédstílus: ${c.speech_style || "általános"}`;
+    const arc = c.development_arc;
+    if (arc && arc.start_state && arc.end_state) {
+      line += ` | Karakterív: ${arc.start_state} → ${arc.end_state}`;
+    }
+    return line;
+  }).join("\n");
 }
 
 /**

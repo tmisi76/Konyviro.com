@@ -30,6 +30,12 @@ interface GeneratedCharacter {
   speechStyle?: string;
   characterVoice?: string;
   keyEvents?: Array<{ title: string; description: string; age?: number }>;
+  developmentArc?: {
+    startState: string;
+    endState: string;
+    turningPoint: string;
+    growth: string;
+  };
 }
 
 interface Step5StoryDetailProps {
