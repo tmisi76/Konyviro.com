@@ -346,6 +346,12 @@ export function useBookWizard() {
     speechStyle?: string;
     characterVoice?: string;
     keyEvents?: Array<{ title: string; description: string; age?: number }>;
+    developmentArc?: {
+      startState: string;
+      endState: string;
+      turningPoint: string;
+      growth: string;
+    };
   }>): Promise<boolean> => {
     if (!characters || characters.length === 0) return true;
 
@@ -386,6 +392,12 @@ export function useBookWizard() {
           description: e.description,
           age: e.age,
         })),
+        development_arc: char.developmentArc ? {
+          start_state: char.developmentArc.startState,
+          end_state: char.developmentArc.endState,
+          turning_point: char.developmentArc.turningPoint,
+          growth: char.developmentArc.growth,
+        } : null,
       }));
 
       const { error } = await supabase

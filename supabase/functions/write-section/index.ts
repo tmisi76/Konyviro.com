@@ -251,12 +251,28 @@ serve(async (req) => {
     const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
     
     // Build rich context-aware prompt
+    // Extract story context from generated_story for richer prompt
+    let bookStoryContext = project?.story_idea || 'Nincs megadva';
+    const genStoryData = project?.generated_story as Record<string, unknown> | null;
+    if (genStoryData) {
+      const parts: string[] = [];
+      if (genStoryData.synopsis) parts.push(String(genStoryData.synopsis));
+      if (Array.isArray(genStoryData.themes) && genStoryData.themes.length) {
+        parts.push(`Témák: ${(genStoryData.themes as string[]).join(", ")}`);
+      }
+      if (Array.isArray(genStoryData.plotPoints)) {
+        const points = (genStoryData.plotPoints as Array<{beat: string; description: string}>).slice(0, 4);
+        parts.push(`Cselekménypontok: ${points.map(p => `${p.beat}: ${p.description}`).join("; ")}`);
+      }
+      if (parts.length) bookStoryContext = parts.join("\n");
+    }
+
     const userPrompt = isFiction
       ? `CONTEXT:
 - KÖNYV MŰFAJA: ${project?.genre || genre || 'fiction'}
 - KÖNYV HANGNEME: ${project?.tone || 'Általános'}
 - KÖNYV CÉLKÖZÖNSÉGE: ${project?.target_audience || targetAudience || 'Felnőtt olvasók'}
-- KÖNYV ALAPTÖRTÉNETE: ${project?.story_idea || 'Nincs megadva'}
+- KÖNYV ALAPTÖRTÉNETE: ${bookStoryContext}
 
 JELENET DRAMATURGIÁJA:
 - TÖRTÉNETI ÍV POZÍCIÓ: Ez a jelenet a történet ${storyArcPosition} részében van.

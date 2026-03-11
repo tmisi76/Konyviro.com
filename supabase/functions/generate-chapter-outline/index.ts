@@ -65,8 +65,20 @@ serve(async (req) => {
     
     const isFiction = genre === "fiction";
 
-    const systemPrompt = isFiction 
-      ? "Te egy professzionális könyvszerkesztő vagy. Mindig érvényes JSON-t adj vissza."
+    // Calculate 3-act structure boundaries for fiction
+    const act1End = Math.round(chapterCount * 0.25);
+    const act2End = Math.round(chapterCount * 0.75);
+
+    const systemPrompt = isFiction
+      ? `Te egy professzionális könyvszerkesztő vagy aki a háromlépcsős dramaturgiát (3-act structure) követi.
+
+DRAMATURGIAI STRUKTÚRA (${chapterCount} fejezet):
+- 1-${act1End}. fejezet: ELSŐ FELVONÁS (Setup) — A világ és karakterek bemutatása, a konfliktus csírája, az első fordulópont
+- ${act1End + 1}-${act2End}. fejezet: MÁSODIK FELVONÁS (Confrontation) — Fokozódó konfliktus, próbatételek, fordulatok, a feszültség csúcsra jár
+- ${act2End + 1}-${chapterCount}. fejezet: HARMADIK FELVONÁS (Resolution) — Klimax, végső összecsapás, feloldás és lezárás
+
+Minden fejezet leírásában jelöld, hogy melyik felvonásba tartozik és mi a dramaturgiai szerepe.
+Mindig érvényes JSON-t adj vissza.`
       : `Te egy bestseller szakkönyveket strukturáló szerkesztő vagy.
 
 KÖTELEZŐ FEJEZET STRUKTÚRA SZAKKÖNYVHÖZ:
