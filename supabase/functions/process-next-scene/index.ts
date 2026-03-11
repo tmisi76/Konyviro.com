@@ -265,7 +265,24 @@ serve(async (req) => {
       }
     }
 
-    const prompt = `ÍRD MEG: ${targetChapter.title} - Jelenet ${targetSceneIndex + 1}/${scenes.length}${scene.title ? `: "${scene.title}"` : ""}
+    // Extract story context from generated_story (fetched but previously unused)
+    let storyContext = "";
+    const genStory = project.generated_story as Record<string, unknown> | null;
+    if (genStory) {
+      const synopsis = genStory.synopsis as string || "";
+      const themes = (genStory.themes as string[]) || [];
+      const plotPoints = (genStory.plotPoints as Array<{beat: string; description: string}>) || [];
+      if (synopsis) storyContext += `\nKÖNYV SZINOPSZISA: ${synopsis}`;
+      if (themes.length) storyContext += `\nTÉMÁK: ${themes.join(", ")}`;
+      if (plotPoints.length) {
+        const relevantPoints = plotPoints.slice(0, 4).map(p => `${p.beat}: ${p.description}`).join("; ");
+        storyContext += `\nFŐ CSELEKMÉNYPONTOK: ${relevantPoints}`;
+      }
+    } else if (project.story_idea) {
+      storyContext += `\nKÖNYV ÖTLETE: ${(project.story_idea as string).slice(0, 500)}`;
+    }
+
+    const prompt = `${storyContext ? storyContext + "\n" : ""}ÍRD MEG: ${targetChapter.title} - Jelenet ${targetSceneIndex + 1}/${scenes.length}${scene.title ? `: "${scene.title}"` : ""}
 
 POV: ${scene.pov || "Harmadik személy"}
 Helyszín: ${scene.location || "Ismeretlen"}

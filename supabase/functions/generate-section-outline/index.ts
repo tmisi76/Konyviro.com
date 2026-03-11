@@ -5,9 +5,17 @@ import { getAISettings } from "../_shared/ai-settings.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
-const FICTION_SYSTEM_PROMPT = `Te egy regény szerkesztő vagy. Készíts jelenet-vázlatot.
+const FICTION_SYSTEM_PROMPT = `Te egy tapasztalt regény szerkesztő vagy. Készíts részletes jelenet-vázlatot ami figyelembe veszi a karaktereket, a történet ívét és az előző fejezeteket.
+
+Minden jelenetben határozd meg:
+- Ki a POV karakter és mi a célja
+- Melyik karakterek jelennek meg
+- Milyen konfliktus vagy feszültség van
+- Hogyan változik a POV karakter érzelmi állapota
+- Hogyan viszi előre a cselekményt
+
 Válaszolj CSAK JSON tömbként:
-[{"scene_number": 1, "title": "...", "pov": "character_name", "location": "...", "time": "...", "description": "...", "key_events": [...], "emotional_arc": "...", "target_words": 800, "status": "pending"}]`;
+[{"scene_number": 1, "title": "Jelenet címe", "pov": "POV karakter neve", "location": "Helyszín", "time": "Napszak/időpont", "description": "Mi történik a jelenetben (2-3 mondat)", "key_events": ["esemény1", "esemény2"], "emotional_arc": "Érzelmi ív leírása", "characters_in_scene": ["Karakter1", "Karakter2"], "pov_goal": "Mit akar elérni a POV karakter", "pov_emotion_start": "Érzelmi állapot a jelenet elején", "pov_emotion_end": "Érzelmi állapot a jelenet végén", "target_words": 800, "status": "pending"}]`;
 
 const NONFICTION_SYSTEM_PROMPT = `Te egy bestseller szakkönyv szerkesztő vagy.
 
@@ -72,14 +80,71 @@ serve(async (req) => {
     const isFiction = genre === "fiction";
     const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
 
-    const userPrompt = isFiction
-      ? `Készíts 4-8 jelenet-vázlatot:\n\nFEJEZET: ${chapterTitle}\n${chapterSummary ? `ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}`
-      : `Készíts 4-8 szekció-vázlatot a STRUKTÚRA szerint:
+    // Fetch project context for richer scene outlines
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    const [projectResult, charactersResult, chaptersResult] = await Promise.all([
+      supabase.from("projects")
+        .select("genre, subcategory, generated_story, story_idea, tone, target_audience")
+        .eq("id", projectId).single(),
+      isFiction ? supabase.from("characters")
+        .select("name, role, positive_traits, negative_traits, backstory, motivation")
+        .eq("project_id", projectId) : Promise.resolve({ data: null }),
+      supabase.from("chapters")
+        .select("title, summary, sort_order")
+        .eq("project_id", projectId)
+        .order("sort_order"),
+    ]);
+
+    const project = projectResult.data;
+    const characters = charactersResult?.data || [];
+    const allChapters = chaptersResult.data || [];
+
+    // Find current chapter position
+    const currentChapter = allChapters.find(ch => ch.title === chapterTitle);
+    const currentSortOrder = currentChapter?.sort_order ?? 0;
+    const previousChapters = allChapters.filter(ch => ch.sort_order < currentSortOrder && ch.summary);
+    const chapterNumber = currentSortOrder + 1;
+    const totalChapters = allChapters.length;
+
+    // Extract story synopsis from generated_story
+    const genStory = project?.generated_story as Record<string, unknown> | null;
+    const synopsis = (genStory?.synopsis as string) || project?.story_idea || "";
+
+    let userPrompt: string;
+    if (isFiction) {
+      // Build character context
+      const characterCtx = characters.length > 0
+        ? `\nSZEREPLŐK:\n${characters.map((c: any) =>
+            `- ${c.name} (${c.role}): ${c.backstory || "Nincs háttértörténet"} | Motiváció: ${c.motivation || "Ismeretlen"}`
+          ).join("\n")}`
+        : "";
+
+      // Build previous chapters context
+      const prevChaptersCtx = previousChapters.length > 0
+        ? `\nELŐZŐ FEJEZETEK:\n${previousChapters.map((ch: any) => `- ${ch.title}: ${ch.summary}`).join("\n")}`
+        : "";
+
+      userPrompt = `Készíts 4-8 részletes jelenet-vázlatot:
+${synopsis ? `\nKÖNYV SZINOPSZISA:\n${synopsis}\n` : ""}
+MŰFAJ: ${project?.genre || genre || "fiction"}${project?.tone ? `\nHANGNEM: ${project.tone}` : ""}
+
+FEJEZET: ${chapterTitle} (${chapterNumber}. fejezet / ${totalChapters} fejezetből)
+${chapterSummary ? `FEJEZET ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}
+${characterCtx}${prevChaptersCtx}
+
+FONTOS:
+- Használd a fenti karaktereket a jelenetekben (characters_in_scene mező)
+- Minden jelenethez adj meg pov_goal, pov_emotion_start és pov_emotion_end mezőket
+- A jelenetek építsék egymásra a feszültséget
+- Az utolsó jelenet végén legyen cliffhanger vagy érzelmi csúcspont`;
+    } else {
+      userPrompt = `Készíts 4-8 szekció-vázlatot a STRUKTÚRA szerint:
 
 FEJEZET: ${chapterTitle}
 ${chapterSummary ? `ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}
-TÉMA: ${bookTopic || "Szakkönyv"}
-CÉLKÖZÖNSÉG: ${targetAudience || "Általános"}
+TÉMA: ${bookTopic || project?.story_idea || "Szakkönyv"}
+CÉLKÖZÖNSÉG: ${targetAudience || project?.target_audience || "Általános"}
 ${chapterType ? `FEJEZET TÍPUS: ${chapterType}` : ""}
 
 KÖTELEZŐ SZEKCIÓK:
@@ -87,6 +152,7 @@ KÖTELEZŐ SZEKCIÓK:
 2. 2-4 Fő tartalom szekció - koncepció, lépések, példák
 3. Alkalmazás szekció - gyakorlati útmutató
 4. Összefoglaló szekció - kulcspontok listája`;
+    }
 
     // Main retry loop - covers EVERYTHING including response parsing
     let lastError: Error | null = null;
@@ -193,12 +259,15 @@ KÖTELEZŐ SZEKCIÓK:
           description: s.learning_objective || s.description || "",
           key_events: s.key_points || s.key_events || [],
           emotional_arc: s.emotional_arc || `Példák: ${s.examples_needed || 0}`,
+          characters_in_scene: s.characters_in_scene || [],
+          pov_goal: s.pov_goal || "",
+          pov_emotion_start: s.pov_emotion_start || "",
+          pov_emotion_end: s.pov_emotion_end || "",
           target_words: s.target_words || 800,
           status: "pending",
         }));
 
-        // Save to database
-        const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+        // Save to database (supabase client already created above)
         
         const { data: updateData, error: updateError } = await supabase
           .from("chapters")
