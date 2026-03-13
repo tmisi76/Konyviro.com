@@ -569,6 +569,44 @@ export type Database = {
           },
         ]
       }
+      chapter_versions: {
+        Row: {
+          chapter_id: string
+          content: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          trigger_type: string
+          word_count: number
+        }
+        Insert: {
+          chapter_id: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          trigger_type?: string
+          word_count?: number
+        }
+        Update: {
+          chapter_id?: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          trigger_type?: string
+          word_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_versions_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chapters: {
         Row: {
           character_appearances: Json | null
@@ -919,6 +957,36 @@ export type Database = {
         }
         Relationships: []
       }
+      drip_campaigns: {
+        Row: {
+          created_at: string
+          id: string
+          next_send_at: string
+          sent_at: string | null
+          status: string
+          step: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          next_send_at?: string
+          sent_at?: string | null
+          status?: string
+          step?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          next_send_at?: string
+          sent_at?: string | null
+          status?: string
+          step?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_templates: {
         Row: {
           body_html: string
@@ -1080,6 +1148,47 @@ export type Database = {
         }
         Relationships: []
       }
+      glossary_terms: {
+        Row: {
+          aliases: string[] | null
+          category: string | null
+          created_at: string
+          definition: string
+          id: string
+          project_id: string
+          term: string
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[] | null
+          category?: string | null
+          created_at?: string
+          definition: string
+          id?: string
+          project_id: string
+          term: string
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[] | null
+          category?: string | null
+          created_at?: string
+          definition?: string
+          id?: string
+          project_id?: string
+          term?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "glossary_terms_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           admin_notes: string | null
@@ -1211,6 +1320,47 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      project_collaborators: {
+        Row: {
+          accepted_at: string | null
+          id: string
+          invited_at: string
+          invited_by: string | null
+          invited_email: string | null
+          project_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          id?: string
+          invited_at?: string
+          invited_by?: string | null
+          invited_email?: string | null
+          project_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          id?: string
+          invited_at?: string
+          invited_by?: string | null
+          invited_email?: string | null
+          project_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_collaborators_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       projects: {
         Row: {
@@ -1355,6 +1505,56 @@ export type Database = {
           writing_style?: string | null
         }
         Relationships: []
+      }
+      published_books: {
+        Row: {
+          cover_url: string | null
+          description: string | null
+          genre: string | null
+          id: string
+          is_featured: boolean
+          like_count: number
+          project_id: string
+          published_at: string
+          title: string
+          user_id: string
+          view_count: number
+        }
+        Insert: {
+          cover_url?: string | null
+          description?: string | null
+          genre?: string | null
+          id?: string
+          is_featured?: boolean
+          like_count?: number
+          project_id: string
+          published_at?: string
+          title: string
+          user_id: string
+          view_count?: number
+        }
+        Update: {
+          cover_url?: string | null
+          description?: string | null
+          genre?: string | null
+          id?: string
+          is_featured?: boolean
+          like_count?: number
+          project_id?: string
+          published_at?: string
+          title?: string
+          user_id?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "published_books_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quality_issues: {
         Row: {
@@ -1670,6 +1870,42 @@ export type Database = {
           updated_at?: string | null
           updated_by?: string | null
           value?: Json
+        }
+        Relationships: []
+      }
+      testimonials: {
+        Row: {
+          author_name: string
+          author_role: string | null
+          avatar_url: string | null
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          rating: number
+          sort_order: number
+        }
+        Insert: {
+          author_name: string
+          author_role?: string | null
+          avatar_url?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          rating?: number
+          sort_order?: number
+        }
+        Update: {
+          author_name?: string
+          author_role?: string | null
+          avatar_url?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          rating?: number
+          sort_order?: number
         }
         Relationships: []
       }
