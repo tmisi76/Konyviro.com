@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { Resend } from "npm:resend@2.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +7,28 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+
+async function sendEmail(to: string[], subject: string, html: string) {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
+      to,
+      subject,
+      html,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Resend error: ${errText}`);
+  }
+  return res.json();
+}
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -145,12 +165,11 @@ serve(async (req: Request): Promise<Response> => {
               // Add unsubscribe footer
               html += getUnsubscribeFooter(unsubscribeUrl);
 
-              await resend.emails.send({
-                from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
-                to: [recipient.email],
-                subject: campaign.subject,
-                html: html,
-              });
+              await sendEmail(
+                [recipient.email],
+                campaign.subject,
+                html,
+              );
 
               sentCount++;
             } catch (error) {

@@ -29,6 +29,15 @@ serve(async (req) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
 
+      // Multi-app guard: skip events not from this app
+      if (session.metadata?.app_id !== "konyviro") {
+        console.log("Skipping checkout - not our app", session.metadata?.app_id);
+        return new Response(JSON.stringify({ received: true, skipped: true }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
       // Only process audiobook credit purchases
       if (session.metadata?.purchase_type !== "audiobook_credits") {
         console.log("Not an audiobook credit purchase, skipping");

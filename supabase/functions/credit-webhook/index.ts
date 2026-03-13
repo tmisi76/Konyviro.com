@@ -25,6 +25,15 @@ serve(async (req) => {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      // Multi-app guard: skip events not from this app
+      if (session.metadata?.app_id !== "konyviro") {
+        console.log("Skipping checkout - not our app", session.metadata?.app_id);
+        return new Response(JSON.stringify({ received: true, skipped: true }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
       
       // Only process one-time payments (not subscriptions)
       if (session.mode !== "payment") {

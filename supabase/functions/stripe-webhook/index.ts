@@ -13,6 +13,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const APP_ID = "konyviro";
+
 // Tier configuration - monthly limits
 const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: number; storybookLimit: number }> = {
   hobby: { projectLimit: 5, monthlyWordLimit: 100000, storybookLimit: 1 },
@@ -65,6 +67,13 @@ serve(async (req) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Multi-app guard: skip events not from this app
+        if (session.metadata?.app_id !== APP_ID) {
+          logStep("Skipping checkout - not our app", { app_id: session.metadata?.app_id });
+          break;
+        }
+
         let userId = session.metadata?.supabase_user_id;
         const tier = session.metadata?.tier as string;
         const billingPeriod = session.metadata?.billing_period || "yearly";
@@ -452,6 +461,13 @@ serve(async (req) => {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Multi-app guard: skip events not from this app
+        if (subscription.metadata?.app_id !== APP_ID) {
+          logStep("Skipping subscription.updated - not our app", { app_id: subscription.metadata?.app_id });
+          break;
+        }
+
         logStep("Processing subscription update", { 
           subscriptionId: subscription.id, 
           status: subscription.status,
@@ -510,6 +526,13 @@ serve(async (req) => {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Multi-app guard: skip events not from this app
+        if (subscription.metadata?.app_id !== APP_ID) {
+          logStep("Skipping subscription.deleted - not our app", { app_id: subscription.metadata?.app_id });
+          break;
+        }
+
         let deletedUserId = subscription.metadata?.supabase_user_id;
 
         if (!deletedUserId || deletedUserId === "guest") {
