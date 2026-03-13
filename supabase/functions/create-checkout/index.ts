@@ -105,6 +105,7 @@ serve(async (req) => {
       success_url: successUrl || `${req.headers.get("origin")}/dashboard?subscription=success`,
       cancel_url: cancelUrl || `${req.headers.get("origin")}/pricing?subscription=cancelled`,
       metadata: {
+        app_id: "konyviro",
         supabase_user_id: userId || "guest",
         tier: tier,
         billing_period: billingPeriod,
@@ -112,6 +113,7 @@ serve(async (req) => {
       },
       subscription_data: {
         metadata: {
+          app_id: "konyviro",
           supabase_user_id: userId || "guest",
           tier: tier,
           billing_period: billingPeriod,

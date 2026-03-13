@@ -90,6 +90,7 @@ serve(async (req) => {
       success_url: `${req.headers.get("origin")}/dashboard?audiobook_purchase=success`,
       cancel_url: `${req.headers.get("origin")}/dashboard?audiobook_purchase=cancelled`,
       metadata: {
+        app_id: "konyviro",
         user_id: user.id,
         package_id: packageId,
         minutes_purchased: selectedPackage.minutes.toString(),

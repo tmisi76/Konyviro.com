@@ -165,12 +165,11 @@ serve(async (req: Request): Promise<Response> => {
               // Add unsubscribe footer
               html += getUnsubscribeFooter(unsubscribeUrl);
 
-              await resend.emails.send({
-                from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
-                to: [recipient.email],
-                subject: campaign.subject,
-                html: html,
-              });
+              await sendEmail(
+                [recipient.email],
+                campaign.subject,
+                html,
+              );
 
               sentCount++;
             } catch (error) {

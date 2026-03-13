@@ -80,6 +80,7 @@ serve(async (req) => {
       success_url: `${req.headers.get("origin")}/dashboard?credit_purchase=success`,
       cancel_url: `${req.headers.get("origin")}/dashboard?credit_purchase=cancelled`,
       metadata: {
+        app_id: "konyviro",
         user_id: user.id,
         words_purchased: creditPackage.words.toString(),
         package_id: packageId,
