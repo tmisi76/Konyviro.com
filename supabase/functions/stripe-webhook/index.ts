@@ -526,6 +526,13 @@ serve(async (req) => {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Multi-app guard: skip events not from this app
+        if (subscription.metadata?.app_id !== APP_ID) {
+          logStep("Skipping subscription.deleted - not our app", { app_id: subscription.metadata?.app_id });
+          break;
+        }
+
         let deletedUserId = subscription.metadata?.supabase_user_id;
 
         if (!deletedUserId || deletedUserId === "guest") {
