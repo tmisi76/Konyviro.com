@@ -67,6 +67,13 @@ serve(async (req) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Multi-app guard: skip events not from this app
+        if (session.metadata?.app_id !== APP_ID) {
+          logStep("Skipping checkout - not our app", { app_id: session.metadata?.app_id });
+          break;
+        }
+
         let userId = session.metadata?.supabase_user_id;
         const tier = session.metadata?.tier as string;
         const billingPeriod = session.metadata?.billing_period || "yearly";
