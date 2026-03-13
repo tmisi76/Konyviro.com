@@ -13,6 +13,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const APP_ID = "konyviro";
+
 // Tier configuration - monthly limits
 const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: number; storybookLimit: number }> = {
   hobby: { projectLimit: 5, monthlyWordLimit: 100000, storybookLimit: 1 },
