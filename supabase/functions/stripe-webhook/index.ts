@@ -461,6 +461,13 @@ serve(async (req) => {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+
+        // Multi-app guard: skip events not from this app
+        if (subscription.metadata?.app_id !== APP_ID) {
+          logStep("Skipping subscription.updated - not our app", { app_id: subscription.metadata?.app_id });
+          break;
+        }
+
         logStep("Processing subscription update", { 
           subscriptionId: subscription.id, 
           status: subscription.status,
