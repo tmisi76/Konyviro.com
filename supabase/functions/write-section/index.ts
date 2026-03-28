@@ -272,6 +272,8 @@ serve(async (req) => {
       storyArcPosition = 'Klimax felé';
       tensionLevel = 'Magas';
     }
+
+    const isFiction = genre === "fiction" || (project?.genre && project.genre !== 'nonfiction' && project.genre !== 'szakkönyv' && project.genre !== 'szakkonyv');
     const sectionType = sectionOutline.pov || sectionOutline.type || "concept";
     const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
     
@@ -292,6 +294,15 @@ serve(async (req) => {
       if (parts.length) bookStoryContext = parts.join("\n");
     }
 
+    // Build shared prompt blocks for fiction
+    const povCharacterName = povCharacter.name || sectionOutline.pov || undefined;
+    const characterNameLockBlock = isFiction ? buildCharacterNameLock(allCharacters || null) : "";
+    const povEnforcementBlock = isFiction ? buildPOVEnforcement(sectionOutline.pov || null, (project?.fiction_style as Record<string, unknown>)?.pov as string || null, povCharacterName) : "";
+    const scenePositionBlock = isFiction ? buildScenePositionContext(sectionNumber - 1, totalScenes, chapterIndex, totalChapters) : "";
+    const antiSummaryBlock = isFiction ? buildAntiSummaryRules() : "";
+    const dialogueVarietyBlock = isFiction ? buildDialogueVarietyRules() : "";
+    const antiRepetitionBlock = isFiction ? buildAntiRepetitionPrompt((previousContent || '').slice(-2000)) : "";
+
     const userPrompt = isFiction
       ? `CONTEXT:
 - KÖNYV MŰFAJA: ${project?.genre || genre || 'fiction'}
@@ -308,6 +319,8 @@ KARAKTER INFORMÁCIÓK:
 - POV KARAKTER HANGJA ÉS STÍLUSA: ${povCharacter.character_voice || 'Standard narráció, semleges hang.'}
 - POV KARAKTER CÉLJA A JELENETBEN: ${sectionOutline.pov_goal || 'Nincs megadva'}
 - POV KARAKTER ÉRZELMI ÁLLAPOTA A JELENET ELEJÉN: ${sectionOutline.pov_emotion_start || 'Semleges'}
+${characterNameLockBlock}
+${povEnforcementBlock}
 
 ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
 ${previousChapterSummaries || 'Ez az első fejezet.'}
@@ -317,17 +330,21 @@ ${previousScenes.length > 0 ? previousScenes.map((s, i) => `${i + 1}. ${s.summar
 
 ELŐZŐ SZÖVEGRÉSZ (az utolsó 4000 karakter a folytonosság érdekében):
 ${(previousContent || '').slice(-4000)}
+${antiRepetitionBlock}
 
 ---
 ÍRÁSI FELADAT:
 Írd meg az alábbi jelenetet a fenti kontextus és a "Mély POV" technika maximális figyelembevételével. A narráció és minden leírás a POV karakter szemszögéből történjen, az ő hangján és érzelmi állapotán keresztül.
 
 - FEJEZET CÍME: "${chapterTitle}"
+${scenePositionBlock}
 - JELENET SORSZÁMA: ${sectionNumber}
 - JELENET CÍME: "${sectionOutline.title}"
 - HELYSZÍN: ${sectionOutline.location || 'Nincs megadva'}
 - IDŐ: ${sectionOutline.time || 'Nincs megadva'}
 - JELENET LEÍRÁSA: ${sectionOutline.description}
+${antiSummaryBlock}
+${dialogueVarietyBlock}
 - KULCSESEMÉNYEK (ezeknek kötelezően meg kell történniük): ${(sectionOutline.key_events || []).join(', ')}
 - ÉRZELMI ÍV: ${sectionOutline.emotional_arc || 'Nincs megadva'}
 - VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
