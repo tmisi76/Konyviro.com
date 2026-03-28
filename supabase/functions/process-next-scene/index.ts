@@ -284,6 +284,16 @@ serve(async (req) => {
       storyContext += `\nKÖNYV ÖTLETE: ${(project.story_idea as string).slice(0, 500)}`;
     }
 
+    // Character name lock
+    const nameLock = buildCharacterNameLock(charactersResult?.data || null);
+
+    // POV enforcement
+    const povEnforcement = buildPOVEnforcement(
+      scene.pov || null,
+      (project.fiction_style as Record<string, unknown>)?.pov as string || null,
+      scene.pov_character || undefined
+    );
+
     const prompt = `${storyContext ? storyContext + "\n" : ""}ÍRD MEG: ${targetChapter.title} - Jelenet ${targetSceneIndex + 1}/${scenes.length}${scene.title ? `: "${scene.title}"` : ""}
 
 POV: ${scene.pov || "Harmadik személy"}
@@ -296,7 +306,7 @@ ${scene.pov_goal ? `POV karakter célja: ${scene.pov_goal}` : ""}
 ${scene.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${scene.pov_emotion_start}` : ""}
 ${scene.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${scene.pov_emotion_end}` : ""}
 Célhossz: ~${scene.target_words || 1000} szó
-${characterCtx}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}
+${characterCtx}${nameLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}
 ${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-3000)}` : ""}
 
 CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
