@@ -299,6 +299,19 @@ serve(async (req) => {
       scene.pov_character || undefined
     );
 
+    // Scene position context
+    const scenePositionCtx = buildScenePositionContext(
+      targetSceneIndex,
+      scenes.length,
+      chapters!.indexOf(targetChapter),
+      chapters!.length
+    );
+
+    // Anti-summary, dialogue variety, anti-repetition rules
+    const antiSummary = buildAntiSummaryRules();
+    const dialogueVariety = buildDialogueVarietyRules();
+    const antiRepetition = buildAntiRepetitionPrompt(prevContent || undefined);
+
     const prompt = `${storyContext ? storyContext + "\n" : ""}ÍRD MEG: ${targetChapter.title} - Jelenet ${targetSceneIndex + 1}/${scenes.length}${scene.title ? `: "${scene.title}"` : ""}
 
 POV: ${scene.pov || "Harmadik személy"}
@@ -311,8 +324,8 @@ ${scene.pov_goal ? `POV karakter célja: ${scene.pov_goal}` : ""}
 ${scene.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${scene.pov_emotion_start}` : ""}
 ${scene.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${scene.pov_emotion_end}` : ""}
 Célhossz: ~${scene.target_words || 1000} szó
-${characterCtx}${nameLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}
-${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-3000)}` : ""}
+${characterCtx}${nameLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
+${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-2000)}` : ""}
 
 CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
 
