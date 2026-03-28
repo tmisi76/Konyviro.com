@@ -283,16 +283,16 @@ serve(async (req) => {
       .eq("id", projectId)
       .single();
 
-    if (project?.user_id) {
-      const { data: styleProfile } = await supabase
-        .from("user_style_profiles")
-        .select("*")
-        .eq("user_id", project.user_id)
-        .single();
+    // Fetch characters for name lock (parallel with style profile)
+    const [styleProfileResult, charactersResult] = await Promise.all([
+      project?.user_id
+        ? supabase.from("user_style_profiles").select("*").eq("user_id", project.user_id).single()
+        : Promise.resolve({ data: null }),
+      supabase.from("characters").select("name, role").eq("project_id", projectId),
+    ]);
 
-      if (styleProfile?.style_summary) {
-        stylePrompt = buildStylePrompt(styleProfile);
-      }
+    if (styleProfileResult?.data?.style_summary) {
+      stylePrompt = buildStylePrompt(styleProfileResult.data);
     }
 
     // Add fiction style if available
@@ -320,6 +320,14 @@ serve(async (req) => {
         "\n\nFONTOS: Tartsd szem előtt ezeket az előzményeket! A karakterek NE ismételjék meg, amit már megtettek, és NE mutatkozzanak be újra!\n---";
     }
 
+    // Build name lock and POV enforcement
+    const nameLock = buildCharacterNameLock(charactersResult?.data || null);
+    const povEnforcement = buildPOVEnforcement(
+      sceneOutline.pov || null,
+      (project?.fiction_style as Record<string, unknown>)?.pov as string || null,
+      sceneOutline.pov_character || undefined
+    );
+
     const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"
 
 FONTOS: Ez a jelenet MAXIMUM ${effectiveTargetWords} szó legyen! Ne írj többet!
@@ -328,7 +336,7 @@ POV: ${sceneOutline.pov}
 Helyszín: ${sceneOutline.location}
 Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
-Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${characterHistoryContext}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
+Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${nameLock}${povEnforcement}${characterHistoryContext}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
