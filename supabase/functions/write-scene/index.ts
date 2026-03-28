@@ -510,6 +510,56 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
       content = repetitionCheck.cleanedText;
     }
 
+    // Quality check with retry capability
+    const qualityResult = checkSceneQuality(content, effectiveTargetWords);
+    if (!qualityResult.passed) {
+      console.warn(`Quality issues in scene ${sceneNumber}: ${qualityResult.issues.join("; ")}`);
+      if (qualityResult.issues.some(i => i.includes("Markdown"))) {
+        content = stripMarkdown(content);
+      }
+      if (qualityResult.shouldRetry) {
+        console.log(`Quality retry triggered for scene ${sceneNumber}`);
+        try {
+          const retryPrompt = prompt + buildQualityRetryPrompt(qualityResult.issues);
+          const retryController = new AbortController();
+          const retryTimeoutId = setTimeout(() => retryController.abort(), 120000);
+          const retryRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "google/gemini-3-flash-preview",
+              max_tokens: dynamicMaxTokens,
+              temperature: aiSettings.temperature,
+              frequency_penalty: aiSettings.frequency_penalty,
+              presence_penalty: aiSettings.presence_penalty,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: retryPrompt }
+              ]
+            }),
+            signal: retryController.signal,
+          });
+          clearTimeout(retryTimeoutId);
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            const retryText = retryData.choices?.[0]?.message?.content || "";
+            if (retryText && retryText.trim().length > content.trim().length * 0.8) {
+              const retryQuality = checkSceneQuality(retryText, effectiveTargetWords);
+              if (retryQuality.issues.length < qualityResult.issues.length) {
+                console.log(`Quality retry improved: ${qualityResult.issues.length} → ${retryQuality.issues.length} issues`);
+                content = stripMarkdown(retryText);
+              }
+            }
+          }
+        } catch (retryErr) {
+          console.warn("Quality retry failed, keeping original:", retryErr);
+        }
+      }
+    }
+
     const wordCount = countWords(content);
 
     // Update usage
