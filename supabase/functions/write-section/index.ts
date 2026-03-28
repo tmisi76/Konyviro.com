@@ -6,12 +6,15 @@ import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts"
 import { trackUsage } from "../_shared/usage-tracker.ts";
 import {
   HUNGARIAN_GRAMMAR_RULES,
+  buildCharacterContext,
   buildCharacterNameLock,
+  buildCharacterHistoryContext,
   buildPOVEnforcement,
   buildScenePositionContext,
   buildAntiSummaryRules,
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
+  buildPreviousChaptersSummary,
   buildFictionStylePrompt,
   buildStylePrompt,
 } from "../_shared/prompt-builder.ts";
@@ -313,16 +316,16 @@ serve(async (req) => {
       .eq('project_id', projectId);
     const sourcesList = sources || [];
 
-    // 5. Fetch all characters for this project (for name lock)
+    // 5. Fetch ALL characters for this project (context + name lock)
     const { data: allCharacters } = await supabaseClient
       .from('characters')
-      .select('name, role, positive_traits, negative_traits, speech_style, development_arc')
+      .select('name, role, positive_traits, negative_traits, speech_style, development_arc, backstory, motivations, character_voice')
       .eq('project_id', projectId);
 
     // 6. Fetch chapter info for scene position context
     const { data: allChapters } = await supabaseClient
       .from('chapters')
-      .select('id, sort_order, scene_outline')
+      .select('id, sort_order, scene_outline, title, summary, character_appearances')
       .eq('project_id', projectId)
       .order('sort_order', { ascending: true });
 
@@ -331,6 +334,10 @@ serve(async (req) => {
     const chapterIndex = currentChapter ? allChapters!.indexOf(currentChapter) : 0;
     const sceneOutlineArray = (currentChapter?.scene_outline as unknown[]) || [];
     const totalScenes = sceneOutlineArray.length || 1;
+    const currentSortOrder = currentChapter?.sort_order || 0;
+
+    // 6b. Build character history from previous chapters
+    const prevChaptersForHistory = allChapters?.filter(ch => ch.character_appearances && ch.sort_order < currentSortOrder) || [];
 
     // 7. Determine Story Arc Position and Tension Level
     const totalSectionsInChapter = sectionOutline.total_sections || 5;
@@ -390,12 +397,17 @@ serve(async (req) => {
 
     // Build shared prompt blocks for fiction
     const povCharacterName = povCharacter.name || sectionOutline.pov || undefined;
+    const characterContextBlock = isFiction ? buildCharacterContext(allCharacters || null) : "";
     const characterNameLockBlock = isFiction ? buildCharacterNameLock(allCharacters || null) : "";
+    const characterHistoryBlock = isFiction ? buildCharacterHistoryContext(
+      prevChaptersForHistory.map(ch => ch.character_appearances as Array<{ name: string; actions: string[] }>)
+    ) : "";
     const povEnforcementBlock = isFiction ? buildPOVEnforcement(sectionOutline.pov || null, (project?.fiction_style as Record<string, unknown>)?.pov as string || null, povCharacterName) : "";
     const scenePositionBlock = isFiction ? buildScenePositionContext(sectionNumber - 1, totalScenes, chapterIndex, totalChapters) : "";
     const antiSummaryBlock = isFiction ? buildAntiSummaryRules() : "";
     const dialogueVarietyBlock = isFiction ? buildDialogueVarietyRules() : "";
     const antiRepetitionBlock = isFiction ? buildAntiRepetitionPrompt((previousContent || '').slice(-2000)) : "";
+    const previousChaptersSummaryBlock = isFiction && allChapters ? buildPreviousChaptersSummary(allChapters, currentSortOrder) : "";
 
     const userPrompt = isFiction
       ? `CONTEXT:
@@ -413,11 +425,13 @@ KARAKTER INFORMÁCIÓK:
 - POV KARAKTER HANGJA ÉS STÍLUSA: ${povCharacter.character_voice || 'Standard narráció, semleges hang.'}
 - POV KARAKTER CÉLJA A JELENETBEN: ${sectionOutline.pov_goal || 'Nincs megadva'}
 - POV KARAKTER ÉRZELMI ÁLLAPOTA A JELENET ELEJÉN: ${sectionOutline.pov_emotion_start || 'Semleges'}
+${characterContextBlock}
 ${characterNameLockBlock}
 ${povEnforcementBlock}
+${characterHistoryBlock}
 
 ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
-${previousChapterSummaries || 'Ez az első fejezet.'}
+${previousChaptersSummaryBlock || 'Ez az első fejezet.'}
 
 ELŐZMÉNYEK (AZ ELŐZŐ JELENETEK RÖVID ÖSSZEFOGLALÓJA):
 ${previousScenes.length > 0 ? previousScenes.map((s, i) => `${i + 1}. ${s.summary}`).join('\n') : 'Ez az első jelenet a fejezetben.'}
