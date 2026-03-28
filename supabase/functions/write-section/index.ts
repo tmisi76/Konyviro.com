@@ -12,6 +12,8 @@ import {
   buildAntiSummaryRules,
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
+  buildFictionStylePrompt,
+  buildStylePrompt,
 } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
@@ -150,7 +152,7 @@ FORMAI KÖVETELMÉNYEK:
 -   Tagold a szöveget logikus bekezdésekre.
 
 -   NE használj markdown formázást (pl. **, #).
-${HUNGARIAN_GRAMMAR_RULES}`;
+`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -250,8 +252,30 @@ serve(async (req) => {
 
     const isFiction = genre === "fiction" || (project?.genre && project.genre !== 'nonfiction' && project.genre !== 'szakkönyv' && project.genre !== 'szakkonyv');
     const sectionType = sectionOutline.pov || sectionOutline.type || "concept";
-    const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
-    
+    let systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
+
+    if (isFiction && project) {
+      // Add fiction style settings (POV, pace, dialogue, description, genre rules)
+      const fictionStyleSection = buildFictionStylePrompt(
+        project.fiction_style as Record<string, unknown> | null,
+        project.subcategory || null
+      );
+      if (fictionStyleSection) {
+        systemPrompt += fictionStyleSection;
+      }
+
+      // Add user writing style profile if available
+      const { data: styleProfile } = await supabaseClient
+        .from('user_style_profiles')
+        .select('*')
+        .eq('user_id', project.user_id)
+        .single();
+
+      if (styleProfile?.style_summary) {
+        systemPrompt += buildStylePrompt(styleProfile as Record<string, unknown>);
+      }
+    }
+
     // Build rich context-aware prompt
     // Extract story context from generated_story for richer prompt
     let bookStoryContext = project?.story_idea || 'Nincs megadva';
