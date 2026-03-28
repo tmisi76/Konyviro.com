@@ -647,7 +647,6 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
         await trackUsage(supabase, project.user_id, wordCount);
       }
     }
-    }
 
     return new Response(JSON.stringify({ content: sectionContent, wordCount }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
