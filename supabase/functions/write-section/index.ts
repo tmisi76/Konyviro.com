@@ -3,6 +3,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
+import {
+  buildCharacterNameLock,
+  buildPOVEnforcement,
+  buildScenePositionContext,
+  buildAntiSummaryRules,
+  buildDialogueVarietyRules,
+  buildAntiRepetitionPrompt,
+} from "../_shared/prompt-builder.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 // Word-compatible counting: only tokens containing at least one letter
@@ -233,7 +241,26 @@ serve(async (req) => {
       .eq('project_id', projectId);
     const sourcesList = sources || [];
 
-    // 5. Determine Story Arc Position and Tension Level
+    // 5. Fetch all characters for this project (for name lock)
+    const { data: allCharacters } = await supabaseClient
+      .from('characters')
+      .select('name, role, positive_traits, negative_traits, speech_style, development_arc')
+      .eq('project_id', projectId);
+
+    // 6. Fetch chapter info for scene position context
+    const { data: allChapters } = await supabaseClient
+      .from('chapters')
+      .select('id, sort_order, scene_outline')
+      .eq('project_id', projectId)
+      .order('sort_order', { ascending: true });
+
+    const totalChapters = allChapters?.length || 1;
+    const currentChapter = allChapters?.find(ch => ch.id === chapterId);
+    const chapterIndex = currentChapter ? allChapters!.indexOf(currentChapter) : 0;
+    const sceneOutlineArray = (currentChapter?.scene_outline as unknown[]) || [];
+    const totalScenes = sceneOutlineArray.length || 1;
+
+    // 7. Determine Story Arc Position and Tension Level
     const totalSectionsInChapter = sectionOutline.total_sections || 5;
     const progressInChapter = sectionNumber / totalSectionsInChapter;
     let storyArcPosition = 'Középső rész';
@@ -267,6 +294,15 @@ serve(async (req) => {
       if (parts.length) bookStoryContext = parts.join("\n");
     }
 
+    // Build shared prompt blocks for fiction
+    const povCharacterName = povCharacter.name || sectionOutline.pov || undefined;
+    const characterNameLockBlock = isFiction ? buildCharacterNameLock(allCharacters || null) : "";
+    const povEnforcementBlock = isFiction ? buildPOVEnforcement(sectionOutline.pov || null, (project?.fiction_style as Record<string, unknown>)?.pov as string || null, povCharacterName) : "";
+    const scenePositionBlock = isFiction ? buildScenePositionContext(sectionNumber - 1, totalScenes, chapterIndex, totalChapters) : "";
+    const antiSummaryBlock = isFiction ? buildAntiSummaryRules() : "";
+    const dialogueVarietyBlock = isFiction ? buildDialogueVarietyRules() : "";
+    const antiRepetitionBlock = isFiction ? buildAntiRepetitionPrompt((previousContent || '').slice(-2000)) : "";
+
     const userPrompt = isFiction
       ? `CONTEXT:
 - KÖNYV MŰFAJA: ${project?.genre || genre || 'fiction'}
@@ -283,6 +319,8 @@ KARAKTER INFORMÁCIÓK:
 - POV KARAKTER HANGJA ÉS STÍLUSA: ${povCharacter.character_voice || 'Standard narráció, semleges hang.'}
 - POV KARAKTER CÉLJA A JELENETBEN: ${sectionOutline.pov_goal || 'Nincs megadva'}
 - POV KARAKTER ÉRZELMI ÁLLAPOTA A JELENET ELEJÉN: ${sectionOutline.pov_emotion_start || 'Semleges'}
+${characterNameLockBlock}
+${povEnforcementBlock}
 
 ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
 ${previousChapterSummaries || 'Ez az első fejezet.'}
@@ -292,17 +330,21 @@ ${previousScenes.length > 0 ? previousScenes.map((s, i) => `${i + 1}. ${s.summar
 
 ELŐZŐ SZÖVEGRÉSZ (az utolsó 4000 karakter a folytonosság érdekében):
 ${(previousContent || '').slice(-4000)}
+${antiRepetitionBlock}
 
 ---
 ÍRÁSI FELADAT:
 Írd meg az alábbi jelenetet a fenti kontextus és a "Mély POV" technika maximális figyelembevételével. A narráció és minden leírás a POV karakter szemszögéből történjen, az ő hangján és érzelmi állapotán keresztül.
 
 - FEJEZET CÍME: "${chapterTitle}"
+${scenePositionBlock}
 - JELENET SORSZÁMA: ${sectionNumber}
 - JELENET CÍME: "${sectionOutline.title}"
 - HELYSZÍN: ${sectionOutline.location || 'Nincs megadva'}
 - IDŐ: ${sectionOutline.time || 'Nincs megadva'}
 - JELENET LEÍRÁSA: ${sectionOutline.description}
+${antiSummaryBlock}
+${dialogueVarietyBlock}
 - KULCSESEMÉNYEK (ezeknek kötelezően meg kell történniük): ${(sectionOutline.key_events || []).join(', ')}
 - ÉRZELMI ÍV: ${sectionOutline.emotional_arc || 'Nincs megadva'}
 - VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
