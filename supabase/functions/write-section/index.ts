@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 import {
   HUNGARIAN_GRAMMAR_RULES,
   buildCharacterNameLock,
