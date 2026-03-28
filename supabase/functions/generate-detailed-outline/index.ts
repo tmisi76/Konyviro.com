@@ -92,9 +92,11 @@ FONTOS SZABÁLYOK:
 - Minden jelenet ~${wordsPerScene} szó legyen (target_words = ${wordsPerScene})
 - A fejezet összesen ${effectiveWordsForChapter} szó körül legyen
 - A POV mezőben a karakter EREDETI, PONTOS nevét használd. Külföldi neveket NE magyarosítsd!
+- A pov_goal mezőben add meg, mit akar elérni a POV karakter ebben a jelenetben
+- A pov_emotion_start és pov_emotion_end mezőkben add meg a karakter érzelmi állapotát a jelenet elején és végén
 
 Válaszolj CSAK JSON tömbként:
-[{"scene_number": 1, "title": "...", "pov": "...", "pov_character": "...", "location": "...", "time": "...", "description": "...", "key_events": [...], "emotional_arc": "...", "target_words": ${wordsPerScene}, "status": "pending"}]`;
+[{"scene_number": 1, "title": "...", "pov": "...", "pov_character": "...", "pov_goal": "...", "pov_emotion_start": "...", "pov_emotion_end": "...", "location": "...", "time": "...", "description": "...", "key_events": [...], "emotional_arc": "...", "target_words": ${wordsPerScene}, "status": "pending"}]`;
 
     let userPrompt = `Készíts PONTOSAN ${scenesForChapter} jelenet-vázlatot (összesen ~${effectiveWordsForChapter} szó):\n\nFEJEZET: ${chapterTitle}\n${chapterSummary ? `ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}\nMŰFAJ: ${genre}${characterNameList}`;
     if (storyStructure) userPrompt += `\nKONTEXTUS: ${JSON.stringify(storyStructure)}`;
