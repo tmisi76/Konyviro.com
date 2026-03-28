@@ -77,19 +77,27 @@ serve(async (req) => {
 
     console.log(`Chapter "${chapterTitle}": ${effectiveWordsForChapter} words, ${scenesForChapter} scenes, ~${wordsPerScene} words/scene`);
 
+    // Build character name list for the outline prompt
+    let characterNameList = "";
+    if (characters) {
+      characterNameList = `\n\nA történet karakterei (VÁLTOZTATHATATLAN NEVEK - pontosan így használd a POV és leírás mezőkben):
+${typeof characters === "string" ? characters : JSON.stringify(characters)}
+FONTOS: A POV mezőben a karakter PONTOS nevét használd (pl. "Elena Moretti"), NE magyarosítsd (NE írd "Varga Elena"-nak)!`;
+    }
+
     const SYSTEM_PROMPT = `Te egy bestseller regényíró asszisztens vagy. Készíts részletes jelenet-vázlatot.
 
 FONTOS SZABÁLYOK:
 - Pontosan ${scenesForChapter} jelenetet generálj
 - Minden jelenet ~${wordsPerScene} szó legyen (target_words = ${wordsPerScene})
 - A fejezet összesen ${effectiveWordsForChapter} szó körül legyen
+- A POV mezőben a karakter EREDETI, PONTOS nevét használd. Külföldi neveket NE magyarosítsd!
 
 Válaszolj CSAK JSON tömbként:
-[{"scene_number": 1, "title": "...", "pov": "...", "location": "...", "time": "...", "description": "...", "key_events": [...], "emotional_arc": "...", "target_words": ${wordsPerScene}, "status": "pending"}]`;
+[{"scene_number": 1, "title": "...", "pov": "...", "pov_character": "...", "location": "...", "time": "...", "description": "...", "key_events": [...], "emotional_arc": "...", "target_words": ${wordsPerScene}, "status": "pending"}]`;
 
-    let userPrompt = `Készíts PONTOSAN ${scenesForChapter} jelenet-vázlatot (összesen ~${effectiveWordsForChapter} szó):\n\nFEJEZET: ${chapterTitle}\n${chapterSummary ? `ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}\nMŰFAJ: ${genre}`;
+    let userPrompt = `Készíts PONTOSAN ${scenesForChapter} jelenet-vázlatot (összesen ~${effectiveWordsForChapter} szó):\n\nFEJEZET: ${chapterTitle}\n${chapterSummary ? `ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}\nMŰFAJ: ${genre}${characterNameList}`;
     if (storyStructure) userPrompt += `\nKONTEXTUS: ${JSON.stringify(storyStructure)}`;
-    if (characters) userPrompt += `\nKARAKTEREK: ${characters}`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
