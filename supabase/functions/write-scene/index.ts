@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
-import { buildCharacterNameLock, buildPOVEnforcement } from "../_shared/prompt-builder.ts";
+import { buildCharacterNameLock, buildPOVEnforcement, buildScenePositionContext, buildAntiSummaryRules, buildDialogueVarietyRules, buildAntiRepetitionPrompt } from "../_shared/prompt-builder.ts";
+import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -328,6 +329,22 @@ serve(async (req) => {
       sceneOutline.pov_character || undefined
     );
 
+    // Scene position context (sceneNumber is 1-based)
+    const totalScenes = sceneOutline.total_scenes || 3;
+    const chapterIndex = sceneOutline.chapter_index || 0;
+    const totalChapters = sceneOutline.total_chapters || 1;
+    const scenePositionCtx = buildScenePositionContext(
+      sceneNumber - 1,
+      totalScenes,
+      chapterIndex,
+      totalChapters
+    );
+
+    // Anti-summary, dialogue variety, anti-repetition rules
+    const antiSummary = buildAntiSummaryRules();
+    const dialogueVariety = buildDialogueVarietyRules();
+    const antiRepetition = buildAntiRepetitionPrompt(previousContent || undefined);
+
     const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"
 
 FONTOS: Ez a jelenet MAXIMUM ${effectiveTargetWords} szó legyen! Ne írj többet!
@@ -336,7 +353,10 @@ POV: ${sceneOutline.pov}
 Helyszín: ${sceneOutline.location}
 Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
-Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${nameLock}${povEnforcement}${characterHistoryContext}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
+${sceneOutline.pov_goal ? `POV karakter célja: ${sceneOutline.pov_goal}` : ""}
+${sceneOutline.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${sceneOutline.pov_emotion_start}` : ""}
+${sceneOutline.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${sceneOutline.pov_emotion_end}` : ""}
+Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${nameLock}${povEnforcement}${characterHistoryContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
@@ -488,6 +508,56 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
     if (repetitionCheck.isRepetitive) {
       console.warn(`Repetition detected (score: ${repetitionCheck.score.toFixed(2)}), using cleaned text`);
       content = repetitionCheck.cleanedText;
+    }
+
+    // Quality check with retry capability
+    const qualityResult = checkSceneQuality(content, effectiveTargetWords);
+    if (!qualityResult.passed) {
+      console.warn(`Quality issues in scene ${sceneNumber}: ${qualityResult.issues.join("; ")}`);
+      if (qualityResult.issues.some(i => i.includes("Markdown"))) {
+        content = stripMarkdown(content);
+      }
+      if (qualityResult.shouldRetry) {
+        console.log(`Quality retry triggered for scene ${sceneNumber}`);
+        try {
+          const retryPrompt = prompt + buildQualityRetryPrompt(qualityResult.issues);
+          const retryController = new AbortController();
+          const retryTimeoutId = setTimeout(() => retryController.abort(), 120000);
+          const retryRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "google/gemini-3-flash-preview",
+              max_tokens: dynamicMaxTokens,
+              temperature: aiSettings.temperature,
+              frequency_penalty: aiSettings.frequency_penalty,
+              presence_penalty: aiSettings.presence_penalty,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: retryPrompt }
+              ]
+            }),
+            signal: retryController.signal,
+          });
+          clearTimeout(retryTimeoutId);
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            const retryText = retryData.choices?.[0]?.message?.content || "";
+            if (retryText && retryText.trim().length > content.trim().length * 0.8) {
+              const retryQuality = checkSceneQuality(retryText, effectiveTargetWords);
+              if (retryQuality.issues.length < qualityResult.issues.length) {
+                console.log(`Quality retry improved: ${qualityResult.issues.length} → ${retryQuality.issues.length} issues`);
+                content = stripMarkdown(retryText);
+              }
+            }
+          }
+        } catch (retryErr) {
+          console.warn("Quality retry failed, keeping original:", retryErr);
+        }
+      }
     }
 
     const wordCount = countWords(content);

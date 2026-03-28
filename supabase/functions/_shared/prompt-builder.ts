@@ -385,3 +385,95 @@ export function buildPreviousChaptersSummary(
     previousWithSummary.map(ch => `${ch.title}: ${ch.summary}`).join("\n\n") +
     "\n\nFONTOS: Tartsd szem előtt az előző fejezetekben történteket! A cselekmény legyen folytonos és konzisztens.\n---";
 }
+
+/**
+ * Build scene position context for chapter-aware instructions.
+ */
+export function buildScenePositionContext(
+  sceneIndex: number,
+  totalScenes: number,
+  chapterIndex: number,
+  totalChapters: number
+): string {
+  const isFirstScene = sceneIndex === 0;
+  const isLastScene = sceneIndex === totalScenes - 1;
+  const isFirstChapter = chapterIndex === 0;
+  const isLastChapter = chapterIndex === totalChapters - 1;
+
+  let rules = "\n\n--- JELENETPOZÍCIÓ UTASÍTÁSOK ---";
+
+  if (isFirstScene && isFirstChapter) {
+    rules += `\nEz a KÖNYV LEGELSŐ jelenete. Kezdd erős, figyelemfelkeltő nyitással (in medias res, meglepő kép, vagy provokatív kijelentés). Mutasd be a helyszínt érzékletesen, de cselekvésen keresztül — NE írj statikus leírást!`;
+  } else if (isFirstScene) {
+    rules += `\nEz a fejezet NYITÓ jelenete. Kezdd dinamikusan — vagy utalj az előző fejezet végére, vagy hozz egy új helyszínt/szituációt, ami azonnal felkelti az érdeklődést.`;
+  }
+
+  if (isLastScene && isLastChapter) {
+    rules += `\nEz a KÖNYV UTOLSÓ jelenete. Hozd el a katarzist és a lezárást. Az olvasónak elégedettnek kell lennie — de ne legyen túlmagyarázott "és boldogan éltek" befejezés.`;
+  } else if (isLastScene) {
+    rules += `\nEz a fejezet UTOLSÓ jelenete. KÖTELEZŐ cliffhangerrel vagy erős érzelmi csúcsponttal zárni! Az olvasónak AKARNIA kell lapozni. NE hagyj mindent megoldva — hagyj nyitott kérdést, feszültséget, vagy meglepetést a végén.`;
+  }
+
+  if (!isFirstScene && !isLastScene) {
+    rules += `\nEz egy KÖZTES jelenet. Építsd a feszültséget fokozatosan. Mélyítsd a konfliktust. Adj új információt vagy fordulatot — NE ismételd az előző jelenet eseményeit.`;
+  }
+
+  rules += "\n--- JELENETPOZÍCIÓ VÉGE ---";
+  return rules;
+}
+
+/**
+ * Anti-summary rules to prevent AI from narrating instead of dramatizing.
+ */
+export function buildAntiSummaryRules(): string {
+  return `
+
+--- DRAMATIZÁLÁSI SZABÁLYOK (KRITIKUS) ---
+- NE foglald ÖSSZE az eseményeket — DRAMATIZÁLD őket valós időben!
+- TILOS: "Aztán elmentek a boltba és vettek kenyeret." HELYETTE: Írd le a bolt belsejét, a párbeszédet, a cselekvést!
+- TILOS: "A következő napokban sok minden történt." HELYETTE: Válassz ki EGY kulcspillanatot és azt írd le részletesen!
+- TILOS: "Később kiderült, hogy..." HELYETTE: Mutasd meg a felfedezés PILLANATÁT!
+- Minden mondat legyen JELENLEGI IDEJŰ ÉLMÉNY, NEM visszatekintő összefoglaló
+- Az olvasó legyen OTT a jelenetben: lássa, hallja, érezze, ami történik
+- Használj érzékszervi részleteket: szagok, hangok, textúrák, hőmérséklet, fények
+--- DRAMATIZÁLÁS VÉGE ---`;
+}
+
+/**
+ * Dialogue variety rules to prevent repetitive speech tags.
+ */
+export function buildDialogueVarietyRules(): string {
+  return `
+
+--- PÁRBESZÉD VÁLTOZATOSSÁG (KÖTELEZŐ) ---
+- NE használd a "mondta" szót 3-nál többször egy jelenetben!
+- Váltogasd a párbeszéd-tageket: suttogta, morogta, vetette oda, jegyezte meg, sziszegte, kiáltotta, kérdezte, felelte, hümmögött, bólintott
+- Használj AKCIÓ-TAGEKET a párbeszéd-tagek HELYETT: "Megdörzsölte a szemét. – Nem alszom eleget." (itt nincs "mondta"!)
+- A párbeszéd 30-50%-ánál NE legyen tag egyáltalán — a kontextusból derüljön ki, ki beszél
+- Minden szereplő MÁSKÉPP beszéljen: eltérő szókincs, mondathossz, szófordulatok
+--- PÁRBESZÉD VÉGE ---`;
+}
+
+/**
+ * Anti-repetition prompt to prevent rehashing previous scene content.
+ */
+export function buildAntiRepetitionPrompt(previousContentSnippet?: string): string {
+  let rules = `
+
+--- ISMÉTLÉS-MEGELŐZÉS (KÖTELEZŐ) ---
+- NE ismételd meg az előző jelenet utolsó eseményeit!
+- NE írd le újra, amit a szereplő már megcsinált — folytasd ONNAN, ahol abbahagyta
+- NE mutatkozzon be újra egy karakter, akit az olvasó már ismer
+- Ha egy érzés/gondolat már le volt írva, NE írd le újra — mutass FEJLŐDÉST vagy VÁLTOZÁST
+- Új jelenet = új cselekvés, új információ, új feszültség`;
+
+  if (previousContentSnippet) {
+    const lastSentences = previousContentSnippet.slice(-500).split(/[.!?]/).filter(s => s.trim()).slice(-3).join(". ");
+    if (lastSentences) {
+      rules += `\n\nAz előző jelenet UTOLSÓ mondatai (NE ISMÉTELD EZEKET): "${lastSentences.trim()}"`;
+    }
+  }
+
+  rules += "\n--- ISMÉTLÉS-MEGELŐZÉS VÉGE ---";
+  return rules;
+}
