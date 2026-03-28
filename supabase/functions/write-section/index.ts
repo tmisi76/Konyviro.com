@@ -4,6 +4,7 @@ import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
 import {
+  HUNGARIAN_GRAMMAR_RULES,
   buildCharacterNameLock,
   buildPOVEnforcement,
   buildScenePositionContext,
