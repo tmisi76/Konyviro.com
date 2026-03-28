@@ -8,6 +8,7 @@ export interface QualityResult {
   issues: string[];
   wordCount: number;
   wordCountRatio: number; // actual / target
+  shouldRetry: boolean; // if true, the engine should retry with reinforced prompt
 }
 
 const countWords = (text: string): number =>
@@ -22,12 +23,14 @@ export function checkSceneQuality(
   targetWords: number,
 ): QualityResult {
   const issues: string[] = [];
+  const retryReasons: string[] = [];
   const wordCount = countWords(content);
   const wordCountRatio = wordCount / Math.max(targetWords, 1);
 
   // 1. Word count check - at least 50% of target
   if (targetWords > 200 && wordCountRatio < 0.5) {
     issues.push(`Túl rövid: ${wordCount}/${targetWords} szó (${Math.round(wordCountRatio * 100)}%)`);
+    retryReasons.push(`A szöveg túl rövid (${wordCount} szó a célzott ${targetWords} helyett). Írj LÉNYEGESEN hosszabb, részletesebb jelenetet!`);
   }
 
   // 2. Paragraph diversity - at least 3 paragraphs for 500+ word content
@@ -62,14 +65,51 @@ export function checkSceneQuality(
       firstLine.startsWith('a jelenet') || firstLine.startsWith('ime') ||
       firstLine.startsWith('íme')) {
     issues.push("A szöveg meta-kommentárral kezdődik az AI-tól");
+    retryReasons.push("NE kezdd meta-kommentárral (pl. 'Itt van a jelenet'). Kezdd KÖZVETLENÜL a jelenet szövegével — narráció, párbeszéd vagy cselekvés!");
   }
+
+  // 6. Summary-style detection: sentences starting with temporal connectors
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  const summaryStarters = /^\s*(aztán|ezután|később|végül|végére|ezt követően|másnap|a következő|idővel|hamarosan|nemsokára|miután)/i;
+  const summaryCount = sentences.filter(s => summaryStarters.test(s)).length;
+  const summaryRatio = summaryCount / Math.max(sentences.length, 1);
+  if (sentences.length > 5 && summaryRatio > 0.3) {
+    issues.push(`Összefoglaló-stílus: ${Math.round(summaryRatio * 100)}% mondatkezdés időugrással (aztán, később, ezután...)`);
+    retryReasons.push("A szöveg összefoglaló stílusú — túl sok 'aztán', 'később', 'ezután' mondatkezdés. DRAMATIZÁLJ valós időben: párbeszéddel, cselekvéssel, érzékszervi részletekkel!");
+  }
+
+  // 7. Dialogue tag repetition: "mondta" overuse
+  const mondtaMatches = content.match(/\bmondta\b/gi) || [];
+  const mondtaPer1000 = (mondtaMatches.length / Math.max(wordCount, 1)) * 1000;
+  if (mondtaMatches.length > 5 && mondtaPer1000 > 5) {
+    issues.push(`Párbeszéd-tag ismétlődés: "mondta" ${mondtaMatches.length}x (${mondtaPer1000.toFixed(1)}/1000 szó)`);
+    retryReasons.push(`A "mondta" szó ${mondtaMatches.length}-szer szerepel. Használj változatos tageket: suttogta, morogta, vetette oda, jegyezte meg — vagy akció-tageket: "Megdörzsölte a szemét. – Nem alszom eleget."`);
+  }
+
+  const shouldRetry = retryReasons.length > 0;
 
   return {
     passed: issues.length === 0,
     issues,
     wordCount,
     wordCountRatio,
+    shouldRetry,
   };
+}
+
+/**
+ * Build a reinforced retry prompt based on quality issues.
+ */
+export function buildQualityRetryPrompt(issues: string[]): string {
+  return `
+
+--- MINŐSÉGI JAVÍTÁSI UTASÍTÁSOK (ELŐZŐ PRÓBÁLKOZÁS HIBÁI) ---
+Az előző generálás az alábbi minőségi problémákat tartalmazta. Kérlek javítsd:
+
+${issues.map((issue, i) => `${i + 1}. ${issue}`).join("\n")}
+
+FONTOS: Ezúttal KÜLÖNÖSEN ügyelj a fenti problémák elkerülésére!
+--- JAVÍTÁSI UTASÍTÁSOK VÉGE ---`;
 }
 
 /**
