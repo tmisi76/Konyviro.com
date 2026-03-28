@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
-import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
+import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
 import {
   NO_MARKDOWN_RULE,
   HUNGARIAN_GRAMMAR_RULES,
@@ -18,7 +18,6 @@ import {
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
 } from "../_shared/prompt-builder.ts";
-import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
