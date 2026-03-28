@@ -316,16 +316,16 @@ serve(async (req) => {
       .eq('project_id', projectId);
     const sourcesList = sources || [];
 
-    // 5. Fetch all characters for this project (for name lock)
+    // 5. Fetch ALL characters for this project (context + name lock)
     const { data: allCharacters } = await supabaseClient
       .from('characters')
-      .select('name, role, positive_traits, negative_traits, speech_style, development_arc')
+      .select('name, role, positive_traits, negative_traits, speech_style, development_arc, backstory, motivations, character_voice')
       .eq('project_id', projectId);
 
     // 6. Fetch chapter info for scene position context
     const { data: allChapters } = await supabaseClient
       .from('chapters')
-      .select('id, sort_order, scene_outline')
+      .select('id, sort_order, scene_outline, title, summary, character_appearances')
       .eq('project_id', projectId)
       .order('sort_order', { ascending: true });
 
@@ -334,6 +334,10 @@ serve(async (req) => {
     const chapterIndex = currentChapter ? allChapters!.indexOf(currentChapter) : 0;
     const sceneOutlineArray = (currentChapter?.scene_outline as unknown[]) || [];
     const totalScenes = sceneOutlineArray.length || 1;
+    const currentSortOrder = currentChapter?.sort_order || 0;
+
+    // 6b. Build character history from previous chapters
+    const prevChaptersForHistory = allChapters?.filter(ch => ch.character_appearances && ch.sort_order < currentSortOrder) || [];
 
     // 7. Determine Story Arc Position and Tension Level
     const totalSectionsInChapter = sectionOutline.total_sections || 5;
