@@ -245,6 +245,7 @@ export function buildFictionStylePrompt(fictionStyle: Record<string, unknown> | 
 
 /**
  * Build character context string from character data.
+ * Now includes strict name lock instructions.
  */
 export function buildCharacterContext(characters: Array<{
   name: string;
@@ -256,7 +257,7 @@ export function buildCharacterContext(characters: Array<{
 }> | null): string {
   if (!characters || characters.length === 0) return "";
 
-  return "\n\nKARAKTEREK:\n" + characters.map(c => {
+  const charLines = characters.map(c => {
     let line = `- ${c.name} (${c.role || "szereplő"}): ${(c.positive_traits || []).slice(0, 3).join(", ")}${c.negative_traits?.length ? ` | Hibák: ${c.negative_traits.slice(0, 2).join(", ")}` : ""} | Beszédstílus: ${c.speech_style || "általános"}`;
     const arc = c.development_arc;
     if (arc && arc.start_state && arc.end_state) {
@@ -264,6 +265,79 @@ export function buildCharacterContext(characters: Array<{
     }
     return line;
   }).join("\n");
+
+  return `\n\nKARAKTEREK:\n${charLines}\n\n⚠️ NÉVHASZNÁLATI SZABÁLY: A fenti neveket PONTOSAN így használd. NE változtasd meg, NE magyarosítsd, NE cseréld fel egyetlen nevet sem!`;
+}
+
+/**
+ * Build an immutable character name lock block.
+ * Prevents the AI from renaming, localizing, or swapping character names.
+ */
+export function buildCharacterNameLock(characters: Array<{
+  name: string;
+  role?: string;
+}> | null): string {
+  if (!characters || characters.length === 0) return "";
+
+  const nameList = characters.map(c => `- "${c.name}" (${c.role || "szereplő"})`).join("\n");
+
+  return `
+
+--- KARAKTEREK NÉVSORA (VÁLTOZTATHATATLAN) ---
+A történetben KIZÁRÓLAG az alábbi neveket használd. NE változtasd meg, NE magyarosítsd, NE adj nekik más nevet, becenevet vagy vezetéknevet. Ha egy karakter neve "Elena Moretti", mindig "Elena Moretti" marad, SOHA NEM "Varga Elena" vagy "Adél".
+
+${nameList}
+
+NÉVSORREND SZABÁLY PONTOSÍTÁS: A magyar névsorrend (Vezetéknév + Keresztnév) CSAK magyar nevekre vonatkozik (pl. "Kovács János"). Külföldi nevek (olasz, angol, német, francia, stb.) az EREDETI sorrendben maradnak (pl. "Elena Moretti", NEM "Moretti Elena"). NE adj magyar vezetéknevet külföldi karaktereknek!
+
+TILOS:
+- Nevet cserélni fejezetek között
+- Új nevet kitalálni meglévő karakternek
+- Magyar vezetéknevet adni külföldi karakternek (pl. "Varga Elena" TILOS)
+- Becenevet használni, amit a felhasználó nem adott meg
+--- NÉVSOR VÉGE ---`;
+}
+
+/**
+ * Build POV enforcement block to prevent narrative perspective shifts.
+ */
+export function buildPOVEnforcement(
+  scenePov: string | null,
+  projectPov: string | null,
+  povCharacterName?: string
+): string {
+  const effectivePov = scenePov || (projectPov ? (POV_LABELS[projectPov] || projectPov) : null);
+  if (!effectivePov) return "";
+
+  const isThirdLimited = projectPov === "third_limited" || 
+    effectivePov.toLowerCase().includes("korlátozott") ||
+    effectivePov.toLowerCase().includes("limited");
+
+  const isFirstPerson = projectPov === "first_person" ||
+    effectivePov.toLowerCase().includes("első személy") ||
+    effectivePov.toLowerCase().includes("én-elbeszélő");
+
+  let rules = `
+
+--- NÉZŐPONT SZABÁLY (KÖTELEZŐ) ---
+A jelenet nézőpontja: ${effectivePov}${povCharacterName ? ` — ${povCharacterName}` : ""}
+TILOS nézőpontot váltani a jelenet közben!`;
+
+  if (isThirdLimited) {
+    rules += `
+- KIZÁRÓLAG ${povCharacterName || "a POV karakter"} gondolatait, érzéseit, észleléseit írd le
+- NE írd le más karakterek belső gondolatait vagy érzéseit
+- NE váltsd első személyre ("Én láttam..." TILOS)
+- Más karakterek viselkedését CSAK kívülről, ${povCharacterName || "a POV karakter"} szemén keresztül mutasd`;
+  } else if (isFirstPerson) {
+    rules += `
+- Az elbeszélő VÉGIG első személyben beszél ("Én", "engem", "láttam")
+- NE válts harmadik személyre
+- NE írd le olyan dolgokat, amiket az elbeszélő nem lát, hall vagy tud`;
+  }
+
+  rules += `\n--- NÉZŐPONT SZABÁLY VÉGE ---`;
+  return rules;
 }
 
 /**
