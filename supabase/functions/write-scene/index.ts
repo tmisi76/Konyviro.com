@@ -2,7 +2,22 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
-import { buildCharacterNameLock, buildPOVEnforcement, buildScenePositionContext, buildAntiSummaryRules, buildDialogueVarietyRules, buildAntiRepetitionPrompt } from "../_shared/prompt-builder.ts";
+import {
+  GENRE_PROMPTS,
+  UNIVERSAL_FICTION_RULES,
+  POV_LABELS,
+  PACE_LABELS,
+  DIALOGUE_LABELS,
+  DESCRIPTION_LABELS,
+  buildStylePrompt,
+  buildFictionStylePrompt,
+  buildCharacterNameLock,
+  buildPOVEnforcement,
+  buildScenePositionContext,
+  buildAntiSummaryRules,
+  buildDialogueVarietyRules,
+  buildAntiRepetitionPrompt,
+} from "../_shared/prompt-builder.ts";
 import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
 
 const corsHeaders = {
