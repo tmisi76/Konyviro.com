@@ -4,6 +4,7 @@ import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
 import {
+  HUNGARIAN_GRAMMAR_RULES,
   buildCharacterNameLock,
   buildPOVEnforcement,
   buildScenePositionContext,
@@ -25,35 +26,8 @@ const SECTION_PROMPTS: Record<string, string> = {
   case_study: "Írj részletes esettanulmányt valós példával, számokkal és tanulságokkal.",
 };
 
-const HUNGARIAN_GRAMMAR_RULES = `
 
-## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
 
-NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
-
-PÁRBESZÉD FORMÁZÁS:
-- Magyar párbeszédjelölés: gondolatjel (–) a sor elején
-- Idézőjel használata: „..." (magyar idézőjel, NEM "...")
-- Példa helyes formátum:
-  – Hová mész? – kérdezte Anna.
-  – A boltba – válaszolta.
-
-ÍRÁSJELEK:
-- Gondolatjel: – (hosszú, NEM -)
-- Három pont: ... (NEM …)
-- Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
-
-KERÜLENDŐ HIBÁK:
-- NE használj angolszász névsorrendet
-- NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
-- NE használj angol idézőjeleket ("..." → „...")
-- NE használj felesleges névelőket angolosan
-
-NYELVTANI HELYESSÉG:
-- Ragozás: ügyelj a magyar ragozás helyességére
-- Szórend: magyar szórend, NEM angol (ige-alany-tárgy)
-- Összetett szavak: egybe vagy külön az MTA szabályai szerint
-`;
 
 const NONFICTION_SYSTEM_PROMPT = `Te egy nemzetközileg elismert szakkönyv-író és coach vagy, aki a "Million Dollar Book Method" és a "StoryBrand" keretrendszerek alapján dolgozik. A célod, hogy egyetlen, rendkívül értékes és gyakorlatias szekciót írj meg, amely valódi transzformációt nyújt az olvasónak.
 
