@@ -1,60 +1,62 @@
 
 
-# Karakternév-konzisztencia és POV-tartás javítása a könyvíró motorban
+# Könyvíró motor minőségi javítása
 
-## Probléma gyökere
+## Azonosított gyengeségek
 
-Az AI jelenet-generáló promptokban (write-scene, process-next-scene) **nincs explicit utasítás a karakternevek rögzítésére**. A prompt megadja a karakterlistát, de nem mondja ki egyértelműen: "KIZÁRÓLAG ezeket a neveket használd, NE változtasd meg, NE magyarosítsd, NE cseréld fel." Az AI ezért:
+1. **Nincs jelenetpozíció-tudatosság**: Az AI nem tudja, hogy a jelenet a fejezet elején, közepén vagy végén van — nincs utasítás nyitó hook-ra vagy cliffhanger-re
+2. **Minőségellenőrzés nem triggerel újragenerálást**: A `checkSceneQuality` csak logol, de ha túl rövid vagy meta-kommentárral kezdődik, nem próbálkozik újra jobb prompttal
+3. **Nincs anti-összefoglaló szabály**: Az AI gyakran "elmesél" ahelyett, hogy dramatizálna — hiányzik az explicit tiltás
+4. **Nincs jelenetátmenet utasítás**: Két jelenet között nincs utasítás a gördülékeny átvezetésre
+5. **Párbeszéd-tag ismétlődés**: Nincs szabály a változatos narrátor-közbevetések használatára ("mondta", "kérdezte" ismétlődik)
+6. **Előző jelenet tartalma túl rövid kontextus**: Csak az utolsó 1500-3000 karakter megy át, és nincs explicit "NE ismételd meg" szabály
 
-1. **Névmagyarosítás**: "Elena Moretti" → "Varga Elena" (az AI a magyar névsorrend szabályt félreértelmezi és magyar vezetéknevet ad)
-2. **Névcsere fejezetek között**: Nincs elég erős kontextus a nevek rögzítésére fejezetek között
-3. **POV-váltás**: A `scene.pov` mező szöveges ("Harmadik személy"), de nincs explicit tiltás az elbeszélői nézőpont váltásra
+## Javítások
 
-## Javítás: 3 fájl, 3 célzott változás
+### 1. `prompt-builder.ts` — Új függvények
 
-### 1. `supabase/functions/_shared/prompt-builder.ts` — Karakter névlista blokk
+**`buildScenePositionContext()`** — Jelenetpozíció-specifikus utasítások:
+- Fejezet első jelenete: "Kezdd in medias res vagy erős képpel. Mutasd be a helyszínt érzékletesen."
+- Köztes jelenet: "Építsd a feszültséget. Mélyítsd a konfliktust."
+- Utolsó jelenet: "Zárd erős cliffhangerrel vagy érzelmi csúcsponttal."
 
-Új exportált függvény: `buildCharacterNameLock()` — erős, egyértelmű utasítás az AI-nak:
+**`buildAntiSummaryRules()`** — Összefoglaló-stílus tiltása:
+- "NE foglald össze az eseményeket — DRAMATIZÁLD őket!"
+- "NE írd: 'Aztán történt X.' HANEM írd le X-et valós időben, párbeszéddel, cselekvéssel."
+- "Minden jelenet legyen jelenlegi idejű élmény, NE visszatekintő összefoglaló."
 
-```
-KARAKTEREK NÉVSORA (VÁLTOZTATHATATLAN):
-A történetben KIZÁRÓLAG az alábbi neveket használd. NE változtasd meg, NE magyarosítsd, NE adj nekik más nevet, becenevet vagy vezetéknevet. Ha egy karakter neve "Elena Moretti", mindig "Elena Moretti" marad, SOHA NEM "Varga Elena" vagy "Adél".
+**`buildDialogueVarietyRules()`** — Párbeszéd változatosság:
+- "Váltogasd a párbeszéd-tageket: mondta, suttogta, vetette oda, morogta, kérdezte — NE használd 3x egymás után ugyanazt"
+- "Használj akció-tageket párbeszéd helyett is: 'Megforgatta a szemét. – Persze, ahogy mondod.'"
 
-- Elena Moretti (főszereplő)
-- Marco Bianchi (antagonista)
-...
+**`buildAntiRepetitionPrompt()`** — Előzetes ismétlés-megelőzés:
+- "NE ismételd meg az előző jelenet utolsó eseményeit"
+- "NE írd le újra, amit a szereplő már megcsinált — folytasd onnan, ahol abbahagyta"
 
-NÉVSORREND SZABÁLY PONTOSÍTÁS: A magyar névsorrend (Vezetéknév + Keresztnév) CSAK magyar nevekre vonatkozik (pl. "Kovács János"). Külföldi nevek (olasz, angol, stb.) az EREDETI sorrendben maradnak (pl. "Elena Moretti", NEM "Moretti Elena").
-```
+### 2. `quality-checker.ts` — Bővített ellenőrzés + retry flag
 
-A `buildCharacterContext()` függvényt is kiegészítjük ezzel a tiltással.
+- Új ellenőrzés: **összefoglaló-stílus detektálás** (ha a szöveg >30%-a "aztán", "ezután", "később" típusú szavakkal kezdődő mondatokból áll)
+- Új ellenőrzés: **párbeszéd-tag ismétlődés** (ha "mondta" >5x szerepel 1000 szónként)
+- A `QualityResult`-hoz új mező: `shouldRetry: boolean` — ha true, az író funkció újrapróbálkozik megerősített prompttal
 
-### 2. `supabase/functions/_shared/prompt-builder.ts` — POV enforcement
+### 3. `process-next-scene/index.ts` és `write-scene/index.ts` — Prompt javítás + retry logika
 
-Új függvény: `buildPOVEnforcement()` — explicit POV-tartási szabály:
+- A user prompt-ba beépítjük az összes új prompt-blokk: `buildScenePositionContext()`, `buildAntiSummaryRules()`, `buildDialogueVarietyRules()`, `buildAntiRepetitionPrompt()`
+- **Quality-based retry**: Ha `checkSceneQuality` `shouldRetry: true`-t ad, az AI újrapróbálkozik egy megerősített prompttal (max 1 quality retry), ami tartalmazza a konkrét hibaüzeneteket javítási utasításként
+- A `process-next-scene`-ben a `previousContent.slice(-3000)` helyett `-2000` + explicit "NE ismételd!" szabály
 
-```
-NÉZŐPONT SZABÁLY (KÖTELEZŐ):
-A jelenet nézőpontja: [Harmadik személy, korlátozott - Elena Moretti]
-TILOS nézőpontot váltani a jelenet közben. Ha harmadik személy korlátozott, KIZÁRÓLAG a POV karakter gondolatait, érzéseit írd le. NE váltsd első személyre. NE írd le más karakterek belső gondolatait.
-```
+### 4. `generate-detailed-outline/index.ts` — Jobb vázlat
 
-### 3. `supabase/functions/process-next-scene/index.ts` és `write-scene/index.ts` — Prompt frissítés
-
-Mindkét fájlban a user prompt-ba beépítjük:
-- `buildCharacterNameLock(characters)` — a névlista tiltással
-- POV enforcement szekciót a scene.pov és a projekt fiction_style.pov alapján
-
-### 4. `supabase/functions/generate-detailed-outline/index.ts` — Outline szint
-
-Az outline generálásnál is átadjuk a karakter neveket, hogy a jelenet vázlatokban már a helyes nevek szerepeljenek a `pov` mezőben.
+- A jelenet-vázlat promptba bekerül: `pov_goal` (mit akar elérni a POV karakter ebben a jelenetben) és `pov_emotion_start`/`pov_emotion_end` mezők kérése, hogy az AI-nak legyen konkrét érzelmi íve minden jelenethez
+- A JSON schema-ba felvenni: `"pov_goal": "...", "pov_emotion_start": "...", "pov_emotion_end": "..."`
 
 ## Érintett fájlok
 
 | Fájl | Változás |
 |------|---------|
-| `supabase/functions/_shared/prompt-builder.ts` | `buildCharacterNameLock()` + `buildPOVEnforcement()` + `buildCharacterContext()` megerősítés |
-| `supabase/functions/process-next-scene/index.ts` | Prompt kiegészítés a névzár és POV blokkal |
-| `supabase/functions/write-scene/index.ts` | Prompt kiegészítés a névzár és POV blokkal |
-| `supabase/functions/generate-detailed-outline/index.ts` | Karakternév-lista átadás az outline generálásba |
+| `supabase/functions/_shared/prompt-builder.ts` | 4 új függvény |
+| `supabase/functions/_shared/quality-checker.ts` | Összefoglaló-detektálás, párbeszéd-tag check, `shouldRetry` mező |
+| `supabase/functions/process-next-scene/index.ts` | Új prompt blokkok + quality retry |
+| `supabase/functions/write-scene/index.ts` | Új prompt blokkok + quality retry |
+| `supabase/functions/generate-detailed-outline/index.ts` | Bővített jelenet-vázlat mezők |
 
