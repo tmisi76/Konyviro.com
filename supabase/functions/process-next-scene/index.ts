@@ -466,7 +466,7 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
       }
     }
 
-    // Quality check: strip markdown remnants and log issues
+    // Quality check with retry capability
     if (sceneText && sceneText.trim().length >= 100) {
       const qualityResult = checkSceneQuality(sceneText, scene.target_words || 1000);
       if (!qualityResult.passed) {
@@ -475,6 +475,50 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
         if (qualityResult.issues.some(i => i.includes("Markdown"))) {
           sceneText = stripMarkdown(sceneText);
           console.log("Auto-stripped markdown from scene content");
+        }
+        // Quality-based retry (max 1 retry)
+        if (qualityResult.shouldRetry) {
+          console.log(`Quality retry triggered for scene ${targetSceneIndex + 1}`);
+          try {
+            const retryPrompt = prompt + buildQualityRetryPrompt(qualityResult.issues);
+            const retryController = new AbortController();
+            const retryTimeoutId = setTimeout(() => retryController.abort(), MAX_TIMEOUT);
+            const retryRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                model: "google/gemini-3-flash-preview",
+                max_tokens: 8192,
+                temperature: aiSettings.temperature,
+                frequency_penalty: aiSettings.frequency_penalty,
+                presence_penalty: aiSettings.presence_penalty,
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: retryPrompt }
+                ]
+              }),
+              signal: retryController.signal,
+            });
+            clearTimeout(retryTimeoutId);
+            if (retryRes.ok) {
+              const retryData = await retryRes.json();
+              const retryText = retryData.choices?.[0]?.message?.content || "";
+              if (retryText && retryText.trim().length > sceneText.trim().length * 0.8) {
+                const retryQuality = checkSceneQuality(retryText, scene.target_words || 1000);
+                if (retryQuality.issues.length < qualityResult.issues.length) {
+                  console.log(`Quality retry improved: ${qualityResult.issues.length} → ${retryQuality.issues.length} issues`);
+                  sceneText = stripMarkdown(retryText);
+                } else {
+                  console.log("Quality retry did not improve, keeping original");
+                }
+              }
+            }
+          } catch (retryErr) {
+            console.warn("Quality retry failed, keeping original:", retryErr);
+          }
         }
       }
     }
