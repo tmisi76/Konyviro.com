@@ -397,12 +397,17 @@ serve(async (req) => {
 
     // Build shared prompt blocks for fiction
     const povCharacterName = povCharacter.name || sectionOutline.pov || undefined;
+    const characterContextBlock = isFiction ? buildCharacterContext(allCharacters || null) : "";
     const characterNameLockBlock = isFiction ? buildCharacterNameLock(allCharacters || null) : "";
+    const characterHistoryBlock = isFiction ? buildCharacterHistoryContext(
+      prevChaptersForHistory.map(ch => ch.character_appearances as Array<{ name: string; actions: string[] }>)
+    ) : "";
     const povEnforcementBlock = isFiction ? buildPOVEnforcement(sectionOutline.pov || null, (project?.fiction_style as Record<string, unknown>)?.pov as string || null, povCharacterName) : "";
     const scenePositionBlock = isFiction ? buildScenePositionContext(sectionNumber - 1, totalScenes, chapterIndex, totalChapters) : "";
     const antiSummaryBlock = isFiction ? buildAntiSummaryRules() : "";
     const dialogueVarietyBlock = isFiction ? buildDialogueVarietyRules() : "";
     const antiRepetitionBlock = isFiction ? buildAntiRepetitionPrompt((previousContent || '').slice(-2000)) : "";
+    const previousChaptersSummaryBlock = isFiction && allChapters ? buildPreviousChaptersSummary(allChapters, currentSortOrder) : "";
 
     const userPrompt = isFiction
       ? `CONTEXT:
@@ -420,11 +425,13 @@ KARAKTER INFORMÁCIÓK:
 - POV KARAKTER HANGJA ÉS STÍLUSA: ${povCharacter.character_voice || 'Standard narráció, semleges hang.'}
 - POV KARAKTER CÉLJA A JELENETBEN: ${sectionOutline.pov_goal || 'Nincs megadva'}
 - POV KARAKTER ÉRZELMI ÁLLAPOTA A JELENET ELEJÉN: ${sectionOutline.pov_emotion_start || 'Semleges'}
+${characterContextBlock}
 ${characterNameLockBlock}
 ${povEnforcementBlock}
+${characterHistoryBlock}
 
 ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
-${previousChapterSummaries || 'Ez az első fejezet.'}
+${previousChaptersSummaryBlock || 'Ez az első fejezet.'}
 
 ELŐZMÉNYEK (AZ ELŐZŐ JELENETEK RÖVID ÖSSZEFOGLALÓJA):
 ${previousScenes.length > 0 ? previousScenes.map((s, i) => `${i + 1}. ${s.summary}`).join('\n') : 'Ez az első jelenet a fejezetben.'}
