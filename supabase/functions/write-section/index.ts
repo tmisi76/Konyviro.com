@@ -241,7 +241,26 @@ serve(async (req) => {
       .eq('project_id', projectId);
     const sourcesList = sources || [];
 
-    // 5. Determine Story Arc Position and Tension Level
+    // 5. Fetch all characters for this project (for name lock)
+    const { data: allCharacters } = await supabaseClient
+      .from('characters')
+      .select('name, role, positive_traits, negative_traits, speech_style, development_arc')
+      .eq('project_id', projectId);
+
+    // 6. Fetch chapter info for scene position context
+    const { data: allChapters } = await supabaseClient
+      .from('chapters')
+      .select('id, sort_order, scene_outline')
+      .eq('project_id', projectId)
+      .order('sort_order', { ascending: true });
+
+    const totalChapters = allChapters?.length || 1;
+    const currentChapter = allChapters?.find(ch => ch.id === chapterId);
+    const chapterIndex = currentChapter ? allChapters!.indexOf(currentChapter) : 0;
+    const sceneOutlineArray = (currentChapter?.scene_outline as unknown[]) || [];
+    const totalScenes = sceneOutlineArray.length || 1;
+
+    // 7. Determine Story Arc Position and Tension Level
     const totalSectionsInChapter = sectionOutline.total_sections || 5;
     const progressInChapter = sectionNumber / totalSectionsInChapter;
     let storyArcPosition = 'Középső rész';
@@ -253,8 +272,6 @@ serve(async (req) => {
       storyArcPosition = 'Klimax felé';
       tensionLevel = 'Magas';
     }
-
-    const isFiction = genre === "fiction" || (project?.genre && project.genre !== 'nonfiction' && project.genre !== 'szakkönyv' && project.genre !== 'szakkonyv');
     const sectionType = sectionOutline.pov || sectionOutline.type || "concept";
     const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
     
