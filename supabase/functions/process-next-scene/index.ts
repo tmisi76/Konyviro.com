@@ -18,7 +18,6 @@ import {
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
 } from "../_shared/prompt-builder.ts";
-import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
