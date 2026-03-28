@@ -3,6 +3,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
+import {
+  buildCharacterNameLock,
+  buildPOVEnforcement,
+  buildScenePositionContext,
+  buildAntiSummaryRules,
+  buildDialogueVarietyRules,
+  buildAntiRepetitionPrompt,
+} from "../_shared/prompt-builder.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 // Word-compatible counting: only tokens containing at least one letter
