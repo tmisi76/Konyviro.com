@@ -11,6 +11,8 @@ import {
   buildCharacterContext,
   buildCharacterHistoryContext,
   buildPreviousChaptersSummary,
+  buildCharacterNameLock,
+  buildPOVEnforcement,
 } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = {
