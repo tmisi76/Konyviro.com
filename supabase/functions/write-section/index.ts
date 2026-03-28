@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 import {
   HUNGARIAN_GRAMMAR_RULES,
   buildCharacterNameLock,
@@ -510,19 +511,9 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
       const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: project } = await supabase.from("projects").select("user_id").eq("id", projectId).single();
       if (project?.user_id) {
-        const month = new Date().toISOString().slice(0, 7);
-        const { data: profile } = await supabase.from("profiles").select("monthly_word_limit, extra_words_balance").eq("user_id", project.user_id).single();
-        const { data: usage } = await supabase.from("user_usage").select("words_generated").eq("user_id", project.user_id).eq("month", month).single();
-        const limit = profile?.monthly_word_limit || 5000, used = usage?.words_generated || 0, extra = profile?.extra_words_balance || 0, remaining = Math.max(0, limit - used);
-        // Service role: update usage directly instead of using RPC (which now requires auth.uid())
-        if (limit === -1 || wordCount <= remaining) {
-          await supabase.from("user_usage").upsert({ user_id: project.user_id, month, words_generated: used + wordCount, projects_created: 0 }, { onConflict: "user_id,month" });
-        } else {
-          if (remaining > 0) await supabase.from("user_usage").upsert({ user_id: project.user_id, month, words_generated: used + remaining, projects_created: 0 }, { onConflict: "user_id,month" });
-          const fromExtra = Math.min(wordCount - remaining, extra);
-          if (fromExtra > 0) await supabase.from("profiles").update({ extra_words_balance: extra - fromExtra, updated_at: new Date().toISOString() }).eq("user_id", project.user_id);
-        }
+        await trackUsage(supabase, project.user_id, wordCount);
       }
+    }
     }
 
     return new Response(JSON.stringify({ content: sectionContent, wordCount }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
+import { trackUsage } from "../_shared/usage-tracker.ts";
 import {
   GENRE_PROMPTS,
   UNIVERSAL_FICTION_RULES,
@@ -354,50 +355,7 @@ Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarak
 
     // Update usage
     if (project?.user_id && wordCount > 0) {
-      const month = new Date().toISOString().slice(0, 7);
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("monthly_word_limit, extra_words_balance")
-        .eq("user_id", project.user_id)
-        .single();
-      const { data: usage } = await supabase
-        .from("user_usage")
-        .select("words_generated")
-        .eq("user_id", project.user_id)
-        .eq("month", month)
-        .single();
-
-      const limit = profile?.monthly_word_limit || 5000;
-      const used = usage?.words_generated || 0;
-      const extra = profile?.extra_words_balance || 0;
-      const remaining = Math.max(0, limit - used);
-
-      // Service role: update usage directly instead of using RPC (which now requires auth.uid())
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      if (limit === -1 || wordCount <= remaining) {
-        // Add to monthly usage
-        await supabase.from("user_usage").upsert({
-          user_id: project.user_id,
-          month: currentMonth,
-          words_generated: (usage?.words_generated || 0) + wordCount,
-          projects_created: 0
-        }, { onConflict: "user_id,month" });
-      } else {
-        if (remaining > 0) {
-          await supabase.from("user_usage").upsert({
-            user_id: project.user_id,
-            month: currentMonth,
-            words_generated: (usage?.words_generated || 0) + remaining,
-            projects_created: 0
-          }, { onConflict: "user_id,month" });
-        }
-        const fromExtra = Math.min(wordCount - remaining, extra);
-        if (fromExtra > 0) {
-          await supabase.from("profiles")
-            .update({ extra_words_balance: extra - fromExtra, updated_at: new Date().toISOString() })
-            .eq("user_id", project.user_id);
-        }
-      }
+      await trackUsage(supabase, project.user_id, wordCount);
     }
 
     return new Response(JSON.stringify({ content, wordCount }), {
