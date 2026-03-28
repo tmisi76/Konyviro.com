@@ -136,18 +136,32 @@ serve(async (req) => {
     const dialogueVariety = buildDialogueVarietyRules();
     const antiRepetition = buildAntiRepetitionPrompt(previousContent || undefined);
 
-    const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"
+    const prompt = `KONTEXTUS:
+- KÖNYV MŰFAJA: ${genre || 'fiction'}
+- FEJEZET CÍME: "${chapterTitle}"
+- JELENET SORSZÁMA: ${sceneNumber}
 
-FONTOS: Ez a jelenet MAXIMUM ${effectiveTargetWords} szó legyen! Ne írj többet!
+JELENET FELADAT:
+- JELENET CÍME: "${sceneOutline.title}"
+- POV KARAKTER: ${sceneOutline.pov || 'Nincs megadva'}
+- HELYSZÍN: ${sceneOutline.location || 'Nincs megadva'}
+- IDŐ: ${sceneOutline.time || 'Nincs megadva'}
+- MI TÖRTÉNIK: ${sceneOutline.description}
+- KULCSESEMÉNYEK (kötelezően meg kell történniük): ${(sceneOutline.key_events || []).join(', ')}
+- ÉRZELMI ÍV: ${sceneOutline.emotional_arc || 'Nincs megadva'}
+- POV KARAKTER CÉLJA: ${sceneOutline.pov_goal || 'Nincs megadva'}
+- ÉRZELEM ELEJÉN: ${sceneOutline.pov_emotion_start || 'Semleges'}
+- ÉRZELEM VÉGÉN: ${sceneOutline.pov_emotion_end || 'Változatlan'}
+${characters ? `\nKARAKTEREK A JELENETBEN:\n${characters}` : ''}
+${nameLock}${povEnforcement}
+${characterHistoryContext}
+${storyStructure ? `\nTÖRTÉNET KONTEXTUS:\n${typeof storyStructure === 'string' ? storyStructure : JSON.stringify(storyStructure)}` : ''}
+${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
+${previousContent ? `\nELŐZŐ SZÖVEG (a folytonosság érdekében, NE ismételd!):\n${previousContent.slice(-3000)}` : ''}
 
-POV: ${sceneOutline.pov}
-Helyszín: ${sceneOutline.location}
-Mi történik: ${sceneOutline.description}
-Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
-${sceneOutline.pov_goal ? `POV karakter célja: ${sceneOutline.pov_goal}` : ""}
-${sceneOutline.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${sceneOutline.pov_emotion_start}` : ""}
-${sceneOutline.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${sceneOutline.pov_emotion_end}` : ""}
-Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${nameLock}${povEnforcement}${characterHistoryContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
+HOSSZ: ~${effectiveTargetWords} szó. Ne lépd túl jelentősen!
+
+CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
