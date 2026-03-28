@@ -270,74 +270,64 @@ export function buildCharacterContext(characters: Array<{
 }
 
 /**
- * Build an immutable character name lock block.
- * Prevents the AI from renaming, localizing, or swapping character names.
+ * Build character name lock to prevent AI from renaming or Hungarianizing names.
  */
-export function buildCharacterNameLock(characters: Array<{
-  name: string;
-  role?: string;
-}> | null): string {
+export function buildCharacterNameLock(characters: Array<{ name: string }> | null): string {
   if (!characters || characters.length === 0) return "";
 
-  const nameList = characters.map(c => `- "${c.name}" (${c.role || "szereplő"})`).join("\n");
-
-  return `
-
---- KARAKTEREK NÉVSORA (VÁLTOZTATHATATLAN) ---
-A történetben KIZÁRÓLAG az alábbi neveket használd. NE változtasd meg, NE magyarosítsd, NE adj nekik más nevet, becenevet vagy vezetéknevet. Ha egy karakter neve "Elena Moretti", mindig "Elena Moretti" marad, SOHA NEM "Varga Elena" vagy "Adél".
-
-${nameList}
-
-NÉVSORREND SZABÁLY PONTOSÍTÁS: A magyar névsorrend (Vezetéknév + Keresztnév) CSAK magyar nevekre vonatkozik (pl. "Kovács János"). Külföldi nevek (olasz, angol, német, francia, stb.) az EREDETI sorrendben maradnak (pl. "Elena Moretti", NEM "Moretti Elena"). NE adj magyar vezetéknevet külföldi karaktereknek!
+  const names = characters.map(c => c.name);
+  return `\n\n--- KARAKTERNÉV ZÁR (VÁLTOZTATHATATLAN!) ---
+A következő karakternevek SZENTEK és MEGVÁLTOZTATHATATLANOK:
+${names.map(n => `• ${n}`).join('\n')}
 
 TILOS:
-- Nevet cserélni fejezetek között
+- Nevet megváltoztatni, magyarosítani, becézni vagy rövidíteni
 - Új nevet kitalálni meglévő karakternek
-- Magyar vezetéknevet adni külföldi karakternek (pl. "Varga Elena" TILOS)
-- Becenevet használni, amit a felhasználó nem adott meg
---- NÉVSOR VÉGE ---`;
+- Vezetéknév-keresztnév sorrendet megcserélni
+- Karaktert más néven említeni mint ami a listában van
+Ha egy karakter neve "John Smith", akkor végig "John Smith" marad, NEM "Smith János" vagy "Jancsi".
+---`;
 }
 
 /**
- * Build POV enforcement block to prevent narrative perspective shifts.
+ * Build POV enforcement rules based on project and scene settings.
  */
 export function buildPOVEnforcement(
   scenePov: string | null,
   projectPov: string | null,
   povCharacterName?: string
 ): string {
-  const effectivePov = scenePov || (projectPov ? (POV_LABELS[projectPov] || projectPov) : null);
-  if (!effectivePov) return "";
+  const effectivePov = scenePov || projectPov || 'third_limited';
+  const charName = povCharacterName || 'a POV karakter';
 
-  const isThirdLimited = projectPov === "third_limited" || 
-    effectivePov.toLowerCase().includes("korlátozott") ||
-    effectivePov.toLowerCase().includes("limited");
+  const rules: string[] = [`\n\n--- NÉZŐPONT ZÁR ---`];
+  rules.push(`POV KARAKTER: ${charName}`);
 
-  const isFirstPerson = projectPov === "first_person" ||
-    effectivePov.toLowerCase().includes("első személy") ||
-    effectivePov.toLowerCase().includes("én-elbeszélő");
-
-  let rules = `
-
---- NÉZŐPONT SZABÁLY (KÖTELEZŐ) ---
-A jelenet nézőpontja: ${effectivePov}${povCharacterName ? ` — ${povCharacterName}` : ""}
-TILOS nézőpontot váltani a jelenet közben!`;
-
-  if (isThirdLimited) {
-    rules += `
-- KIZÁRÓLAG ${povCharacterName || "a POV karakter"} gondolatait, érzéseit, észleléseit írd le
-- NE írd le más karakterek belső gondolatait vagy érzéseit
-- NE váltsd első személyre ("Én láttam..." TILOS)
-- Más karakterek viselkedését CSAK kívülről, ${povCharacterName || "a POV karakter"} szemén keresztül mutasd`;
-  } else if (isFirstPerson) {
-    rules += `
-- Az elbeszélő VÉGIG első személyben beszél ("Én", "engem", "láttam")
-- NE válts harmadik személyre
-- NE írd le olyan dolgokat, amiket az elbeszélő nem lát, hall vagy tud`;
+  switch (effectivePov) {
+    case 'first_person':
+      rules.push(`NÉZŐPONT: Első személy (ÉN-elbeszélő)`);
+      rules.push(`- A teljes narráció ÉN-formában szól, végig ${charName} szemszögéből`);
+      rules.push(`- TILOS harmadik személybe váltani`);
+      rules.push(`- Csak azt írhatod le, amit ${charName} lát, hall, érez, gondol`);
+      break;
+    case 'third_limited':
+      rules.push(`NÉZŐPONT: Harmadik személy, korlátozott`);
+      rules.push(`- A narráció ${charName} fejéből szól`);
+      rules.push(`- CSAK ${charName} gondolatait és érzéseit írhatod le`);
+      rules.push(`- Más karakterek gondolatai TILTOTTAK — csak a viselkedésüket, szavaikat, arckifejezésüket írd le`);
+      rules.push(`- Minden leírás ${charName} szubjektív észlelésén keresztül szűrődjön`);
+      break;
+    case 'third_omniscient':
+      rules.push(`NÉZŐPONT: Harmadik személy, mindentudó`);
+      rules.push(`- Bármely karakter gondolataiba belenézhetsz`);
+      rules.push(`- De fókuszálj elsősorban ${charName}-ra ebben a jelenetben`);
+      break;
+    default:
+      rules.push(`NÉZŐPONT: ${effectivePov}`);
   }
 
-  rules += `\n--- NÉZŐPONT SZABÁLY VÉGE ---`;
-  return rules;
+  rules.push(`---`);
+  return rules.join('\n');
 }
 
 /**
@@ -387,7 +377,7 @@ export function buildPreviousChaptersSummary(
 }
 
 /**
- * Build scene position context for chapter-aware instructions.
+ * Build scene position context (opening/middle/closing, book position).
  */
 export function buildScenePositionContext(
   sceneIndex: number,
@@ -395,85 +385,92 @@ export function buildScenePositionContext(
   chapterIndex: number,
   totalChapters: number
 ): string {
-  const isFirstScene = sceneIndex === 0;
-  const isLastScene = sceneIndex === totalScenes - 1;
-  const isFirstChapter = chapterIndex === 0;
-  const isLastChapter = chapterIndex === totalChapters - 1;
+  const parts: string[] = [`\n\n--- JELENET POZÍCIÓ ---`];
 
-  let rules = "\n\n--- JELENETPOZÍCIÓ UTASÍTÁSOK ---";
-
-  if (isFirstScene && isFirstChapter) {
-    rules += `\nEz a KÖNYV LEGELSŐ jelenete. Kezdd erős, figyelemfelkeltő nyitással (in medias res, meglepő kép, vagy provokatív kijelentés). Mutasd be a helyszínt érzékletesen, de cselekvésen keresztül — NE írj statikus leírást!`;
-  } else if (isFirstScene) {
-    rules += `\nEz a fejezet NYITÓ jelenete. Kezdd dinamikusan — vagy utalj az előző fejezet végére, vagy hozz egy új helyszínt/szituációt, ami azonnal felkelti az érdeklődést.`;
+  // Scene position within chapter
+  if (sceneIndex === 0) {
+    parts.push(`Ez a fejezet NYITÓ jelenete.`);
+    parts.push(`- Kezdj erős hookkal — az első mondat ragadja meg az olvasót`);
+    parts.push(`- Határozd meg a helyszínt és a hangulatot gyorsan, de érzékletesen`);
+  } else if (sceneIndex === totalScenes - 1) {
+    parts.push(`Ez a fejezet ZÁRÓ jelenete.`);
+    parts.push(`- Építs a csúcspont felé`);
+    parts.push(`- A fejezet végén hagyj hookot: kérdés, feszültség, fordulat, ami a következő fejezetbe húzza az olvasót`);
+  } else {
+    parts.push(`Ez a fejezet ${sceneIndex + 1}. jelenete (${totalScenes}-ből).`);
+    parts.push(`- Tartsd fenn a lendületet és a feszültséget`);
   }
 
-  if (isLastScene && isLastChapter) {
-    rules += `\nEz a KÖNYV UTOLSÓ jelenete. Hozd el a katarzist és a lezárást. Az olvasónak elégedettnek kell lennie — de ne legyen túlmagyarázott "és boldogan éltek" befejezés.`;
-  } else if (isLastScene) {
-    rules += `\nEz a fejezet UTOLSÓ jelenete. KÖTELEZŐ cliffhangerrel vagy erős érzelmi csúcsponttal zárni! Az olvasónak AKARNIA kell lapozni. NE hagyj mindent megoldva — hagyj nyitott kérdést, feszültséget, vagy meglepetést a végén.`;
+  // Book position
+  const bookProgress = (chapterIndex + 1) / totalChapters;
+  if (bookProgress < 0.15) {
+    parts.push(`KÖNYV POZÍCIÓ: A könyv eleje — ismerkedés a világgal és karakterekkel, de NE info-dumpelj!`);
+  } else if (bookProgress < 0.3) {
+    parts.push(`KÖNYV POZÍCIÓ: Első felvonás vége — a tét emelkedik, a konfliktus körvonalazódik`);
+  } else if (bookProgress < 0.5) {
+    parts.push(`KÖNYV POZÍCIÓ: Második felvonás — a főhős aktívan küzd, akadályok jönnek`);
+  } else if (bookProgress < 0.75) {
+    parts.push(`KÖNYV POZÍCIÓ: Második felvonás vége — a dolgok egyre rosszabbra fordulnak, a tét maximális`);
+  } else if (bookProgress < 0.9) {
+    parts.push(`KÖNYV POZÍCIÓ: Harmadik felvonás — a klimax felé haladunk, minden szál összefut`);
+  } else {
+    parts.push(`KÖNYV POZÍCIÓ: A könyv vége — a végkifejlet, a szálak lezárása`);
   }
 
-  if (!isFirstScene && !isLastScene) {
-    rules += `\nEz egy KÖZTES jelenet. Építsd a feszültséget fokozatosan. Mélyítsd a konfliktust. Adj új információt vagy fordulatot — NE ismételd az előző jelenet eseményeit.`;
-  }
-
-  rules += "\n--- JELENETPOZÍCIÓ VÉGE ---";
-  return rules;
+  parts.push(`---`);
+  return parts.join('\n');
 }
 
 /**
- * Anti-summary rules to prevent AI from narrating instead of dramatizing.
+ * Anti-summary rules to prevent narrative summarization style.
  */
 export function buildAntiSummaryRules(): string {
-  return `
+  return `\n\n--- ANTI-ÖSSZEFOGLALÓ SZABÁLYOK ---
+TILOS összefoglaló stílusban írni! Minden eseményt JELENETKÉNT, valós időben írj meg.
 
---- DRAMATIZÁLÁSI SZABÁLYOK (KRITIKUS) ---
-- NE foglald ÖSSZE az eseményeket — DRAMATIZÁLD őket valós időben!
-- TILOS: "Aztán elmentek a boltba és vettek kenyeret." HELYETTE: Írd le a bolt belsejét, a párbeszédet, a cselekvést!
-- TILOS: "A következő napokban sok minden történt." HELYETTE: Válassz ki EGY kulcspillanatot és azt írd le részletesen!
-- TILOS: "Később kiderült, hogy..." HELYETTE: Mutasd meg a felfedezés PILLANATÁT!
-- Minden mondat legyen JELENLEGI IDEJŰ ÉLMÉNY, NEM visszatekintő összefoglaló
-- Az olvasó legyen OTT a jelenetben: lássa, hallja, érezze, ami történik
-- Használj érzékszervi részleteket: szagok, hangok, textúrák, hőmérséklet, fények
---- DRAMATIZÁLÁS VÉGE ---`;
+TILOS mondatkezdések:
+- "Aztán…", "Később…", "Ezután…", "Végül…", "Majd…"
+- "Az elkövetkező napokban…", "A hetek múlásával…"
+- "Miután megbeszélték…", "Amikor végeztek…"
+
+EHELYETT: Írd meg a konkrét pillanatot, a cselekvést, a párbeszédet. Ha nem fontos részletesen megírni → HAGYD KI, ne foglald össze!
+
+ROSSZ: "Aztán hazamentek és megvacsoráztak. Később Péter elment aludni."
+JÓ: "A lakásajtó becsukódott mögöttük. Péter lehuppant a konyhai székre, és a kabátját sem vetette le, mielőtt a tányérja fölé hajolt."
+---`;
 }
 
 /**
  * Dialogue variety rules to prevent repetitive speech tags.
  */
 export function buildDialogueVarietyRules(): string {
-  return `
+  return `\n\n--- PÁRBESZÉD VARIÁCIÓ SZABÁLYOK ---
+A "mondta" szó MAXIMUM 3x fordulhat elő egy jelenetben!
 
---- PÁRBESZÉD VÁLTOZATOSSÁG (KÖTELEZŐ) ---
-- NE használd a "mondta" szót 3-nál többször egy jelenetben!
-- Váltogasd a párbeszéd-tageket: suttogta, morogta, vetette oda, jegyezte meg, sziszegte, kiáltotta, kérdezte, felelte, hümmögött, bólintott
-- Használj AKCIÓ-TAGEKET a párbeszéd-tagek HELYETT: "Megdörzsölte a szemét. – Nem alszom eleget." (itt nincs "mondta"!)
-- A párbeszéd 30-50%-ánál NE legyen tag egyáltalán — a kontextusból derüljön ki, ki beszél
-- Minden szereplő MÁSKÉPP beszéljen: eltérő szókincs, mondathossz, szófordulatok
---- PÁRBESZÉD VÉGE ---`;
+PÁRBESZÉD TAG TECHNIKÁK (váltogasd!):
+1. Akció-tag: "– Elég volt. Anna a tenyerét az asztalra csapta."
+2. Tag nélkül (ha egyértelmű ki beszél): "– És mit vársz tőlem?"
+3. Gondolat-tag: "– Persze. Mintha bárkit is érdekelt volna az igazság."
+4. Leírás-tag: "– Gyere ide. A hangja alig volt több suttogásnál."
+
+ARÁNY: A párbeszéd sorok 30-50%-a legyen TAG NÉLKÜLI (ha ketten beszélgetnek, az olvasó követi).
+---`;
 }
 
 /**
- * Anti-repetition prompt to prevent rehashing previous scene content.
+ * Anti-repetition rules using previous content snippet.
  */
-export function buildAntiRepetitionPrompt(previousContentSnippet?: string): string {
-  let rules = `
+export function buildAntiRepetitionPrompt(previousContentSnippet?: string | null): string {
+  if (!previousContentSnippet || previousContentSnippet.trim().length < 100) return "";
 
---- ISMÉTLÉS-MEGELŐZÉS (KÖTELEZŐ) ---
-- NE ismételd meg az előző jelenet utolsó eseményeit!
-- NE írd le újra, amit a szereplő már megcsinált — folytasd ONNAN, ahol abbahagyta
-- NE mutatkozzon be újra egy karakter, akit az olvasó már ismer
-- Ha egy érzés/gondolat már le volt írva, NE írd le újra — mutass FEJLŐDÉST vagy VÁLTOZÁST
-- Új jelenet = új cselekvés, új információ, új feszültség`;
+  return `\n\n--- ISMÉTLÉS MEGELŐZÉS ---
+Az előző jelenet utolsó részlete (NE ISMÉTELD MEG!):
+"${previousContentSnippet.slice(-1500)}"
 
-  if (previousContentSnippet) {
-    const lastSentences = previousContentSnippet.slice(-500).split(/[.!?]/).filter(s => s.trim()).slice(-3).join(". ");
-    if (lastSentences) {
-      rules += `\n\nAz előző jelenet UTOLSÓ mondatai (NE ISMÉTELD EZEKET): "${lastSentences.trim()}"`;
-    }
-  }
-
-  rules += "\n--- ISMÉTLÉS-MEGELŐZÉS VÉGE ---";
-  return rules;
+SZABÁLYOK:
+- NE kezdd ugyanazzal a mondattal vagy hasonló nyitással
+- NE ismételd meg az előző jelenet eseményeit, érzéseit, leírásait
+- Ha az előző jelenet végén valaki mondott valamit, NE ismételd meg szó szerint
+- Használj más szókincset, más leírásokat, más tempót
+---`;
 }
