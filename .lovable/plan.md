@@ -1,44 +1,60 @@
 
 
-# Bejelentkezési és jelszó-visszaállítási hibák diagnosztikája
+# Karakternév-konzisztencia és POV-tartás javítása a könyvíró motorban
 
-## Talált problémák
+## Probléma gyökere
 
-### 1. KRITIKUS: `send-password-reset` hiányzik a config.toml-ból
+Az AI jelenet-generáló promptokban (write-scene, process-next-scene) **nincs explicit utasítás a karakternevek rögzítésére**. A prompt megadja a karakterlistát, de nem mondja ki egyértelműen: "KIZÁRÓLAG ezeket a neveket használd, NE változtasd meg, NE magyarosítsd, NE cseréld fel." Az AI ezért:
 
-A `supabase/config.toml` fájlban **nincs bejegyezve** a `send-password-reset` funkció `verify_jwt = false` beállítással. Ez azt jelenti, hogy a rendszer JWT tokent követel meg a híváshoz, de az elfelejtett jelszó funkciót éppen bejelentkezés nélküli felhasználók használják. Eredmény: **401 Unauthorized** hiba, az email soha nem megy ki. Az edge function logok is megerősítik: egyetlen hívás sem jutott el a funkcióig.
+1. **Névmagyarosítás**: "Elena Moretti" → "Varga Elena" (az AI a magyar névsorrend szabályt félreértelmezi és magyar vezetéknevet ad)
+2. **Névcsere fejezetek között**: Nincs elég erős kontextus a nevek rögzítésére fejezetek között
+3. **POV-váltás**: A `scene.pov` mező szöveges ("Harmadik személy"), de nincs explicit tiltás az elbeszélői nézőpont váltásra
 
-### 2. KRITIKUS: `send-welcome-email` szintén hiányzik a config.toml-ból
+## Javítás: 3 fájl, 3 célzott változás
 
-A regisztrációs üdvözlő email funkció sem szerepel a config.toml-ban, tehát az sem működik.
+### 1. `supabase/functions/_shared/prompt-builder.ts` — Karakter névlista blokk
 
-### 3. BUG: `admin-reset-password` rossz URL paramétert használ
+Új exportált függvény: `buildCharacterNameLock()` — erős, egyértelmű utasítás az AI-nak:
 
-A `admin-reset-password/index.ts` 96. sorában a `redirectTo` értéke `?reset=true`, de az `Auth.tsx` a `?mode=reset` paramétert várja. Ha admin küld jelszó-visszaállító linket, a felhasználó a reset űrlap helyett a sima login formot látja.
+```
+KARAKTEREK NÉVSORA (VÁLTOZTATHATATLAN):
+A történetben KIZÁRÓLAG az alábbi neveket használd. NE változtasd meg, NE magyarosítsd, NE adj nekik más nevet, becenevet vagy vezetéknevet. Ha egy karakter neve "Elena Moretti", mindig "Elena Moretti" marad, SOHA NEM "Varga Elena" vagy "Adél".
 
-### 4. Kisebb kockázat: `listUsers()` paginálás hiánya
+- Elena Moretti (főszereplő)
+- Marco Bianchi (antagonista)
+...
 
-A `send-password-reset` funkció az `auth.admin.listUsers()` hívással keresi meg a felhasználót. Ha 1000-nél több felhasználó van, nem találja meg az összes felhasználót. Ez jelenleg valószínűleg nem okoz problémát, de érdemes javítani.
+NÉVSORREND SZABÁLY PONTOSÍTÁS: A magyar névsorrend (Vezetéknév + Keresztnév) CSAK magyar nevekre vonatkozik (pl. "Kovács János"). Külföldi nevek (olasz, angol, stb.) az EREDETI sorrendben maradnak (pl. "Elena Moretti", NEM "Moretti Elena").
+```
 
-## Megoldás
+A `buildCharacterContext()` függvényt is kiegészítjük ezzel a tiltással.
 
-### Fájl: `supabase/config.toml`
-- Hozzáadni: `[functions.send-password-reset]` + `verify_jwt = false`
-- Hozzáadni: `[functions.send-welcome-email]` + `verify_jwt = false`
+### 2. `supabase/functions/_shared/prompt-builder.ts` — POV enforcement
 
-### Fájl: `supabase/functions/admin-reset-password/index.ts`
-- 96. sor: `?reset=true` → `?mode=reset`
+Új függvény: `buildPOVEnforcement()` — explicit POV-tartási szabály:
 
-### Fájl: `supabase/functions/send-password-reset/index.ts`
-- A `listUsers()` hívást lecserélni `listUsers({ page: 1, perPage: 1000 })` vagy email alapú keresésre, hogy ne legyen paginálási probléma
+```
+NÉZŐPONT SZABÁLY (KÖTELEZŐ):
+A jelenet nézőpontja: [Harmadik személy, korlátozott - Elena Moretti]
+TILOS nézőpontot váltani a jelenet közben. Ha harmadik személy korlátozott, KIZÁRÓLAG a POV karakter gondolatait, érzéseit írd le. NE váltsd első személyre. NE írd le más karakterek belső gondolatait.
+```
 
-## Összefoglaló hatás
+### 3. `supabase/functions/process-next-scene/index.ts` és `write-scene/index.ts` — Prompt frissítés
 
-| Funkció | Probléma | Javítás után |
-|---------|----------|-------------|
-| Felhasználói jelszó-emlékeztető | 401 hiba, email nem megy ki | Működik |
-| Regisztrációs üdvözlő email | 401 hiba, email nem megy ki | Működik |
-| Admin kézi jelszó küldés (`admin-send-credentials`) | Működik (config.toml-ban szerepel) | Változatlan |
-| Admin jelszó-visszaállító link | Rossz URL, reset form nem jelenik meg | Helyesen a reset formra irányít |
-| Bejelentkezés (`signIn`) | Kódilag rendben van | Változatlan |
+Mindkét fájlban a user prompt-ba beépítjük:
+- `buildCharacterNameLock(characters)` — a névlista tiltással
+- POV enforcement szekciót a scene.pov és a projekt fiction_style.pov alapján
+
+### 4. `supabase/functions/generate-detailed-outline/index.ts` — Outline szint
+
+Az outline generálásnál is átadjuk a karakter neveket, hogy a jelenet vázlatokban már a helyes nevek szerepeljenek a `pov` mezőben.
+
+## Érintett fájlok
+
+| Fájl | Változás |
+|------|---------|
+| `supabase/functions/_shared/prompt-builder.ts` | `buildCharacterNameLock()` + `buildPOVEnforcement()` + `buildCharacterContext()` megerősítés |
+| `supabase/functions/process-next-scene/index.ts` | Prompt kiegészítés a névzár és POV blokkal |
+| `supabase/functions/write-scene/index.ts` | Prompt kiegészítés a névzár és POV blokkal |
+| `supabase/functions/generate-detailed-outline/index.ts` | Karakternév-lista átadás az outline generálásba |
 
