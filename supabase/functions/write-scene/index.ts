@@ -329,6 +329,22 @@ serve(async (req) => {
       sceneOutline.pov_character || undefined
     );
 
+    // Scene position context (sceneNumber is 1-based)
+    const totalScenes = sceneOutline.total_scenes || 3;
+    const chapterIndex = sceneOutline.chapter_index || 0;
+    const totalChapters = sceneOutline.total_chapters || 1;
+    const scenePositionCtx = buildScenePositionContext(
+      sceneNumber - 1,
+      totalScenes,
+      chapterIndex,
+      totalChapters
+    );
+
+    // Anti-summary, dialogue variety, anti-repetition rules
+    const antiSummary = buildAntiSummaryRules();
+    const dialogueVariety = buildDialogueVarietyRules();
+    const antiRepetition = buildAntiRepetitionPrompt(previousContent || undefined);
+
     const prompt = `ÍRD MEG: ${chapterTitle} - Jelenet #${sceneNumber}: "${sceneOutline.title}"
 
 FONTOS: Ez a jelenet MAXIMUM ${effectiveTargetWords} szó legyen! Ne írj többet!
@@ -337,7 +353,10 @@ POV: ${sceneOutline.pov}
 Helyszín: ${sceneOutline.location}
 Mi történik: ${sceneOutline.description}
 Kulcsesemények: ${sceneOutline.key_events?.join(", ")}
-Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${nameLock}${povEnforcement}${characterHistoryContext}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
+${sceneOutline.pov_goal ? `POV karakter célja: ${sceneOutline.pov_goal}` : ""}
+${sceneOutline.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${sceneOutline.pov_emotion_start}` : ""}
+${sceneOutline.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${sceneOutline.pov_emotion_end}` : ""}
+Célhossz: ~${effectiveTargetWords} szó (NE LÉPD TÚL!)${characters ? `\nKarakterek: ${characters}` : ""}${nameLock}${povEnforcement}${characterHistoryContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}${previousContent ? `\n\nFolytatás:\n${previousContent.slice(-1500)}` : ""}`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
