@@ -6,12 +6,15 @@ import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts"
 import { trackUsage } from "../_shared/usage-tracker.ts";
 import {
   HUNGARIAN_GRAMMAR_RULES,
+  buildCharacterContext,
   buildCharacterNameLock,
+  buildCharacterHistoryContext,
   buildPOVEnforcement,
   buildScenePositionContext,
   buildAntiSummaryRules,
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
+  buildPreviousChaptersSummary,
   buildFictionStylePrompt,
   buildStylePrompt,
 } from "../_shared/prompt-builder.ts";
