@@ -301,6 +301,10 @@ export const NONFICTION_SUBCATEGORIES: { id: NonfictionSubcategory; icon: string
   { id: "pszichologia", icon: "🧩", title: "Pszichológia" },
   { id: "oktatas", icon: "📖", title: "Oktatás" },
   { id: "lifestyle", icon: "🌿", title: "Lifestyle" },
+  { id: "politika", icon: "🏛️", title: "Politika/Közélet" },
+  { id: "tarsadalom", icon: "👥", title: "Társadalom" },
+  { id: "tortenelem", icon: "📜", title: "Történelem" },
+  { id: "bunugy", icon: "🔍", title: "Bűnügy/True Crime" },
 ];
 
 export const TONES: { id: Tone; label: string; icon: string }[] = [
