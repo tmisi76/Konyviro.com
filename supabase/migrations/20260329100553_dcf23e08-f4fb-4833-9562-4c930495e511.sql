@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS lector_enabled boolean NOT NULL DEFAULT true;

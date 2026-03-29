@@ -1383,6 +1383,7 @@ export type Database = {
           genre: string
           id: string
           last_activity_at: string | null
+          lector_enabled: boolean
           nonfiction_book_type: string | null
           selected_story_idea: Json | null
           status: string
@@ -1430,6 +1431,7 @@ export type Database = {
           genre: string
           id?: string
           last_activity_at?: string | null
+          lector_enabled?: boolean
           nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
           status?: string
@@ -1477,6 +1479,7 @@ export type Database = {
           genre?: string
           id?: string
           last_activity_at?: string | null
+          lector_enabled?: boolean
           nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
           status?: string
