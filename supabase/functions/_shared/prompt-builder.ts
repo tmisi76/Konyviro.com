@@ -480,3 +480,22 @@ SZABÁLYOK:
 - Használj más szókincset, más leírásokat, más tempót
 ---`;
 }
+
+export function buildSceneOpeningRules(): string {
+  return `\n\n--- JELENETNYITÁS SZABÁLYOK ---
+TILTOTT JELENETNYITÁS:
+- "A laptop/monitor/képernyő kékes fénye megvilágította..." — SOHA NE HASZNÁLD!
+- "A kékes fény" kifejezés TILTOTT az egész szövegben!
+
+JELENETNYITÁS TECHNIKÁK (minden jelenetben MÁST használj!):
+1. PÁRBESZÉD: "– Ezt nem gondolhatod komolyan."
+2. CSELEKVÉS: "Anna a kulcsot a zárba fordította, de a keze megállt félúton."
+3. ÉRZÉKSZERV: "A folyosóról kávéillat és halk nevetés szűrődött be."
+4. GONDOLAT: "Valami nem stimmelt."
+5. ATMOSZFÉRA: "A hajnali köd úgy ült a városra, mint egy nehéz takaró."
+
+SZINTÉN TILTOTT az egész szövegben:
+- "Ez nem lehet igaz" — MAXIMUM 1x az egész könyvben
+- "hangja rekedt volt" — MAXIMUM 1x fejezetenként
+---`;
+}
