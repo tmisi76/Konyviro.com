@@ -1,36 +1,30 @@
 
 
-# Fix: Hiányzó `buildBodyLanguageVarietyRules` export a prompt-builder-ből
+# Nonfiction alkategóriák bővítése politikai/oknyomozó témákkal
 
-## A probléma
+## Probléma
+A nonfiction alkategóriák (Step 2) nem tartalmaznak "Politika", "Társadalom" vagy hasonló kategóriát, ami szükséges az oknyomozó könyvekhez (pl. Orbán/Fidesz, Trump témák).
 
-A `write-section` Edge Function nem tud elindulni (BOOT_ERROR), mert importálja a `buildBodyLanguageVarietyRules` függvényt a `_shared/prompt-builder.ts`-ből, de ez a függvény soha nem lett hozzáadva a fájlhoz.
+## Megoldás
 
-A logokban ez látszik:
-```
-worker boot error: The requested module '../_shared/prompt-builder.ts' 
-does not provide an export named 'buildBodyLanguageVarietyRules'
-```
+### 1. `src/types/wizard.ts` — Új alkategóriák hozzáadása
 
-Ez blokkolja az összes jelenetírást — ezért áll 0/83 szekciónál a könyved.
+A `NonfictionSubcategory` típushoz és a `NONFICTION_SUBCATEGORIES` tömbhöz:
 
-## Javítás
+| ID | Cím | Ikon |
+|---|---|---|
+| `politika` | Politika/Közélet | 🏛️ |
+| `tarsadalom` | Társadalom | 👥 |
+| `tortenelem` | Történelem | 📜 |
+| `bunugy` | Bűnügy/True Crime | 🔍 |
 
-### 1. `supabase/functions/_shared/prompt-builder.ts` — Hiányzó függvény hozzáadása
+Ezek a kategóriák természetes belépőt adnak az "Oknyomozó" könyvtípushoz a következő lépésben.
 
-A `buildDialogueVarietyRules()` függvény után hozzáadom a `buildBodyLanguageVarietyRules()` exportot, amely a testi reakciók variálására ad szabályokat (hasonló mintával mint a dialogue rules):
+### 2. Fájlmódosítások
 
-```typescript
-export function buildBodyLanguageVarietyRules(): string {
-  return `\n\n--- TESTBESZÉD VARIÁCIÓ SZABÁLYOK ---
-TESTI REAKCIÓ KORLÁTOZÁSOK:
-- "gyomra összeszorult/görcsbe rándult" → MAX 1x per fejezet. Alternatívák: torka kiszáradt, háta közepén hideg futott végig, tenyere verejtékezni kezdett, ujjhegyei elzsibbadtak
-- "szíve a torkában dobogott" → MAX 1x per fejezet. Alternatívák: pulzusa felszökött, halántéka lüktetett, mellkasa összeszorult
-- "ujjai elfehéredtek" → MAX 1x per fejezet. Alternatívák: ujjai begörbültek, keze ökölbe szorult, körme a tenyerébe vájt
-- "megborzongott/libabőrös lett" → MAX 1x per fejezet. Alternatívák: a tarkóján égett a bőr, karján felállt a szőr, gerince mentén hideg áradt szét
-MINDEN testi reakciót VÁLTOZATOSAN használj — ne ismételd ugyanazt a jeleneten belül!`;
-}
-```
+Egyetlen fájl: `src/types/wizard.ts`
+- `NonfictionSubcategory` type bővítése 4 új értékkel
+- `NONFICTION_SUBCATEGORIES` tömb bővítése 4 új elemmel
 
-Ez egyetlen fájl egyetlen módosítása — a `write-section` és minden más edge function ezután újra el tud indulni, és a könyved írása folytatódik.
+Nincs szükség adatbázis-migrációra, mert a `subcategory` mező unrestricted text a `projects` táblában.
 
