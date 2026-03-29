@@ -481,6 +481,16 @@ SZABÁLYOK:
 ---`;
 }
 
+export function buildBodyLanguageVarietyRules(): string {
+  return `\n\n--- TESTBESZÉD VARIÁCIÓ SZABÁLYOK ---
+TESTI REAKCIÓ KORLÁTOZÁSOK:
+- "gyomra összeszorult/görcsbe rándult" → MAX 1x per fejezet. Alternatívák: torka kiszáradt, háta közepén hideg futott végig, tenyere verejtékezni kezdett, ujjhegyei elzsibbadtak
+- "szíve a torkában dobogott" → MAX 1x per fejezet. Alternatívák: pulzusa felszökött, halántéka lüktetett, mellkasa összeszorult
+- "ujjai elfehéredtek" → MAX 1x per fejezet. Alternatívák: ujjai begörbültek, keze ökölbe szorult, körme a tenyerébe vájt
+- "megborzongott/libabőrös lett" → MAX 1x per fejezet. Alternatívák: a tarkóján égett a bőr, karján felállt a szőr, gerince mentén hideg áradt szét
+MINDEN testi reakciót VÁLTOZATOSAN használj — ne ismételd ugyanazt a jeleneten belül!`;
+}
+
 export function buildSceneOpeningRules(): string {
   return `\n\n--- JELENETNYITÁS SZABÁLYOK ---
 TILTOTT JELENETNYITÁS:
