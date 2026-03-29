@@ -13,7 +13,8 @@ export type NonfictionBookType =
   | "interview" 
   | "workbook" 
   | "reference" 
-  | "memoir";
+  | "memoir"
+  | "investigative";
 
 export interface NonfictionBookTypeInfo {
   id: NonfictionBookType;
