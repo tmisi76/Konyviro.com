@@ -258,7 +258,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { storyIdea, genre, tone, targetAudience, authorProfile } = await req.json();
+    const { storyIdea, genre, tone, targetAudience, authorProfile, nonfictionBookType } = await req.json();
 
     if (!storyIdea || storyIdea.trim().length < 10) {
       return new Response(
