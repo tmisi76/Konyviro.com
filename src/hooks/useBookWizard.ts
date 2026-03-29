@@ -278,9 +278,10 @@ export function useBookWizard() {
         setIsDirty(false);
         return newProject.id;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving project:", error);
-      toast.error("Hiba történt a mentés során");
+      const msg = error?.message || error?.details || "Ismeretlen hiba";
+      toast.error(`Hiba történt a mentés során: ${msg}`);
       return null;
     } finally {
       setIsSaving(false);
