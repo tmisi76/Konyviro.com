@@ -178,6 +178,10 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: 
               <Upload className="mr-2 h-4 w-4" />
               Exportálás
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowShareModal(true)}>
+              <Share2 className="mr-2 h-4 w-4" />
+              Megosztás
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowRenameModal(true)}>
               <Type className="mr-2 h-4 w-4" />
               Átnevezés
