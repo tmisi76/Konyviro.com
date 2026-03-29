@@ -140,8 +140,46 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
     }
   ]
 }`
+      : isInvestigative
+      ? `Generálj 3 egyedi OKNYOMOZÓ TÉNYFELTÁRÓ KÖNYV ötletet a következő paraméterek alapján:
+${storyDescriptionClause}
+${bookTypeContext}
+
+Téma: ${subcategory}
+Hangnem: ${tone}
+Hossz: ${length === "short" ? "rövid (~30k szó)" : length === "medium" ? "közepes (~60k szó)" : "hosszú (~100k szó)"}
+${targetAudience ? `Célközönség: ${targetAudience}` : ""}
+${authorProfile?.authorBackground ? `Szerző háttere: ${authorProfile.authorBackground}` : ""}
+${additionalInstructions ? `Extra instrukciók: ${additionalInstructions}` : ""}
+${previousIdeasClause}
+
+EZ OKNYOMOZÓ TÉNYFELTÁRÓ KÖNYV! NEM marketing, NEM önfejlesztő, NEM how-to!
+
+KÖTELEZŐ ELEMEK MINDEN ÖTLETHEZ:
+1. KONKRÉT ÜGY/SKANDAL - Valós esemény(ek) feltárása
+2. NYOMOZÁSI SZÁLAK - Milyen irányokból közelíti meg
+3. BIZONYÍTÉKOK - Dokumentumok, vallomások, adatok
+4. LELEPLEZÉS - Mi az a megdöbbentő igazság amit feltár
+5. KÖVETKEZMÉNYEK - Milyen hatással volt/van a társadalomra
+
+STÍLUS: Dokumentumfilm-szerű, feszültségteli, tényalapú
+
+VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
+{
+  "ideas": [
+    {
+      "id": "idea-1",
+      "title": "Figyelemfelkeltő, leleplező cím",
+      "synopsis": "3-4 mondat: Mit tár fel? Milyen bizonyítékokra épül? Miért fontos?",
+      "mainElements": ["Nyomozási szál 1", "Nyomozási szál 2", "Nyomozási szál 3"],
+      "uniqueSellingPoint": "Milyen megdöbbentő leleplezést ígér a könyv",
+      "mood": "A könyv hangulata 2-3 szóban (pl. feszült, leleplező, drámai)"
+    }
+  ]
+}`
       : `Generálj 3 egyedi SZAKKÖNYV ötletet a következő paraméterek alapján:
 ${storyDescriptionClause}
+${bookTypeContext}
 
 Téma: ${subcategory}
 Hangnem: ${tone}

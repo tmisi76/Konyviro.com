@@ -74,6 +74,8 @@ export function Step4StoryIdeas({
           additionalInstructions,
           storyDescription,
           authorProfile: authorProfile || undefined,
+          nonfictionBookType: nonfictionBookType || undefined,
+          bookTypeSpecificData: bookTypeSpecificData || undefined,
           previousIdeas: previousTitles.length > 0 ? previousTitles : undefined,
         },
       });
