@@ -1,30 +1,24 @@
 
 
-# Nonfiction alkategóriák bővítése politikai/oknyomozó témákkal
+# Fix: Oknyomozó könyvtípus kontextus elvesztése az ötletgenerálásnál
 
 ## Probléma
-A nonfiction alkategóriák (Step 2) nem tartalmaznak "Politika", "Társadalom" vagy hasonló kategóriát, ami szükséges az oknyomozó könyvekhez (pl. Orbán/Fidesz, Trump témák).
+A `nonfictionBookType` (pl. "investigative") és a `bookTypeSpecificData` nem kerül átadásra a `Step4StoryIdeas` komponensnek, és a `generate-story-ideas` edge function sem kapja meg. Így az AI csak az alkategóriát (pl. "Politika") látja, de nem tudja, hogy oknyomozó könyvet kell generálnia — ezért generál sima marketing könyvet.
 
-## Megoldás
+## Javítás (3 fájl)
 
-### 1. `src/types/wizard.ts` — Új alkategóriák hozzáadása
+### 1. `src/components/wizard/steps/Step4StoryIdeas.tsx`
+- Új prop: `nonfictionBookType?: NonfictionBookType | null`
+- Új prop: `bookTypeSpecificData?: BookTypeSpecificData | null`
+- Mindkettőt továbbítja a `generate-story-ideas` edge function hívásba
 
-A `NonfictionSubcategory` típushoz és a `NONFICTION_SUBCATEGORIES` tömbhöz:
+### 2. `src/components/wizard/BookCreationWizard.tsx`
+- A nonfiction flow Step 6-ban átadja a `nonfictionBookType={data.nonfictionBookType}` és `bookTypeSpecificData={data.bookTypeSpecificData}` propokat a `Step4StoryIdeas`-nak
 
-| ID | Cím | Ikon |
-|---|---|---|
-| `politika` | Politika/Közélet | 🏛️ |
-| `tarsadalom` | Társadalom | 👥 |
-| `tortenelem` | Történelem | 📜 |
-| `bunugy` | Bűnügy/True Crime | 🔍 |
+### 3. `supabase/functions/generate-story-ideas/index.ts`
+- Kiszedi a `nonfictionBookType` és `bookTypeSpecificData` mezőket a request body-ból
+- Ha `nonfictionBookType` megvan, beépíti a promptba: pl. "Könyv típusa: Oknyomozó tényfeltáró könyv" + a specifikus adatokat (vizsgált alany, bizonyítékok típusa stb.)
+- Az oknyomozó típusnál az ötletek struktúráját is módosítja: "mainElements" → nyomozási szálak, "uniqueSellingPoint" → milyen leleplezést ígér
 
-Ezek a kategóriák természetes belépőt adnak az "Oknyomozó" könyvtípushoz a következő lépésben.
-
-### 2. Fájlmódosítások
-
-Egyetlen fájl: `src/types/wizard.ts`
-- `NonfictionSubcategory` type bővítése 4 új értékkel
-- `NONFICTION_SUBCATEGORIES` tömb bővítése 4 új elemmel
-
-Nincs szükség adatbázis-migrációra, mert a `subcategory` mező unrestricted text a `projects` táblában.
+Így az AI pontosan tudni fogja, hogy oknyomozó könyvet kell generálnia, és a megfelelő stílusú ötleteket adja.
 
