@@ -353,12 +353,60 @@ async function processSceneJob(supabase: any, job: any, project: any, chapter: a
   const sceneContent = result.content || "";
   const wordCount = result.wordCount || 0;
 
+  // Auto-lector pass (csak fikciós műfajnál)
+  const countWordsLocal = (text: string): number =>
+    text.trim().split(/\s+/).filter((w: string) => /[a-zA-ZáéíóöőúüűÁÉÍÓÖŐÚÜŰ]/.test(w)).length;
+
+  const skipGenres = ['nonfiction', 'szakkönyv', 'szakkonyv'];
+  const isLectorEnabled = project.lector_enabled !== false;
+  const isFictionGenre = !skipGenres.includes(project.genre);
+
+  let finalContent = sceneContent;
+  let finalWordCount = wordCount;
+
+  if (isLectorEnabled && isFictionGenre && sceneContent.length > 100) {
+    try {
+      const lectorResponse = await fetch(
+        `${supabaseUrl}/functions/v1/auto-lector`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            projectId: job.project_id,
+            chapterId: job.chapter_id,
+            sceneNumber: sceneIndex + 1,
+            originalContent: sceneContent,
+            genre: project.genre || 'fiction',
+            chapterTitle: chapter?.title || '',
+          }),
+        }
+      );
+
+      if (lectorResponse.ok) {
+        const lectorData = await lectorResponse.json();
+        if (lectorData.content && lectorData.wasModified) {
+          finalContent = lectorData.content;
+          finalWordCount = lectorData.wordCount || countWordsLocal(finalContent);
+          console.log(`Lector improved scene ${sceneIndex + 1} (${countWordsLocal(sceneContent)} → ${countWordsLocal(finalContent)} words)`);
+        }
+      } else {
+        console.warn(`Lector failed for scene ${sceneIndex + 1}, using original content`);
+      }
+    } catch (lectorError) {
+      console.warn(`Lector error for scene ${sceneIndex + 1}:`, lectorError);
+      // Ha a lektor hibázik, az eredeti content megy tovább
+    }
+  }
+
   // ATOMIKUS content hozzáfűzés - RPC-vel, row-level lock-kal
   // Ez megakadályozza, hogy párhuzamos scene írások felülírják egymást
   const { error: rpcError } = await supabase.rpc('append_chapter_content', {
     p_chapter_id: chapter.id,
-    p_new_content: sceneContent,
-    p_word_count_delta: wordCount
+    p_new_content: finalContent,
+    p_word_count_delta: finalWordCount
   });
 
   if (rpcError) {
