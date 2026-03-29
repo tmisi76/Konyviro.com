@@ -13,6 +13,8 @@ import {
   buildScenePositionContext,
   buildAntiSummaryRules,
   buildDialogueVarietyRules,
+  buildBodyLanguageVarietyRules,
+  buildSceneOpeningRules,
   buildAntiRepetitionPrompt,
   buildPreviousChaptersSummary,
   buildFictionStylePrompt,
@@ -518,6 +520,8 @@ serve(async (req) => {
     const scenePositionBlock = isFiction ? buildScenePositionContext(sectionNumber - 1, totalScenes, chapterIndex, totalChapters) : "";
     const antiSummaryBlock = isFiction ? buildAntiSummaryRules() : "";
     const dialogueVarietyBlock = isFiction ? buildDialogueVarietyRules() : "";
+    const bodyLanguageVarietyBlock = isFiction ? buildBodyLanguageVarietyRules() : "";
+    const sceneOpeningRulesBlock = isFiction ? buildSceneOpeningRules() : "";
     const antiRepetitionBlock = isFiction ? buildAntiRepetitionPrompt((previousContent || '').slice(-2000)) : "";
     const previousChaptersSummaryBlock = isFiction && allChapters ? buildPreviousChaptersSummary(allChapters, currentSortOrder) : "";
 
@@ -565,6 +569,8 @@ ${scenePositionBlock}
 - JELENET LEÍRÁSA: ${sectionOutline.description}
 ${antiSummaryBlock}
 ${dialogueVarietyBlock}
+${bodyLanguageVarietyBlock}
+${sceneOpeningRulesBlock}
 - KULCSESEMÉNYEK (ezeknek kötelezően meg kell történniük): ${(sectionOutline.key_events || []).join(', ')}
 - ÉRZELMI ÍV: ${sectionOutline.emotional_arc || 'Nincs megadva'}
 - VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
