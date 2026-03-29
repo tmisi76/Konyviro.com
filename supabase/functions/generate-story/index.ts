@@ -360,7 +360,22 @@ ${storyIdea}
 Készíts ebből egy professzionális SZAKKÖNYV koncepciót a megadott JSON formátumban!
 FONTOS: Ez egy SZAKKÖNYV, NEM regény! Ne használj fiktív karaktereket, antagonistát, vagy regény cselekménypontokat!`;
     } else {
-      userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}SZTORI ÖTLET:
+      const randomNames = getRandomNames(6);
+      const nameContext = `
+KARAKTER NEVEK (HASZNÁLD EZEKET, NE TALÁLJ KI SAJÁTOT!):
+Férfi nevek (válassz ezek közül): ${randomNames.male.join(', ')}
+Női nevek (válassz ezek közül): ${randomNames.female.join(', ')}
+
+TILOS az alábbi neveket használni (túl gyakori AI-generált nevek):
+- Kovács Ádám, Kovács János, Nagy Péter, Szabó István
+- Varga Endre, Tarján Viktor, Dr. Varga
+- Bármilyen "Kovács", "Nagy", "Szabó" vezetéknevű karakter
+
+A nevek legyenek VÁLTOZATOSAK és EGYEDIEK!`;
+
+      userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}${nameContext}
+
+SZTORI ÖTLET:
 ${storyIdea}
 
 Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a megadott JSON formátumban!`;
