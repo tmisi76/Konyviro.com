@@ -139,33 +139,39 @@ JÓ: "Péter ujjai elfehéredtek az asztallap szélén. Az állkapcsa megfeszül
 
 ROSSZ: "A szoba kényelmes volt és jó illata volt."
 
-JÓ: "A kandalló melegétől a bőrfotelek barna felülete enyhén csillogott. Fahéj és narancs illata keveredett a levegőben, és a párnák közé süppedve az ember alig akart felkelni."
+JÓ: "A kandalló melegétől a bőrfotelek barna felülete enyhén csillogott. Fahéj és narancs illata keveredett a levegőben."
 
 ROSSZ: "Félelem töltötte el."
 
-JÓ: "A gyomra összeszorult. A tarkóján felálltak a szőrszálak, és a szíve úgy vert, mintha ki akarna törni a mellkasából."
+JÓ: "A tarkóján hideg futott végig. A lélegzete fennakadt, és az ujjhegyei elzsibbadtak."
 
-## 2. FILTER WORDS TILTÁS (KRITIKUS!)
+## 2. FILTER WORD TILALOM (ABSZOLÚT — 0 TOLERANCIA!)
 
-TILOS az alábbi szerkezetek: "Látta, hogy…" "Hallotta, ahogy…" "Érezte, hogy…" "Észrevette, hogy…" "Megfigyelte, hogy…" "Rájött, hogy…" "Tudta, hogy…"
+AZ ALÁBBI SZERKEZETEK SOHA, SEMMILYEN KÖRÜLMÉNYEK KÖZÖTT NEM FORDULHATNAK ELŐ A SZÖVEGBEN:
 
-Ezek KIZÖKKENTIK az olvasót a POV-ból. Ha a POV karakter szemén keresztül látjuk a világot, nem kell jelezni hogy "látta" — egyszerűen LEÍRJUK amit lát.
+- "Látta, hogy…"
 
-ROSSZ: "Látta, hogy az ajtó kinyílt."
+- "Hallotta, ahogy…"
 
-JÓ: "Az ajtó kinyílt."
+- "Érezte, hogy…"
 
-ROSSZ: "Hallotta, ahogy a padló nyikorog."
+- "Észrevette, hogy…"
 
-JÓ: "A padló megnyikordult a lába alatt."
+- "Megfigyelte, hogy…"
 
-ROSSZ: "Érezte, hogy a szíve gyorsabban ver."
+- "Rájött, hogy…"
 
-JÓ: "A szíve a torkában dobogott."
+- "Tudta, hogy…"
 
-ROSSZ: "Észrevette, hogy a lány elpirult."
+Ezek KIZÖKKENTIK az olvasót a POV-ból. Ha a POV karakter szemén keresztül látjuk a világot, nem kell jelezni hogy "látta".
 
-JÓ: "A lány arcát pír öntötte el."
+ROSSZ: "Látta, hogy az ajtó kinyílt." → JÓ: "Az ajtó kinyílt."
+
+ROSSZ: "Hallotta, ahogy a padló nyikorog." → JÓ: "A padló megnyikordult a lába alatt."
+
+ROSSZ: "Érezte, hogy a szíve gyorsabban ver." → JÓ: "A pulzusa felszökött."
+
+ROSSZ: "Észrevette, hogy a lány elpirult." → JÓ: "A lány arcát pír öntötte el."
 
 ## 3. MÉLY POV (DEEP POINT OF VIEW)
 
@@ -177,99 +183,167 @@ A narráció teljes egészében a POV karakter fejéből szól. A világ leírá
 
 - Ha izgatott → a mondatok gyorsulnak, a fókusz előre szalad
 
-A POV karakter gondolatait NE jelöld külön ("gondolta") — egyszerűen írd bele a narrációba kurziválás nélkül:
+A POV karakter gondolatait NE jelöld külön ("gondolta") — egyszerűen írd bele a narrációba:
 
-ROSSZ: "Ez nem lehet igaz — gondolta Anna."
-
-JÓ: "Ez nem lehet igaz. Anna hátrált egy lépést."
+ROSSZ: "Ez nem lehet igaz — gondolta Anna." → JÓ: "Ez nem lehet igaz. Anna hátrált egy lépést."
 
 ## 4. ÉRZÉKSZERVI RÉSZLETEK
 
-Minden jelenetben LEGALÁBB 3 érzékszervet használj:
+Minden jelenetben LEGALÁBB 3 érzékszervet használj: látás, hallás, szaglás, tapintás, ízlelés.
 
-- Látás: színek, fények, árnyékok, mozgás
-
-- Hallás: zajok, csend, hangerő, ritmus
-
-- Szaglás: illatok, bűzök, emlékidéző szagok
-
-- Tapintás: textúra, hőmérséklet, fájdalom, nyomás
-
-- Ízlelés: ízek (ha releváns, pl. étkezésnél, csóknál)
-
-Az érzékszervi részletek SZOLGÁLJÁK a hangulatot. Horror jelenetben a szagok rohadtak, a fények villódznak. Romantikus jelenetben az illatok édesek, a tapintás meleg.
+Az érzékszervi részletek SZOLGÁLJÁK a hangulatot.
 
 ## 5. JELENETSTRUKTÚRA
 
 Minden jelenetnek legyen belső íve:
 
-1. NYITÁS: A POV karakter céllal lép be a jelenetbe (mit akar elérni?)
+1. NYITÁS: A POV karakter céllal lép be (mit akar elérni?)
 
 2. AKADÁLY: Valami keresztbe tesz (belső vagy külső konfliktus)
 
-3. FORDULAT: A helyzet megváltozik — jobbra vagy rosszabbra
+3. FORDULAT: A helyzet megváltozik
 
 4. ZÁRÁS: Hook — az olvasó tovább akarjon olvasni
 
 A jelenet NE legyen "és aztán… és aztán… és aztán…" lineáris felsorolás!
 
-## 6. PÁRBESZÉD SZABÁLYOK
+## 6. PÁRBESZÉD SZABÁLYOK (KRITIKUS!)
 
-- Minden karakter MÁSHOGY beszél (szókincs, mondathossz, szófordulatok)
+PÁRBESZÉD TAG KORLÁTOZÁSOK:
 
-- A párbeszéd vigye ELŐRE a cselekményt vagy MÉLYÍTSE a karaktert
+- "suttogta" MAXIMUM 1x fordulhat elő egy jelenetben! Ez a szó KÜLÖNLEGES pillanatokra van fenntartva.
 
-- TILOS a felesleges üdvözlés, small talk, nyilvánvaló közlés
+- "mondta" MAXIMUM 3x jelenetenként.
 
-- Szubtextus: amit a karakter mond ≠ amit gondol. A feszültség a kettő közötti résből jön.
+- "kérdezte" MAXIMUM 2x jelenetenként.
 
-- Párbeszéd tagek: "mondta" max 3x jelenetenként. Utána: akció-tag (mit csinál közben), vagy tag nélkül (ha egyértelmű ki beszél)
+PÁRBESZÉD TAG TECHNIKÁK (kötelező váltogatni!):
 
-ROSSZ: "– Elmegyek – mondta Anna. – Rendben – mondta Péter. – Mikor jössz? – kérdezte Anna. – Holnap – mondta Péter."
+1. AKCIÓ-TAG (a LEGJOBB!): "– Elég volt. Anna a tenyerét az asztalra csapta."
 
-JÓ: "– Elmegyek. Anna felkapta a kabátját az ajtókilincsről. Péter bólintott, de a szeme sarkából a bőröndöt figyelte. – Mikor jössz? – Holnap – hazudta."
+2. TAG NÉLKÜL (ha egyértelmű ki beszél): "– És mit vársz tőlem?"
 
-## 7. TEMPÓ ÉS MONDATRITMUS
+3. GONDOLAT-TAG: "– Persze. Mintha bárkit is érdekelt volna az igazság."
 
-A mondatok hossza és szerkezete IRÁNYÍTJA az olvasás sebességét:
+4. LEÍRÁS-TAG: "– Gyere ide. A hangja alig volt több suttogásnál."
 
-- Akció, veszély: RÖVID mondatok. Tőmondatok. Szaggatott. Gyors.
+5. CSELEKVÉS KÖZBENI: "– Nem érdekel. Felkapta a kabátját és az ajtó felé indult."
 
-- Elmélyülés, érzelem: Hosszabb, összetettebb mondatok, amelyek lassan hömpölyögnek, mint egy folyó kanyarulata.
+ARÁNY: A párbeszéd sorok LEGALÁBB 40%-a legyen TAG NÉLKÜLI.
 
-- VÁLTOGASD! Ne írj 10 egyforma hosszú mondatot egymás után.
+ROSSZ PÉLDA (monoton tagek):
 
-## 8. MAGYAR NYELVI SZABÁLYOK
+"– Elmegyek – mondta Anna.
 
-MONDATKEZDÉS VARIÁCIÓ (KRITIKUS!):
+– Rendben – mondta Péter.
 
-- TILOS háromszor egymás után ugyanazzal a szóval kezdeni mondatot
+– Mikor jössz? – kérdezte Anna.
 
-- TILOS: "A férfi… A férfi… A férfi…" vagy "Az ajtó… Az utca… A szoba…"
+– Holnap – mondta Péter."
 
-- KERÜLD a "volt" túlhasználatát — aktív igéket használj helyette
+JÓ PÉLDA (variált technikák):
+
+"– Elmegyek. Anna felkapta a kabátját az ajtókilincsről.
+
+Péter bólintott, de a szeme sarkából a bőröndöt figyelte.
+
+– Mikor jössz?
+
+– Holnap – hazudta."
+
+## 7. TESTI REAKCIÓK VARIÁCIÓJA (KRITIKUS!)
+
+AZ ALÁBBI KIFEJEZÉSEK TILTOTTAK (túlhasználat miatt):
+
+- "gyomra összeszorult / görcsbe rándult / egyetlen rándulással jelezte" — MAXIMUM 1x az EGÉSZ könyvben!
+
+- "szíve a torkában dobogott / lüktetett" — MAXIMUM 1x az EGÉSZ könyvben!
+
+- "ujjai elfehéredtek" — MAXIMUM 1x az EGÉSZ könyvben!
+
+- "tarkóján felállt a szőr" — MAXIMUM 1x az EGÉSZ könyvben!
+
+EHELYETT — VÁLTOGASD az alábbi reakciókat:
+
+FÉLELEM: a torka kiszáradt / a háta közepén hideg futott végig / a lába elgyengült / a levegő bennrekedt a tüdejében / a nyaka izmai megfeszültek / a tenyere verejtékezni kezdett / az ujjhegyei elzsibbadtak / a vér a fülében dübörgött / a bőre libabőrös lett / a térdei megrogytak
+
+MEGLEPETÉS: a szava elakadt / a tekintete megállt / megdermedt félmozdulatban / a lélegzete fennakadt / a keze a levegőben maradt / egy pillanatra elsötétült előtte a világ
+
+DÜH: a halántéka lüktetett / a fogait összeszorította / az ökle összeszorult / a vér a fejébe szökött / az állkapcsa megfeszült / az arca égett / a mellkasa összeszorult
+
+## 8. JELENETNYITÁS VARIÁCIÓ (KRITIKUS!)
+
+TILTOTT JELENETNYITÁSOK:
+
+- "A laptop/monitor/képernyő kékes fénye megvilágította XY arcát" — SOHA TÖBBÉ! Ez a nyitás TILTOTT!
+
+- "A kékes fény" kifejezés TILTOTT az egész szövegben!
+
+JELENETNYITÁS TECHNIKÁK (kötelező váltogatni!):
+
+1. PÁRBESZÉDDEL (in medias res): "– Ezt nem gondolhatod komolyan."
+
+2. FIZIKAI CSELEKVÉSSEL: "Anna a kulcsot a zárba fordította, de a keze megállt félúton."
+
+3. KÖRNYEZETI ÉRZÉKKEL: "A folyosóról kávéillat és halk nevetés szűrődött be."
+
+4. BELSŐ GONDOLATTAL: "Valami nem stimmelt. Az érzés a tarkójában bujkált, mint egy szálka."
+
+5. ATMOSZFÉRÁVAL: "A hajnali köd úgy ült a városra, mintha gyapjútakaróval borították volna be."
+
+Soha ne nyiss egymás után két jelenetet ugyanazzal a technikával!
+
+## 9. SZÓKINCS ÉS ISMÉTLÉS SZABÁLYOK
+
+TILTOTT TÚLHASZNÁLATOK:
+
+- "lüktetett" — MAXIMUM 2x fejezetenként
+
+- "visszhangzott" — MAXIMUM 2x fejezetenként
+
+- "megremegett" — MAXIMUM 2x fejezetenként
+
+- "hangja rekedt volt" — MAXIMUM 1x fejezetenként
+
+- "Ez nem lehet igaz" — MAXIMUM 1x az egész könyvben
+
+- "megmerevedett" — MAXIMUM 1x fejezetenként
+
+HASONLAT SZABÁLY:
+
+- "mint egy" / "mint a" hasonlat MAXIMUM 3x fejezetenként!
+
+- Használj METAFORÁT hasonlat HELYETT:
+
+  ROSSZ (hasonlat): "A hangja éles volt, mint a borotva."
+
+  JÓ (metafora): "A hangja borotvaélesen hasított."
+
+MONDATKEZDÉS VARIÁCIÓ:
+
+- TILOS 3 egymást követő mondatot "A/Az + főnév" szerkezettel kezdeni!
+
+- TILOS 3x egymás után ugyanazzal a szóval kezdeni mondatot!
+
+- TILOS: "A férfi… A férfi… A férfi…"
+
+- Használj változatos nyitásokat: igével, határozóval, rövid tőmondattal
+
+"VOLT" TÚLHASZNÁLAT TILALOM:
+
+- Kerüld a "volt" igét ahol lehet — aktív igéket használj.
 
 - ROSSZ: "Az asztal nagy volt. A szék kicsi volt. A szoba sötét volt."
 
-- JÓ: "A masszív tölgyfa asztal szinte betöltötte a szobát. Mellette egy kopott kisszék lapult, alig látszott a félhomályban."
+- JÓ: "A masszív asztal szinte betöltötte a szobát. Mellette egy kopott kisszék lapult a félhomályban."
 
-PÁRBESZÉD FORMÁZÁS:
+## 10. ÉRZELMI PALETTA BŐVÍTÉS
 
-- Gondolatjel (–) a sor elején, NEM kötőjel (-)
+Az érzelmek NE legyenek csak félelem-düh-elszántság!
 
-- Magyar idézőjel: „..." NEM "..."
+Használj VÁLTOZATOS érzelmeket a könyv során: megbánás, vágy, humor, irónia, nosztalgia, szomorúság, megkönnyebbülés, zavarodottság, szégyen, kíváncsiság, beletörődés, remény.
 
-- Helyes formátum:
-
-  – Hová mész? – kérdezte Anna.
-
-  – A boltba – válaszolta.
-
-NÉVSORREND: Vezetéknév + Keresztnév (Kovács János, NEM János Kovács)
-
-VESSZŐ kötőszavak előtt: de, hogy, mert, ha, amikor, amely, ami
-
-SZÓREND: magyar szórend, NEM angolosan (kerüld a tükörfordításokat)
+Minden 3-4 feszült jelenet után legyen 1 NYUGODTABB, EMBERIBB pillanat: csendes beszélgetés, emlék, humor, kis öröm. A feszültséget nem lehet folyamatosan 100-on tartani — hullámvölgy nélkül nincs csúcspont.
 
 ## FORMÁZÁS (KÖTELEZŐ):
 
@@ -280,6 +354,12 @@ SZÓREND: magyar szórend, NEM angolosan (kerüld a tükörfordításokat)
 - A válasz CSAK a jelenet szövege legyen
 
 - NE írj bevezető vagy záró kommentárt
+
+- Magyar párbeszéd-jelölés: gondolatjel (–), magyar idézőjel „..."
+
+- Névsorrend: Vezetéknév + Keresztnév
+
+- Vessző kötőszavak előtt: de, hogy, mert, ha, amikor, amely, ami
 
 `;
 
