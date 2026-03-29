@@ -384,8 +384,9 @@ serve(async (req) => {
     }
 
     const isFiction = genre === "fiction" || (project?.genre && project.genre !== 'nonfiction' && project.genre !== 'szakkönyv' && project.genre !== 'szakkonyv');
+    const isInvestigative = !isFiction && project?.nonfiction_book_type === "investigative";
     const sectionType = sectionOutline.pov || sectionOutline.type || "concept";
-    let systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
+    let systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : (isInvestigative ? INVESTIGATIVE_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT);
 
     if (isFiction && project) {
       // Add fiction style settings (POV, pace, dialogue, description, genre rules)
