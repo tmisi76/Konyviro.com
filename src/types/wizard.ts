@@ -35,6 +35,7 @@ export const NONFICTION_BOOK_TYPES: NonfictionBookTypeInfo[] = [
   { id: "workbook", icon: "✍️", title: "Workbook / Munkafüzet", description: "Gyakorlatok, feladatok, kitöltős részek", example: "The Artist's Way, Tervezd meg az életed" },
   { id: "reference", icon: "📚", title: "Kézikönyv / Referencia", description: "Átfogó tudástár, amit újra elővehetnek", example: "Marketing kézikönyv, HR vezető kézikönyve" },
   { id: "memoir", icon: "🎬", title: "Memoir + Tanulságok", description: "Személyes vállalkozói történet leckékkel", example: "Shoe Dog, Az Amazon története" },
+  { id: "investigative", icon: "🔍", title: "Oknyomozó", description: "Valós ügyek feltárása bizonyítékokkal, dokumentumfilm-szerű stílusban", example: "All the President's Men, Feltárt igazságok" },
 ];
 
 // Type-specific data interfaces
