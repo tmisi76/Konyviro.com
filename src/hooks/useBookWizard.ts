@@ -279,9 +279,13 @@ export function useBookWizard() {
         return newProject.id;
       }
     } catch (error: any) {
-      console.error("Error saving project:", error);
-      const msg = error?.message || error?.details || "Ismeretlen hiba";
-      toast.error(`Hiba történt a mentés során: ${msg}`);
+      console.error("Error saving project - FULL:", JSON.stringify(error, null, 2));
+      console.error("Error saving project - message:", error?.message);
+      console.error("Error saving project - code:", error?.code);
+      console.error("Error saving project - details:", error?.details);
+      console.error("Error saving project - hint:", error?.hint);
+      const msg = error?.message || error?.details || error?.code || "Ismeretlen hiba";
+      toast.error(`Mentési hiba: ${msg}`);
       return null;
     } finally {
       setIsSaving(false);
