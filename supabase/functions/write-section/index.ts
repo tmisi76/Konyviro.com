@@ -569,6 +569,8 @@ ${scenePositionBlock}
 - JELENET LEÍRÁSA: ${sectionOutline.description}
 ${antiSummaryBlock}
 ${dialogueVarietyBlock}
+${bodyLanguageVarietyBlock}
+${sceneOpeningRulesBlock}
 - KULCSESEMÉNYEK (ezeknek kötelezően meg kell történniük): ${(sectionOutline.key_events || []).join(', ')}
 - ÉRZELMI ÍV: ${sectionOutline.emotional_arc || 'Nincs megadva'}
 - VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
