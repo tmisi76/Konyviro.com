@@ -478,12 +478,25 @@ TILOS az alábbi neveket használni (túl gyakori AI-generált nevek):
 
 A nevek legyenek VÁLTOZATOSAK és EGYEDIEK!`;
 
+      const randomStyle = getRandomStyle();
+      const styleContext = `
+NARRATÍV STÍLUS IRÁNYELV (kövesd ezt az atmoszférát és hangvételt!):
+Stílus: ${randomStyle.label}
+Leírás: ${randomStyle.description}
+Hangulati kulcsszavak: ${randomStyle.moodWords}
+
+FONTOS: Ez a stílus az ATMOSZFÉRÁT és HANGVÉTELT határozza meg, NEM a helyszínt! A történet továbbra is a felhasználó által megadott témáról szóljon, de a FELDOLGOZÁS módja kövesse a fenti stílust.`;
+
       userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}${nameContext}
+${styleContext}
 
 SZTORI ÖTLET:
 ${storyIdea}
 
 Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a megadott JSON formátumban!`;
+
+      // Store selected style for later use in writing
+      (globalThis as Record<string, unknown>).__selectedNarrativeStyle = { label: randomStyle.label, moodWords: randomStyle.moodWords };
     }
 
     // Retry logic exponenciális backoff-al (429/502/503 kezelés)
