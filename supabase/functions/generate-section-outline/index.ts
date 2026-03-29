@@ -78,7 +78,28 @@ serve(async (req) => {
     const aiSettings = await getAISettings(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
 
     const isFiction = genre === "fiction";
-    const systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
+    const isInvestigative = !isFiction && (project?.nonfiction_book_type === "investigative" || chapterType === "investigative");
+
+    const INVESTIGATIVE_OUTLINE_PROMPT = `Te egy tapasztalt oknyomozó könyv szerkesztő vagy. Készíts részletes szekció-vázlatot egy oknyomozó fejezet számára.
+
+Minden szekció egy "epizód" a nyomozásban. A struktúra:
+1. BEMUTATÁS: Kontextus, ki, mi, hol, mikor — az olvasó bekerül a jelenetbe
+2. BIZONYÍTÉK: A kulcsdokumentum/interjú/adat bemutatása — mit mond, mit jelent
+3. ELEMZÉS: Mit jelent ez a nyomozás szempontjából — összekötés más szálakkal
+4. KÖVETKEZTETÉS/HOOK: Mi a következő kérdés — cliffhanger a következő szekcióra
+
+SZEKCIÓ TÍPUSOK:
+- intro: Drámai nyitójelenet vagy hook — az olvasót azonnal belerángatja a sztoriba
+- investigation: A nyomozás egy lépése — mit találtunk, hogyan jutottunk el ide
+- evidence: Bizonyíték bemutatás — dokumentum, interjú, adat részletes elemzése
+- revelation: Fordulópont — ami eddig rejtve volt, napvilágra kerül
+- consequences: Következmények — mi változott, kinek milyen hatása volt
+- summary: Összefoglaló — mit tudunk eddig, mik a nyitott kérdések
+
+Válaszolj CSAK JSON tömbként:
+[{"section_number": 1, "title": "...", "type": "intro|investigation|evidence|revelation|consequences|summary", "key_points": [...], "examples_needed": 1, "learning_objective": "...", "target_words": 1200, "status": "pending"}]`;
+
+    const systemPrompt = isInvestigative ? INVESTIGATIVE_OUTLINE_PROMPT : (isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT);
 
     // Fetch project context for richer scene outlines
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

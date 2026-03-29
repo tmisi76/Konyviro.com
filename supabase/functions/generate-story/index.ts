@@ -281,9 +281,14 @@ serve(async (req) => {
     // Determine if this is a nonfiction book (handle both accented and unaccented versions)
     const isNonfiction = genre === "szakkonyv" || genre === "szakkönyv";
 
+    // Check for investigative book type
+    const isInvestigative = isNonfiction && (storyIdea?.nonfictionBookType === "investigative" || req.headers.get("x-book-type") === "investigative");
+
     // Build the system prompt based on genre
     let systemPrompt: string;
-    if (isNonfiction) {
+    if (isInvestigative) {
+      systemPrompt = INVESTIGATIVE_SYSTEM_PROMPT;
+    } else if (isNonfiction) {
       systemPrompt = NONFICTION_SYSTEM_PROMPT;
     } else if (genre === "erotikus") {
       systemPrompt = FICTION_SYSTEM_PROMPT + EROTIC_ADDON;

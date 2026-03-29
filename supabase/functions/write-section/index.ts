@@ -491,6 +491,39 @@ ${dialogueVarietyBlock}
 - CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
 
 CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
+      : isInvestigative
+      ? `CONTEXT:
+- KÖNYV TÍPUSA: Oknyomozó könyv
+- VIZSGÁLAT TÁRGYA: ${project?.description || bookTopic || 'Nincs megadva'}
+- CÉLKÖZÖNSÉG: ${project?.target_audience || targetAudience || 'Általános közönség'}
+- KÖZPONTI KÉRDÉS: ${(project?.book_type_data as Record<string, unknown>)?.centralQuestion || 'Nincs megadva'}
+- VIZSGÁLT IDŐSZAK: ${(project?.book_type_data as Record<string, unknown>)?.timelinePeriod || 'Nincs megadva'}
+- FŐBB SZEREPLŐK: ${(project?.book_type_data as Record<string, unknown>)?.keyPlayers || 'Nincs megadva'}
+- BIZONYÍTÉKTÍPUSOK: ${((project?.book_type_data as Record<string, unknown>)?.evidenceTypes as string[] || []).join(', ') || 'Dokumentumok, interjúk'}
+- HANGNEM: ${(project?.book_type_data as Record<string, unknown>)?.investigationTone || 'dramatic'}
+${(project?.book_type_data as Record<string, unknown>)?.investigatorRole === "first-person" ? "- NARRÁCIÓ: Első személy — az oknyomozó mesél (Én)" : (project?.book_type_data as Record<string, unknown>)?.investigatorRole === "team" ? "- NARRÁCIÓ: Többes szám — csapat mesél (Mi)" : "- NARRÁCIÓ: Harmadik személy — semleges narrátor"}
+
+ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
+${previousChapterSummaries || 'Ez az első fejezet.'}
+
+ELŐZŐ SZÖVEGRÉSZ (az utolsó 4000 karakter a folytonosság érdekében):
+${(previousContent || '').slice(-4000)}
+
+---
+ÍRÁSI FELADAT:
+Írd meg az alábbi oknyomozó szekciót. Az olvasó az oknyomozóval együtt fedezi fel az igazságot — építs feszültséget, mutass bizonyítékokat, és minden szekció végén nyiss új kérdést.
+
+- FEJEZET CÍME: "${chapterTitle}"
+- SZEKCIÓ SORSZÁMA: ${sectionNumber}
+- SZEKCIÓ CÍME: "${sectionOutline.title}"
+- SZEKCIÓ TÍPUSA: ${sectionType}
+- FELADAT: ${SECTION_PROMPTS[sectionType] || "Írj tartalmas oknyomozó szekciót bizonyítékokkal és feszültséggel."}
+- SZEKCIÓ CÉLJA: ${sectionOutline.description || 'Az olvasó megérti a bizonyítékok súlyát és a következő szálat.'}
+- KULCSPONTOK (ezeket kötelezően fejtsd ki):
+${(sectionOutline.key_events || []).map((p: string, i: number) => `${i+1}. ${p}`).join('\n')}
+- CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
+
+CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
       : `CONTEXT:
 - KÖNYV NAGY ÍGÉRETE: ${project?.description || bookTopic || 'Nincs megadva'}
 - CÉLKÖZÖNSÉG: ${project?.target_audience || targetAudience || 'Általános közönség'}
