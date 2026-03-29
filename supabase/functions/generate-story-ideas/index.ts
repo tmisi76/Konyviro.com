@@ -38,7 +38,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas } = await req.json();
+    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas, nonfictionBookType, bookTypeSpecificData } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
