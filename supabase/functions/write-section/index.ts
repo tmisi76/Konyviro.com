@@ -13,6 +13,8 @@ import {
   buildScenePositionContext,
   buildAntiSummaryRules,
   buildDialogueVarietyRules,
+  buildBodyLanguageVarietyRules,
+  buildSceneOpeningRules,
   buildAntiRepetitionPrompt,
   buildPreviousChaptersSummary,
   buildFictionStylePrompt,
