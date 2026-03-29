@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { StoryIdea, Genre, Subcategory, Tone, BookLength, AuthorProfile, FictionStyleSettings } from "@/types/wizard";
+import type { StoryIdea, Genre, Subcategory, Tone, BookLength, AuthorProfile, FictionStyleSettings, NonfictionBookType, BookTypeSpecificData } from "@/types/wizard";
 
 interface Step4StoryIdeasProps {
   genre: Genre;
@@ -21,6 +21,8 @@ interface Step4StoryIdeasProps {
   onSelect: (idea: StoryIdea) => void;
   authorProfile?: AuthorProfile | null;
   fictionStyle?: FictionStyleSettings | null;
+  nonfictionBookType?: NonfictionBookType | null;
+  bookTypeSpecificData?: BookTypeSpecificData | null;
 }
 
 export function Step4StoryIdeas({
