@@ -2,6 +2,54 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 
+const HUNGARIAN_FIRST_NAMES_MALE = [
+  'Bence', 'Máté', 'Dániel', 'Gergő', 'Balázs', 'Tamás', 'István', 'Miklós',
+  'Zoltán', 'László', 'Attila', 'Gábor', 'Ferenc', 'Róbert', 'Csaba', 'Tibor',
+  'Kornél', 'Olivér', 'Márton', 'Sándor', 'Dominik', 'Levente', 'Nándor', 'Zsolt',
+  'Ákos', 'Benedek', 'Dénes', 'Ervin', 'Iván', 'Kristóf', 'Milán', 'Patrik',
+  'Soma', 'Vencel', 'Botond', 'Zalán', 'Vilmos', 'Szabolcs', 'Vince', 'Simon'
+];
+
+const HUNGARIAN_FIRST_NAMES_FEMALE = [
+  'Lilla', 'Réka', 'Eszter', 'Boglárka', 'Zsófia', 'Katalin', 'Dóra', 'Anita',
+  'Virág', 'Kinga', 'Noémi', 'Hajnalka', 'Enikő', 'Orsolya', 'Csilla', 'Ildikó',
+  'Adrienn', 'Fruzsina', 'Piroska', 'Dorottya', 'Sára', 'Blanka', 'Hanna', 'Léna',
+  'Nóra', 'Fanni', 'Gréta', 'Jázmin', 'Luca', 'Petra', 'Maja', 'Villő',
+  'Emese', 'Izabella', 'Nikolett', 'Rebeka', 'Vivien', 'Dalma', 'Flóra', 'Kamilla'
+];
+
+const HUNGARIAN_LAST_NAMES = [
+  'Szűcs', 'Vörös', 'Balogh', 'Németh', 'Fehér', 'Pintér', 'Papp', 'Bodnár',
+  'Takács', 'Mészáros', 'Orbán', 'Szilágyi', 'Hegedűs', 'Fazekas', 'Soós', 'Kocsis',
+  'Kelemen', 'Barta', 'Fülöp', 'Hajdu', 'Csikós', 'Deák', 'Antal', 'Lengyel',
+  'Vincze', 'Márkus', 'Barna', 'Somogyi', 'Rácz', 'Dudás', 'Bíró', 'Laczkó',
+  'Jakab', 'Halász', 'Fodor', 'Tamási', 'Farkas', 'Szalai', 'Bogdán', 'Gál'
+];
+
+function getRandomNames(count: number = 4): { male: string[], female: string[] } {
+  const shuffle = <T>(arr: T[]): T[] => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  const lastNames = shuffle(HUNGARIAN_LAST_NAMES);
+  const maleFirsts = shuffle(HUNGARIAN_FIRST_NAMES_MALE);
+  const femaleFirsts = shuffle(HUNGARIAN_FIRST_NAMES_FEMALE);
+
+  const maleNames = Array.from({ length: Math.ceil(count / 2) }, (_, i) =>
+    `${lastNames[i]} ${maleFirsts[i]}`
+  );
+  const femaleNames = Array.from({ length: Math.floor(count / 2) }, (_, i) =>
+    `${lastNames[Math.ceil(count / 2) + i]} ${femaleFirsts[i]}`
+  );
+
+  return { male: maleNames, female: femaleNames };
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -360,7 +408,22 @@ ${storyIdea}
 Készíts ebből egy professzionális SZAKKÖNYV koncepciót a megadott JSON formátumban!
 FONTOS: Ez egy SZAKKÖNYV, NEM regény! Ne használj fiktív karaktereket, antagonistát, vagy regény cselekménypontokat!`;
     } else {
-      userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}SZTORI ÖTLET:
+      const randomNames = getRandomNames(6);
+      const nameContext = `
+KARAKTER NEVEK (HASZNÁLD EZEKET, NE TALÁLJ KI SAJÁTOT!):
+Férfi nevek (válassz ezek közül): ${randomNames.male.join(', ')}
+Női nevek (válassz ezek közül): ${randomNames.female.join(', ')}
+
+TILOS az alábbi neveket használni (túl gyakori AI-generált nevek):
+- Kovács Ádám, Kovács János, Nagy Péter, Szabó István
+- Varga Endre, Tarján Viktor, Dr. Varga
+- Bármilyen "Kovács", "Nagy", "Szabó" vezetéknevű karakter
+
+A nevek legyenek VÁLTOZATOSAK és EGYEDIEK!`;
+
+      userPrompt = `${contextParts.length > 0 ? contextParts.join("\n") + "\n\n" : ""}${nameContext}
+
+SZTORI ÖTLET:
 ${storyIdea}
 
 Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a megadott JSON formátumban!`;
