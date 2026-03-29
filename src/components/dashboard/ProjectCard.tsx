@@ -89,6 +89,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: 
   const [sceneProgress, setSceneProgress] = useState({ total: 0, completed: 0, currentChapter: "" });
   const [showExportModal, setShowExportModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   
   // Hook for starting background writing
   const { startWriting, isLoading: isStartingWrite, canStart } = useBackgroundWriter(project.id);
