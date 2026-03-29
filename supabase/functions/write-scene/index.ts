@@ -377,10 +377,12 @@ serve(async (req) => {
       totalChapters
     );
 
-    // Anti-summary, dialogue variety, anti-repetition rules
+    // Anti-summary, dialogue variety, body language, scene opening, anti-repetition rules
     const antiSummary = buildAntiSummaryRules();
     const dialogueVariety = buildDialogueVarietyRules();
-    const antiRepetition = buildAntiRepetitionPrompt(previousContent || undefined);
+    const bodyLanguageVariety = buildBodyLanguageVarietyRules();
+    const sceneOpeningRules = buildSceneOpeningRules();
+    const antiRepetition = buildAntiRepetitionPrompt((previousContent || '').slice(-2000));
 
     const prompt = `KONTEXTUS:
 - KÖNYV MŰFAJA: ${genre || 'fiction'}
@@ -402,7 +404,7 @@ ${characters ? `\nKARAKTEREK A JELENETBEN:\n${characters}` : ''}
 ${nameLock}${povEnforcement}
 ${characterHistoryContext}
 ${storyStructure ? `\nTÖRTÉNET KONTEXTUS:\n${typeof storyStructure === 'string' ? storyStructure : JSON.stringify(storyStructure)}` : ''}
-${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
+${scenePositionCtx}${antiSummary}${dialogueVariety}${bodyLanguageVariety}${sceneOpeningRules}${antiRepetition}
 ${previousContent ? `\nELŐZŐ SZÖVEG (a folytonosság érdekében, NE ismételd!):\n${previousContent.slice(-3000)}` : ''}
 
 HOSSZ: ~${effectiveTargetWords} szó. Ne lépd túl jelentősen!
