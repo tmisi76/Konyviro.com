@@ -1,40 +1,36 @@
 
 
-# Megosztás funkció hozzáadása a ProjectCard "..." menüjébe + PDF-olvasó-szerű reader oldal
+# Fix: Hiányzó `buildBodyLanguageVarietyRules` export a prompt-builder-ből
 
-## Összefoglaló
+## A probléma
 
-A ProjectCard dropdown menüjébe kerül egy "Megosztás" menüpont, ami megnyitja a már létező `ShareBookModal`-t. A `PublicBookReader` oldalt átalakítjuk egy szép, PDF-reader-szerű ebook olvasóvá, promo sávval a `konyviro.com`-ra.
+A `write-section` Edge Function nem tud elindulni (BOOT_ERROR), mert importálja a `buildBodyLanguageVarietyRules` függvényt a `_shared/prompt-builder.ts`-ből, de ez a függvény soha nem lett hozzáadva a fájlhoz.
 
-## Változtatások
+A logokban ez látszik:
+```
+worker boot error: The requested module '../_shared/prompt-builder.ts' 
+does not provide an export named 'buildBodyLanguageVarietyRules'
+```
 
-### 1. ProjectCard — Megosztás menüpont hozzáadása
-**Fájl:** `src/components/dashboard/ProjectCard.tsx`
-- Import: `Share2` ikon + `ShareBookModal`
-- Új state: `showShareModal`
-- Új `DropdownMenuItem` az "Exportálás" után: `<Share2 /> Megosztás`
-- `ShareBookModal` renderelése a komponens aljára
+Ez blokkolja az összes jelenetírást — ezért áll 0/83 szekciónál a könyved.
 
-### 2. PublicBookReader — PDF-reader-szerű újratervezés + promo
-**Fájl:** `src/pages/PublicBookReader.tsx`
-- A jelenlegi layout helyett: **kétoszlopos** (desktop) / **egyoszlopos + alul promo** (mobil)
-- **Bal oldal (fő tartalom):** PDF-reader-szerű megjelenés:
-  - Sötétebb háttér (muted), fehér "papír" középen árnyékkal
-  - Fejezet tartalom serif betűtípussal, sorkizárt
-  - Oldalszámozás alul
-  - Fejezet navigáció oldalsávban (megtartjuk a `BookScrollView`-t, de csinosítjuk)
-- **Jobb oldal (promo sáv, ~280px):** Sticky sáv:
-  - KönyvÍró logó/név
-  - "Írd meg te is a saját könyved!" szöveg
-  - CTA gomb → `https://konyviro.com/`
-  - Esetleg: "Powered by KönyvÍró" footer
+## Javítás
 
-### 3. Technikai részletek
+### 1. `supabase/functions/_shared/prompt-builder.ts` — Hiányzó függvény hozzáadása
 
-| Fájl | Változás |
-|------|----------|
-| `src/components/dashboard/ProjectCard.tsx` | +`ShareBookModal` import, +`showShareModal` state, +menüpont, +modal renderelés |
-| `src/pages/PublicBookReader.tsx` | Layout átalakítás: PDF-reader stílus + jobb oldali promo sáv `konyviro.com` linkkel |
+A `buildDialogueVarietyRules()` függvény után hozzáadom a `buildBodyLanguageVarietyRules()` exportot, amely a testi reakciók variálására ad szabályokat (hasonló mintával mint a dialogue rules):
 
-Nincs adatbázis migráció — a megosztás infrastruktúra (edge functions, `book_shares` tábla, RLS) már teljes egészében létezik.
+```typescript
+export function buildBodyLanguageVarietyRules(): string {
+  return `\n\n--- TESTBESZÉD VARIÁCIÓ SZABÁLYOK ---
+TESTI REAKCIÓ KORLÁTOZÁSOK:
+- "gyomra összeszorult/görcsbe rándult" → MAX 1x per fejezet. Alternatívák: torka kiszáradt, háta közepén hideg futott végig, tenyere verejtékezni kezdett, ujjhegyei elzsibbadtak
+- "szíve a torkában dobogott" → MAX 1x per fejezet. Alternatívák: pulzusa felszökött, halántéka lüktetett, mellkasa összeszorult
+- "ujjai elfehéredtek" → MAX 1x per fejezet. Alternatívák: ujjai begörbültek, keze ökölbe szorult, körme a tenyerébe vájt
+- "megborzongott/libabőrös lett" → MAX 1x per fejezet. Alternatívák: a tarkóján égett a bőr, karján felállt a szőr, gerince mentén hideg áradt szét
+MINDEN testi reakciót VÁLTOZATOSAN használj — ne ismételd ugyanazt a jeleneten belül!`;
+}
+```
+
+Ez egyetlen fájl egyetlen módosítása — a `write-section` és minden más edge function ezután újra el tud indulni, és a könyved írása folytatódik.
 
