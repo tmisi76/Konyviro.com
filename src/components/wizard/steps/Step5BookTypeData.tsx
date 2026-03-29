@@ -697,6 +697,144 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
     </>
   );
 
+  const renderInvestigativeForm = () => (
+    <>
+      <div className="space-y-2">
+        <Label>Ki vagy mi az ügy/vizsgálat tárgya? *</Label>
+        <Textarea
+          value={formData.investigationSubject || ""}
+          onChange={(e) => updateField("investigationSubject", e.target.value)}
+          placeholder="Pl. Egy politikus rezsimépítése, egy vállalat korrupciós botrányának feltárása"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>A fő kérdés amire a könyv válaszol *</Label>
+        <Textarea
+          value={formData.centralQuestion || ""}
+          onChange={(e) => updateField("centralQuestion", e.target.value)}
+          placeholder="Pl. Hogyan épült ki a rendszer? Hová tűnt a pénz?"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Vizsgálat hatóköre</Label>
+        <RadioGroup
+          value={formData.investigationScope || "individual"}
+          onValueChange={(v) => updateField("investigationScope", v as "individual" | "organization" | "system" | "event")}
+          className="flex flex-wrap gap-4"
+        >
+          {[
+            { value: "individual", label: "Egyén" },
+            { value: "organization", label: "Szervezet" },
+            { value: "system", label: "Rendszer" },
+            { value: "event", label: "Esemény" },
+          ].map((opt) => (
+            <div key={opt.value} className="flex items-center space-x-2">
+              <RadioGroupItem value={opt.value} id={`scope-${opt.value}`} />
+              <Label htmlFor={`scope-${opt.value}`} className="cursor-pointer">{opt.label}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+
+      <div className="space-y-3">
+        <Label>Bizonyítéktípusok</Label>
+        <div className="flex flex-wrap gap-4">
+          {[
+            { id: "documents", label: "Dokumentumok, papírok" },
+            { id: "interviews", label: "Interjúk, vallomások" },
+            { id: "financial", label: "Pénzügyi adatok" },
+            { id: "media", label: "Médiaforrások, cikkek" },
+            { id: "court", label: "Bírósági iratok" },
+            { id: "whistleblower", label: "Belső informátorok" },
+          ].map((type) => (
+            <div key={type.id} className="flex items-center space-x-2">
+              <Checkbox
+                id={`ev-${type.id}`}
+                checked={(formData.evidenceTypes || []).includes(type.id)}
+                onCheckedChange={(checked) => {
+                  const current = formData.evidenceTypes || [];
+                  updateField(
+                    "evidenceTypes",
+                    checked ? [...current, type.id] : current.filter(t => t !== type.id)
+                  );
+                }}
+              />
+              <Label htmlFor={`ev-${type.id}`} className="cursor-pointer">{type.label}</Label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Az oknyomozó szerepe a könyvben</Label>
+        <RadioGroup
+          value={formData.investigatorRole || "first-person"}
+          onValueChange={(v) => updateField("investigatorRole", v as "first-person" | "third-person" | "team")}
+          className="flex flex-wrap gap-4"
+        >
+          {[
+            { value: "first-person", label: "Első személy (Én nyomozok)" },
+            { value: "third-person", label: "Harmadik személy (Semleges narrátor)" },
+            { value: "team", label: "Csapat (Mi nyomozunk)" },
+          ].map((opt) => (
+            <div key={opt.value} className="flex items-center space-x-2">
+              <RadioGroupItem value={opt.value} id={`inv-${opt.value}`} />
+              <Label htmlFor={`inv-${opt.value}`} className="cursor-pointer">{opt.label}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+
+      <div className="space-y-2">
+        <Label>A vizsgált időszak</Label>
+        <Input
+          value={formData.timelinePeriod || ""}
+          onChange={(e) => updateField("timelinePeriod", e.target.value)}
+          placeholder="Pl. 2010-2024, a rendszer kiépítésétől a bukásig"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Főbb szereplők/érintettek</Label>
+        <Textarea
+          value={formData.keyPlayers || ""}
+          onChange={(e) => updateField("keyPlayers", e.target.value)}
+          placeholder="Pl. Politikusok, oligarchák, belső informátorok neve vagy szerepe"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Hangnem</Label>
+        <RadioGroup
+          value={formData.investigationTone || "dramatic"}
+          onValueChange={(v) => updateField("investigationTone", v as "factual" | "dramatic" | "sardonic" | "urgent")}
+          className="flex flex-wrap gap-4"
+        >
+          {[
+            { value: "factual", label: "Tényszerű/hűvös" },
+            { value: "dramatic", label: "Drámai/filmszerű" },
+            { value: "sardonic", label: "Szarkasztikus/szúrós" },
+            { value: "urgent", label: "Sürgető/riasztó" },
+          ].map((opt) => (
+            <div key={opt.value} className="flex items-center space-x-2">
+              <RadioGroupItem value={opt.value} id={`invt-${opt.value}`} />
+              <Label htmlFor={`invt-${opt.value}`} className="cursor-pointer">{opt.label}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={15000} max={50000} step={5000} />
+      </div>
+    </>
+  );
+
   const renderFormContent = () => {
     switch (bookType) {
       case "how-to": return renderHowToForm();
@@ -709,6 +847,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
       case "workbook": return renderWorkbookForm();
       case "reference": return renderReferenceForm();
       case "memoir": return renderMemoirForm();
+      case "investigative": return renderInvestigativeForm();
       default: return null;
     }
   };
@@ -725,6 +864,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
       "workbook": "Workbook / Munkafüzet",
       "reference": "Kézikönyv / Referencia",
       "memoir": "Memoir + Tanulságok",
+      "investigative": "Oknyomozó könyv",
     };
     return titles[bookType];
   };
