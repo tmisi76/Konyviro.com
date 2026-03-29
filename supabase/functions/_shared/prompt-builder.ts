@@ -445,15 +445,21 @@ JÓ: "A lakásajtó becsukódott mögöttük. Péter lehuppant a konyhai székre
  */
 export function buildDialogueVarietyRules(): string {
   return `\n\n--- PÁRBESZÉD VARIÁCIÓ SZABÁLYOK ---
-A "mondta" szó MAXIMUM 3x fordulhat elő egy jelenetben!
+PÁRBESZÉD TAG KORLÁTOZÁSOK (SZIGORÚ!):
+- "mondta" MAXIMUM 3x jelenetenként
+- "suttogta" MAXIMUM 1x jelenetenként — különleges pillanatokra fenntartva!
+- "kérdezte" MAXIMUM 2x jelenetenként
+- "válaszolta" MAXIMUM 1x jelenetenként
 
-PÁRBESZÉD TAG TECHNIKÁK (váltogasd!):
-1. Akció-tag: "– Elég volt. Anna a tenyerét az asztalra csapta."
-2. Tag nélkül (ha egyértelmű ki beszél): "– És mit vársz tőlem?"
-3. Gondolat-tag: "– Persze. Mintha bárkit is érdekelt volna az igazság."
-4. Leírás-tag: "– Gyere ide. A hangja alig volt több suttogásnál."
+PÁRBESZÉD TAG TECHNIKÁK (kötelező váltogatni!):
+1. AKCIÓ-TAG (PREFERÁLT!): "– Elég volt. Anna a tenyerét az asztalra csapta."
+2. TAG NÉLKÜL: "– És mit vársz tőlem?"
+3. GONDOLAT-TAG: "– Persze. Mintha bárkit is érdekelt volna."
+4. LEÍRÁS-TAG: "– Gyere ide. A hangja alig volt több suttogásnál."
+5. CSELEKVÉS KÖZBENI: "– Nem érdekel. Felkapta a kabátját és az ajtó felé indult."
 
-ARÁNY: A párbeszéd sorok 30-50%-a legyen TAG NÉLKÜLI (ha ketten beszélgetnek, az olvasó követi).
+ARÁNY: A párbeszéd sorok LEGALÁBB 40%-a legyen TAG NÉLKÜLI.
+TILOS: Egymás után 3x azonos tag-típust használni.
 ---`;
 }
 
