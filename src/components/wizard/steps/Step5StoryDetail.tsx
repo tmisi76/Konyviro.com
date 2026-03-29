@@ -48,6 +48,7 @@ interface Step5StoryDetailProps {
   onAccept: () => void;
   authorProfile?: AuthorProfile | null;
   fictionStyle?: FictionStyleSettings | null;
+  nonfictionBookType?: string | null;
 }
 
 // Type for nonfiction response
