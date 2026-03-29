@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload, Play, Type } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload, Play, Type, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
