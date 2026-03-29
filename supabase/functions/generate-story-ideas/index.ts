@@ -38,7 +38,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas } = await req.json();
+    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas, nonfictionBookType, bookTypeSpecificData } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -48,7 +48,36 @@ serve(async (req) => {
     }
 
     const isFiction = genre === "fiction";
+    const isInvestigative = nonfictionBookType === "investigative";
     
+    // Könyvtípus kontextus építés
+    const bookTypeContext = nonfictionBookType && !isFiction
+      ? (() => {
+          const typeLabels: Record<string, string> = {
+            "how-to": "How-To Útmutató", "thought-leadership": "Thought Leadership",
+            "case-study": "Esettanulmány alapú", "framework": "Framework / Módszertan",
+            "self-help": "Önfejlesztő", "storytelling-business": "Storytelling üzleti",
+            "interview": "Interjú / Beszélgetések", "workbook": "Workbook / Munkafüzet",
+            "reference": "Kézikönyv / Referencia", "memoir": "Memoir + Tanulságok",
+            "investigative": "Oknyomozó tényfeltáró könyv",
+          };
+          let ctx = `\nKÖNYV TÍPUSA: ${typeLabels[nonfictionBookType] || nonfictionBookType}`;
+          if (bookTypeSpecificData) {
+            const d = bookTypeSpecificData;
+            if (d.investigationSubject) ctx += `\nVizsgált alany/ügy: ${d.investigationSubject}`;
+            if (d.investigatorRole) ctx += `\nOknyomozó szerepe: ${d.investigatorRole}`;
+            if (d.evidenceTypes) ctx += `\nBizonyítékok típusai: ${d.evidenceTypes}`;
+            if (d.timeline) ctx += `\nIdővonal: ${d.timeline}`;
+            if (d.skillOutcome) ctx += `\nElsajátítandó skill: ${d.skillOutcome}`;
+            if (d.bigIdea) ctx += `\nFő gondolat: ${d.bigIdea}`;
+            if (d.methodologyName) ctx += `\nMódszertan neve: ${d.methodologyName}`;
+            if (d.promisedChange) ctx += `\nÍgért változás: ${d.promisedChange}`;
+            if (d.thesisToProve) ctx += `\nBizonyítandó tézis: ${d.thesisToProve}`;
+          }
+          return ctx;
+        })()
+      : "";
+
     // Előző ötletek kizárása az újragenerálásnál
     const previousIdeasClause = previousIdeas?.length > 0 
       ? `\n\nKRITIKUS SZABÁLY - KERÜLD AZ ALÁBBI ÖTLETEKET:\n${previousIdeas.map((t: string, i: number) => `${i+1}. "${t}"`).join('\n')}\n\nGenerálj TELJESEN MÁS témákat, megközelítéseket, címeket és koncepciókat! Az új ötletek NE hasonlítsanak az előzőekre semmilyen módon.`
@@ -61,6 +90,18 @@ serve(async (req) => {
 
     const systemPrompt = isFiction 
       ? "Te egy kreatív könyvíró asszisztens vagy. Mindig érvényes JSON-t adj vissza."
+      : isInvestigative
+      ? `Te egy oknyomozó újságíró vagy, aki tényfeltáró könyveket ír${authorProfile?.authorName ? ` ${authorProfile.authorName} nevében` : ""}.
+
+OKNYOMOZÓ KÖNYV SZABÁLYOK:
+- Dokumentumfilm-szerű narratíva, az oknyomozó szemszögéből
+- Kronológikus feltárás: Hook → Háttér → Nyomozás → Fordulópontok → Következmények → Tanulságok
+- Inline bizonyítékok: dátumok, idézetek, dokumentumok hivatkozása
+- Feszültségteli de tényalapú dramatizálás
+- NE használj marketing nyelvet, NE adj tanácsokat — ez nem önfejlesztő könyv
+- A cél: FELTÁRÁS, LELEPLEZÉS, IGAZSÁG
+
+Mindig érvényes JSON-t adj vissza.`
       : `Te egy bestseller szakértői könyveket író ghostwriter vagy${authorProfile?.authorName ? ` ${authorProfile.authorName} nevében` : ""}. 
 
 SZAKKÖNYV ÍRÁS SZABÁLYOK:
@@ -99,8 +140,46 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
     }
   ]
 }`
+      : isInvestigative
+      ? `Generálj 3 egyedi OKNYOMOZÓ TÉNYFELTÁRÓ KÖNYV ötletet a következő paraméterek alapján:
+${storyDescriptionClause}
+${bookTypeContext}
+
+Téma: ${subcategory}
+Hangnem: ${tone}
+Hossz: ${length === "short" ? "rövid (~30k szó)" : length === "medium" ? "közepes (~60k szó)" : "hosszú (~100k szó)"}
+${targetAudience ? `Célközönség: ${targetAudience}` : ""}
+${authorProfile?.authorBackground ? `Szerző háttere: ${authorProfile.authorBackground}` : ""}
+${additionalInstructions ? `Extra instrukciók: ${additionalInstructions}` : ""}
+${previousIdeasClause}
+
+EZ OKNYOMOZÓ TÉNYFELTÁRÓ KÖNYV! NEM marketing, NEM önfejlesztő, NEM how-to!
+
+KÖTELEZŐ ELEMEK MINDEN ÖTLETHEZ:
+1. KONKRÉT ÜGY/SKANDAL - Valós esemény(ek) feltárása
+2. NYOMOZÁSI SZÁLAK - Milyen irányokból közelíti meg
+3. BIZONYÍTÉKOK - Dokumentumok, vallomások, adatok
+4. LELEPLEZÉS - Mi az a megdöbbentő igazság amit feltár
+5. KÖVETKEZMÉNYEK - Milyen hatással volt/van a társadalomra
+
+STÍLUS: Dokumentumfilm-szerű, feszültségteli, tényalapú
+
+VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
+{
+  "ideas": [
+    {
+      "id": "idea-1",
+      "title": "Figyelemfelkeltő, leleplező cím",
+      "synopsis": "3-4 mondat: Mit tár fel? Milyen bizonyítékokra épül? Miért fontos?",
+      "mainElements": ["Nyomozási szál 1", "Nyomozási szál 2", "Nyomozási szál 3"],
+      "uniqueSellingPoint": "Milyen megdöbbentő leleplezést ígér a könyv",
+      "mood": "A könyv hangulata 2-3 szóban (pl. feszült, leleplező, drámai)"
+    }
+  ]
+}`
       : `Generálj 3 egyedi SZAKKÖNYV ötletet a következő paraméterek alapján:
 ${storyDescriptionClause}
+${bookTypeContext}
 
 Téma: ${subcategory}
 Hangnem: ${tone}
