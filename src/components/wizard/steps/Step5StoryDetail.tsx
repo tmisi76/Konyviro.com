@@ -48,6 +48,7 @@ interface Step5StoryDetailProps {
   onAccept: () => void;
   authorProfile?: AuthorProfile | null;
   fictionStyle?: FictionStyleSettings | null;
+  nonfictionBookType?: string | null;
 }
 
 // Type for nonfiction response
@@ -97,6 +98,7 @@ export function Step5StoryDetail({
   onConceptGenerated,
   onAccept,
   authorProfile,
+  nonfictionBookType,
 }: Step5StoryDetailProps) {
   const [concept, setConcept] = useState(existingConcept);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -132,6 +134,8 @@ export function Step5StoryDetail({
           targetAudience: "general",
           // Pass author profile for nonfiction personalization
           authorProfile: isNonfiction ? authorProfile : undefined,
+          // Pass nonfiction book type for investigative detection
+          nonfictionBookType: isNonfiction ? nonfictionBookType : undefined,
         },
       });
 

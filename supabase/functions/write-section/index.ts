@@ -30,7 +30,38 @@ const SECTION_PROMPTS: Record<string, string> = {
   exercise: "Készíts gyakorlatot vagy önértékelést amit az olvasó azonnal elvégezhet.",
   summary: "Foglald össze a fejezet kulcspontjait bullet point listában. Mit tanult meg az olvasó?",
   case_study: "Írj részletes esettanulmányt valós példával, számokkal és tanulságokkal.",
+  evidence: "Mutasd be a bizonyítékot részletesen: mit mond a dokumentum, ki mondta, mit jelent. Az olvasó lássa a tényeket.",
+  investigation: "Vezesd az olvasót a nyomozás következő lépésén. Mi derült ki? Hogyan jutottunk el ide? Mi a következő kérdés?",
+  revelation: "Drámai fordulópont: ami eddig rejtve volt, most napvilágra kerül. Feszültségépítés a leleplezés előtt.",
+  consequences: "Mutasd be a következményeket: mi változott, ki járt rosszul, milyen hatása volt a feltárásnak.",
 };
+
+const INVESTIGATIVE_SYSTEM_PROMPT = `Te egy díjnyertes oknyomozó újságíró és könyvíró vagy. A feladatod egyetlen lenyűgöző szekciót megírni egy dokumentumfilm-szerű, tényalapú oknyomozó könyvhöz.
+
+STÍLUS — HIBRID: TÉNYALAPÚ + FESZÜLTSÉGÉPÍTÉS:
+
+1. **JELENETEZÉS TÉNYEKKEL**: Ne csak mondd el mi történt — MUTASD MEG. Írj jeleneteket ahol az olvasó "ott van" az eseményeknél.
+   - ROSSZ: "2015-ben a miniszter egy korrupciós ügybe keveredett."
+   - JÓ: "2015. március 12-én, egy hétfő reggel, amikor a miniszter még a harmadik kávéját kortyolgatta az irodájában, egy névtelen boríték érkezett a szerkesztőség címére. Benne három oldalnyi bankkivonat, piros filctollal aláhúzott sorokkal."
+
+2. **BIZONYÍTÉKOK INLINE**: Dátumok, dokumentum-részletek, idézetek szervesen a szövegbe építve.
+   - "A 2017. június 4-i szerződés — amelyet a nyilvánosság számára soha nem hoztak nyilvánosságra — egyértelműen kimondta: »A kedvezményezett kizárólagos jogot kap...«"
+
+3. **FESZÜLTSÉGÉPÍTÉS**: Minden szekció végén nyitott kérdés vagy következő szál.
+   - "De ha ez igaz volt, akkor ki hagyta jóvá a tranzakciót? A válasz a következő dokumentumban rejtőzött."
+
+4. **AZ OKNYOMOZÓ HANGJA**: Személyes, de professzionális. Reflexiók a feltárás közben.
+   - "Amikor először olvastam ezeket a számokat, nem akartam hinni a szememnek. De a dokumentumok nem hazudnak."
+
+5. **"KÖVETSD A PÉNZT" LOGIKA**: Minden állítás bizonyítékra épül. Számok, dátumok, nevek.
+
+FORMAI KÖVETELMÉNYEK:
+- A válasz CSAK a megírt szekció szövege legyen
+- NE használj markdown formázást (**, ##)
+- Használj rövid bekezdéseket (max 3-4 mondat)
+- Idézeteket „magyar idézőjelben" adj meg
+- TILOS a CSUPA NAGYBETŰS írás
+${HUNGARIAN_GRAMMAR_RULES}`;
 
 
 
@@ -353,8 +384,9 @@ serve(async (req) => {
     }
 
     const isFiction = genre === "fiction" || (project?.genre && project.genre !== 'nonfiction' && project.genre !== 'szakkönyv' && project.genre !== 'szakkonyv');
+    const isInvestigative = !isFiction && project?.nonfiction_book_type === "investigative";
     const sectionType = sectionOutline.pov || sectionOutline.type || "concept";
-    let systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT;
+    let systemPrompt = isFiction ? FICTION_SYSTEM_PROMPT : (isInvestigative ? INVESTIGATIVE_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT);
 
     if (isFiction && project) {
       // Add fiction style settings (POV, pace, dialogue, description, genre rules)
@@ -459,6 +491,39 @@ ${dialogueVarietyBlock}
 - CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
 
 CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
+      : isInvestigative
+      ? `CONTEXT:
+- KÖNYV TÍPUSA: Oknyomozó könyv
+- VIZSGÁLAT TÁRGYA: ${project?.description || bookTopic || 'Nincs megadva'}
+- CÉLKÖZÖNSÉG: ${project?.target_audience || targetAudience || 'Általános közönség'}
+- KÖZPONTI KÉRDÉS: ${(project?.book_type_data as Record<string, unknown>)?.centralQuestion || 'Nincs megadva'}
+- VIZSGÁLT IDŐSZAK: ${(project?.book_type_data as Record<string, unknown>)?.timelinePeriod || 'Nincs megadva'}
+- FŐBB SZEREPLŐK: ${(project?.book_type_data as Record<string, unknown>)?.keyPlayers || 'Nincs megadva'}
+- BIZONYÍTÉKTÍPUSOK: ${((project?.book_type_data as Record<string, unknown>)?.evidenceTypes as string[] || []).join(', ') || 'Dokumentumok, interjúk'}
+- HANGNEM: ${(project?.book_type_data as Record<string, unknown>)?.investigationTone || 'dramatic'}
+${(project?.book_type_data as Record<string, unknown>)?.investigatorRole === "first-person" ? "- NARRÁCIÓ: Első személy — az oknyomozó mesél (Én)" : (project?.book_type_data as Record<string, unknown>)?.investigatorRole === "team" ? "- NARRÁCIÓ: Többes szám — csapat mesél (Mi)" : "- NARRÁCIÓ: Harmadik személy — semleges narrátor"}
+
+ELŐZŐ FEJEZETEK ÖSSZEFOGLALÓJA:
+${previousChapterSummaries || 'Ez az első fejezet.'}
+
+ELŐZŐ SZÖVEGRÉSZ (az utolsó 4000 karakter a folytonosság érdekében):
+${(previousContent || '').slice(-4000)}
+
+---
+ÍRÁSI FELADAT:
+Írd meg az alábbi oknyomozó szekciót. Az olvasó az oknyomozóval együtt fedezi fel az igazságot — építs feszültséget, mutass bizonyítékokat, és minden szekció végén nyiss új kérdést.
+
+- FEJEZET CÍME: "${chapterTitle}"
+- SZEKCIÓ SORSZÁMA: ${sectionNumber}
+- SZEKCIÓ CÍME: "${sectionOutline.title}"
+- SZEKCIÓ TÍPUSA: ${sectionType}
+- FELADAT: ${SECTION_PROMPTS[sectionType] || "Írj tartalmas oknyomozó szekciót bizonyítékokkal és feszültséggel."}
+- SZEKCIÓ CÉLJA: ${sectionOutline.description || 'Az olvasó megérti a bizonyítékok súlyát és a következő szálat.'}
+- KULCSPONTOK (ezeket kötelezően fejtsd ki):
+${(sectionOutline.key_events || []).map((p: string, i: number) => `${i+1}. ${p}`).join('\n')}
+- CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
+
+CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
       : `CONTEXT:
 - KÖNYV NAGY ÍGÉRETE: ${project?.description || bookTopic || 'Nincs megadva'}
 - CÉLKÖZÖNSÉG: ${project?.target_audience || targetAudience || 'Általános közönség'}

@@ -170,6 +170,62 @@ FONTOS:
 - Magyar nyelven válaszolj
 - NE generálj karaktereket, antagonistát, vagy cselekménypontokat!`;
 
+// ============= INVESTIGATIVE SYSTEM PROMPT =============
+const INVESTIGATIVE_SYSTEM_PROMPT = `Te egy díjnyertes oknyomozó újságíró és könyvíró vagy. Dokumentumfilm-szerű, tényalapú könyveket írsz, ahol az oknyomozó végigvezeti az olvasót egy valós ügy feltárásán bizonyítékokkal, dokumentumokkal és kronologikus feltárással.
+
+OKNYOMOZÓ KÖNYV JELLEMZŐI:
+- HIBRID MŰFAJ: Tényalapú szakkönyv + fikciós feszültségépítési technikák
+- Az OKNYOMOZÓ a főszereplő/narrátor aki végigvezet az igaz történeten
+- Minden állítás BIZONYÍTÉKOKKAL van alátámasztva (dokumentumok, dátumok, nevek, számok)
+- "Követsd a pénzt" / "Követsd a szálakat" logika
+- Kronologikus feltárás — az olvasó az oknyomozóval együtt fedezi fel az igazságot
+
+KÖTELEZŐ STRUKTÚRA:
+1. HOOK: Egy drámai jelenet a sztori közepéből — azonnal belerángatja az olvasót
+2. HÁTTÉR: A téma kontextusa, miért fontos, kik az érintettek
+3. NYOMOZÁS: Kronologikus feltárás bizonyítékokkal — a könyv gerince
+4. FORDULÓPONTOK: Áttörések, leleplezések, "aha pillanatok"
+5. KÖVETKEZMÉNYEK: Mi lett a végeredmény, mi változott
+6. TANULSÁGOK: Miért fontos az olvasónak, mit tanulhatunk belőle
+
+STÍLUS SZABÁLYOK:
+- "Show, don't tell" — jeleneteket ír, nem összefoglal
+- Feszültségépítés: minden fejezet végén cliffhanger vagy új kérdés
+- Bizonyítékok inline bemutatása (dátumok, dokumentum-részletek, idézetek)
+- Az oknyomozó mint narrátor/guide — személyes reflexiók a feltárás közben
+- Konkrét nevek, dátumok, helyszínek, összegek ahol releváns
+- NE használj fiktív karakterneveket — vagy valós neveket, vagy szerepleírásokat ("a miniszter", "a bennfentes")
+
+A VÁLASZOD KÖTELEZŐEN ÉRVÉNYES JSON FORMÁTUMBAN LEGYEN:
+{
+  "title": "Könyv címe — drámai, figyelemfelkeltő",
+  "centralQuestion": "A fő kérdés amire a könyv válaszol (pl. 'Hogyan épült ki a rendszer és miért omlott össze?')",
+  "subject": "Az ügy/vizsgálat tárgya röviden",
+  "timeline": "A vizsgált időszak (pl. '2010-2024')",
+  "keyPlayers": ["Szereplő 1 — szerepe", "Szereplő 2 — szerepe", "Szereplő 3 — szerepe"],
+  "evidenceMap": "Milyen típusú bizonyítékokra épül a könyv (dokumentumok, interjúk, pénzügyi adatok, stb.)",
+  "promise": "Mit fog megtudni az olvasó amit eddig nem tudott",
+  "chapters": [
+    {"number": 1, "title": "Prológus: [Drámai nyitójelenet]", "summary": "Hook — egy jelenet az ügy közepéből ami azonnal megfogja az olvasót"},
+    {"number": 2, "title": "A Háttér", "summary": "Kontextus, a szereplők bemutatása, miért fontos az ügy"},
+    {"number": 3, "title": "Az Első Szálak", "summary": "A nyomozás kezdete, első bizonyítékok"},
+    {"number": 4, "title": "Követsd a Pénzt", "summary": "Pénzügyi szálak, dokumentumok feltárása"},
+    {"number": 5, "title": "A Fordulópont", "summary": "Áttörés — a kulcsbizonyíték ami mindent megváltoztat"},
+    {"number": 6, "title": "A Leleplezés", "summary": "A teljes kép összeáll"},
+    {"number": 7, "title": "Következmények", "summary": "Mi történt azóta, mi változott"},
+    {"number": 8, "title": "Tanulságok", "summary": "Miért fontos ez nekünk, mit tehetünk"}
+  ],
+  "investigatorRole": "Az oknyomozó szerepe (első/harmadik személy)",
+  "callToAction": "Mit tegyen az olvasó a könyv után"
+}
+
+FONTOS:
+- 6-10 fejezet, kronologikus feltárás ívével
+- Minden fejezet egy-egy "epizód" a nyomozásban
+- A válasz CSAK a JSON legyen, semmi más szöveg
+- Magyar nyelven válaszolj
+- NE generálj fiktív karaktereket vagy regény cselekménypontokat!`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -202,7 +258,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { storyIdea, genre, tone, targetAudience, authorProfile } = await req.json();
+    const { storyIdea, genre, tone, targetAudience, authorProfile, nonfictionBookType } = await req.json();
 
     if (!storyIdea || storyIdea.trim().length < 10) {
       return new Response(
@@ -225,9 +281,14 @@ serve(async (req) => {
     // Determine if this is a nonfiction book (handle both accented and unaccented versions)
     const isNonfiction = genre === "szakkonyv" || genre === "szakkönyv";
 
+    // Check for investigative book type
+    const isInvestigative = isNonfiction && nonfictionBookType === "investigative";
+
     // Build the system prompt based on genre
     let systemPrompt: string;
-    if (isNonfiction) {
+    if (isInvestigative) {
+      systemPrompt = INVESTIGATIVE_SYSTEM_PROMPT;
+    } else if (isNonfiction) {
       systemPrompt = NONFICTION_SYSTEM_PROMPT;
     } else if (genre === "erotikus") {
       systemPrompt = FICTION_SYSTEM_PROMPT + EROTIC_ADDON;
