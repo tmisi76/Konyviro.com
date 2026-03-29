@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { supabase } from "@/integrations/supabase/client";
 import { BookExportModal } from "@/components/export/BookExportModal";
 import { RenameProjectModal } from "@/components/projects/RenameProjectModal";
+import { ShareBookModal } from "@/components/reader/ShareBookModal";
 import { useBackgroundWriter } from "@/hooks/useBackgroundWriter";
 
 export interface Project {
