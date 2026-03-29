@@ -37,6 +37,8 @@ export function Step4StoryIdeas({
   onIdeasGenerated,
   onSelect,
   authorProfile,
+  nonfictionBookType,
+  bookTypeSpecificData,
 }: Step4StoryIdeasProps) {
   const [ideas, setIdeas] = useState<StoryIdea[]>(existingIdeas);
   const [isGenerating, setIsGenerating] = useState(false);
