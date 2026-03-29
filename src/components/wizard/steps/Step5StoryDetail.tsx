@@ -134,6 +134,8 @@ export function Step5StoryDetail({
           targetAudience: "general",
           // Pass author profile for nonfiction personalization
           authorProfile: isNonfiction ? authorProfile : undefined,
+          // Pass nonfiction book type for investigative detection
+          nonfictionBookType: isNonfiction ? nonfictionBookType : undefined,
         },
       });
 
