@@ -17,6 +17,8 @@ import {
   buildScenePositionContext,
   buildAntiSummaryRules,
   buildDialogueVarietyRules,
+  buildBodyLanguageVarietyRules,
+  buildSceneOpeningRules,
   buildAntiRepetitionPrompt,
 } from "../_shared/prompt-builder.ts";
 import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
