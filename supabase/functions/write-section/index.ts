@@ -552,6 +552,10 @@ serve(async (req) => {
         const points = (genStoryData.plotPoints as Array<{beat: string; description: string}>).slice(0, 4);
         parts.push(`Cselekménypontok: ${points.map(p => `${p.beat}: ${p.description}`).join("; ")}`);
       }
+      if (genStoryData.narrative_style) {
+        const ns = genStoryData.narrative_style as { label: string; moodWords: string };
+        parts.push(`Narratív stílus: ${ns.label} (${ns.moodWords})`);
+      }
       if (parts.length) bookStoryContext = parts.join("\n");
     }
 

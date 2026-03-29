@@ -738,6 +738,11 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
         );
       }
       storyData._type = "fiction";
+      // Attach narrative style seed to story data
+      const selectedStyle = (globalThis as Record<string, unknown>).__selectedNarrativeStyle;
+      if (selectedStyle) {
+        storyData.narrative_style = selectedStyle;
+      }
     }
 
     return new Response(
