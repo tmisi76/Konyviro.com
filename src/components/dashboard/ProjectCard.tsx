@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload, Play, Type } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Loader2, Cloud, CheckCircle, AlertCircle, Archive, Pencil, Upload, Play, Type, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { supabase } from "@/integrations/supabase/client";
 import { BookExportModal } from "@/components/export/BookExportModal";
 import { RenameProjectModal } from "@/components/projects/RenameProjectModal";
+import { ShareBookModal } from "@/components/reader/ShareBookModal";
 import { useBackgroundWriter } from "@/hooks/useBackgroundWriter";
 
 export interface Project {
@@ -88,6 +89,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: 
   const [sceneProgress, setSceneProgress] = useState({ total: 0, completed: 0, currentChapter: "" });
   const [showExportModal, setShowExportModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   
   // Hook for starting background writing
   const { startWriting, isLoading: isStartingWrite, canStart } = useBackgroundWriter(project.id);
@@ -175,6 +177,10 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: 
             <DropdownMenuItem onClick={() => setShowExportModal(true)}>
               <Upload className="mr-2 h-4 w-4" />
               Exportálás
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowShareModal(true)}>
+              <Share2 className="mr-2 h-4 w-4" />
+              Megosztás
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowRenameModal(true)}>
               <Type className="mr-2 h-4 w-4" />
@@ -311,6 +317,14 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: 
         projectId={project.id}
         currentTitle={project.title}
         onSuccess={onRename}
+      />
+
+      {/* Share Modal */}
+      <ShareBookModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        projectId={project.id}
+        projectTitle={project.title}
       />
     </div>
   );
