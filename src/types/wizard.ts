@@ -98,6 +98,16 @@ export interface BookTypeSpecificData {
   turningPoints?: string[];
   mainLesson?: string;
   memoirTone?: "raw" | "inspiring" | "humorous";
+  
+  // Investigative
+  investigationSubject?: string;
+  investigationScope?: "individual" | "organization" | "system" | "event";
+  evidenceTypes?: string[];
+  investigatorRole?: "first-person" | "third-person" | "team";
+  timelinePeriod?: string;
+  keyPlayers?: string;
+  centralQuestion?: string;
+  investigationTone?: "factual" | "dramatic" | "sardonic" | "urgent";
 }
 
 // Author profile for non-fiction books
