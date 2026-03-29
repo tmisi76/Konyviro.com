@@ -50,6 +50,63 @@ function getRandomNames(count: number = 4): { male: string[], female: string[] }
   return { male: maleNames, female: femaleNames };
 }
 
+const NARRATIVE_STYLES = [
+  {
+    label: 'Skandináv krimi',
+    description: 'Lassú tempójú, atmoszférikus, esős/havas környezetben játszódik. A cselekmény a karakterek belső világára fókuszál. A feszültség lappangó, nem robbanó.',
+    moodWords: 'borús, melankolikus, visszafogott, fagyos'
+  },
+  {
+    label: 'Francia noir',
+    description: 'Városias, cinikus, morálisan szürke zóna. Nincs egyértelmű jó és rossz, mindenki kompromittált. A párbeszédek élesek és szarkasztikusak.',
+    moodWords: 'cinikus, füstös, urbánus, kétértelmű'
+  },
+  {
+    label: 'Latin-amerikai realizmus',
+    description: 'Érzéki, színes leírások, erős családi és közösségi szálak. A hatalom és korrupció mindennapossá válik. A humor és a tragédia keveredik.',
+    moodWords: 'érzéki, forró, családi, fatalista'
+  },
+  {
+    label: 'Brit irodalmi thriller',
+    description: 'Kifinomult nyelvezet, társadalmi hierarchiák, osztálykülönbségek. A feszültség az udvariasság mögé rejtett fenyegetésekből fakad. Irónia és szubtilitás.',
+    moodWords: 'elegáns, ironikus, réteges, visszafogott'
+  },
+  {
+    label: 'Keleti-európai szatíra',
+    description: 'Abszurd humor, bürokrácia mint labirintus, tragikomikus helyzetek. A szereplők az abszurd rendszerek ellen küzdenek, de maguk is a rendszer részei.',
+    moodWords: 'abszurd, keserű, ironikus, groteszk'
+  },
+  {
+    label: 'Japán pszichológiai thriller',
+    description: 'Belső monológok, az őrület és a normalitás közti vékony határ. Apró, hétköznapi részletek válnak félelmetessé. A csend és az elhallgatás fontosabb mint a szavak.',
+    moodWords: 'csendes, nyugtalanító, precíz, kísérteties'
+  },
+  {
+    label: 'Amerikai investigatív',
+    description: 'Nyomozó újságíró vagy kívülálló a főhős. Tempós, lendületes cselekmény, rövid fejezetek. A rendszer ellen küzd az egyén. Woodward & Bernstein öröksége.',
+    moodWords: 'lendületes, makacs, aktuális, száraz'
+  },
+  {
+    label: 'Orosz pszichológiai dráma',
+    description: 'Mély lélektan, filozófiai kérdések, morális dilemmák. A bűn és bűnhődés kérdése. Hosszú belső monológok, a cselekvés tétovázásából fakadó feszültség.',
+    moodWords: 'sötét, filozofikus, gyötrődő, mély'
+  },
+  {
+    label: 'Mediterrán családi dráma',
+    description: 'Családi titkok, generációs traumák, erős érzelmek. A tenger és a napsütés kontrasztja a sötét titkokkal. Az ételek, illatok és fizikai érintések fontosak.',
+    moodWords: 'szenvedélyes, családi, meleg, titokzatos'
+  },
+  {
+    label: 'Közép-európai politikai thriller',
+    description: 'Rendszerváltás utáni atmoszféra, régi és új hatalmak összecsapása. Megfigyelés, besúgók, bizalmatlanság. Szürke erkölcsi zóna, ahol mindenki túlélő.',
+    moodWords: 'szürke, klausztrofób, paranoiás, nosztalgiás'
+  }
+];
+
+function getRandomStyle(): typeof NARRATIVE_STYLES[0] {
+  return NARRATIVE_STYLES[Math.floor(Math.random() * NARRATIVE_STYLES.length)];
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
