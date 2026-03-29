@@ -520,6 +520,8 @@ serve(async (req) => {
     const scenePositionBlock = isFiction ? buildScenePositionContext(sectionNumber - 1, totalScenes, chapterIndex, totalChapters) : "";
     const antiSummaryBlock = isFiction ? buildAntiSummaryRules() : "";
     const dialogueVarietyBlock = isFiction ? buildDialogueVarietyRules() : "";
+    const bodyLanguageVarietyBlock = isFiction ? buildBodyLanguageVarietyRules() : "";
+    const sceneOpeningRulesBlock = isFiction ? buildSceneOpeningRules() : "";
     const antiRepetitionBlock = isFiction ? buildAntiRepetitionPrompt((previousContent || '').slice(-2000)) : "";
     const previousChaptersSummaryBlock = isFiction && allChapters ? buildPreviousChaptersSummary(allChapters, currentSortOrder) : "";
 
