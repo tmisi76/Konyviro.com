@@ -141,7 +141,11 @@ export type NonfictionSubcategory =
   | "vezetes" 
   | "pszichologia" 
   | "oktatas" 
-  | "lifestyle";
+  | "lifestyle"
+  | "politika"
+  | "tarsadalom"
+  | "tortenelem"
+  | "bunugy";
 
 export type Subcategory = FictionSubcategory | NonfictionSubcategory;
 
