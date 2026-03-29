@@ -318,6 +318,14 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: 
         currentTitle={project.title}
         onSuccess={onRename}
       />
+
+      {/* Share Modal */}
+      <ShareBookModal
+        open={showShareModal}
+        onOpenChange={setShowShareModal}
+        projectId={project.id}
+        projectTitle={project.title}
+      />
     </div>
   );
 }
