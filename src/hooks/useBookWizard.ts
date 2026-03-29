@@ -318,9 +318,10 @@ export function useBookWizard() {
       setIsDirty(false);
       toast.success("Fejezetek mentve");
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving chapters:", error);
-      toast.error("Hiba történt a fejezetek mentése során");
+      const msg = error?.message || error?.details || "Ismeretlen hiba";
+      toast.error(`Hiba történt a fejezetek mentése során: ${msg}`);
       return false;
     }
   }, [data.chapterOutline]);
