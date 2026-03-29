@@ -1,78 +1,40 @@
 
 
-# Oknyomozó könyv típus hozzáadása
+# Megosztás funkció hozzáadása a ProjectCard "..." menüjébe + PDF-olvasó-szerű reader oldal
 
-## Mi ez?
+## Összefoglaló
 
-Egy új non-fiction könyv típus: **"Oknyomozó"** — dokumentumfilm-szerű könyv, ahol az oknyomozó szerző végigvezeti az olvasót egy valós ügyön, bizonyítékokkal, dokumentumokkal és kronologikus feltárással. Példák: "All the President's Men", "Catch Me If You Can", "A Habony-akták".
+A ProjectCard dropdown menüjébe kerül egy "Megosztás" menüpont, ami megnyitja a már létező `ShareBookModal`-t. A `PublicBookReader` oldalt átalakítjuk egy szép, PDF-reader-szerű ebook olvasóvá, promo sávval a `konyviro.com`-ra.
 
-## Hogyan írnám az ilyen könyveket?
+## Változtatások
 
-Az oknyomozó könyv **hibrid**: szakkönyv (tényalapú) + fikciós technikák (feszültség, jelenetezés, "show don't tell"). A struktúra:
+### 1. ProjectCard — Megosztás menüpont hozzáadása
+**Fájl:** `src/components/dashboard/ProjectCard.tsx`
+- Import: `Share2` ikon + `ShareBookModal`
+- Új state: `showShareModal`
+- Új `DropdownMenuItem` az "Exportálás" után: `<Share2 /> Megosztás`
+- `ShareBookModal` renderelése a komponens aljára
 
-```text
-1. HOOK: Egy drámai jelenet a sztori közepéből
-2. HÁTTÉR: A téma kontextusa, miért fontos
-3. NYOMOZÁS: Kronologikus feltárás bizonyítékokkal
-   - Dokumentumok, dátumok, nevek
-   - Interjúk, vallomások
-   - "Követsd a pénzt" típusú szálak
-4. FORDULÓPONTOK: Áttörések, leleplezések
-5. KÖVETKEZMÉNYEK: Mi lett a végeredmény
-6. TANULSÁGOK: Miért fontos az olvasónak
-```
+### 2. PublicBookReader — PDF-reader-szerű újratervezés + promo
+**Fájl:** `src/pages/PublicBookReader.tsx`
+- A jelenlegi layout helyett: **kétoszlopos** (desktop) / **egyoszlopos + alul promo** (mobil)
+- **Bal oldal (fő tartalom):** PDF-reader-szerű megjelenés:
+  - Sötétebb háttér (muted), fehér "papír" középen árnyékkal
+  - Fejezet tartalom serif betűtípussal, sorkizárt
+  - Oldalszámozás alul
+  - Fejezet navigáció oldalsávban (megtartjuk a `BookScrollView`-t, de csinosítjuk)
+- **Jobb oldal (promo sáv, ~280px):** Sticky sáv:
+  - KönyvÍró logó/név
+  - "Írd meg te is a saját könyved!" szöveg
+  - CTA gomb → `https://konyviro.com/`
+  - Esetleg: "Powered by KönyvÍró" footer
 
-## Érintett fájlok és változások
-
-### 1. `src/types/wizard.ts` — Típus és konfiguráció
-- `NonfictionBookType` union-hoz: `| "investigative"`
-- `BookTypeSpecificData` interface-hez új mezők:
-  - `investigationSubject?: string` — Ki/mi az ügy tárgya
-  - `investigationScope?: "individual" | "organization" | "system" | "event"` — Egyén, szervezet, rendszer vagy esemény
-  - `evidenceTypes?: string[]` — Bizonyítéktípusok (dokumentumok, interjúk, pénzügyi adatok, stb.)
-  - `investigatorRole?: "first-person" | "third-person" | "team"` — Az oknyomozó szerepe
-  - `timelinePeriod?: string` — A vizsgált időszak
-  - `keyPlayers?: string` — Főbb szereplők/érintettek
-  - `centralQuestion?: string` — A fő kérdés amire a könyv válaszol
-  - `investigationTone?: "factual" | "dramatic" | "sardonic" | "urgent"`
-- `NONFICTION_BOOK_TYPES` tömbbe: `{ id: "investigative", icon: "🔍", title: "Oknyomozó", description: "Valós ügyek feltárása bizonyítékokkal, dokumentumfilm-szerű stílusban", example: "All the President's Men, Feltárt igazságok" }`
-
-### 2. `src/components/wizard/steps/Step5BookTypeData.tsx` — Wizard form
-- Új `renderInvestigativeForm()` metódus az oknyomozó-specifikus mezőkkel
-- `renderFormContent()` switch-ben: `case "investigative": return renderInvestigativeForm();`
-- `getBookTypeTitle()` map-ben: `"investigative": "Oknyomozó könyv"`
-
-### 3. `src/components/wizard/steps/Step3BookType.tsx` — Grid layout
-- A grid `lg:grid-cols-5`-ről `lg:grid-cols-5`-ön marad (11 elem, 3. sor 1 elemmel), vagy átállítjuk ha szükséges
-
-### 4. `supabase/functions/generate-story/index.ts` — Történetgeneráló prompt
-- Új `INVESTIGATIVE_SYSTEM_PROMPT` konstans, ami oknyomozó könyv struktúrát generál:
-  - JSON output: `title`, `centralQuestion`, `subject`, `timeline`, `keyPlayers[]`, `evidenceMap`, `chapters[]` (kronologikus feltárás ívvel)
-  - A prompt felismeri ha `nonfiction_book_type === "investigative"` és a speciális promptot használja
-
-### 5. `supabase/functions/write-section/index.ts` — Szekció-író prompt
-- Új `INVESTIGATIVE_SYSTEM_PROMPT` a non-fiction ág mellé, ami az oknyomozó stílust kényszeríti:
-  - Jelenetezés tényalapú narrációval (nem fikció, de "show don't tell" technikával)
-  - Bizonyítékok inline bemutatása (dátumok, dokumentum-részletek, idézetek)
-  - Feszültségépítés a feltárás ritmusával
-  - Az oknyomozó mint narrátor/guide
-- A `isFiction` / non-fiction elágazásban: ha `project.nonfiction_book_type === "investigative"` → az oknyomozó promptot kapja
-
-### 6. `supabase/functions/generate-section-outline/index.ts` — Jelenet-outline
-- Új oknyomozó-specifikus outline prompt, ami szekciókra bontja a fejezetet:
-  - Bemutatás → Bizonyíték → Elemzés → Következtetés struktúrával
-  - Minden szekcióhoz: milyen bizonyíték kerül bemutatásra, ki szólal meg, mi a feszültségpont
-
-## Változtatások összefoglalója
+### 3. Technikai részletek
 
 | Fájl | Változás |
 |------|----------|
-| `src/types/wizard.ts` | Új típus + mezők + NONFICTION_BOOK_TYPES bővítés |
-| `Step5BookTypeData.tsx` | Új `renderInvestigativeForm()` + switch case |
-| `Step3BookType.tsx` | Nincs változás (automatikusan rendereli) |
-| `generate-story/index.ts` | Oknyomozó prompt + elágazás |
-| `write-section/index.ts` | Oknyomozó system prompt + elágazás |
-| `generate-section-outline/index.ts` | Oknyomozó outline prompt |
+| `src/components/dashboard/ProjectCard.tsx` | +`ShareBookModal` import, +`showShareModal` state, +menüpont, +modal renderelés |
+| `src/pages/PublicBookReader.tsx` | Layout átalakítás: PDF-reader stílus + jobb oldali promo sáv `konyviro.com` linkkel |
 
-Adatbázis migráció NEM szükséges — a `nonfiction_book_type` mező szabad text, a `book_type_data` JSONB.
+Nincs adatbázis migráció — a megosztás infrastruktúra (edge functions, `book_shares` tábla, RLS) már teljes egészében létezik.
 
