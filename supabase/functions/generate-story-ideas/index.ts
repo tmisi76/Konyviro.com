@@ -48,7 +48,36 @@ serve(async (req) => {
     }
 
     const isFiction = genre === "fiction";
+    const isInvestigative = nonfictionBookType === "investigative";
     
+    // Könyvtípus kontextus építés
+    const bookTypeContext = nonfictionBookType && !isFiction
+      ? (() => {
+          const typeLabels: Record<string, string> = {
+            "how-to": "How-To Útmutató", "thought-leadership": "Thought Leadership",
+            "case-study": "Esettanulmány alapú", "framework": "Framework / Módszertan",
+            "self-help": "Önfejlesztő", "storytelling-business": "Storytelling üzleti",
+            "interview": "Interjú / Beszélgetések", "workbook": "Workbook / Munkafüzet",
+            "reference": "Kézikönyv / Referencia", "memoir": "Memoir + Tanulságok",
+            "investigative": "Oknyomozó tényfeltáró könyv",
+          };
+          let ctx = `\nKÖNYV TÍPUSA: ${typeLabels[nonfictionBookType] || nonfictionBookType}`;
+          if (bookTypeSpecificData) {
+            const d = bookTypeSpecificData;
+            if (d.investigationSubject) ctx += `\nVizsgált alany/ügy: ${d.investigationSubject}`;
+            if (d.investigatorRole) ctx += `\nOknyomozó szerepe: ${d.investigatorRole}`;
+            if (d.evidenceTypes) ctx += `\nBizonyítékok típusai: ${d.evidenceTypes}`;
+            if (d.timeline) ctx += `\nIdővonal: ${d.timeline}`;
+            if (d.skillOutcome) ctx += `\nElsajátítandó skill: ${d.skillOutcome}`;
+            if (d.bigIdea) ctx += `\nFő gondolat: ${d.bigIdea}`;
+            if (d.methodologyName) ctx += `\nMódszertan neve: ${d.methodologyName}`;
+            if (d.promisedChange) ctx += `\nÍgért változás: ${d.promisedChange}`;
+            if (d.thesisToProve) ctx += `\nBizonyítandó tézis: ${d.thesisToProve}`;
+          }
+          return ctx;
+        })()
+      : "";
+
     // Előző ötletek kizárása az újragenerálásnál
     const previousIdeasClause = previousIdeas?.length > 0 
       ? `\n\nKRITIKUS SZABÁLY - KERÜLD AZ ALÁBBI ÖTLETEKET:\n${previousIdeas.map((t: string, i: number) => `${i+1}. "${t}"`).join('\n')}\n\nGenerálj TELJESEN MÁS témákat, megközelítéseket, címeket és koncepciókat! Az új ötletek NE hasonlítsanak az előzőekre semmilyen módon.`
