@@ -282,7 +282,7 @@ serve(async (req) => {
     const isNonfiction = genre === "szakkonyv" || genre === "szakkönyv";
 
     // Check for investigative book type
-    const isInvestigative = isNonfiction && (storyIdea?.nonfictionBookType === "investigative" || req.headers.get("x-book-type") === "investigative");
+    const isInvestigative = isNonfiction && nonfictionBookType === "investigative";
 
     // Build the system prompt based on genre
     let systemPrompt: string;
