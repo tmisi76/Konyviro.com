@@ -1,57 +1,37 @@
 
-Cél: a megosztási linken a „Könyv (lapozós)” mód ténylegesen lapozós nézetet adjon, és a szöveg mindkét nézetben könyvszerűen tördelt legyen.
 
-1) Gyökérok javítása: a nézetmód figyelmen kívül van hagyva
-- Fájl: `src/pages/PublicBookReader.tsx`
-- Javítás:
-  - A renderelést két ágra bontom `data.share.view_mode` alapján:
-    - `scroll` → jelenlegi ebook-scroll layout
-    - `flipbook` → lapozós layout (`BookFlipView`)  
-  - Defenzív fallback: ha `view_mode` hiányzik/érvénytelen, alapértelmezés `scroll`.
+# Megosztási linkek mobiloptimalizálása
 
-2) Lapozós nézet tényleges működése megosztási linken
-- Fájl: `src/components/reader/BookFlipView.tsx`
-- Javítás:
-  - A komponens tényleges bekötése a public readerbe.
-  - Tartalom-normalizálás, hogy HTML és plain text esetén is jól működjön:
-    - HTML bekezdések (`<p>`, `<br>`) → olvasható bekezdéslista
-    - plain text `\n\n` → bekezdések
-  - Oldalakra tördelés stabilizálása (ne nyers HTML tageket lapozzon).
-  - Navigáció finomítás:
-    - előző/következő biztosan léptessen
-    - fejezetváltáskor az első spreadre álljon
-    - billentyűs lapozás maradjon.
+## Problémák
+1. **Flipbook nézet**: A kétoldalas spread mobilon olvashatatlanul kicsi — `aspect-[2/1.4]` és `grid-cols-2` fix layout.
+2. **Scroll nézet**: Túl nagy padding mobilon (`px-8 py-10`), a papír-metafora sok helyet pazarol.
+3. **Nincs swipe-támogatás** — mobilon csak gombokkal lehet lapozni.
+4. **Safe area** (notch) nincs kezelve.
 
-3) Tördelés egységesítése (ne essen szét nézetenként)
-- Fájlok:
-  - `src/pages/PublicBookReader.tsx`
-  - `src/components/reader/BookFlipView.tsx`
-- Javítás:
-  - Közös tartalom-előkészítési logika: bekezdésfelismerés + üres sorok takarítása.
-  - Scroll nézetben marad az ebook tipográfia (sorkizárt, behúzás, olvasható sorköz).
-  - Flipbook nézetben is bekezdésenkénti tördelés (ne egybefüggő blokk legyen).
+## Javítások
 
-4) Megosztási mód adatfolyam stabilizálása
-- Fájlok:
-  - `src/hooks/useBookShare.ts`
-  - (szükség szerint) `src/components/reader/ShareBookModal.tsx`
-- Javítás:
-  - A publikus lekérésben a `view_mode` érték normalizálása (`flipbook|scroll`).
-  - Hibás/null érték esetén biztos fallback, hogy ne legyen „némán rossz” viselkedés.
-  - A mentett módot a reader minden megnyitáskor konzisztensen alkalmazza.
+### 1. `src/components/reader/BookFlipView.tsx`
+- Mobilon **egyoldalas nézet** (1 oldal egyszerre), desktopon marad a spread (2 oldal).
+- `useIsMobile()` hook használata a breakpoint figyeléshez.
+- **Touch swipe** hozzáadása: `onTouchStart`/`onTouchEnd` események, 50px+ húzásnál lapozás.
+- Mobilon: padding csökkentés (`p-4`), teljes magasságú oldal, nagyobb betűméret.
+- Desktopon: marad a jelenlegi spread layout.
 
-5) Validáció (end-to-end ellenőrzési terv)
-- Forgatókönyv:
-  1. Dashboard → Megosztás modal → „Könyv (lapozós)” + Mentés
-  2. Megosztási link megnyitása
-  3. Ellenőrzés:
-     - lapozós UI jelenik meg (nem scroll nézet)
-     - előző/következő működik
-     - bekezdések tördeltek, olvashatók
-     - másik könyvnél/fejezetnél is stabil
-  4. Visszaállítás „Görgetős” módra és ellenőrzés, hogy ott is korrekt tördelés marad.
+### 2. `src/pages/PublicBookReader.tsx`
+- Scroll nézet mobilos finomítások:
+  - Padding csökkentés: `px-4 py-6` mobilon vs `px-14 py-14` desktopon.
+  - Fejezet-navigációs gombok: nagyobb touch target (min 44px).
+  - Header: safe-area-top padding (`pt-safe`).
+  - Footer: safe-area-bottom padding (`pb-safe`).
+- Flipbook nézet header: ugyanúgy safe area.
 
-Technikai részletek (röviden)
-- Nem backend/RLS probléma, hanem frontendes render-ág hiány: a `view_mode` már mentésre kerül, de a `PublicBookReader` nem azt rendereli.
-- A flipbook komponens jelenleg nincs használatban, és a nyers HTML tartalom kezelését ki kell egészíteni, különben tördelési hibát ad.
-- A javítás főként 3 fájlban történik: `PublicBookReader.tsx`, `BookFlipView.tsx`, `useBookShare.ts`.
+### 3. Érintéssel lapozás (BookFlipView)
+```text
+Touch swipe logic:
+  touchStart → record X position
+  touchEnd → if deltaX > 50px → next page
+              if deltaX < -50px → prev page
+```
+
+**Összesen 2 fájl módosítás**, a fő változás a BookFlipView mobilos single-page mód + swipe.
+
