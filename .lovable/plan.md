@@ -1,35 +1,58 @@
 
 
-# Fix: Technikai metaadatok eltávolítása a generált szövegből
+# Fix: Szövegtördelés és fejezetlapozás a megosztott könyvolvasóban
 
 ## Probléma
-Az AI visszaadja a prompt kontextus-fejléceit (pl. `FEJEZET: "Tisztogatás"`, `JELENET: #3`, `MŰFAJ: fiction`) a generált szövegben. Ezek megjelennek a könyvben.
+
+1. **Tördelés**: A fejezet `content` mezője plain text (bekezdések `\n\n`-nel elválasztva), de a reader `dangerouslySetInnerHTML`-lel jeleníti meg. A HTML figyelmen kívül hagyja a sortöréseket, ezért egyetlen tömb szöveg jelenik meg bekezdések nélkül.
+2. **Lapozás**: Fejezet váltáskor a tartalom nem scrollol vissza az elejére, és a `useSharedBook` hook a `chapters` táblából a nyers `content`-et tölti be (nem a `blocks` táblából, ahol a szerkesztett tartalom van).
 
 ## Javítás
 
-### 1. `supabase/functions/_shared/quality-checker.ts` — `stripMarkdown` bővítése
-A `stripMarkdown` függvénybe új regex szabályok a technikai metaadatok eltávolítására:
+### 1. `src/pages/PublicBookReader.tsx`
+
+**Tartalom konvertálás**: A `dangerouslySetInnerHTML`-be kerülő `content`-et feldolgozni:
+- Ha a content nem tartalmaz `<p>` tag-et, a `\n\n` és `\n` karaktereknél feldarabolni és `<p>...</p>` tagekbe csomagolni
+- Üres sorokat kiszűrni
+
 ```typescript
-// Strip technical metadata lines that AI echoes back
-.replace(/^(FEJEZET|JELENET|MŰFAJ|KONTEXTUS|KÖNYV MŰFAJA|JELENET SORSZÁMA|FEJEZET CÍME|SZEKCIÓ SORSZÁMA|SZEKCIÓ CÍME|POV KARAKTER|HELYSZÍN|IDŐ|HOSSZ|HANGNEM):.*$/gm, '')
-// Clean up resulting empty lines
-.replace(/\n{3,}/g, '\n\n')
+function contentToHtml(content: string | null): string {
+  if (!content) return "<p>Nincs tartalom.</p>";
+  // If already HTML with paragraphs, use as-is
+  if (content.includes("<p>") || content.includes("<p ")) return content;
+  // Convert plain text to HTML paragraphs
+  return content
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+    .join("\n");
+}
 ```
 
-### 2. `supabase/functions/auto-lector/index.ts` — Prompt kiegészítés
-A system prompt végéhez és a user prompt záró utasításához hozzáadni:
-```
-- NE add vissza a FEJEZET/JELENET/MŰFAJ metaadatokat — CSAK a prózát!
+**Scroll to top**: Fejezet váltáskor a `<main>` elemet scrollolni a tetejére (ref + useEffect).
+
+### 2. `src/hooks/useBookShare.ts` — Blocks fallback
+
+A `useSharedBook` hookban a fejezet tartalom lekérés bővítése: ha a `chapters.content` üres vagy hiányzik, próbálja a `blocks` tábla tartalmát is lekérni (ezek a szerkesztett blokkok):
+
+```typescript
+// After fetching chapters, enrich with blocks content
+for (const chapter of chapters) {
+  if (!chapter.content || !chapter.content.trim()) {
+    const { data: blocks } = await supabase
+      .from("blocks")
+      .select("content, sort_order")
+      .eq("chapter_id", chapter.id)
+      .order("sort_order");
+    if (blocks?.length) {
+      chapter.content = blocks.map(b => b.content).filter(Boolean).join("\n\n");
+    }
+  }
+}
 ```
 
-### 3. `supabase/functions/write-scene/index.ts` — Prompt kiegészítés
-A záró utasításba (`CSAK a jelenet szövegét add vissza...` sor) beleírni:
-```
-NE ismételd vissza a FEJEZET/JELENET/MŰFAJ/KONTEXTUS fejléceket!
-```
-
-### 4. `supabase/functions/write-section/index.ts` — Prompt kiegészítés
-Ugyanaz mint a write-scene-nél, a záró utasításokba beleírni a tiltást.
-
-Összesen 4 fájl, kis módosítások. A `stripMarkdown` bővítés biztonsági háló — még ha az AI mégis visszaadná, a post-processing eltávolítja.
+### Összefoglalás
+- **2 fájl módosítás**: `PublicBookReader.tsx` (contentToHtml helper + scroll reset), `useBookShare.ts` (blocks fallback)
+- A tördelés azonnal javul mind a plain text, mind a HTML tartalomnál
 
