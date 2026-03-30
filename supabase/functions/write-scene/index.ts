@@ -409,7 +409,7 @@ ${previousContent ? `\nELŐZŐ SZÖVEG (a folytonosság érdekében, NE ismétel
 
 HOSSZ: ~${effectiveTargetWords} szó. Ne lépd túl jelentősen!
 
-CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
+CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül. NE ismételd vissza a KONTEXTUS/FEJEZET/JELENET/MŰFAJ/POV KARAKTER/HELYSZÍN/IDŐ fejléceket — KIZÁRÓLAG prózát írj!`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;

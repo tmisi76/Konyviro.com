@@ -626,7 +626,7 @@ ${sceneOpeningRulesBlock}
 - VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
 - CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
 
-CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
+CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül. NE ismételd vissza a CONTEXT/FEJEZET/JELENET/MŰFAJ/POV KARAKTER/HELYSZÍN/IDŐ fejléceket — KIZÁRÓLAG prózát írj!`
       : isInvestigative
       ? `CONTEXT:
 - KÖNYV TÍPUSA: Oknyomozó könyv
@@ -659,7 +659,7 @@ ${(previousContent || '').slice(-4000)}
 ${(sectionOutline.key_events || []).map((p: string, i: number) => `${i+1}. ${p}`).join('\n')}
 - CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
 
-CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
+CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül. NE ismételd vissza a CONTEXT/FEJEZET/SZEKCIÓ/MŰFAJ fejléceket — KIZÁRÓLAG prózát írj!`
       : `CONTEXT:
 - KÖNYV NAGY ÍGÉRETE: ${project?.description || bookTopic || 'Nincs megadva'}
 - CÉLKÖZÖNSÉG: ${project?.target_audience || targetAudience || 'Általános közönség'}
@@ -697,7 +697,7 @@ FORMÁZÁSI KÖVETELMÉNYEK:
 - Használj számozott lépéseket a folyamatoknál
 - A szekció végén készíts átvezetést a következőhöz
 
-CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
+CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül. NE ismételd vissza a CONTEXT/FEJEZET/SZEKCIÓ/MŰFAJ fejléceket — KIZÁRÓLAG prózát írj!`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
