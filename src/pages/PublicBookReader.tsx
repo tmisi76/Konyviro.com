@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Download, Loader2, AlertCircle, BookOpen, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,17 @@ import { Separator } from "@/components/ui/separator";
 import { ReaderSettings, loadReaderSettings, themeStyles } from "@/components/reader/ReaderSettings";
 import type { ReaderSettingsState } from "@/components/reader/ReaderSettings";
 import { cn } from "@/lib/utils";
+
+function contentToHtml(content: string | null): string {
+  if (!content) return "<p>Nincs tartalom.</p>";
+  if (content.includes("<p>") || content.includes("<p ")) return content;
+  return content
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+    .join("\n");
+}
 
 export default function PublicBookReader() {
   const { shareToken } = useParams<{ shareToken: string }>();
