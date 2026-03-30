@@ -122,7 +122,7 @@ export default function Dashboard() {
       p.genre !== "mesekonyv" &&
       // Aktív írási státusz (nem kész és nem failed)
       p.writing_status && 
-      ['queued', 'generating_outlines', 'writing', 'in_progress'].includes(p.writing_status)
+      ['queued', 'generating_outlines', 'writing', 'in_progress', 'paused', 'incomplete'].includes(p.writing_status)
     );
   }, [projects]);
 
