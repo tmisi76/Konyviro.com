@@ -230,11 +230,11 @@ export default function PublicBookReader() {
                     size="sm"
                     onClick={() => setActiveChapter(Math.max(0, activeChapter - 1))}
                     disabled={activeChapter === 0}
-                    className="gap-1.5"
+                    className="gap-1.5 min-h-[44px] min-w-[44px]"
                     style={{ color: theme.muted }}
                   >
                     <ChevronLeft className="h-4 w-4" />
-                    Előző fejezet
+                    <span className="hidden sm:inline">Előző fejezet</span>
                   </Button>
 
                   <span className="text-xs" style={{ color: theme.muted }}>
