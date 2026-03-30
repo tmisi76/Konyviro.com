@@ -1,58 +1,57 @@
 
+Cél: a megosztási linken a „Könyv (lapozós)” mód ténylegesen lapozós nézetet adjon, és a szöveg mindkét nézetben könyvszerűen tördelt legyen.
 
-# Fix: Szövegtördelés és fejezetlapozás a megosztott könyvolvasóban
+1) Gyökérok javítása: a nézetmód figyelmen kívül van hagyva
+- Fájl: `src/pages/PublicBookReader.tsx`
+- Javítás:
+  - A renderelést két ágra bontom `data.share.view_mode` alapján:
+    - `scroll` → jelenlegi ebook-scroll layout
+    - `flipbook` → lapozós layout (`BookFlipView`)  
+  - Defenzív fallback: ha `view_mode` hiányzik/érvénytelen, alapértelmezés `scroll`.
 
-## Probléma
+2) Lapozós nézet tényleges működése megosztási linken
+- Fájl: `src/components/reader/BookFlipView.tsx`
+- Javítás:
+  - A komponens tényleges bekötése a public readerbe.
+  - Tartalom-normalizálás, hogy HTML és plain text esetén is jól működjön:
+    - HTML bekezdések (`<p>`, `<br>`) → olvasható bekezdéslista
+    - plain text `\n\n` → bekezdések
+  - Oldalakra tördelés stabilizálása (ne nyers HTML tageket lapozzon).
+  - Navigáció finomítás:
+    - előző/következő biztosan léptessen
+    - fejezetváltáskor az első spreadre álljon
+    - billentyűs lapozás maradjon.
 
-1. **Tördelés**: A fejezet `content` mezője plain text (bekezdések `\n\n`-nel elválasztva), de a reader `dangerouslySetInnerHTML`-lel jeleníti meg. A HTML figyelmen kívül hagyja a sortöréseket, ezért egyetlen tömb szöveg jelenik meg bekezdések nélkül.
-2. **Lapozás**: Fejezet váltáskor a tartalom nem scrollol vissza az elejére, és a `useSharedBook` hook a `chapters` táblából a nyers `content`-et tölti be (nem a `blocks` táblából, ahol a szerkesztett tartalom van).
+3) Tördelés egységesítése (ne essen szét nézetenként)
+- Fájlok:
+  - `src/pages/PublicBookReader.tsx`
+  - `src/components/reader/BookFlipView.tsx`
+- Javítás:
+  - Közös tartalom-előkészítési logika: bekezdésfelismerés + üres sorok takarítása.
+  - Scroll nézetben marad az ebook tipográfia (sorkizárt, behúzás, olvasható sorköz).
+  - Flipbook nézetben is bekezdésenkénti tördelés (ne egybefüggő blokk legyen).
 
-## Javítás
+4) Megosztási mód adatfolyam stabilizálása
+- Fájlok:
+  - `src/hooks/useBookShare.ts`
+  - (szükség szerint) `src/components/reader/ShareBookModal.tsx`
+- Javítás:
+  - A publikus lekérésben a `view_mode` érték normalizálása (`flipbook|scroll`).
+  - Hibás/null érték esetén biztos fallback, hogy ne legyen „némán rossz” viselkedés.
+  - A mentett módot a reader minden megnyitáskor konzisztensen alkalmazza.
 
-### 1. `src/pages/PublicBookReader.tsx`
+5) Validáció (end-to-end ellenőrzési terv)
+- Forgatókönyv:
+  1. Dashboard → Megosztás modal → „Könyv (lapozós)” + Mentés
+  2. Megosztási link megnyitása
+  3. Ellenőrzés:
+     - lapozós UI jelenik meg (nem scroll nézet)
+     - előző/következő működik
+     - bekezdések tördeltek, olvashatók
+     - másik könyvnél/fejezetnél is stabil
+  4. Visszaállítás „Görgetős” módra és ellenőrzés, hogy ott is korrekt tördelés marad.
 
-**Tartalom konvertálás**: A `dangerouslySetInnerHTML`-be kerülő `content`-et feldolgozni:
-- Ha a content nem tartalmaz `<p>` tag-et, a `\n\n` és `\n` karaktereknél feldarabolni és `<p>...</p>` tagekbe csomagolni
-- Üres sorokat kiszűrni
-
-```typescript
-function contentToHtml(content: string | null): string {
-  if (!content) return "<p>Nincs tartalom.</p>";
-  // If already HTML with paragraphs, use as-is
-  if (content.includes("<p>") || content.includes("<p ")) return content;
-  // Convert plain text to HTML paragraphs
-  return content
-    .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0)
-    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
-    .join("\n");
-}
-```
-
-**Scroll to top**: Fejezet váltáskor a `<main>` elemet scrollolni a tetejére (ref + useEffect).
-
-### 2. `src/hooks/useBookShare.ts` — Blocks fallback
-
-A `useSharedBook` hookban a fejezet tartalom lekérés bővítése: ha a `chapters.content` üres vagy hiányzik, próbálja a `blocks` tábla tartalmát is lekérni (ezek a szerkesztett blokkok):
-
-```typescript
-// After fetching chapters, enrich with blocks content
-for (const chapter of chapters) {
-  if (!chapter.content || !chapter.content.trim()) {
-    const { data: blocks } = await supabase
-      .from("blocks")
-      .select("content, sort_order")
-      .eq("chapter_id", chapter.id)
-      .order("sort_order");
-    if (blocks?.length) {
-      chapter.content = blocks.map(b => b.content).filter(Boolean).join("\n\n");
-    }
-  }
-}
-```
-
-### Összefoglalás
-- **2 fájl módosítás**: `PublicBookReader.tsx` (contentToHtml helper + scroll reset), `useBookShare.ts` (blocks fallback)
-- A tördelés azonnal javul mind a plain text, mind a HTML tartalomnál
-
+Technikai részletek (röviden)
+- Nem backend/RLS probléma, hanem frontendes render-ág hiány: a `view_mode` már mentésre kerül, de a `PublicBookReader` nem azt rendereli.
+- A flipbook komponens jelenleg nincs használatban, és a nyers HTML tartalom kezelését ki kell egészíteni, különben tördelési hibát ad.
+- A javítás főként 3 fájlban történik: `PublicBookReader.tsx`, `BookFlipView.tsx`, `useBookShare.ts`.
