@@ -140,7 +140,7 @@ export default function PublicBookReader() {
         </aside>
 
         {/* Content area */}
-        <main className="flex-1 overflow-y-auto">
+        <main ref={mainRef} className="flex-1 overflow-y-auto">
           <div className="flex flex-col lg:flex-row gap-0">
             {/* Book content */}
             <div className="flex-1 flex justify-center py-6 md:py-10 px-4">
