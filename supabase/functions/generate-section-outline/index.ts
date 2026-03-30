@@ -118,6 +118,9 @@ Válaszolj CSAK JSON tömbként:
     const characters = charactersResult?.data || [];
     const allChapters = chaptersResult.data || [];
 
+    const isInvestigative = !isFiction && (project?.nonfiction_book_type === "investigative" || chapterType === "investigative");
+    const systemPrompt = isInvestigative ? INVESTIGATIVE_OUTLINE_PROMPT : (isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT);
+
     // Find current chapter position
     const currentChapter = allChapters.find(ch => ch.title === chapterTitle);
     const currentSortOrder = currentChapter?.sort_order ?? 0;
