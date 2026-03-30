@@ -1,32 +1,35 @@
 
 
-# Ebook Reader stílusú nyilvános könyvolvasó
+# Fix: Technikai metaadatok eltávolítása a generált szövegből
 
-## Mit csinálunk
-A `PublicBookReader` oldalt átalakítjuk egy valódi ebook reader-szerű élménnyé:
-1. **Betűtípus választó** (serif/sans-serif/monospace)
-2. **Betűméret csúszka** (14px-28px)
-3. **Sortávolság választó** (szűk/normál/tágas)
-4. **Háttérszín váltó** (fehér/szépia/sötét)
-5. **Szebb szövegtördelés** — bekezdések behúzással, sorkizártan, könyvszerűen
+## Probléma
+Az AI visszaadja a prompt kontextus-fejléceit (pl. `FEJEZET: "Tisztogatás"`, `JELENET: #3`, `MŰFAJ: fiction`) a generált szövegben. Ezek megjelennek a könyvben.
 
-A beállítások egy kis toolbar-ban jelennek meg a fejlécben (egy "Aa" gombra kattintva popover-ben).
+## Javítás
 
-## Technikai változások
+### 1. `supabase/functions/_shared/quality-checker.ts` — `stripMarkdown` bővítése
+A `stripMarkdown` függvénybe új regex szabályok a technikai metaadatok eltávolítására:
+```typescript
+// Strip technical metadata lines that AI echoes back
+.replace(/^(FEJEZET|JELENET|MŰFAJ|KONTEXTUS|KÖNYV MŰFAJA|JELENET SORSZÁMA|FEJEZET CÍME|SZEKCIÓ SORSZÁMA|SZEKCIÓ CÍME|POV KARAKTER|HELYSZÍN|IDŐ|HOSSZ|HANGNEM):.*$/gm, '')
+// Clean up resulting empty lines
+.replace(/\n{3,}/g, '\n\n')
+```
 
-### 1. `src/components/reader/ReaderSettings.tsx` (új fájl)
-- Popover komponens egy `Aa` gombbal
-- Betűtípus: Georgia (serif), Inter (sans-serif), JetBrains Mono (mono)
-- Betűméret: Slider 14–28px
-- Sortávolság: 1.4 / 1.6 / 2.0
-- Háttér téma: Fehér / Szépia / Sötét
-- State `localStorage`-ben perzisztálva (`reader_settings` key)
+### 2. `supabase/functions/auto-lector/index.ts` — Prompt kiegészítés
+A system prompt végéhez és a user prompt záró utasításához hozzáadni:
+```
+- NE add vissza a FEJEZET/JELENET/MŰFAJ metaadatokat — CSAK a prózát!
+```
 
-### 2. `src/pages/PublicBookReader.tsx` (módosítás)
-- Import és használat: `ReaderSettings` a header-be
-- A reader beállításokat `useState`-tel kezelni, `localStorage`-ból inicializálni
-- Az `article` elem `style` attribútumát dinamikusan beállítani:
-  - `fontFamily`, `fontSize`, `lineHeight` a beállítások szerint
-  - Háttérszín és szövegszín a téma szerint (szépia: `#f4ecd8` háttér, sötét: `#1a1a2e` háttér)
-- A szövegtördelés CSS-t finomítani: `text-indent` a bekezdésekre, `text-align: justify`, `hyphens: auto`
+### 3. `supabase/functions/write-scene/index.ts` — Prompt kiegészítés
+A záró utasításba (`CSAK a jelenet szövegét add vissza...` sor) beleírni:
+```
+NE ismételd vissza a FEJEZET/JELENET/MŰFAJ/KONTEXTUS fejléceket!
+```
+
+### 4. `supabase/functions/write-section/index.ts` — Prompt kiegészítés
+Ugyanaz mint a write-scene-nél, a záró utasításokba beleírni a tiltást.
+
+Összesen 4 fájl, kis módosítások. A `stripMarkdown` bővítés biztonsági háló — még ha az AI mégis visszaadná, a post-processing eltávolítja.
 
