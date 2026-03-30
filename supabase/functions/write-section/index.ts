@@ -697,7 +697,7 @@ FORMÁZÁSI KÖVETELMÉNYEK:
 - Használj számozott lépéseket a folyamatoknál
 - A szekció végén készíts átvezetést a következőhöz
 
-CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
+CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül. NE ismételd vissza a CONTEXT/FEJEZET/SZEKCIÓ/MŰFAJ fejléceket — KIZÁRÓLAG prózát írj!`;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
