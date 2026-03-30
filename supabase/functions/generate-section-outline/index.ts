@@ -78,7 +78,6 @@ serve(async (req) => {
     const aiSettings = await getAISettings(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
 
     const isFiction = genre === "fiction";
-    const isInvestigative = !isFiction && (project?.nonfiction_book_type === "investigative" || chapterType === "investigative");
 
     const INVESTIGATIVE_OUTLINE_PROMPT = `Te egy tapasztalt oknyomozó könyv szerkesztő vagy. Készíts részletes szekció-vázlatot egy oknyomozó fejezet számára.
 
@@ -99,8 +98,6 @@ SZEKCIÓ TÍPUSOK:
 Válaszolj CSAK JSON tömbként:
 [{"section_number": 1, "title": "...", "type": "intro|investigation|evidence|revelation|consequences|summary", "key_points": [...], "examples_needed": 1, "learning_objective": "...", "target_words": 1200, "status": "pending"}]`;
 
-    const systemPrompt = isInvestigative ? INVESTIGATIVE_OUTLINE_PROMPT : (isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT);
-
     // Fetch project context for richer scene outlines
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -120,6 +117,9 @@ Válaszolj CSAK JSON tömbként:
     const project = projectResult.data;
     const characters = charactersResult?.data || [];
     const allChapters = chaptersResult.data || [];
+
+    const isInvestigative = !isFiction && (project?.nonfiction_book_type === "investigative" || chapterType === "investigative");
+    const systemPrompt = isInvestigative ? INVESTIGATIVE_OUTLINE_PROMPT : (isFiction ? FICTION_SYSTEM_PROMPT : NONFICTION_SYSTEM_PROMPT);
 
     // Find current chapter position
     const currentChapter = allChapters.find(ch => ch.title === chapterTitle);
