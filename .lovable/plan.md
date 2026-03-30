@@ -1,24 +1,24 @@
 
 
-# Fix: Oknyomozó könyvtípus kontextus elvesztése az ötletgenerálásnál
+# Fix: "Cannot access 'project' before initialization" hiba a generate-section-outline-ban
 
 ## Probléma
-A `nonfictionBookType` (pl. "investigative") és a `bookTypeSpecificData` nem kerül átadásra a `Step4StoryIdeas` komponensnek, és a `generate-story-ideas` edge function sem kapja meg. Így az AI csak az alkategóriát (pl. "Politika") látja, de nem tudja, hogy oknyomozó könyvet kell generálnia — ezért generál sima marketing könyvet.
+A `generate-section-outline/index.ts` **81. sorában** a kód `project`-re hivatkozik:
+```typescript
+const isInvestigative = !isFiction && (project?.nonfiction_book_type === "investigative" || ...);
+```
+De a `project` változó csak a **120. sorban** jön létre (a Supabase lekérdezés után). Ez JavaScript TDZ (Temporal Dead Zone) hibát okoz, ami minden outline generálást megbuktat — ezért mind a 14 job failed.
 
-## Javítás (3 fájl)
+## Javítás
 
-### 1. `src/components/wizard/steps/Step4StoryIdeas.tsx`
-- Új prop: `nonfictionBookType?: NonfictionBookType | null`
-- Új prop: `bookTypeSpecificData?: BookTypeSpecificData | null`
-- Mindkettőt továbbítja a `generate-story-ideas` edge function hívásba
+### `supabase/functions/generate-section-outline/index.ts`
+- Az `isInvestigative` meghatározást áthelyezni a 120. sor utánra (ahol a `project` már elérhető)
+- A `systemPrompt` kiválasztást szintén oda mozgatni
 
-### 2. `src/components/wizard/BookCreationWizard.tsx`
-- A nonfiction flow Step 6-ban átadja a `nonfictionBookType={data.nonfictionBookType}` és `bookTypeSpecificData={data.bookTypeSpecificData}` propokat a `Step4StoryIdeas`-nak
+Konkrétan: a 80-102. sorokat átszervezni úgy, hogy:
+1. **80. sor**: `const isFiction = genre === "fiction";` — ez maradhat (nem függ `project`-től)
+2. **81-101. sor**: Az `isInvestigative` definíciót és az `INVESTIGATIVE_OUTLINE_PROMPT` stringet és a `systemPrompt` kiválasztást a 122. sor utánra kell mozgatni
+3. A prompt konstansok (INVESTIGATIVE_OUTLINE_PROMPT) maradhatnak a helyükön, csak az `isInvestigative` és `systemPrompt` kell lejjebb
 
-### 3. `supabase/functions/generate-story-ideas/index.ts`
-- Kiszedi a `nonfictionBookType` és `bookTypeSpecificData` mezőket a request body-ból
-- Ha `nonfictionBookType` megvan, beépíti a promptba: pl. "Könyv típusa: Oknyomozó tényfeltáró könyv" + a specifikus adatokat (vizsgált alany, bizonyítékok típusa stb.)
-- Az oknyomozó típusnál az ötletek struktúráját is módosítja: "mainElements" → nyomozási szálak, "uniqueSellingPoint" → milyen leleplezést ígér
-
-Így az AI pontosan tudni fogja, hogy oknyomozó könyvet kell generálnia, és a megfelelő stílusú ötleteket adja.
+### Egyetlen fájl módosítás, ~10 sor áthelyezés.
 
