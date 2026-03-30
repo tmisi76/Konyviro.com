@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Download, Loader2, AlertCircle, BookOpen, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,29 @@ import { ReaderSettings, loadReaderSettings, themeStyles } from "@/components/re
 import type { ReaderSettingsState } from "@/components/reader/ReaderSettings";
 import { cn } from "@/lib/utils";
 
+function contentToHtml(content: string | null): string {
+  if (!content) return "<p>Nincs tartalom.</p>";
+  if (content.includes("<p>") || content.includes("<p ")) return content;
+  return content
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+    .join("\n");
+}
+
 export default function PublicBookReader() {
   const { shareToken } = useParams<{ shareToken: string }>();
   const { data, isLoading, error, needsPassword, verifyPassword } = useSharedBook(shareToken || "");
   const [activeChapter, setActiveChapter] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [readerSettings, setReaderSettings] = useState<ReaderSettingsState>(loadReaderSettings);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0 });
+    window.scrollTo({ top: 0 });
+  }, [activeChapter]);
 
   const theme = themeStyles[readerSettings.theme];
 
@@ -123,7 +140,7 @@ export default function PublicBookReader() {
         </aside>
 
         {/* Content area */}
-        <main className="flex-1 overflow-y-auto">
+        <main ref={mainRef} className="flex-1 overflow-y-auto">
           <div className="flex flex-col lg:flex-row gap-0">
             {/* Book content */}
             <div className="flex-1 flex justify-center py-6 md:py-10 px-4">
@@ -162,7 +179,7 @@ export default function PublicBookReader() {
                       WebkitHyphens: "auto" as const,
                     }}
                     dangerouslySetInnerHTML={{
-                      __html: currentChapter?.content || "<p>Nincs tartalom.</p>"
+                      __html: contentToHtml(currentChapter?.content || null)
                     }}
                   />
                 </article>
