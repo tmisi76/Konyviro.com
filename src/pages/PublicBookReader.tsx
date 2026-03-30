@@ -7,18 +7,9 @@ import { PasswordGate } from "@/components/reader/PasswordGate";
 import { Separator } from "@/components/ui/separator";
 import { ReaderSettings, loadReaderSettings, themeStyles } from "@/components/reader/ReaderSettings";
 import type { ReaderSettingsState } from "@/components/reader/ReaderSettings";
+import { BookFlipView } from "@/components/reader/BookFlipView";
+import { contentToHtml } from "@/lib/contentUtils";
 import { cn } from "@/lib/utils";
-
-function contentToHtml(content: string | null): string {
-  if (!content) return "<p>Nincs tartalom.</p>";
-  if (content.includes("<p>") || content.includes("<p ")) return content;
-  return content
-    .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0)
-    .map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
-    .join("\n");
-}
 
 export default function PublicBookReader() {
   const { shareToken } = useParams<{ shareToken: string }>();
@@ -78,6 +69,54 @@ export default function PublicBookReader() {
   }
 
   const { project, chapters } = data;
+  const viewMode = (data.share as any)?.view_mode === "flipbook" ? "flipbook" : "scroll";
+
+  // ===== FLIPBOOK VIEW =====
+  if (viewMode === "flipbook") {
+    return (
+      <div className="min-h-screen flex flex-col bg-muted/30">
+        {/* Minimal header */}
+        <header className="sticky top-0 z-50 backdrop-blur border-b bg-background/90 shadow-sm">
+          <div className="flex items-center justify-between h-12 px-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <BookOpen className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+              <h1 className="font-semibold truncate text-sm md:text-base">{project.title}</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              {data.share.allow_download && (
+                <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Letöltés</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Flipbook */}
+        <BookFlipView
+          title={project.title}
+          chapters={chapters.map(ch => ({
+            id: ch.id,
+            title: ch.title,
+            content: ch.content,
+            sort_order: ch.sort_order,
+          }))}
+          className="flex-1"
+        />
+
+        {/* Footer */}
+        <footer className="text-center py-3 text-xs border-t border-border text-muted-foreground">
+          Powered by{" "}
+          <a href="https://konyviro.com/" target="_blank" rel="noopener noreferrer" className="hover:underline font-medium text-primary">
+            KönyvÍró
+          </a>
+        </footer>
+      </div>
+    );
+  }
+
+  // ===== SCROLL VIEW =====
   const currentChapter = chapters[activeChapter];
 
   return (
