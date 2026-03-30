@@ -626,7 +626,7 @@ ${sceneOpeningRulesBlock}
 - VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
 - CÉLHOSSZ: ~${sectionOutline.target_words || 1500} szó
 
-CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`
+CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül. NE ismételd vissza a CONTEXT/FEJEZET/JELENET/MŰFAJ/POV KARAKTER/HELYSZÍN/IDŐ fejléceket — KIZÁRÓLAG prózát írj!`
       : isInvestigative
       ? `CONTEXT:
 - KÖNYV TÍPUSA: Oknyomozó könyv

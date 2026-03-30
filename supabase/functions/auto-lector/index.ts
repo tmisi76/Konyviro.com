@@ -56,6 +56,8 @@ FORMÁZÁS:
 - Írj tiszta prózát
 
 - Magyar párbeszéd: gondolatjel (–), magyar idézőjel „..."
+
+- NE add vissza a FEJEZET/JELENET/MŰFAJ/KONTEXTUS metaadatokat — CSAK a prózát!
 `;
 
 serve(async (req) => {

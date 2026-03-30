@@ -128,5 +128,12 @@ export function stripMarkdown(content: string): string {
     // Remove horizontal rules
     .replace(/^---+$/gm, '')
     // Remove inline code markers
-    .replace(/`([^`]+)`/g, '$1');
+    .replace(/`([^`]+)`/g, '$1')
+    // Strip technical metadata lines that AI echoes back from prompts
+    .replace(/^(FEJEZET|JELENET|MŰFAJ|KONTEXTUS|CONTEXT|KÖNYV MŰFAJA|JELENET SORSZÁMA|FEJEZET CÍME|SZEKCIÓ SORSZÁMA|SZEKCIÓ CÍME|POV KARAKTER|HELYSZÍN|IDŐ|HOSSZ|HANGNEM|ÍRÁSI FELADAT|CÉLHOSSZ|KULCSESEMÉNYEK|ÉRZELMI ÍV|KARAKTER INFORMÁCIÓK|ELŐZMÉNYEK|ELŐZŐ SZÖVEGRÉSZ|JELENET FELADAT|JELENET DRAMATURGIÁJA|TÖRTÉNETI ÍV POZÍCIÓ|FESZÜLTSÉG SZINTJE|FORMÁZÁSI KÖVETELMÉNYEK|KÖNYV HANGNEME|KÖNYV CÉLKÖZÖNSÉGE|KÖNYV ALAPTÖRTÉNETE|SZEKCIÓ TÍPUSA|SZEKCIÓ CÉLJA|FELADAT|KULCSPONTOK|MEGSZÓLÍTÁS|KUTATÁSI ANYAGOK|ELŐZŐ FEJEZETEK|CSAK a jelenet|CSAK a szekció):.*$/gm, '')
+    // Strip lines that are just "---" separators from prompt structure
+    .replace(/^-{3,}$/gm, '')
+    // Clean up resulting multiple empty lines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
