@@ -185,8 +185,8 @@ export default function PublicBookReader() {
             <div className="flex-1 flex justify-center py-6 md:py-10 px-4">
               <div className="w-full max-w-[720px]">
                 {/* Paper */}
-                <article
-                  className="rounded-lg shadow-lg px-8 py-10 md:px-14 md:py-14 min-h-[60vh]"
+                  <article
+                    className="rounded-lg shadow-lg px-5 py-6 md:px-14 md:py-14 min-h-[60vh]"
                   style={{
                     backgroundColor: readerSettings.theme === "white" ? "#ffffff" : theme.bg,
                     border: `1px solid ${theme.muted}20`,
@@ -230,11 +230,11 @@ export default function PublicBookReader() {
                     size="sm"
                     onClick={() => setActiveChapter(Math.max(0, activeChapter - 1))}
                     disabled={activeChapter === 0}
-                    className="gap-1.5"
+                    className="gap-1.5 min-h-[44px] min-w-[44px]"
                     style={{ color: theme.muted }}
                   >
                     <ChevronLeft className="h-4 w-4" />
-                    Előző fejezet
+                    <span className="hidden sm:inline">Előző fejezet</span>
                   </Button>
 
                   <span className="text-xs" style={{ color: theme.muted }}>
@@ -246,10 +246,10 @@ export default function PublicBookReader() {
                     size="sm"
                     onClick={() => setActiveChapter(Math.min(chapters.length - 1, activeChapter + 1))}
                     disabled={activeChapter === chapters.length - 1}
-                    className="gap-1.5"
+                    className="gap-1.5 min-h-[44px] min-w-[44px]"
                     style={{ color: theme.muted }}
                   >
-                    Következő fejezet
+                    <span className="hidden sm:inline">Következő fejezet</span>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
