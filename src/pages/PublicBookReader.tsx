@@ -179,7 +179,7 @@ export default function PublicBookReader() {
                       WebkitHyphens: "auto" as const,
                     }}
                     dangerouslySetInnerHTML={{
-                      __html: currentChapter?.content || "<p>Nincs tartalom.</p>"
+                      __html: contentToHtml(currentChapter?.content || null)
                     }}
                   />
                 </article>

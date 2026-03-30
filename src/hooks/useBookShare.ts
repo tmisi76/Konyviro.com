@@ -222,9 +222,24 @@ export function useSharedBook(shareToken: string) {
 
       if (chaptersError) throw chaptersError;
 
+      // Fallback: if chapter content is empty, try loading from blocks
+      const enrichedChapters = chapters || [];
+      for (const chapter of enrichedChapters) {
+        if (!chapter.content || !chapter.content.trim()) {
+          const { data: blocks } = await supabase
+            .from("blocks")
+            .select("content, sort_order")
+            .eq("chapter_id", chapter.id)
+            .order("sort_order");
+          if (blocks?.length) {
+            chapter.content = blocks.map(b => b.content).filter(Boolean).join("\n\n");
+          }
+        }
+      }
+
       return {
         project,
-        chapters: chapters || [],
+        chapters: enrichedChapters,
         share: safeShare as unknown as BookShare,
       } as SharedBookData;
     },
