@@ -26,6 +26,12 @@ export default function PublicBookReader() {
   const [activeChapter, setActiveChapter] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [readerSettings, setReaderSettings] = useState<ReaderSettingsState>(loadReaderSettings);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0 });
+    window.scrollTo({ top: 0 });
+  }, [activeChapter]);
 
   const theme = themeStyles[readerSettings.theme];
 
