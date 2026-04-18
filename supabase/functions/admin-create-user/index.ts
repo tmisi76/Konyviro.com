@@ -90,18 +90,84 @@ serve(async (req) => {
     const passwordWasGenerated = !providedPassword;
     logStep("Password ready", { generated: passwordWasGenerated });
 
-    // Create user with Supabase Admin API
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm email
-      user_metadata: { full_name },
-    });
-
-    if (createError) {
-      throw new Error(`Failed to create user: ${createError.message}`);
+    // Check if user already exists by paginating through auth users
+    let existingAuthUser: { id: string; email?: string } | null = null;
+    {
+      const normalizedEmail = email.toLowerCase().trim();
+      let page = 1;
+      const perPage = 1000;
+      // Limit to 10 pages (10,000 users) to avoid infinite loop
+      while (page <= 10) {
+        const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+        if (listError) {
+          logStep("listUsers error", { error: listError.message });
+          break;
+        }
+        const found = listData.users.find(u => (u.email || "").toLowerCase() === normalizedEmail);
+        if (found) {
+          existingAuthUser = { id: found.id, email: found.email };
+          break;
+        }
+        if (listData.users.length < perPage) break;
+        page++;
+      }
     }
-    logStep("User created in auth", { userId: newUser.user.id });
+
+    let newUser: { user: { id: string } };
+    let mode: "created" | "updated_existing" = "created";
+
+    if (existingAuthUser) {
+      logStep("Existing auth user found", { userId: existingAuthUser.id });
+
+      // Check existing profile
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("subscription_tier, subscription_status, manual_subscription")
+        .eq("user_id", existingAuthUser.id)
+        .maybeSingle();
+
+      const isPaidActive = existingProfile
+        && existingProfile.subscription_tier !== "free"
+        && existingProfile.subscription_status === "active";
+
+      if (isPaidActive) {
+        // Block: user already has an active paid subscription
+        return new Response(JSON.stringify({
+          success: false,
+          mode: "already_active",
+          message: `Ez az email cím már aktív "${existingProfile.subscription_tier}" előfizetéssel rendelkezik. Használja a Szerkesztés funkciót a módosításhoz.`,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      // Reuse existing user, update profile below
+      newUser = { user: { id: existingAuthUser.id } };
+      mode = "updated_existing";
+
+      // Optionally update password if admin provided one
+      if (providedPassword) {
+        const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, {
+          password: providedPassword,
+        });
+        if (pwErr) logStep("Password update error", { error: pwErr.message });
+      }
+    } else {
+      // Create new user with Supabase Admin API
+      const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name },
+      });
+
+      if (createError) {
+        throw new Error(`Failed to create user: ${createError.message}`);
+      }
+      newUser = { user: { id: created.user.id } };
+      logStep("User created in auth", { userId: newUser.user.id });
+    }
 
     // Calculate word limits based on billing period
     const tierConfig = TIER_CONFIG[subscription_tier] || TIER_CONFIG.free;
@@ -284,10 +350,16 @@ serve(async (req) => {
       },
     });
 
-    logStep("User creation complete");
+    logStep("User creation complete", { mode });
+
+    const successMessage = mode === "updated_existing"
+      ? "Meglévő felhasználó frissítve az új előfizetéssel."
+      : "Felhasználó sikeresen létrehozva.";
 
     return new Response(JSON.stringify({
       success: true,
+      mode,
+      message: successMessage,
       user_id: newUser.user.id,
       email,
       password: passwordWasGenerated && send_password_email ? password : undefined,
@@ -301,9 +373,9 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ success: false, error: errorMessage, message: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
+      status: 200,
     });
   }
 });
