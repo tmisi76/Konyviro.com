@@ -107,11 +107,20 @@ export function AddUserModal({ open, onOpenChange, onSuccess }: AddUserModalProp
       });
 
       if (error) throw error;
+
+      // Soft failure handled by structured response (status 200, success: false)
+      if (data?.success === false) {
+        toast.warning(data.message || data.error || "A művelet nem sikerült.", { duration: 8000 });
+        return;
+      }
+
       if (data?.error) throw new Error(data.error);
 
-      toast.success("Felhasználó sikeresen létrehozva!");
-      
-      // Show password if it was generated
+      const message = data?.mode === "updated_existing"
+        ? (data?.message || "Meglévő felhasználó frissítve az új előfizetéssel.")
+        : (data?.message || "Felhasználó sikeresen létrehozva!");
+      toast.success(message);
+
       if (data?.password) {
         toast.info(`Generált jelszó: ${data.password}`, { duration: 10000 });
       }
