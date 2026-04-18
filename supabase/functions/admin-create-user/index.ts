@@ -350,10 +350,16 @@ serve(async (req) => {
       },
     });
 
-    logStep("User creation complete");
+    logStep("User creation complete", { mode });
+
+    const successMessage = mode === "updated_existing"
+      ? "Meglévő felhasználó frissítve az új előfizetéssel."
+      : "Felhasználó sikeresen létrehozva.";
 
     return new Response(JSON.stringify({
       success: true,
+      mode,
+      message: successMessage,
       user_id: newUser.user.id,
       email,
       password: passwordWasGenerated && send_password_email ? password : undefined,
@@ -367,9 +373,9 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ success: false, error: errorMessage, message: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
+      status: 200,
     });
   }
 });
