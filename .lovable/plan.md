@@ -1,37 +1,43 @@
 
 
-# Megosztási linkek mobiloptimalizálása
+## Probléma
+1. **Hiba oka**: A `evacsillakepzes@gmail.com` cím már létezik az auth táblában. Ez gyakori eset, ha:
+   - A felhasználó valóban regisztrált korábban
+   - Egy korábbi admin létrehozás félig lefutott (auth user megvan, profil hiányzik vagy hibás)
+2. **UX probléma**: A felhasználó csak a homályos „Edge Function returned a non-2xx status code" üzenetet látja, nem érti mi a baj.
+3. **Nincs visszaállítási út**: Ha a user „árva" (auth létezik, profil rossz), nem tudja az admin újrahúzni.
 
-## Problémák
-1. **Flipbook nézet**: A kétoldalas spread mobilon olvashatatlanul kicsi — `aspect-[2/1.4]` és `grid-cols-2` fix layout.
-2. **Scroll nézet**: Túl nagy padding mobilon (`px-8 py-10`), a papír-metafora sok helyet pazarol.
-3. **Nincs swipe-támogatás** — mobilon csak gombokkal lehet lapozni.
-4. **Safe area** (notch) nincs kezelve.
+## Javítás
 
-## Javítások
+### 1. `admin-create-user` edge function — okosabb hibakezelés
+- **Email létezés ellenőrzése előre** (`auth.admin.listUsers` + filter) a `createUser` hívás előtt.
+- Ha létezik:
+  - Lekérni a meglévő profilt
+  - **Ha a profil free/üres** → a meglévő auth usert vesszük át, csak frissítjük a profilt az új előfizetéssel + opcionálisan jelszóreset emailt küldünk. Visszaadjuk: `mode: "updated_existing"`.
+  - **Ha már aktív fizetős előfizetése van** → tiszta hibaüzenet magyarul: „Ez az email már aktív előfizetéssel rendelkezik. Használja a Szerkesztés funkciót."
+- A válasz mindig 200-as legyen strukturált `{ success, mode, message }` mezőkkel — így a frontend nem „non-2xx"-et lát, hanem értelmes üzenetet.
 
-### 1. `src/components/reader/BookFlipView.tsx`
-- Mobilon **egyoldalas nézet** (1 oldal egyszerre), desktopon marad a spread (2 oldal).
-- `useIsMobile()` hook használata a breakpoint figyeléshez.
-- **Touch swipe** hozzáadása: `onTouchStart`/`onTouchEnd` események, 50px+ húzásnál lapozás.
-- Mobilon: padding csökkentés (`p-4`), teljes magasságú oldal, nagyobb betűméret.
-- Desktopon: marad a jelenlegi spread layout.
+### 2. `AddUserModal.tsx` — érthető visszajelzés
+- A toast az `error.message` helyett a `data.message`-et használja, ha létezik.
+- Sikeres „updated_existing" esetén külön zöld toast: „Meglévő felhasználó frissítve új előfizetéssel".
+- Hibás esetben (pl. már aktív sub) sárga warning toast a magyar üzenettel.
 
-### 2. `src/pages/PublicBookReader.tsx`
-- Scroll nézet mobilos finomítások:
-  - Padding csökkentés: `px-4 py-6` mobilon vs `px-14 py-14` desktopon.
-  - Fejezet-navigációs gombok: nagyobb touch target (min 44px).
-  - Header: safe-area-top padding (`pt-safe`).
-  - Footer: safe-area-bottom padding (`pb-safe`).
-- Flipbook nézet header: ugyanúgy safe area.
+### 3. Edge funkciók átvizsgálása (a kérés szerint)
+Ellenőrzöm szúrópróba-szerűen a kritikus admin funkciókat (csak hibakezelés/CORS szempontból):
+- `admin-get-users` — működik (200-as logokból látszik)
+- `admin-update-subscription`, `admin-ban-user`, `admin-delete-user`, `admin-reset-password`, `admin-send-credentials`, `admin-create-user` — egységes hibakezelési minta ellenőrzése (CORS header minden válaszban, status code helyesen)
+- A többi 30+ edge funkciót csak akkor módosítom, ha konkrét bug derül ki, hogy ne legyen scope creep.
 
-### 3. Érintéssel lapozás (BookFlipView)
-```text
-Touch swipe logic:
-  touchStart → record X position
-  touchEnd → if deltaX > 50px → next page
-              if deltaX < -50px → prev page
-```
+### Nem módosítok
+- Nem nyúlok az AI/írás funkciókhoz, fizetés/webhook funkciókhoz, email küldéshez — ezek a logok alapján működnek.
 
-**Összesen 2 fájl módosítás**, a fő változás a BookFlipView mobilos single-page mód + swipe.
+## Érintett fájlok
+- `supabase/functions/admin-create-user/index.ts` (fő javítás)
+- `src/components/admin/AddUserModal.tsx` (UX javítás)
+- Esetleg más admin edge functions, ha ellenőrzéskor hiányos hibakezelést találok
+
+## Tesztelési forgatókönyv
+1. Próbálj felvenni új, sosem használt emailt → létrejön normálisan
+2. Próbálj felvenni meglévő free usert → „Meglévő felhasználó frissítve" üzenet, profil frissül
+3. Próbálj felvenni meglévő aktív fizetős usert → érthető magyar hiba „Használja a Szerkesztés funkciót"
 
