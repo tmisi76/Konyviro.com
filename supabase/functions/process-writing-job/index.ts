@@ -607,3 +607,112 @@ async function sendCompletionEmail(supabase: any, projectId: string) {
     console.error("Failed to send completion email:", error);
   }
 }
+
+/**
+ * Chapter completion checksum.
+ * After the last scene of a chapter completes, verify the chapter's actual word count
+ * is within an acceptable range of the expected total. If too short and we still have
+ * retries left (regen_retry_count < 2), enqueue the missing scenes again. Otherwise
+ * flag projects.has_missing_chapters = true so the UI can warn the user.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function checkChapterCompletionAndRetry(supabase: any, projectId: string, chapterId: string) {
+  const MAX_REGEN_RETRIES = 2;
+  const MIN_RATIO = 0.5; // chapter is "missing" if it has < 50% of expected words
+
+  // Are there any pending/processing scene jobs left for this chapter?
+  const { count: pending } = await supabase
+    .from("writing_jobs")
+    .select("*", { count: 'exact', head: true })
+    .eq("chapter_id", chapterId)
+    .eq("job_type", "write_scene")
+    .in("status", ["pending", "processing"]);
+
+  if ((pending || 0) > 0) return; // chapter not yet finished
+
+  const { data: chapter } = await supabase
+    .from("chapters")
+    .select("id, title, word_count, scene_outline, regen_retry_count, content")
+    .eq("id", chapterId)
+    .single();
+
+  if (!chapter) return;
+
+  const sceneOutline = (chapter.scene_outline as Array<{ target_words?: number }> | null) || [];
+  const expectedWords = sceneOutline.reduce((sum, s) => sum + (Number(s.target_words) || 1500), 0);
+  const actualWords = Number(chapter.word_count) || 0;
+  const ratio = expectedWords > 0 ? actualWords / expectedWords : 1;
+
+  if (ratio >= MIN_RATIO) {
+    return; // chapter looks complete enough
+  }
+
+  console.warn(
+    `[checksum] Chapter ${chapter.title} (${chapterId}) is short: ${actualWords}/${expectedWords} words (${(ratio * 100).toFixed(0)}%)`
+  );
+
+  const retryCount = Number(chapter.regen_retry_count) || 0;
+
+  // Find which scene indices have NO completed scene job — those are the missing ones.
+  const { data: completedJobs } = await supabase
+    .from("writing_jobs")
+    .select("scene_index")
+    .eq("chapter_id", chapterId)
+    .eq("job_type", "write_scene")
+    .eq("status", "completed");
+
+  const completedIndices = new Set(
+    (completedJobs || []).map((j: { scene_index: number }) => j.scene_index)
+  );
+  const missingIndices: number[] = [];
+  for (let i = 0; i < sceneOutline.length; i++) {
+    if (!completedIndices.has(i)) missingIndices.push(i);
+  }
+
+  if (retryCount >= MAX_REGEN_RETRIES) {
+    console.warn(
+      `[checksum] Chapter ${chapterId} exhausted retries (${retryCount}). Flagging project ${projectId} has_missing_chapters=true`
+    );
+    await supabase
+      .from("projects")
+      .update({ has_missing_chapters: true })
+      .eq("id", projectId);
+    return;
+  }
+
+  if (missingIndices.length === 0) {
+    // All scene jobs completed but text is still short → likely truncation.
+    // Mark the project as having missing chapters; user can manually regenerate.
+    console.warn(
+      `[checksum] Chapter ${chapterId} short but all scene jobs completed — likely truncation. Flagging project.`
+    );
+    await supabase
+      .from("projects")
+      .update({ has_missing_chapters: true })
+      .eq("id", projectId);
+    return;
+  }
+
+  // Increment retry counter and enqueue NEW scene jobs for the missing indices
+  await supabase
+    .from("chapters")
+    .update({ regen_retry_count: retryCount + 1, writing_status: 'writing' })
+    .eq("id", chapterId);
+
+  const newJobs = missingIndices.map((idx) => ({
+    project_id: projectId,
+    chapter_id: chapterId,
+    job_type: 'write_scene',
+    status: 'pending',
+    scene_index: idx,
+    scene_outline: sceneOutline[idx],
+    priority: 7, // higher priority than normal write_scene jobs
+    sort_order: 9000 + idx,
+  }));
+
+  await supabase.from("writing_jobs").insert(newJobs);
+
+  console.log(
+    `[checksum] Re-enqueued ${newJobs.length} missing scenes for chapter ${chapterId} (retry ${retryCount + 1}/${MAX_REGEN_RETRIES})`
+  );
+}
