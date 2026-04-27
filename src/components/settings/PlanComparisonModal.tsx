@@ -167,7 +167,7 @@ export function PlanComparisonModal({ open, onOpenChange }: PlanComparisonModalP
         </div>
 
         {/* Plans Grid */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {visiblePlans.map((plan) => {
             const isCurrentPlan = plan.id === currentTier;
             const tierIndex = getTierIndex(plan.id as SubscriptionTier);
