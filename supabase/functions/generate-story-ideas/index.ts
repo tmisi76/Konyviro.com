@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildInvestigativeResearchBlock } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +39,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas, nonfictionBookType, bookTypeSpecificData } = await req.json();
+    const { genre, subcategory, tone, length, targetAudience, additionalInstructions, storyDescription, authorProfile, previousIdeas, nonfictionBookType, bookTypeSpecificData, realCaseResearch } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -50,6 +51,11 @@ serve(async (req) => {
     const isFiction = genre === "fiction";
     const isInvestigative = nonfictionBookType === "investigative";
     
+    // Valós kutatási dossier (Perplexity) blokk az investigative ágban
+    const researchBlock = (isInvestigative && realCaseResearch?.research)
+      ? buildInvestigativeResearchBlock(realCaseResearch.research, realCaseResearch.sources)
+      : "";
+
     // Könyvtípus kontextus építés
     const bookTypeContext = nonfictionBookType && !isFiction
       ? (() => {
