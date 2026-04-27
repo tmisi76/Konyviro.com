@@ -11,7 +11,8 @@ import type { StoryIdea, Genre, Subcategory, Tone, BookLength, AuthorProfile, Fi
 interface Step4StoryIdeasProps {
   genre: Genre;
   subcategory: Subcategory;
-  tone: Tone;
+  // Lehet egyetlen Tone enum vagy a wizardból érkező kombinált hangnem-string (több hangnem esetén)
+  tone: Tone | string;
   length: BookLength;
   targetAudience: string;
   additionalInstructions: string;
