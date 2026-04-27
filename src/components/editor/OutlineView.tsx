@@ -14,11 +14,13 @@ import {
 } from "@/components/ui/select";
 import type { Chapter, ChapterStatus, ProjectGenre, ChapterTemplate } from "@/types/editor";
 import { STATUS_LABELS, STATUS_COLORS, CHAPTER_TEMPLATES } from "@/types/editor";
+import { ConsistencyInbox } from "@/components/quality/ConsistencyInbox";
 
 interface OutlineViewProps {
   chapters: Chapter[];
   projectGenre: ProjectGenre | undefined;
   projectDescription: string | undefined;
+  projectId?: string;
   onUpdateChapter: (id: string, updates: Partial<Chapter>) => void;
   onSelectChapter: (id: string) => void;
   onCreateChapter: (title?: string) => void;
@@ -30,6 +32,7 @@ export function OutlineView({
   chapters,
   projectGenre,
   projectDescription,
+  projectId,
   onUpdateChapter,
   onSelectChapter,
   onCreateChapter,
@@ -65,6 +68,11 @@ export function OutlineView({
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-5xl">
+        {projectId && (
+          <div className="mb-6">
+            <ConsistencyInbox projectId={projectId} onJumpToChapter={onSelectChapter} />
+          </div>
+        )}
         {/* Header with AI generate button */}
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-foreground">Könyv vázlat</h2>

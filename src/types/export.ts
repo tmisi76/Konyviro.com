@@ -3,9 +3,9 @@ export type ExportFormat = "epub" | "pdf" | "mobi" | "docx";
 // Legacy types for backward compatibility with ProjectExport page
 export type FontFamily = "Merriweather" | "PT Serif" | "Literata" | "Open Sans" | "Georgia" | "Times New Roman";
 export type FontSize = "11pt" | "12pt" | "14pt";
-export type PageSize = "A4" | "A5" | "Letter";
+export type PageSize = "A4" | "A5" | "Letter" | "kdp_6x9";
 export type LineSpacing = "1.0" | "1.2" | "1.5" | "1.8" | "2.0";
-export type MarginStyle = "normal" | "wide" | "narrow";
+export type MarginStyle = "normal" | "wide" | "narrow" | "kdp";
 
 export interface ExportSettings {
   includeTitlePage: boolean;

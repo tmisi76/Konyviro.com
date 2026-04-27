@@ -396,6 +396,7 @@ export default function ProjectEditor() {
             chapters={chapters}
             projectGenre={project?.genre as ProjectGenre}
             projectDescription={project?.description}
+            projectId={projectId}
             onUpdateChapter={updateChapter}
             onSelectChapter={handleSelectChapterFromOutline}
             onCreateChapter={createChapter}

@@ -104,8 +104,16 @@ export function ExportSettingsPanel({
           <Label className="text-sm">Oldalméret</Label>
           <RadioGroup
             value={settings.pageSize}
-            onValueChange={(value) => updateSetting("pageSize", value as PageSize)}
-            className="flex gap-4"
+            onValueChange={(value) => {
+              updateSetting("pageSize", value as PageSize);
+              // KDP preset auto-selects KDP margins
+              if (value === "kdp_6x9") {
+                updateSetting("marginStyle", "kdp" as ExportSettings["marginStyle"]);
+              } else if (settings.marginStyle === "kdp") {
+                updateSetting("marginStyle", "normal" as ExportSettings["marginStyle"]);
+              }
+            }}
+            className="flex gap-4 flex-wrap"
           >
             <div className="flex items-center space-x-1">
               <RadioGroupItem value="A4" id="page-a4" />
@@ -125,7 +133,18 @@ export function ExportSettingsPanel({
                 Letter
               </Label>
             </div>
+            <div className="flex items-center space-x-1">
+              <RadioGroupItem value="kdp_6x9" id="page-kdp" />
+              <Label htmlFor="page-kdp" className="text-xs cursor-pointer font-medium text-primary">
+                KDP 6"×9"
+              </Label>
+            </div>
           </RadioGroup>
+          {settings.pageSize === "kdp_6x9" && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Amazon KDP nyomtatáshoz: 152×229 mm méret, 22 mm gerinc-margó.
+            </p>
+          )}
         </div>
       )}
 

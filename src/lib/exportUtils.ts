@@ -17,7 +17,7 @@ type LegacyExportFormat = "docx" | "pdf" | "epub" | "txt";
 type LegacyLineSpacing = "1.0" | "1.2" | "1.5" | "1.8" | "2.0";
 type LegacyFontFamily = "Merriweather" | "Georgia" | "Times New Roman" | "PT Serif" | "Literata" | "Open Sans";
 type LegacyFontSize = "11pt" | "12pt" | "14pt";
-type LegacyPageSize = "A4" | "A5" | "Letter";
+type LegacyPageSize = "A4" | "A5" | "Letter" | "kdp_6x9";
 
 interface LegacyExportSettings {
   includeTitlePage: boolean;
