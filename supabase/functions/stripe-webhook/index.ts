@@ -23,6 +23,155 @@ const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: numb
   pro: { projectLimit: -1, monthlyWordLimit: -1, storybookLimit: 999 },
 };
 
+const ADMIN_NOTIFY_EMAIL = "hello@freedombiznisz.hu";
+const ADMIN_NOTIFY_FROM = "KönyvÍró <noreply@digitalisbirodalom.hu>";
+
+const TIER_NAMES: Record<string, string> = {
+  hobby: "Hobbi",
+  writer: "Profi",
+  agency: "Ügynökség",
+  pro: "Pro",
+  free: "Ingyenes",
+};
+
+const PERIOD_NAMES: Record<string, string> = {
+  monthly: "havi",
+  yearly: "éves",
+  month: "havi",
+  year: "éves",
+};
+
+type AdminNotifyType = "new_subscription" | "cancel_scheduled" | "subscription_ended";
+
+interface AdminNotifyData {
+  customerName?: string;
+  customerEmail?: string;
+  tier?: string;
+  billingPeriod?: string;
+  amount?: number;
+  periodEnd?: string;
+}
+
+function buildAdminEmail(type: AdminNotifyType, d: AdminNotifyData): { subject: string; html: string } {
+  const dateStr = new Date().toLocaleDateString("hu-HU", {
+    year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  const tierLabel = TIER_NAMES[d.tier ?? ""] ?? d.tier ?? "N/A";
+  const periodLabel = PERIOD_NAMES[d.billingPeriod ?? ""] ?? d.billingPeriod ?? "N/A";
+  const periodEndStr = d.periodEnd
+    ? new Date(d.periodEnd).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
+    : "N/A";
+
+  const styles: Record<AdminNotifyType, { color: string; emoji: string; title: string; subject: string }> = {
+    new_subscription: {
+      color: "#22c55e",
+      emoji: "🎉",
+      title: "Új előfizetés!",
+      subject: `🎉 Új előfizető: ${tierLabel} (${periodLabel})`,
+    },
+    cancel_scheduled: {
+      color: "#f59e0b",
+      emoji: "⚠️",
+      title: "Lemondás bejelentve",
+      subject: `⚠️ Lemondás bejelentve: ${tierLabel}`,
+    },
+    subscription_ended: {
+      color: "#ef4444",
+      emoji: "❌",
+      title: "Előfizetés megszűnt",
+      subject: `❌ Előfizetés megszűnt: ${tierLabel}`,
+    },
+  };
+  const s = styles[type];
+
+  const rows: Array<[string, string]> = [
+    ["Név", d.customerName || "N/A"],
+    ["Email", d.customerEmail || "N/A"],
+    ["Csomag", tierLabel],
+    ["Időszak", periodLabel],
+  ];
+  if (type === "new_subscription" && typeof d.amount === "number") {
+    rows.push(["Összeg", `<span style="color:#22c55e">${d.amount.toLocaleString()} Ft</span>`]);
+  }
+  if (type === "cancel_scheduled" && d.periodEnd) {
+    rows.push(["Érvényes eddig", periodEndStr]);
+  }
+  rows.push(["Dátum", dateStr]);
+
+  const tableRows = rows
+    .map(
+      ([k, v]) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #eee;color:#666;">${k}:</td>
+        <td style="padding:10px 0;border-bottom:1px solid #eee;font-weight:bold;">${v}</td>
+      </tr>`
+    )
+    .join("");
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;background-color:#f5f5f5;padding:20px;">
+  <div style="max-width:500px;margin:0 auto;background:white;border-radius:12px;padding:30px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+    <h1 style="color:${s.color};margin:0 0 20px;">${s.emoji} ${s.title}</h1>
+    <table style="width:100%;border-collapse:collapse;">${tableRows}</table>
+    <p style="margin:20px 0 0;padding-top:15px;border-top:1px solid #eee;color:#888;font-size:12px;text-align:center;">
+      KönyvÍró Admin Értesítő
+    </p>
+  </div>
+</body>
+</html>`;
+
+  return { subject: s.subject, html };
+}
+
+async function sendAdminNotification(type: AdminNotifyType, data: AdminNotifyData): Promise<void> {
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) {
+    logStep("Admin notification skipped - no RESEND_API_KEY");
+    return;
+  }
+  try {
+    const { subject, html } = buildAdminEmail(type, data);
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendKey}`,
+      },
+      body: JSON.stringify({
+        from: ADMIN_NOTIFY_FROM,
+        to: [ADMIN_NOTIFY_EMAIL],
+        subject,
+        html,
+      }),
+    });
+    if (res.ok) {
+      logStep("Admin notification sent", { type, tier: data.tier });
+    } else {
+      const errText = await res.text();
+      logStep("Admin notification failed", { type, error: errText });
+    }
+  } catch (e) {
+    logStep("Admin notification error", { type, error: String(e) });
+  }
+}
+
+async function fetchCustomerInfo(
+  stripe: Stripe,
+  customerId: string | null
+): Promise<{ email: string; name: string }> {
+  if (!customerId) return { email: "N/A", name: "N/A" };
+  try {
+    const customerData = (await stripe.customers.retrieve(customerId)) as Stripe.Customer;
+    if (customerData.deleted) return { email: "N/A", name: "N/A" };
+    return { email: customerData.email || "N/A", name: customerData.name || "N/A" };
+  } catch {
+    return { email: "N/A", name: "N/A" };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
