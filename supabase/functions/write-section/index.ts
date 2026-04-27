@@ -495,7 +495,7 @@ serve(async (req) => {
     // 6. Fetch chapter info for scene position context
     const { data: allChapters } = await supabaseClient
       .from('chapters')
-      .select('id, sort_order, scene_outline, title, summary, character_appearances')
+      .select('id, sort_order, scene_outline, title, summary, character_appearances, cliche_counts')
       .eq('project_id', projectId)
       .order('sort_order', { ascending: true });
 
@@ -505,6 +505,20 @@ serve(async (req) => {
     const sceneOutlineArray = (currentChapter?.scene_outline as unknown[]) || [];
     const totalScenes = sceneOutlineArray.length || 1;
     const currentSortOrder = currentChapter?.sort_order || 0;
+
+    // Aggregate cliché counts across the whole book so far (for the blocklist prompt)
+    const bookClicheCounts: Record<string, number> = {};
+    for (const ch of allChapters || []) {
+      const cc = (ch.cliche_counts as Record<string, number> | null) || {};
+      for (const [k, v] of Object.entries(cc)) {
+        bookClicheCounts[k] = (bookClicheCounts[k] || 0) + (Number(v) || 0);
+      }
+    }
+    const clicheBlocklistBlock = buildClicheBlocklistPrompt(bookClicheCounts);
+    const dbChapterTitle = currentChapter?.title || chapterTitle;
+    const titleDupeBan = dbChapterTitle
+      ? `\n\n## FEJEZETCÍM TILALOM:\n- A fejezet címe ("${dbChapterTitle}") TILTOTT belső szakasz-fejlécként vagy önálló sorként a próza belsejében.\n- NE írd újra a fejezetcímet a jeleneten belül, NE használd alcímként, NE ismételd meg sehol a szövegben.`
+      : "";
 
     // 6b. Build character history from previous chapters
     const prevChaptersForHistory = allChapters?.filter(ch => ch.character_appearances && ch.sort_order < currentSortOrder) || [];
