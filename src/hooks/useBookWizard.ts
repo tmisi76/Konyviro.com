@@ -16,8 +16,22 @@ import type {
   NonfictionBookType,
   BookTypeSpecificData,
 } from "@/types/wizard";
+import { TONES } from "@/types/wizard";
 
 const STORAGE_KEY = "book-wizard-data";
+
+/**
+ * Combine multiple selected tones into a single human-readable string for DB storage
+ * and AI prompt context. Falls back to the legacy single `tone` value if the
+ * `tones` array is empty.
+ */
+function buildCombinedTone(tones: Tone[] | undefined, fallback: Tone | null): string | null {
+  const list = tones && tones.length > 0 ? tones : fallback ? [fallback] : [];
+  if (list.length === 0) return null;
+  // Use Hungarian labels so the DB string is also human-readable
+  const labelMap = new Map(TONES.map(t => [t.id, t.label]));
+  return list.map(id => labelMap.get(id) ?? id).join("; ");
+}
 
 export function useBookWizard() {
   const { user } = useAuth();
