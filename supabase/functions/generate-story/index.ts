@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
+import { extractCandidateCharacterNames, buildExtractedNameLock } from "../_shared/prompt-builder.ts";
 
 // Nationality / language guide for character names. The AI generates names
 // itself based on the chosen cultural background instead of using a fixed list.
@@ -443,15 +444,22 @@ FONTOS: Ez egy SZAKKÖNYV, NEM regény! Ne használj fiktív karaktereket, antag
         ? `\nA történet helyszíne / korszaka: ${setting.trim()}. Ezt is vedd figyelembe a nevek megválasztásánál.`
         : "";
 
+      // Extract user-provided character names from the story idea so the AI cannot rename them.
+      const candidateNames = extractCandidateCharacterNames(storyIdea);
+      const userNameLockBlock = buildExtractedNameLock(candidateNames);
+
       const nameContext = `
 KARAKTER NEVEK — KULTURÁLIS IRÁNYELV:
-A szereplők kapjanak ${nationalityHint}.${settingHint}
+ÚJ szereplők (akiket a felhasználó NEM nevezett meg) kapjanak ${nationalityHint}.${settingHint}
+
+ABSZOLÚT ELSŐBBSÉG: Ha a felhasználó az ötletben konkrét karaktereket nevezett meg (lásd a FELHASZNÁLÓI KARAKTERNÉV ZÁR blokkot lent), AKKOR azokat KÖTELEZŐ pontosan ugyanazokkal a nevekkel és tulajdonságokkal (bőrszín, faj, korszak, csápok stb.) használni — a kulturális irányelv csak a HIÁNYZÓ, új karakterekre vonatkozik.${userNameLockBlock}
 
 SZABÁLYOK:
 - A nevek legyenek VÁLTOZATOSAK, EGYEDIEK és HITELESEK az adott kultúrához.
 - Ne ismételd ugyanazt a vezeték- vagy keresztnevet több karakternél.
 - Kerüld a túlhasznált sablon-neveket: Kovács Ádám, Kovács János, Nagy Péter, Szabó István, John Smith, John Doe, Jane Doe.
-- A főszereplő, antagonista és mellékszereplők neve mind illeszkedjen a fenti irányelvhez.`;
+- A főszereplő, antagonista és mellékszereplők neve mind illeszkedjen a fenti irányelvhez — KIVÉVE ha a felhasználó már megnevezte őket.
+- TILOS a felhasználó által megadott neveket magyarosítani, lefordítani vagy lecserélni — ezek a nevek úgy maradnak, ahogy a user írta őket (pl. "Géza" marad "Géza", még sci-fi vagy fantasy környezetben is).`;
 
       const randomStyle = getRandomStyle();
       const styleContext = `
