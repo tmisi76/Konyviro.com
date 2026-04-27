@@ -163,6 +163,7 @@ export function useCoachToAutoWrite(): UseCoachToAutoWriteReturn {
           length,
           concept,
           targetWordCount,
+          projectId: project.id,
         }),
       });
 
