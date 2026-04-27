@@ -1,80 +1,65 @@
-## Audit eredmény: mit találtam
+## Cél
 
-Átnéztem a teljes író-pipeline-t (wizard → generate-story → outline → write-scene/write-section → process-next-scene → auto-lector). A rendszer **alapvetően jól működik** a kezdeti karaktergenerálásnál, de **4 ponton szakad meg a kulturális/névi konzisztencia**, ami hosszabb könyveknél problémát okoz.
+A `/` nyitóoldal frissítése úgy, hogy a ma elkészült új képességek (Csapat / kollaboráció, AI Folytatás, Fejezet Recap, Plot Twist, Karakter Hálózat, Konzisztencia-audit / Inbox, Kulturális névadás) is megjelenjenek és eladhatóvá váljanak.
 
-### Mi működik már jól ✅
-- A wizard 3. lépésében kiválasztott **nemzetiség** (magyar, angol, japán, fantasy stb.) eljut a `generate-story` funkcióhoz, és a kezdeti karakterek nevei helyesen az adott kultúrából lesznek.
-- A **karakter név-zár** (`buildCharacterNameLock`) minden jelenetnél megvédi az adatbázisban tárolt neveket attól, hogy az AI átírja vagy magyarosítsa őket.
-- A **POV-zár** (nézőpont) működik.
-- A **karakter-előzmények** (ki mit csinált korábban) átadódnak.
-- A **sorozat-bibilia** (series context) átadódik a folytatásoknál.
+## Mit változtatunk
 
-### Mi szakad meg ❌
+### 1. `FeaturesSection.tsx` — bővített funkciórács
+A jelenlegi 6 általános kártya helyett **9 kártya** 3×3 elrendezésben, hogy a friss képességek is helyet kapjanak. Új / frissített kártyák:
 
-**1. A `fiction_style.characterNationality` NEM jut el a író motorba**
-A `buildFictionStylePrompt` függvény (`_shared/prompt-builder.ts`) csak a `setting` mezőt teszi a promptba, a kiválasztott nemzetiséget kihagyja. Következmény: ha a könyv közepén az AI **új karaktert** vezet be (pl. mellékszereplőt, akit a wizard nem definiált), annak a neve random kultúrából lehet.
+- **Csapat & Kollaboráció** (ikon: `Users2`) — „Hívd meg a társszerződ vagy szerkesztőd. Megosztott projektek, szerepkörök (szerkesztő / olvasó), és valós idejű együttműködés."
+- **AI Folytatás 1 kattintással** (ikon: `Wand2`) — „Soha ne akadj el. Az AI a stílusodban folytatja a mondatot, bekezdést vagy jelenetet."
+- **Konzisztencia Őr** (ikon: `ShieldCheck`) — „Automatikus audit: karakternév-ellentmondások, kulturális hibák, helyszín-eltérések felismerése és javítási javaslatok."
+- **Karakter Hálózat** (ikon: `Network` / `Share2`) — „Vizuális gráf a karaktereid kapcsolatairól — egy pillantás alatt átlátod a szereplőhálót."
+- **Plot Twist Generátor** (ikon: `Zap`) — „Megakadtál? Az AI 3 logikus, mégis meglepő fordulatot javasol a vázlatod alapján."
+- **Fejezet Recap** (ikon: `BookmarkCheck`) — „Visszatérve azonnal képben vagy: 3-4 mondatos AI összefoglaló + folytatási irányok."
 
-**2. Az outline-generátorok teljesen "kultúravakok"**
-A `generate-detailed-outline`, `generate-chapter-outline`, `generate-next-outline`, `generate-section-outline` egyike sem kapja meg a nemzetiségi irányelvet. Így ha az outline új karaktert javasol, az nem garantáltan illeszkedik.
+A meglévő kártyákból megtartjuk: **Könyv Coach**, **Karakter Menedzsment**, **Export Formátumok**. (A „Kutatás Modul" és „Fejezet Szervezés" kikerül a 9 kártyás keretbe való illesztés miatt — rövid funkciórács, kevesebb redundancia.)
 
-**3. A `auto-lector` nem ellenőrzi a név-konzisztenciát**
-A jelenlegi lektor-folyamat nyelvtani és stilisztikai javításokat végez, de **nem keresi**, hogy felbukkant-e valamelyik fejezetben olyan karakternév, ami nincs a `characters` táblában (azaz "vendégszereplő" probléma), vagy hogy egy név más-más változatban fordul-e elő (pl. "Anna" és "Annácska" vs. "Anna" és "Anikó").
+### 2. Új szekció: **Csapatban dolgozz** (`CollaborationSection.tsx`)
+Dedikált szekció a `HowItWorksSection` után, két oszlopban:
+- Bal: cím + leírás + 3 bullet (Meghívás emailen / Szerepkörök / Megosztott karakterek és vázlat) + CTA „Próbáld ki ingyen".
+- Jobb: vizuális mockup card — több színes avatar + projekt cím + „3 társszerző aktív" badge.
 
-**4. A helyszín-konzisztencia nincs ellenőrizve**
-A `setting` mező a fiction_style-ban szabad szöveg (pl. "1920-as évek Budapest"), de később semmi nem ellenőrzi, hogy a fejezetekben fel-fellépő helyszínek (utcák, épületek, városok) konzisztensek-e. Ha az egyik fejezetben a "Váci utca" szerepel, a másikban "Vámház körút", akkor nincs garancia a koherenciára.
+### 3. Új szekció: **Profi minőség, automatikusan** (`QualityShowcaseSection.tsx`)
+A Pricing előtt, sötét háttérrel kiemelve. Bemutatja a minőség-vezérelt motort:
+- 3 kis kártya: **Konzisztencia-audit**, **Auto-lektor**, **Kulturális névadás** (pl. „Magyar regényhez magyar nevek — Japán helyszínhez japán nevek, automatikusan").
+- Mini „előtte/utána" példa: nyers AI mondat → lektorált verzió.
 
----
+### 4. `Navbar.tsx` — új menüpont
+Új link: **„Csapat"** ami a `#collaboration` szekcióra ugrik (desktop + mobile menüben is). Sorrend: Funkciók · Hogyan működik · Csapat · Árazás · GYIK.
 
-## Javítási terv (4 lépés)
+### 5. `Index.tsx` — szekciók beillesztése
+Új sorrend:
+```text
+Navbar
+HeroSection
+FeaturesSection             (9 kártya, frissítve)
+HowItWorksSection
+CollaborationSection        (ÚJ – id="collaboration")
+QualityShowcaseSection      (ÚJ)
+PricingSection
+FAQSection
+Footer
+```
 
-### 1. lépés: Nemzetiségi irányelv beépítése a `buildFictionStylePrompt`-be
-**Fájl:** `supabase/functions/_shared/prompt-builder.ts`
+### 6. FAQ frissítés (opcionális, kis bővítés)
+2 új kérdés a `FAQSection`-be: „Lehet csapatban dolgozni?" és „Hogyan biztosítjátok, hogy a karakternevek illeszkedjenek a választott országhoz?"
 
-Bővíteni a függvényt, hogy a `characterNationality` mezőt is kitegye a promptba, a `NATIONALITY_GUIDE` lookup táblával együtt (amit a `generate-story`-ból át kell mozgatni, hogy mindkét helyen elérhető legyen).
+## Stílus / dizájn
 
-**Hatás:** Minden jelenet- és szakaszgeneráláskor (write-scene, write-section, process-next-scene) az AI tudni fogja, hogy ÚJ karakternek milyen kulturális hátterű nevet kell adnia.
+- A meglévő design tokeneket használjuk (`bg-card`, `text-primary`, `text-secondary`, `text-accent`, `text-success`, `text-warning`, `text-info`).
+- Kártyák ugyanolyan `rounded-2xl border bg-card hover:-translate-y-1` interakcióval, mint a jelenlegi `FeaturesSection`.
+- Konzisztens `py-20 sm:py-28` szekció-paddingek és `container mx-auto`.
+- Csak Lucide ikonok (`Users2`, `Wand2`, `ShieldCheck`, `Network`, `Zap`, `BookmarkCheck`).
 
-### 2. lépés: Outline-generátorok kulturális tudatossága
-**Fájlok:** `supabase/functions/generate-detailed-outline/index.ts`, `generate-chapter-outline/index.ts`, `generate-next-outline/index.ts`
+## Érintett fájlok
 
-Az outline-generátorok promptjába bevezetni egy rövid "új karakter névkonvenciók" blokkot, ami a `project.fiction_style.characterNationality` és a `project.fiction_style.setting` alapján irányítja az AI-t.
+- `src/pages/Index.tsx` (szerkesztés)
+- `src/components/landing/Navbar.tsx` (szerkesztés — új menüpont)
+- `src/components/landing/FeaturesSection.tsx` (szerkesztés — 9 kártya)
+- `src/components/landing/FAQSection.tsx` (szerkesztés — 2 új kérdés)
+- `src/components/landing/CollaborationSection.tsx` (új)
+- `src/components/landing/QualityShowcaseSection.tsx` (új)
 
-**Hatás:** Az outline-ban javasolt új mellékszereplők neve illeszkedni fog a választott kultúrához.
-
-### 3. lépés: Név-konzisztencia auditor (új edge function)
-**Új fájl:** `supabase/functions/audit-name-consistency/index.ts`
-
-Új edge function, ami egy projekt összes fejezetén végigfut és:
-- Kigyűjti az összes nagy kezdőbetűs tulajdonnévnek tűnő tokent (regex + AI)
-- Összeveti a `characters` táblával
-- Keres "vendégszereplőket" (nem regisztrált neveket)
-- Keres név-variánsokat (pl. "Kovács Anna" vs. "Anna Kovács" vs. "Annus")
-- Keres helyszín-inkonzisztenciát (pl. "Váci utca" / "Vámház körút" összevetés)
-- Eredményt ír a `quality_issues` táblába (severity szerint)
-
-**Frontend integráció:** A meglévő **Konzisztencia Inbox** (`ConsistencyInbox.tsx`) automatikusan megjeleníti az új issue-kat — egy gomb hozzáadásával manuálisan elindítható az audit.
-
-### 4. lépés: Konzisztencia gomb az editorba
-**Fájl:** `src/components/quality/ConsistencyInbox.tsx`
-
-Egy "🔍 Teljes ellenőrzés most" gomb, ami meghívja az új `audit-name-consistency` edge functiont, és progress indicator mellett megmutatja az eredményt.
-
----
-
-## Műszaki részletek
-
-**Adatbázis:** A `quality_issues` tábla már létezik, így nem kell migráció. Az új issue-ok a meglévő struktúrába mennek (`issue_type`: `name_consistency` / `location_consistency`, `severity`: `low/medium/high`).
-
-**Költség:** Az audit egy projektre kb. 1 AI hívás (Gemini 2.5 Flash, structured output) — minimális.
-
-**Backward kompatibilitás:** A meglévő projektek is profitálnak (a 1. és 2. lépés azonnal érvényesül a következő íráskor; a 3-4. lépés bármikor manuálisan futtatható).
-
----
-
-## Mit fog érzékelni a felhasználó
-
-- Új könyveknél: **a karakternevek végig a választott kultúrában** maradnak (még a 30. fejezetben felbukkanó mellékszereplők is).
-- Meglévő könyveknél: egy gombnyomással **megkapja a hibalistát** az inkonzisztens nevekről és helyszínekről.
-- Az outline-ban javasolt új karakterek neve **azonnal helyes kultúrából** származik.
-
-Mehet a megvalósítás?
+Nincs adatbázis-, edge function- vagy auth-változás — kizárólag a marketing felület frissítése.
