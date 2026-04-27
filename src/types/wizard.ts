@@ -203,6 +203,38 @@ export const AGE_RATING_OPTIONS: { id: AgeRating; label: string; description: st
   { id: "explicit", label: "Explicit", description: "Részletes felnőtt tartalom" },
 ];
 
+// Character nationality / naming convention
+export type CharacterNationality =
+  | "ai_choose"
+  | "hungarian"
+  | "english"
+  | "american"
+  | "german"
+  | "french"
+  | "spanish"
+  | "italian"
+  | "scandinavian"
+  | "japanese"
+  | "russian"
+  | "mixed"
+  | "fantasy";
+
+export const NATIONALITY_OPTIONS: { id: CharacterNationality; label: string; flag: string }[] = [
+  { id: "ai_choose",    label: "AI döntse el (helyszín alapján)", flag: "✨" },
+  { id: "hungarian",    label: "Magyar (pl. Kovács János)",       flag: "🇭🇺" },
+  { id: "english",      label: "Angol (pl. John Smith)",          flag: "🇬🇧" },
+  { id: "american",     label: "Amerikai",                         flag: "🇺🇸" },
+  { id: "german",       label: "Német",                            flag: "🇩🇪" },
+  { id: "french",       label: "Francia",                          flag: "🇫🇷" },
+  { id: "spanish",      label: "Spanyol / Latin",                  flag: "🇪🇸" },
+  { id: "italian",      label: "Olasz",                            flag: "🇮🇹" },
+  { id: "scandinavian", label: "Skandináv",                        flag: "🇸🇪" },
+  { id: "japanese",     label: "Japán",                            flag: "🇯🇵" },
+  { id: "russian",      label: "Orosz",                            flag: "🇷🇺" },
+  { id: "mixed",        label: "Vegyes nemzetközi",                flag: "🌍" },
+  { id: "fantasy",      label: "Fantasy / kitalált",               flag: "🐉" },
+];
+
 // Fiction style settings interface
 export interface FictionStyleSettings {
   pov: POVType;
@@ -211,6 +243,7 @@ export interface FictionStyleSettings {
   descriptionLevel: DescriptionLevel;
   setting: string; // Helyszín/korszak szabad szöveg
   ageRating: AgeRating;
+  characterNationality: CharacterNationality;
 }
 
 export interface StoryIdea {
