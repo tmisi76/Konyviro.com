@@ -1,61 +1,75 @@
-## Cél
-Megszüntetem azt, hogy az app az ötlet/koncepció után magyar nevekre cserélje a felhasználó által megadott vagy kiválasztott karakterneveket. A név- és karakterinformáció végigmenjen ezen a láncon:
+## Rövid válasz
 
-```text
-ötlet → koncepció → fejezetvázlat → jelenetvázlat → tényleges könyvírás
-```
+Igen, **a szoftver már tudja ezt**! Beállítások → **Saját stílus** menüpont alatt fel tudsz tölteni szövegmintákat, az AI elemzi a mondatszerkezetet, szókincset, hangnemet, párbeszéd-arányt, és ezt a stílusprofilt használja a fikciós könyvírás során.
 
-## Mit javítok
+Viszont jelenleg három korlát van, amit ezzel a feladattal feloldunk:
 
-1. **Karakternevek kinyerése és zárolása már a koncepciógenerálásnál**
-   - A `generate-story` funkcióban felismerem a felhasználó által megadott karakterneveket a sztoriötletből/koncepcióból.
-   - Ezeket „név-zárként” adom át az AI-nak: meglévő karaktert nem nevezhet át, nem magyarosíthat, nem cserélhet le.
-   - Ha például a felhasználó azt írja, hogy „Géza a Galaktikus Szövetség kapitánya, kék bőrrel és csápokon lógó szemekkel”, akkor Géza nem válhat random magyar családnevű földi szereplővé, és a fizikai jellemzők is megmaradnak.
+1. Csak **bemásolni** lehet szöveget — **PDF/DOCX feltöltés nincs**.
+2. A stílusprofil **csak fikciós** könyveknél (regény) érvényesül — a szakkönyv/önfejlesztő motorba nincs bekötve.
+3. A wizardban **nincs említés** róla, így a felhasználók nem tudják, hogy létezik.
 
-2. **A magyar névsorrend szabály finomítása**
-   - A közös promptban jelenleg túl erős a „magyar névsorrend” utasítás, ami nem magyar vagy sci-fi/fantasy történetnél félreviheti a modellt.
-   - Átírom úgy, hogy a magyar helyesírás és párbeszédformázás maradjon, de a névsorrend csak magyar karaktereknél legyen kötelező.
-   - Nem magyar, fantasy vagy sci-fi névnél az eredeti névforma maradjon.
+## Mit építünk
 
-3. **Névtípus beállítás kiterjesztése sci-fi/fantasy irányba**
-   - A már hozzáadott „Karakterek nemzetisége / nyelve” opciót pontosítom.
-   - A „Fantasy / kitalált” mellé bevezetem vagy egyértelművé teszem a sci-fi/idegen név opciót is.
-   - A promptban külön szabályt kapnak az idegen/fantasy nevek: lehetnek nem földi, kitalált nevek, de ha a user adott konkrét nevet, az elsőbbséget élvez.
+### 1. PDF / DOCX / TXT feltöltés a Saját stílus oldalon
 
-4. **A koncepcióból érkező karakterek tényleges mentése és felhasználása**
-   - Ellenőrzöm és javítom a wizard karaktermentési útját, hogy a generált/megadott karakterek tényleg bekerüljenek a `characters` táblába.
-   - A karaktermentésnél javítom a hibás/torzított szerepértékeket is, hogy ne legyen gond a későbbi karakterlekérdezésnél.
+A `StyleSettings` modálba egy fájlfeltöltő gomb kerül a beillesztős textarea mellé. Támogatott formátumok: **PDF, DOCX, TXT**. Maximális méret: **20 MB**.
 
-5. **Fejezet- és jelenetvázlat karakterkényszerítése**
-   - A `generate-chapter-outline` és `generate-section-outline` promptjába beépítem a karakterlistát és a név-zárat.
-   - A fejezetvázlat ne találjon ki új főszereplőt, ha már van megadott/projektbe mentett karakter.
-   - A jelenetvázlat `pov` és `characters_in_scene` mezői a meglévő neveket használják.
+A feltöltött fájlt egy új edge function (`extract-style-sample-text`) feldolgozza:
+- **PDF** → szövegkinyerés (`pdfjs-dist` Deno-kompatibilis verzió, vagy a már meglévő DocRaptor/CloudConvert helyett egyszerű `pdfjs` text-extract).
+- **DOCX** → szövegkinyerés (`mammoth` ESM verzió).
+- **TXT** → közvetlen olvasás.
 
-6. **Tényleges író motor karakterkonzisztencia erősítése**
-   - A `write-section` / háttéríró motor már részben használ karakterzárat, de csak akkor működik jól, ha a karakterek ténylegesen el vannak mentve és a jelenetvázlatban ugyanazok a nevek szerepelnek.
-   - Ezt végig összekötöm, hogy a generált prózában ne jelenjenek meg önkényesen magyarított vagy lecserélt nevek.
+Visszaad: `{ title, content, wordCount }`. A frontend ezt előtölti a már meglévő modálba, a felhasználó megerősítheti a címet és menti.
 
-7. **Könyv Coach útvonal javítása is**
-   - A Coach automata írási útja jelenleg nem kér névtípust, és alapból `ai_choose`-t használ.
-   - A Coachból érkező konkrét szereplőneveket is beépítem a projekt koncepciójába és a név-zárba.
-   - Ha a Coach összefoglalóban van helyszín/műfaj/sci-fi/fantasy jelzés, abból nem magyar nevek felé tereli a rendszert.
+Bónusz: ha a fájl nagyon hosszú (>30k szó), automatikusan megvágjuk az első ~30k szóra (az elemzés úgyis 10k-val dolgozik), és figyelmeztetjük.
 
-## AI verzió kérdésére
-Az app már a Lovable AI-n keresztül működik, nem egy egyszerű sablonmotor. A gond itt nem feltétlenül az „AI butasága”, hanem az, hogy a promptlánc több pontján elveszik vagy gyengül a karakterkonteksztus. Ezt javítom most úgy, hogy ne csak az első 3 ötletnél, hanem a tényleges könyvírásnál is kötelezően érvényesüljön a megadott karakterlista.
+### 2. Stílusprofil a non-fiction (szakkönyv / önfejlesztő) motorban is
 
-## Érintett fájlok
-- `supabase/functions/_shared/prompt-builder.ts`
-- `supabase/functions/generate-story/index.ts`
-- `supabase/functions/generate-chapter-outline/index.ts`
-- `supabase/functions/generate-section-outline/index.ts`
-- `supabase/functions/write-section/index.ts`
-- `src/types/wizard.ts`
-- `src/components/wizard/steps/Step3FictionStyle.tsx`
-- `src/hooks/useBookWizard.ts`
-- `src/hooks/useCoachToAutoWrite.ts`
+Jelenleg csak `write-section/index.ts` `isFiction === true` ágában fut le a `buildStylePrompt`. Áthelyezzük úgy, hogy **mindig** lefusson, ha a felhasználónak van profilja — fikció esetén a fictionStyle után, non-fiction esetén a NONFICTION/INVESTIGATIVE system prompt után. Ugyanezt megnézzük a `write-scene` és `process-next-scene` függvényekben is — ott is konzisztenssé tesszük (ha még nincs az).
 
-## Ellenőrzési forgatókönyvek
-1. Sci-fi ötlet konkrét szereplővel: „Géza, kék bőrű kapitány...” → a koncepció, fejezetvázlat és jelenetek is Gézát használják.
-2. Angol/amerikai névtípus kiválasztása → John/Emily/Morgan jellegű nevek maradnak, nem lesz belőlük János/Anna/Kovács.
-3. Fantasy/sci-fi névtípus → az AI generálhat idegen/fantasy neveket, de a user által megadott neveket nem írja át.
-4. Coachból indított automata könyv → a Coachban megadott szereplők nem vesznek el az automata írásnál.
+### 3. Felfedezhetőség: említés a wizard onboardingjában
+
+A `BookCreationWizard` első lépésében (vagy egy banner-ben a Step1/Step2 alatt) egy diszkrét info-doboz: *„Van saját írói stílusod? Töltsd fel néhány korábbi szövegedet a Beállítások → Saját stílus menüben, és a könyved a te hangodon szólal meg."* — link a `/settings?tab=style` útvonalra. Ha a felhasználónak már van aktív stílusprofilja, helyette: *„✓ Saját stílusod aktív — a könyved ezzel készül."*
+
+Ugyanez a banner megjelenik a Könyv Coach (`/coach`) oldal tetején is.
+
+### 4. Apró UX javítások a Saját stílus oldalon
+
+- A modálban **két fül**: „Beillesztés" / „Fájl feltöltése".
+- Drag & drop zóna a feltöltéshez.
+- Feltöltés után előnézet (első 500 karakter), hogy lásd, jól lett-e kinyerve a szöveg.
+- Az „Elemzés" gomb mellé egy infó-tooltip: minimum ~500 szó ajánlott.
+
+## Technikai részletek (fejlesztőknek)
+
+**Új edge function:** `supabase/functions/extract-style-sample-text/index.ts`
+- Auth szükséges (JWT validáció kódból).
+- Bemenet: `multipart/form-data` (file).
+- PDF: `pdfjs-dist` ESM importtal Denoba (`https://esm.sh/pdfjs-dist@4...`); page-by-page `getTextContent()`.
+- DOCX: `https://esm.sh/mammoth@1.x` `extractRawText`.
+- TXT: `await file.text()`.
+- Word count szerver oldalon számolva, ugyanazzal a regex-szel mint a frontend.
+- 429/402 kezelés nem releváns (nincs AI-hívás benne).
+- Limit: 20 MB; ezen felül 413 hiba.
+
+**Módosított fájlok:**
+- `src/components/settings/StyleSettings.tsx` — Tabs (Beillesztés / Fájl), drag & drop, előnézet.
+- `src/hooks/useWritingStyle.ts` — új `uploadAndAddSample(file: File)` metódus, ami az új edge functiont hívja.
+- `supabase/functions/write-section/index.ts` — a `buildStylePrompt` blokkot kihúzzuk az `if (isFiction)` ágból, hogy non-fiction esetén is fusson.
+- `supabase/functions/write-scene/index.ts` — ellenőrizzük, hogy mindig lefut, ha van profil.
+- `supabase/functions/process-next-scene/index.ts` — ugyanez az ellenőrzés.
+- `src/components/wizard/BookCreationWizard.tsx` — diszkrét banner az első lépésben.
+- `src/pages/BookCoach.tsx` — ugyanaz a banner.
+- `src/pages/Settings.tsx` — `?tab=style` query param támogatás (ha még nincs), hogy a wizardból tudjunk linkelni rá.
+
+**Storage:** A feltöltött fájlt **nem mentjük el** — csak a kinyert szöveget tároljuk a `user_writing_samples` táblában (mint most). Így nem kell bucket, sem új RLS.
+
+**Migrációk:** Nem kellenek — a `user_writing_samples` és `user_style_profiles` táblák már léteznek.
+
+**Memory frissítés:** A `mem://features/editor/style-profile-integration` rekordot frissítjük a non-fiction kiterjesztéssel és a fájlfeltöltéssel.
+
+## Eredmény
+
+- Egy gombnyomásra feltölthetsz egy PDF-et vagy DOCX-et a saját könyvedből/írásodból.
+- Az AI elemzi és minden további generáláskor (regény és szakkönyv egyaránt) a te stílusodban ír.
+- A wizardban már a könyv elindítása előtt látod, hogy van-e betanított stílusod.
