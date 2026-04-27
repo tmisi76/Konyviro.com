@@ -4,6 +4,8 @@ import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
+import { countCliches, mergeClicheCounts, buildClicheBlocklistPrompt } from "../_shared/cliche-tracker.ts";
+import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
 import {
   NO_MARKDOWN_RULE,
   HUNGARIAN_GRAMMAR_RULES,
@@ -312,6 +314,19 @@ serve(async (req) => {
     const dialogueVariety = buildDialogueVarietyRules();
     const antiRepetition = buildAntiRepetitionPrompt(prevContent || undefined);
 
+    // Aggregate cliché counts across the entire book so far
+    const bookClicheCounts: Record<string, number> = {};
+    for (const ch of chapters || []) {
+      const cc = ((ch as { cliche_counts?: Record<string, number> }).cliche_counts) || {};
+      for (const [k, v] of Object.entries(cc)) {
+        bookClicheCounts[k] = (bookClicheCounts[k] || 0) + (Number(v) || 0);
+      }
+    }
+    const clicheBlocklist = buildClicheBlocklistPrompt(bookClicheCounts);
+    const titleDupeBan = targetChapter.title
+      ? `\n\n## FEJEZETCÍM TILALOM:\n- A fejezet címe ("${targetChapter.title}") TILTOTT belső szakasz-fejlécként vagy önálló sorként a próza belsejében.\n- NE írd újra a fejezetcímet a jeleneten belül.`
+      : "";
+
     const prompt = `${storyContext ? storyContext + "\n" : ""}ÍRD MEG: ${targetChapter.title} - Jelenet ${targetSceneIndex + 1}/${scenes.length}${scene.title ? `: "${scene.title}"` : ""}
 
 POV: ${scene.pov || "Harmadik személy"}
@@ -325,6 +340,7 @@ ${scene.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${scene.pov_em
 ${scene.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${scene.pov_emotion_end}` : ""}
 Célhossz: ~${scene.target_words || 1000} szó
 ${characterCtx}${nameLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
+${clicheBlocklist}${titleDupeBan}
 ${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-2000)}` : ""}
 
 CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
@@ -561,9 +577,31 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
 
     // Update scene status and chapter word count
     scenes[targetSceneIndex].status = "completed";
+
+    // Post-hoc cleanups: chapter title dupe + character name consistency
+    sceneText = stripChapterTitleDupes(sceneText, targetChapter.title);
+    const registeredNames = (charactersResult?.data || []).map((c: { name: string }) => c.name);
+    const nameFix = validateAndFixCharacterNames(sceneText, registeredNames);
+    if (Object.keys(nameFix.corrections).length > 0) {
+      console.log(`[process-next-scene] Name corrections applied:`, nameFix.corrections);
+      sceneText = nameFix.text;
+    }
+
     const wordCount = sceneText.split(/\s+/).length;
     const newWordCount = (targetChapter.word_count || 0) + wordCount;
     const allDone = scenes.every((s: any) => s && s.status === "completed");
+
+    // Update cliché counts for this chapter
+    try {
+      const sceneClicheCounts = countCliches(sceneText);
+      const existingCounts =
+        ((targetChapter as { cliche_counts?: Record<string, number> }).cliche_counts) || {};
+      const newCounts = mergeClicheCounts(existingCounts, sceneClicheCounts);
+      (targetChapter as { cliche_counts?: Record<string, number> }).cliche_counts = newCounts;
+      await supabase.from("chapters").update({ cliche_counts: newCounts }).eq("id", targetChapter.id);
+    } catch (e) {
+      console.warn("[process-next-scene] Failed to persist cliché counts:", e);
+    }
 
     await supabase
       .from("chapters")

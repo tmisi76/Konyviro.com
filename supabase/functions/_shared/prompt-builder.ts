@@ -416,6 +416,9 @@ export function buildPOVEnforcement(
       rules.push(`- A teljes narráció ÉN-formában szól, végig ${charName} szemszögéből`);
       rules.push(`- TILOS harmadik személybe váltani`);
       rules.push(`- Csak azt írhatod le, amit ${charName} lát, hall, érez, gondol`);
+      rules.push(`- BIRTOKOS RAG SZABÁLY (KÖTELEZŐ): a narrációban "kezem", "hátam", "fülem", "szemem", "torkom", "mellkasom" formákat használj — TILOS "keze", "háta", "füle", "szeme", "torka", "mellkasa" alakokat írni a POV karakterre.`);
+      rules.push(`- IGE-RAG SZABÁLY: a POV karakter cselekvését E/1-ben ragozd ("léptem", "vártam", "néztem"), NEM E/3-ban ("lépett", "várt", "nézett").`);
+      rules.push(`- A többi karakter cselekvése továbbra is E/3 ("Anna lépett", "rám nézett") — csak a POV karakterre vonatkozik az E/1.`);
       break;
     case 'third_limited':
       rules.push(`NÉZŐPONT: Harmadik személy, korlátozott`);
@@ -423,11 +426,15 @@ export function buildPOVEnforcement(
       rules.push(`- CSAK ${charName} gondolatait és érzéseit írhatod le`);
       rules.push(`- Más karakterek gondolatai TILTOTTAK — csak a viselkedésüket, szavaikat, arckifejezésüket írd le`);
       rules.push(`- Minden leírás ${charName} szubjektív észlelésén keresztül szűrődjön`);
+      rules.push(`- BIRTOKOS RAG SZABÁLY (KÖTELEZŐ): a narrációban "keze", "háta", "füle", "szeme", "torka", "mellkasa" formákat használj — TILOS "kezem", "hátam", "fülem", "szemem", "torkom", "mellkasom" alakokat írni (kivéve PÁRBESZÉDBEN, ahol a karakterek természetesen E/1-ben beszélnek magukról).`);
+      rules.push(`- IGE-RAG SZABÁLY: a POV karakter cselekvését E/3-ban írd ("lépett", "várt", "nézett"), NEM E/1-ben ("léptem", "vártam", "néztem").`);
+      rules.push(`- ELŐBB EGY POV-ot VÉGIG: a teljes jeleneten belül NE válts át "én"-elbeszélőre. A párbeszéden kívül minden mondat E/3 marad.`);
       break;
     case 'third_omniscient':
       rules.push(`NÉZŐPONT: Harmadik személy, mindentudó`);
       rules.push(`- Bármely karakter gondolataiba belenézhetsz`);
       rules.push(`- De fókuszálj elsősorban ${charName}-ra ebben a jelenetben`);
+      rules.push(`- A narráció E/3-ban marad ("keze", "háta") — a párbeszéden kívül NE válts E/1-re.`);
       break;
     default:
       rules.push(`NÉZŐPONT: ${effectivePov}`);

@@ -610,6 +610,7 @@ export type Database = {
       chapters: {
         Row: {
           character_appearances: Json | null
+          cliche_counts: Json
           content: string | null
           created_at: string
           current_scene_index: number | null
@@ -619,6 +620,7 @@ export type Database = {
           project_id: string
           quality_issues: Json | null
           quality_score: number | null
+          regen_retry_count: number
           scene_outline: Json | null
           scenes_completed: number | null
           sort_order: number
@@ -633,6 +635,7 @@ export type Database = {
         }
         Insert: {
           character_appearances?: Json | null
+          cliche_counts?: Json
           content?: string | null
           created_at?: string
           current_scene_index?: number | null
@@ -642,6 +645,7 @@ export type Database = {
           project_id: string
           quality_issues?: Json | null
           quality_score?: number | null
+          regen_retry_count?: number
           scene_outline?: Json | null
           scenes_completed?: number | null
           sort_order?: number
@@ -656,6 +660,7 @@ export type Database = {
         }
         Update: {
           character_appearances?: Json | null
+          cliche_counts?: Json
           content?: string | null
           created_at?: string
           current_scene_index?: number | null
@@ -665,6 +670,7 @@ export type Database = {
           project_id?: string
           quality_issues?: Json | null
           quality_score?: number | null
+          regen_retry_count?: number
           scene_outline?: Json | null
           scenes_completed?: number | null
           sort_order?: number
@@ -1425,6 +1431,7 @@ export type Database = {
           fiction_style: Json | null
           generated_story: string | null
           genre: string
+          has_missing_chapters: boolean
           id: string
           last_activity_at: string | null
           lector_enabled: boolean
@@ -1475,6 +1482,7 @@ export type Database = {
           fiction_style?: Json | null
           generated_story?: string | null
           genre: string
+          has_missing_chapters?: boolean
           id?: string
           last_activity_at?: string | null
           lector_enabled?: boolean
@@ -1525,6 +1533,7 @@ export type Database = {
           fiction_style?: Json | null
           generated_story?: string | null
           genre?: string
+          has_missing_chapters?: boolean
           id?: string
           last_activity_at?: string | null
           lector_enabled?: boolean
