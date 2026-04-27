@@ -193,11 +193,23 @@ function TicketDetail({ ticket, onUpdate }: TicketDetailProps) {
     if (!reply.trim()) return;
 
     try {
-      await sendReplyMutation.mutateAsync({ ticketId: ticket.id, message: reply });
+      // Pass the recipient email + subject so the function actually sends the
+      // notification email. Only send when we have a real email address.
+      const isRealEmail = ticket.user_email && ticket.user_email.includes("@");
+      await sendReplyMutation.mutateAsync({
+        ticketId: ticket.id,
+        message: reply,
+        recipientEmail: isRealEmail ? ticket.user_email : undefined,
+        ticketSubject: ticket.subject,
+      });
       setReply("");
       refetchMessages();
       onUpdate();
-      toast.success("Válasz elküldve!");
+      toast.success(
+        isRealEmail
+          ? "Válasz elküldve és emailben értesítve a felhasználó!"
+          : "Válasz elküldve (email értesítés nem elérhető)"
+      );
     } catch (error: any) {
       toast.error("Hiba: " + error.message);
     }

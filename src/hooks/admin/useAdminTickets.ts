@@ -60,14 +60,31 @@ export function useAdminTickets(options: UseAdminTicketsOptions = {}) {
       
       let userEmails: Record<string, string> = {};
       if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name, full_name")
-          .in("user_id", userIds);
+        // Fetch real auth emails (admin only) so we can send reply emails
+        try {
+          const { data: emailData, error: emailErr } = await supabase.functions.invoke(
+            "admin-get-user-emails",
+            { body: { userIds } }
+          );
+          if (!emailErr && emailData?.emails) {
+            userEmails = emailData.emails as Record<string, string>;
+          }
+        } catch (e) {
+          console.warn("Could not fetch user emails:", e);
+        }
 
-        profiles?.forEach((p) => {
-          userEmails[p.user_id] = p.display_name || p.full_name || `user_${p.user_id.slice(0, 8)}`;
-        });
+        // Fallback to profile display names for any users we didn't get an email for
+        const missingIds = userIds.filter((id) => !userEmails[id]);
+        if (missingIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, display_name, full_name")
+            .in("user_id", missingIds);
+
+          profiles?.forEach((p) => {
+            userEmails[p.user_id] = p.display_name || p.full_name || `user_${p.user_id.slice(0, 8)}`;
+          });
+        }
       }
 
       return tickets.map((ticket) => ({
