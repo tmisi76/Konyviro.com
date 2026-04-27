@@ -35,6 +35,10 @@ function getMargins(marginStyle: string): { top: number; bottom: number; left: n
       return { top: 25, bottom: 25, left: 20, right: 20 };
     case "narrow":
       return { top: 10, bottom: 10, left: 10, right: 10 };
+    case "kdp":
+      // Amazon KDP 6"×9" recommended: 0.875" gutter (inside) + 0.5" outside/top/bottom
+      // Converted to mm: 0.875" = 22.2mm, 0.5" = 12.7mm
+      return { top: 19, bottom: 19, left: 22, right: 13 };
     default: // normal
       return { top: 20, bottom: 20, left: 15, right: 15 };
   }
@@ -442,7 +446,13 @@ serve(async (req) => {
     // Format-specific options
     if (format === "pdf") {
       const margins = getMargins(settings.marginStyle);
-      conversionOptions.page_size = settings.pageSize?.toLowerCase() || "a5";
+      // KDP 6"×9" trim size = 152mm x 229mm (custom CloudConvert size)
+      if (settings.pageSize === "kdp_6x9" || settings.marginStyle === "kdp") {
+        conversionOptions.page_width = 152;
+        conversionOptions.page_height = 229;
+      } else {
+        conversionOptions.page_size = settings.pageSize?.toLowerCase() || "a5";
+      }
       conversionOptions.margin_top = margins.top;
       conversionOptions.margin_bottom = margins.bottom;
       conversionOptions.margin_left = margins.left;
