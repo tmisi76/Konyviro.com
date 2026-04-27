@@ -95,7 +95,7 @@ export function ProjectCard({ project, onOpen, onDelete, onArchive, onRename }: 
   const { startWriting, isLoading: isStartingWrite, canStart } = useBackgroundWriter(project.id);
   
   const isBackgroundWriting = liveStatus === "background_writing" || liveStatus === "writing" || liveStatus === "generating_outlines" || liveStatus === "queued";
-  const isIdle = !liveStatus || liveStatus === "idle";
+  const isIdle = !liveStatus || liveStatus === "idle" || liveStatus === "draft";
   const isCompleted = liveStatus === "completed";
   const hasFailed = liveStatus === "failed";
   
