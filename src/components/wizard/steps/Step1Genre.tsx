@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useProfile } from "@/hooks/useProfile";
 import { Lock } from "lucide-react";
 import type { Genre } from "@/types/wizard";
+import { StyleProfileBanner } from "@/components/style/StyleProfileBanner";
 
 interface Step1GenreProps {
   selected: Genre | null;
@@ -59,6 +60,10 @@ export function Step1Genre({ selected, onSelect }: Step1GenreProps) {
           Válaszd ki a műfajt, és segítünk megírni a könyvedet
         </p>
       </motion.div>
+
+      <div className="w-full max-w-4xl mb-8">
+        <StyleProfileBanner />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
         {GENRES.map((genre, index) => {
