@@ -52,7 +52,7 @@ export function Footer() {
             <ul className="mt-4 space-y-2">
               <li>
                 <Link
-                  to="/auth"
+                  to="/pricing"
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                   Ingyenes próba
