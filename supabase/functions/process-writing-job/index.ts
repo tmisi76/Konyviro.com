@@ -141,6 +141,16 @@ Deno.serve(async (req) => {
         })
         .eq("id", job.id);
 
+    // Chapter completion checksum: if this was the LAST scene of its chapter,
+    // verify that the chapter actually has the expected target words.
+    if (job.job_type === 'write_scene') {
+      try {
+        await checkChapterCompletionAndRetry(supabase, job.project_id, job.chapter_id);
+      } catch (cErr) {
+        console.warn(`Chapter checksum failed for ${job.chapter_id}:`, cErr);
+      }
+    }
+
       // Projekt progress frissítése
       await updateProjectProgress(supabase, job.project_id);
     } else {
