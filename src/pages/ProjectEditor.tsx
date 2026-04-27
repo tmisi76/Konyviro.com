@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChapterSidebar } from "@/components/editor/ChapterSidebar";
 import { EditorView } from "@/components/editor/EditorView";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
+import { ChapterRecapCard } from "@/components/editor/ChapterRecapCard";
 import { OutlineView } from "@/components/editor/OutlineView";
 import { CharacterList } from "@/components/characters/CharacterList";
 import { ResearchView } from "@/components/research/ResearchView";
