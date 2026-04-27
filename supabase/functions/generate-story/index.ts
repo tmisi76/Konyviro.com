@@ -387,7 +387,24 @@ serve(async (req) => {
         suspenseful: "Feszült",
         inspiring: "Inspiráló"
       };
-      contextParts.push(`Hangnem: ${toneNames[tone] || tone}`);
+      // A wizard több hangnemet is átadhat pontosvesszővel elválasztva (pl. "dramatic; suspenseful"
+      // vagy már magyar címkékkel: "Drámai; Feszült"). Mindegyiket lefordítjuk és magyar
+      // felsorolásként visszaadjuk az AI-nak.
+      const rawParts = String(tone).split(/\s*[;,]\s*/).filter(Boolean);
+      const labeled = rawParts.map((p) => toneNames[p] || p);
+      let toneLine: string;
+      if (labeled.length <= 1) {
+        toneLine = labeled[0] || String(tone);
+      } else if (labeled.length === 2) {
+        toneLine = `${labeled[0]} és ${labeled[1]}`;
+      } else {
+        toneLine = `${labeled.slice(0, -1).join(", ")} és ${labeled[labeled.length - 1]}`;
+      }
+      contextParts.push(
+        labeled.length > 1
+          ? `Hangnem (kombinált — minden elemet vegyél figyelembe): ${toneLine}`
+          : `Hangnem: ${toneLine}`
+      );
     }
     
     if (targetAudience) {

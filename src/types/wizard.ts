@@ -277,6 +277,9 @@ export interface WizardData {
   storyDescription: string;
   targetAudience: string;
   tone: Tone | null;
+  // Multi-select hangnem (új). A `tone` mező kompatibilitás miatt marad,
+  // és mindig az első kiválasztott elemmel egyezik meg.
+  tones: Tone[];
   length: BookLength | null;
   additionalInstructions: string;
   storyIdeas: StoryIdea[];
@@ -301,6 +304,7 @@ export const INITIAL_WIZARD_DATA: WizardData = {
   storyDescription: "",
   targetAudience: "",
   tone: null,
+  tones: [],
   length: null,
   additionalInstructions: "",
   storyIdeas: [],

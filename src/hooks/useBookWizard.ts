@@ -16,8 +16,22 @@ import type {
   NonfictionBookType,
   BookTypeSpecificData,
 } from "@/types/wizard";
+import { TONES } from "@/types/wizard";
 
 const STORAGE_KEY = "book-wizard-data";
+
+/**
+ * Combine multiple selected tones into a single human-readable string for DB storage
+ * and AI prompt context. Falls back to the legacy single `tone` value if the
+ * `tones` array is empty.
+ */
+function buildCombinedTone(tones: Tone[] | undefined, fallback: Tone | null): string | null {
+  const list = tones && tones.length > 0 ? tones : fallback ? [fallback] : [];
+  if (list.length === 0) return null;
+  // Use Hungarian labels so the DB string is also human-readable
+  const labelMap = new Map(TONES.map(t => [t.id, t.label]));
+  return list.map(id => labelMap.get(id) ?? id).join("; ");
+}
 
 export function useBookWizard() {
   const { user } = useAuth();
@@ -32,6 +46,7 @@ export function useBookWizard() {
     storyDescription: "",
     targetAudience: "",
     tone: null,
+    tones: [],
     length: null,
     additionalInstructions: "",
     storyIdeas: [],
@@ -127,10 +142,16 @@ export function useBookWizard() {
     tone: Tone;
     length: number;
     additionalInstructions: string;
+    tones?: Tone[];
   }) => {
+    const tonesArray =
+      info.tones && info.tones.length > 0 ? info.tones : [info.tone];
+    const primaryTone = tonesArray[0] ?? info.tone;
     setData(prev => ({
       ...prev,
       ...info,
+      tone: primaryTone,
+      tones: tonesArray,
       // Töröljük az ötleteket és minden utána következő adatot, hogy újrageneráljuk
       storyIdeas: [],
       selectedStoryIdea: null,
@@ -233,7 +254,7 @@ export function useBookWizard() {
         genre: dbGenre,
         subcategory: data.subcategory,
         target_audience: data.targetAudience || null,
-        tone: data.tone,
+        tone: buildCombinedTone(data.tones, data.tone),
         target_word_count: data.length || 25000,
         additional_instructions: data.additionalInstructions || null,
         selected_story_idea: data.selectedStoryIdea ? JSON.parse(JSON.stringify(data.selectedStoryIdea)) : null,
@@ -428,6 +449,7 @@ export function useBookWizard() {
       storyDescription: "",
       targetAudience: "",
       tone: null,
+      tones: [],
       length: null,
       additionalInstructions: "",
       storyIdeas: [],
@@ -476,7 +498,7 @@ export function useBookWizard() {
     // Add common fields
     storyStructure.detailedConcept = data.detailedConcept;
     storyStructure.targetAudience = data.targetAudience;
-    storyStructure.tone = data.tone;
+    storyStructure.tone = buildCombinedTone(data.tones, data.tone);
     storyStructure.subcategory = data.subcategory;
     
     // Update writing status with story_structure
@@ -549,7 +571,7 @@ export function useBookWizard() {
 
     storyStructure.detailedConcept = data.detailedConcept;
     storyStructure.targetAudience = data.targetAudience;
-    storyStructure.tone = data.tone;
+    storyStructure.tone = buildCombinedTone(data.tones, data.tone);
     storyStructure.subcategory = data.subcategory;
 
     // Update project status

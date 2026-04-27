@@ -16,6 +16,7 @@ import { Step5BookTypeData } from "./steps/Step5BookTypeData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import type { AuthorProfile, FictionStyleSettings, NonfictionBookType, BookTypeSpecificData, Subcategory, StoryIdea } from "@/types/wizard";
+import { TONES } from "@/types/wizard";
 
 const Step4StoryIdeas = lazy(() => import("./steps/Step4StoryIdeas").then(m => ({ default: m.Step4StoryIdeas })));
 const Step5StoryDetail = lazy(() => import("./steps/Step5StoryDetail").then(m => ({ default: m.Step5StoryDetail })));
@@ -85,6 +86,22 @@ export function BookCreationWizard() {
   } = useBookWizard();
 
   const isNonFiction = data.genre === "szakkonyv";
+
+  /**
+   * Build the human-readable, possibly multi-tone string passed to the
+   * idea/concept generators so the AI sees every selected hangnem.
+   * Falls back to the legacy single `data.tone` when `data.tones` is empty.
+   */
+  const combinedTone = (() => {
+    const list = data.tones && data.tones.length > 0
+      ? data.tones
+      : data.tone
+        ? [data.tone]
+        : [];
+    if (list.length === 0) return data.tone ?? "";
+    const labelMap = new Map(TONES.map(t => [t.id, t.label]));
+    return list.map(id => labelMap.get(id) ?? id).join("; ");
+  })();
 
   useEffect(() => {
     if (!isSubscriptionLoading && isProjectLimitReached()) {
@@ -194,9 +211,9 @@ export function BookCreationWizard() {
         case 1: return <Step1Genre selected={data.genre} onSelect={handleGenreSelect} />;
         case 2: return data.genre && <Step2Subcategory genre={data.genre} selected={data.subcategory} onSelect={handleSubcategorySelect} />;
         case 3: return <Step3FictionStyle subcategory={data.subcategory} initialData={data.fictionStyle} onSubmit={handleFictionStyleSubmit} />;
-        case 4: return <Step3BasicInfo genre={data.genre!} initialData={{ title: data.title, storyDescription: data.storyDescription, targetAudience: data.targetAudience, tone: data.tone, length: data.length, additionalInstructions: data.additionalInstructions }} onSubmit={handleBasicInfoSubmit} />;
-        case 5: return <Suspense fallback={<StepLoader />}><Step4StoryIdeas genre={data.genre!} subcategory={data.subcategory!} tone={data.tone!} length={data.length!} targetAudience={data.targetAudience} additionalInstructions={data.additionalInstructions} storyDescription={data.storyDescription} existingIdeas={data.storyIdeas} onIdeasGenerated={setStoryIdeas} onSelect={handleStoryIdeaSelect} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} /></Suspense>;
-        case 6: return <Suspense fallback={<StepLoader />}><Step5StoryDetail genre={data.genre!} subcategory={data.subcategory!} tone={data.tone!} selectedIdea={data.selectedStoryIdea!} existingConcept={data.detailedConcept} onConceptGenerated={handleConceptGenerated} onAccept={handleConceptAccept} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} nonfictionBookType={data.nonfictionBookType} /></Suspense>;
+        case 4: return <Step3BasicInfo genre={data.genre!} initialData={{ title: data.title, storyDescription: data.storyDescription, targetAudience: data.targetAudience, tone: data.tone, tones: data.tones, length: data.length, additionalInstructions: data.additionalInstructions }} onSubmit={handleBasicInfoSubmit} />;
+        case 5: return <Suspense fallback={<StepLoader />}><Step4StoryIdeas genre={data.genre!} subcategory={data.subcategory!} tone={combinedTone} length={data.length!} targetAudience={data.targetAudience} additionalInstructions={data.additionalInstructions} storyDescription={data.storyDescription} existingIdeas={data.storyIdeas} onIdeasGenerated={setStoryIdeas} onSelect={handleStoryIdeaSelect} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} /></Suspense>;
+        case 6: return <Suspense fallback={<StepLoader />}><Step5StoryDetail genre={data.genre!} subcategory={data.subcategory!} tone={combinedTone} selectedIdea={data.selectedStoryIdea!} existingConcept={data.detailedConcept} onConceptGenerated={handleConceptGenerated} onAccept={handleConceptAccept} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} nonfictionBookType={data.nonfictionBookType} /></Suspense>;
         case 7: return <Suspense fallback={<StepLoader />}><Step6ChapterOutline genre={data.genre!} length={data.length!} detailedConcept={data.detailedConcept} existingOutline={data.chapterOutline} projectId={data.projectId} onOutlineChange={setChapterOutline} onSave={handleSaveOutline} onStartSemiAutomatic={startSemiAutomatic} onStartAutoWriting={startAutoWriting} onEstimatedMinutesChange={setEstimatedWritingMinutes} isSaving={isSaving} isDirty={isDirty} onResetWizard={reset} /></Suspense>;
         case 8: return <Suspense fallback={<StepLoader />}><Step7AutoWrite projectId={data.projectId!} genre={data.genre!} estimatedMinutes={data.estimatedWritingMinutes || undefined} checkpointMode={checkpointMode} onComplete={() => navigate(`/project/${data.projectId}`)} /></Suspense>;
         default: return null;
@@ -210,8 +227,8 @@ export function BookCreationWizard() {
       case 3: return <Step3BookType selected={data.nonfictionBookType} onSelect={handleBookTypeSelect} />;
       case 4: return <Step3AuthorInfo initialData={data.authorProfile} onSubmit={handleAuthorProfileSubmit} />;
       case 5: return data.nonfictionBookType && <Step5BookTypeData bookType={data.nonfictionBookType} initialData={data.bookTypeSpecificData} onSubmit={handleBookTypeDataSubmit} />;
-      case 6: return <Suspense fallback={<StepLoader />}><Step4StoryIdeas genre={data.genre!} subcategory={data.subcategory!} tone={data.tone!} length={data.length!} targetAudience={data.targetAudience} additionalInstructions={data.additionalInstructions} storyDescription={data.storyDescription} existingIdeas={data.storyIdeas} onIdeasGenerated={setStoryIdeas} onSelect={handleStoryIdeaSelect} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} nonfictionBookType={data.nonfictionBookType} bookTypeSpecificData={data.bookTypeSpecificData} /></Suspense>;
-      case 7: return <Suspense fallback={<StepLoader />}><Step5StoryDetail genre={data.genre!} subcategory={data.subcategory!} tone={data.tone!} selectedIdea={data.selectedStoryIdea!} existingConcept={data.detailedConcept} onConceptGenerated={handleConceptGenerated} onAccept={handleConceptAccept} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} nonfictionBookType={data.nonfictionBookType} /></Suspense>;
+      case 6: return <Suspense fallback={<StepLoader />}><Step4StoryIdeas genre={data.genre!} subcategory={data.subcategory!} tone={combinedTone} length={data.length!} targetAudience={data.targetAudience} additionalInstructions={data.additionalInstructions} storyDescription={data.storyDescription} existingIdeas={data.storyIdeas} onIdeasGenerated={setStoryIdeas} onSelect={handleStoryIdeaSelect} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} nonfictionBookType={data.nonfictionBookType} bookTypeSpecificData={data.bookTypeSpecificData} /></Suspense>;
+      case 7: return <Suspense fallback={<StepLoader />}><Step5StoryDetail genre={data.genre!} subcategory={data.subcategory!} tone={combinedTone} selectedIdea={data.selectedStoryIdea!} existingConcept={data.detailedConcept} onConceptGenerated={handleConceptGenerated} onAccept={handleConceptAccept} authorProfile={data.authorProfile} fictionStyle={data.fictionStyle} nonfictionBookType={data.nonfictionBookType} /></Suspense>;
         case 8: return <Suspense fallback={<StepLoader />}><Step6ChapterOutline genre={data.genre!} length={data.length!} detailedConcept={data.detailedConcept} existingOutline={data.chapterOutline} projectId={data.projectId} onOutlineChange={setChapterOutline} onSave={handleSaveOutline} onStartSemiAutomatic={startSemiAutomatic} onStartAutoWriting={startAutoWriting} onEstimatedMinutesChange={setEstimatedWritingMinutes} isSaving={isSaving} isDirty={isDirty} onResetWizard={reset} /></Suspense>;
       case 9: return <Suspense fallback={<StepLoader />}><Step7AutoWrite projectId={data.projectId!} genre={data.genre!} estimatedMinutes={data.estimatedWritingMinutes || undefined} checkpointMode={checkpointMode} onComplete={() => navigate(`/project/${data.projectId}`)} /></Suspense>;
       default: return null;

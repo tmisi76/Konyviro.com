@@ -41,7 +41,8 @@ interface GeneratedCharacter {
 interface Step5StoryDetailProps {
   genre: Genre;
   subcategory: Subcategory;
-  tone: Tone;
+  // Lehet egyetlen Tone enum vagy a wizardból érkező kombinált hangnem-string (több hangnem esetén)
+  tone: Tone | string;
   selectedIdea: StoryIdea;
   existingConcept: string;
   onConceptGenerated: (concept: string, characters?: GeneratedCharacter[]) => void;

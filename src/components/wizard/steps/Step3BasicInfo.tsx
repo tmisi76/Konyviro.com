@@ -17,6 +17,7 @@ interface Step3BasicInfoProps {
     storyDescription: string;
     targetAudience: string;
     tone: Tone | null;
+    tones?: Tone[];
     length: number | null;
     additionalInstructions: string;
   };
@@ -25,6 +26,7 @@ interface Step3BasicInfoProps {
     storyDescription: string;
     targetAudience: string;
     tone: Tone;
+    tones: Tone[];
     length: number;
     additionalInstructions: string;
   }) => void;
@@ -34,19 +36,31 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
   const [title, setTitle] = useState(initialData.title);
   const [storyDescription, setStoryDescription] = useState(initialData.storyDescription);
   const [targetAudience, setTargetAudience] = useState(initialData.targetAudience);
-  const [tone, setTone] = useState<Tone | null>(initialData.tone);
+  // Multi-select hangnem. Backward compatible: ha csak `tone` jött, abból init.
+  const [tones, setTones] = useState<Tone[]>(() => {
+    if (initialData.tones && initialData.tones.length > 0) return initialData.tones;
+    if (initialData.tone) return [initialData.tone];
+    return [];
+  });
   const [length, setLength] = useState<number>(initialData.length || 25000);
   const [additionalInstructions, setAdditionalInstructions] = useState(initialData.additionalInstructions);
 
-  const canSubmit = tone && length >= 1000;
+  const canSubmit = tones.length > 0 && length >= 1000;
+
+  const toggleTone = (id: Tone) => {
+    setTones(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
+  };
 
   const handleSubmit = () => {
-    if (!tone || !length) return;
+    if (tones.length === 0 || !length) return;
     onSubmit({
       title,
       storyDescription,
       targetAudience,
-      tone,
+      tone: tones[0],
+      tones,
       length,
       additionalInstructions,
     });
@@ -129,18 +143,27 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
 
         {/* Tone */}
         <div className="space-y-3">
-          <Label className="text-base">Hangnem</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-base">Hangnem</Label>
+            <span className="text-xs text-muted-foreground">
+              {tones.length > 0
+                ? `${tones.length} kiválasztva`
+                : "Akár több is választható"}
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {TONES.map((t) => (
               <motion.button
                 key={t.id}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setTone(t.id)}
+                onClick={() => toggleTone(t.id)}
+                type="button"
+                aria-pressed={tones.includes(t.id)}
                 className={cn(
                   "px-4 py-2 rounded-full border-2 transition-all",
                   "flex items-center gap-2",
-                  tone === t.id
+                  tones.includes(t.id)
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-card hover:border-primary/40"
                 )}
@@ -150,6 +173,9 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
               </motion.button>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground">
+            Több hangnem kombinálható — az AI mindegyiket figyelembe veszi a generálásnál.
+          </p>
         </div>
 
         {/* Length - Csúszka */}
