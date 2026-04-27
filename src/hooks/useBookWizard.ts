@@ -254,7 +254,7 @@ export function useBookWizard() {
         genre: dbGenre,
         subcategory: data.subcategory,
         target_audience: data.targetAudience || null,
-        tone: data.tone,
+        tone: buildCombinedTone(data.tones, data.tone),
         target_word_count: data.length || 25000,
         additional_instructions: data.additionalInstructions || null,
         selected_story_idea: data.selectedStoryIdea ? JSON.parse(JSON.stringify(data.selectedStoryIdea)) : null,
