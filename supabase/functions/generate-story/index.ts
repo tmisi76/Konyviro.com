@@ -1,25 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
-import { extractCandidateCharacterNames, buildExtractedNameLock } from "../_shared/prompt-builder.ts";
-
-// Nationality / language guide for character names. The AI generates names
-// itself based on the chosen cultural background instead of using a fixed list.
-const NATIONALITY_GUIDE: Record<string, string> = {
-  hungarian:    "magyar nevek (vezetéknév + keresztnév sorrend, pl. Kovács Anna, Nagy Bence, Tóth Eszter, Szilágyi Márton). Használj változatos magyar vezetékneveket, NE csak a Kovács/Nagy/Szabó hármast.",
-  english:      "brit angol nevek (pl. James Whitmore, Eleanor Hayes, Oliver Bennett, Charlotte Ashford)",
-  american:     "amerikai nevek, etnikailag változatos összetétellel (pl. Marcus Reed, Sofia Castillo, Tyler Brooks, Jasmine Carter)",
-  german:       "német nevek (pl. Lukas Hoffmann, Anna Becker, Felix Wagner, Lena Schmidt)",
-  french:       "francia nevek (pl. Julien Moreau, Camille Lefèvre, Antoine Dubois, Élodie Rousseau)",
-  spanish:      "spanyol vagy latin-amerikai nevek (pl. Diego Herrera, Lucía Morales, Mateo Ramírez, Valentina Castro)",
-  italian:      "olasz nevek (pl. Matteo Ricci, Giulia Conti, Lorenzo Romano, Sofia Bianchi)",
-  scandinavian: "skandináv nevek (pl. Lars Eriksson, Astrid Lindqvist, Mikael Berg, Freya Olsen)",
-  japanese:     "japán nevek (vezetéknév + keresztnév sorrend, pl. Tanaka Haruki, Sato Yuki, Yamamoto Kenji, Nakamura Aiko)",
-  russian:      "orosz nevek (pl. Dmitri Volkov, Anastasia Sokolova, Nikolai Petrov, Irina Romanova)",
-  mixed:        "nemzetközileg vegyes nevek többféle kulturális háttérből (európai, amerikai, ázsiai keverve)",
-  fantasy:      "kitalált, fantasy stílusú nevek (NEM létező kultúrákból kölcsönözve, hanem eredeti hangzású nevek)",
-  ai_choose:    "a történet helyszínéhez, korszakához és kulturális kontextusához illő nevek — ha a helyszín pl. London, akkor angol, ha Tokió, akkor japán, ha nincs egyértelmű helyszín, akkor a kontextushoz illő",
-};
+import { extractCandidateCharacterNames, buildExtractedNameLock, NATIONALITY_GUIDE } from "../_shared/prompt-builder.ts";
 
 const NARRATIVE_STYLES = [
   {
