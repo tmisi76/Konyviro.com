@@ -1,75 +1,85 @@
-## Rövid válasz
-
-Igen, **a szoftver már tudja ezt**! Beállítások → **Saját stílus** menüpont alatt fel tudsz tölteni szövegmintákat, az AI elemzi a mondatszerkezetet, szókincset, hangnemet, párbeszéd-arányt, és ezt a stílusprofilt használja a fikciós könyvírás során.
-
-Viszont jelenleg három korlát van, amit ezzel a feladattal feloldunk:
-
-1. Csak **bemásolni** lehet szöveget — **PDF/DOCX feltöltés nincs**.
-2. A stílusprofil **csak fikciós** könyveknél (regény) érvényesül — a szakkönyv/önfejlesztő motorba nincs bekötve.
-3. A wizardban **nincs említés** róla, így a felhasználók nem tudják, hogy létezik.
-
 ## Mit építünk
 
-### 1. PDF / DOCX / TXT feltöltés a Saját stílus oldalon
+Egy új **„Könyvsorozat" (Series)** koncepciót, amivel több könyvet egy közös univerzumba lehet kötni. Az AI minden új könyv írásakor automatikusan ismeri az előző kötetek karaktereit, történéseit, helyszíneit, és figyelmeztet, ha ellentmondás keletkezik.
 
-A `StyleSettings` modálba egy fájlfeltöltő gomb kerül a beillesztős textarea mellé. Támogatott formátumok: **PDF, DOCX, TXT**. Maximális méret: **20 MB**.
+## Felhasználói folyamat
 
-A feltöltött fájlt egy új edge function (`extract-style-sample-text`) feldolgozza:
-- **PDF** → szövegkinyerés (`pdfjs-dist` Deno-kompatibilis verzió, vagy a már meglévő DocRaptor/CloudConvert helyett egyszerű `pdfjs` text-extract).
-- **DOCX** → szövegkinyerés (`mammoth` ESM verzió).
-- **TXT** → közvetlen olvasás.
+1. **Új könyv létrehozásakor** (vagy meglévő könyvnél a Beállításoknál) a wizard első lépésében új kapcsoló: *„Ez egy könyvsorozat része?"*
+   - **Új sorozat indítása** → megadod a sorozat nevét (pl. *„Galaktikus Szövetség"*) és rövid leírását.
+   - **Csatlakozás meglévő sorozathoz** → legördülőből kiválasztod, hányadik kötet ez a sorrendben.
 
-Visszaad: `{ title, content, wordCount }`. A frontend ezt előtölti a már meglévő modálba, a felhasználó megerősítheti a címet és menti.
+2. **Dashboard / Saját könyvek**: új „**Sorozataim**" szekció, ahol látod a sorozatokat, a köteteket sorrendben, és a sorozat „bibliáját" (karakterek, helyszínek, idővonal).
 
-Bónusz: ha a fájl nagyon hosszú (>30k szó), automatikusan megvágjuk az első ~30k szóra (az elemzés úgyis 10k-val dolgozik), és figyelmeztetjük.
+3. **Sorozat bibliája** oldal (`/series/:id`):
+   - **Karakterek**: a sorozat összes karaktere egy helyen, melyik kötetben szerepel, fejlődési íve (pl. *„Anna 1. kötet: novice nyomozó → 3. kötet: kapitány"*).
+   - **Helyszínek / Világ**: glossary-szerű lista (pl. *„Nova Prime — fővilág, Galaktikus Szövetség központja"*).
+   - **Idővonal**: kötetenként a fontos események, kronológiailag.
+   - **Konzisztencia napló**: minden olyan AI-figyelmeztetés, amit írás közben kapott a felhasználó.
 
-### 2. Stílusprofil a non-fiction (szakkönyv / önfejlesztő) motorban is
+4. **Írás közben (új kötet generálása)**:
+   - Az AI minden szcénánál automatikusan megkapja kontextusként a korábbi kötetek **összefoglalóit**, **karakter-állapotát** és a **világ-bibliát**.
+   - Ha karaktert hívnak, az AI az előző kötetekben rögzített néven, kinézettel, beszédstílussal írja meg.
 
-Jelenleg csak `write-section/index.ts` `isFiction === true` ágában fut le a `buildStylePrompt`. Áthelyezzük úgy, hogy **mindig** lefusson, ha a felhasználónak van profilja — fikció esetén a fictionStyle után, non-fiction esetén a NONFICTION/INVESTIGATIVE system prompt után. Ugyanezt megnézzük a `write-scene` és `process-next-scene` függvényekben is — ott is konzisztenssé tesszük (ha még nincs az).
+5. **Konzisztencia-ellenőrző**:
+   - Egy új „**Konzisztencia ellenőrzés**" gomb a szerkesztőben (és automatikusan minden generált fejezet után).
+   - Az AI összeveti az aktuálisan írt szöveget a sorozat bibliájával, és listázza az ellentmondásokat:
+     > *„Anna szemszíne korábban kék volt, itt zöld."*
+     > *„Az 1. kötetben Géza a Galaktikus Szövetség kapitánya, itt admirálisként szerepel."*
+     > *„A Nova Prime az 1. kötet végén megsemmisült, itt érintetlenként van leírva."*
+   - Egy kattintással a felhasználó elfogadhatja vagy átírhatja a problémás részt.
 
-### 3. Felfedezhetőség: említés a wizard onboardingjában
+## Mit kap az író motor (technikai szinten)
 
-A `BookCreationWizard` első lépésében (vagy egy banner-ben a Step1/Step2 alatt) egy diszkrét info-doboz: *„Van saját írói stílusod? Töltsd fel néhány korábbi szövegedet a Beállítások → Saját stílus menüben, és a könyved a te hangodon szólal meg."* — link a `/settings?tab=style` útvonalra. Ha a felhasználónak már van aktív stílusprofilja, helyette: *„✓ Saját stílusod aktív — a könyved ezzel készül."*
+- **Új tábla**: `series` (id, user_id, title, description, bible, created_at).
+  - `bible` mező: JSON, AI által karbantartott összefoglaló (világ-szabályok, főbb helyszínek, kulcstémák).
+- **Új tábla**: `series_characters` — a karakterek a sorozathoz kötődnek, nem csak egy könyvhöz. Egy karakter több kötetben szerepelhet, kötetenként rögzíthető a fejlődési íve (`series_character_arcs`).
+- **Új tábla**: `series_events` — kötetenkénti fontos események idővonala (kötet sorszám, fejezet, esemény leírása, érintett karakterek).
+- **Új tábla**: `series_consistency_warnings` — AI által észlelt ellentmondások, státusz (új / elfogadva / javítva / figyelmen kívül hagyva).
+- **`projects` tábla** kiegészítés: `series_id` (uuid, nullable), `series_volume_number` (int).
 
-Ugyanez a banner megjelenik a Könyv Coach (`/coach`) oldal tetején is.
+## Új edge functions
 
-### 4. Apró UX javítások a Saját stílus oldalon
+- **`generate-series-bible`**: új sorozat indításakor, vagy később bármikor, az AI generálja/frissíti a sorozat bibliáját az eddigi kötetek alapján.
+- **`update-series-bible-on-chapter-complete`**: minden befejezett fejezet után frissíti a karakter-állapotot, idővonalat, helyszín-adatbázist a sorozatban.
+- **`check-series-consistency`**: bemenet egy fejezet/szakasz szövege + sorozat bibliája. Az AI visszaad egy listát az észlelt ellentmondásokról (típus: karakter / cselekmény / helyszín / idővonal, súlyosság, leírás, javaslat).
+- **`get-series-context`**: visszaadja a sorozat összes releváns kontextusát egy adott kötethez (előző kötetek összefoglalói, karakter-állapotok, idővonal) — ezt használja `write-scene` és `write-section`.
 
-- A modálban **két fül**: „Beillesztés" / „Fájl feltöltése".
-- Drag & drop zóna a feltöltéshez.
-- Feltöltés után előnézet (első 500 karakter), hogy lásd, jól lett-e kinyerve a szöveg.
-- Az „Elemzés" gomb mellé egy infó-tooltip: minimum ~500 szó ajánlott.
+## Változtatások a meglévő motorban
 
-## Technikai részletek (fejlesztőknek)
+- **`write-scene`, `write-section`**: ha a `project.series_id` ki van töltve, a system promptba bekerül egy új szekció:
+  ```
+  --- KÖNYVSOROZAT KONTEXTUS ---
+  Sorozat: {címe}
+  Ez a {N}. kötet.
+  Korábbi kötetek összefoglalói:
+  ...
+  Karakterek aktuális állapota:
+  ...
+  Világ bibliája:
+  ...
+  KÖTELEZŐ: A karakter-nevek, kinézet, képességek, helyszín-leírások MINDEN PONTBAN EGYEZZENEK a fenti adatokkal!
+  ```
+- **`process-next-scene`**: minden fejezet befejezése után automatikusan meghívja a `check-series-consistency`-t, és ha talál ellentmondást, beírja a `series_consistency_warnings` táblába (a felhasználó értesítést kap a szerkesztőben).
+- **`generate-story`** (történet-koncepció): ha sorozat-kötet, a 3 verzió generálásakor is megkapja a sorozat-bibliát, így a generált karakterek és helyszínek egyezni fognak a korábbiakkal.
 
-**Új edge function:** `supabase/functions/extract-style-sample-text/index.ts`
-- Auth szükséges (JWT validáció kódból).
-- Bemenet: `multipart/form-data` (file).
-- PDF: `pdfjs-dist` ESM importtal Denoba (`https://esm.sh/pdfjs-dist@4...`); page-by-page `getTextContent()`.
-- DOCX: `https://esm.sh/mammoth@1.x` `extractRawText`.
-- TXT: `await file.text()`.
-- Word count szerver oldalon számolva, ugyanazzal a regex-szel mint a frontend.
-- 429/402 kezelés nem releváns (nincs AI-hívás benne).
-- Limit: 20 MB; ezen felül 413 hiba.
+## Új UI komponensek (rövid lista)
 
-**Módosított fájlok:**
-- `src/components/settings/StyleSettings.tsx` — Tabs (Beillesztés / Fájl), drag & drop, előnézet.
-- `src/hooks/useWritingStyle.ts` — új `uploadAndAddSample(file: File)` metódus, ami az új edge functiont hívja.
-- `supabase/functions/write-section/index.ts` — a `buildStylePrompt` blokkot kihúzzuk az `if (isFiction)` ágból, hogy non-fiction esetén is fusson.
-- `supabase/functions/write-scene/index.ts` — ellenőrizzük, hogy mindig lefut, ha van profil.
-- `supabase/functions/process-next-scene/index.ts` — ugyanez az ellenőrzés.
-- `src/components/wizard/BookCreationWizard.tsx` — diszkrét banner az első lépésben.
-- `src/pages/BookCoach.tsx` — ugyanaz a banner.
-- `src/pages/Settings.tsx` — `?tab=style` query param támogatás (ha még nincs), hogy a wizardból tudjunk linkelni rá.
+- `src/pages/Series.tsx` — sorozat-kezelő oldal.
+- `src/pages/SeriesBible.tsx` — egy sorozat bibliája (karakterek / helyszínek / idővonal / figyelmeztetések).
+- `src/components/series/SeriesSelector.tsx` — wizard első lépésébe építve: „Sorozat része?" kapcsoló + új/meglévő.
+- `src/components/series/ConsistencyWarningsPanel.tsx` — szerkesztőben oldalsáv vagy modal a figyelmeztetésekhez.
+- `src/components/series/SeriesBibleEditor.tsx` — a felhasználó manuálisan is szerkesztheti / megerősítheti a bibliát.
+- Dashboard-on (`src/pages/Dashboard.tsx`) új „Sorozataim" szekció, és a `ProjectCard.tsx`-en sorozat-jelzés (pl. *„Galaktikus Szövetség — 2. kötet"*).
 
-**Storage:** A feltöltött fájlt **nem mentjük el** — csak a kinyert szöveget tároljuk a `user_writing_samples` táblában (mint most). Így nem kell bucket, sem új RLS.
+## Korlátok / pontosítások
 
-**Migrációk:** Nem kellenek — a `user_writing_samples` és `user_style_profiles` táblák már léteznek.
-
-**Memory frissítés:** A `mem://features/editor/style-profile-integration` rekordot frissítjük a non-fiction kiterjesztéssel és a fájlfeltöltéssel.
+- A konzisztencia-ellenőrzés **AI-alapú**, így nem 100% biztos — a felhasználó dönt, hogy elfogadja vagy figyelmen kívül hagyja a figyelmeztetést.
+- A sorozat bibliája **automatikusan frissül**, de a felhasználó bármikor manuálisan is szerkesztheti.
+- Egy könyv **csak egy sorozathoz** tartozhat (legalábbis az első verzióban).
+- A meglévő, nem sorozatba szervezett könyveket utólag is hozzá lehet rendelni egy sorozathoz a beállításokban.
 
 ## Eredmény
 
-- Egy gombnyomásra feltölthetsz egy PDF-et vagy DOCX-et a saját könyvedből/írásodból.
-- Az AI elemzi és minden további generáláskor (regény és szakkönyv egyaránt) a te stílusodban ír.
-- A wizardban már a könyv elindítása előtt látod, hogy van-e betanított stílusod.
+- Bejelölöd, hogy ez egy sorozat — a következő kötet írásakor az AI automatikusan emlékszik mindenre.
+- Ha véletlenül ellentmondó dolog kerülne be (pl. karakter szemszíne, halott szereplő visszatérése, képesség-eltérés), **azonnal jelez**.
+- Egy átfogó „**sorozat-biblia**" felület, ahol lásd, ki kicsoda, hol járunk a történetben.
