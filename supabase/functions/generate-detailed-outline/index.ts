@@ -134,6 +134,7 @@ Válaszolj CSAK JSON tömbként:
     let userPrompt = `Készíts PONTOSAN ${scenesForChapter} jelenet-vázlatot (összesen ~${effectiveWordsForChapter} szó):\n\nFEJEZET: ${chapterTitle}\n${chapterSummary ? `ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}\nMŰFAJ: ${genre}${characterNameList}`;
     if (storyStructure) userPrompt += `\nKONTEXTUS: ${JSON.stringify(storyStructure)}`;
     if (namingGuide) userPrompt += namingGuide;
+    if (investigativeResearchBlock) userPrompt += investigativeResearchBlock;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;
