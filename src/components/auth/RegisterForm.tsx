@@ -84,7 +84,7 @@ export function RegisterForm() {
       console.error("Welcome email error:", err);
     });
 
-    navigate("/dashboard");
+    navigate("/dashboard?registered=success");
   };
 
   return (
