@@ -1,48 +1,72 @@
-# Multi-select hangnem (Tone) az Adatok lépésben
 
-## Probléma
+## Cél
 
-Az "Adatok" lépésben (`Step3BasicInfo`) jelenleg csak EGY hangnem választható (single-select). A felhasználó több hangulati irányt is szeretne kombinálni (pl. „Drámai + Feszült + Sötét"), és az AI vegye ezeket figyelembe a generáláskor.
+A könyv tervezett hosszúságának felső határa **100 000 szó** legyen (jelenleg 50 000). A wizard csak akkor engedjen tovább a hosszúság-választás után, ha a felhasználónak **van elegendő kreditje** (havi limit + extra szó-kredit) a kiválasztott szómennyiség lefedésére.
 
-## Megoldás áttekintés
+## Mit változik a felhasználó számára
 
-A `tone` adatmodellt egyetlen értékről több értékre bővítjük a wizard állapotban, és tárolásnál pontosvesszővel elválasztva mentjük a DB-be (`projects.tone` `string` mező — sémaváltozás NEM kell, kompatibilis marad). A promptok természetes nyelvű felsorolásként kapják meg.
+1. A "Tervezett hosszúság" csúszka most **100 000 szóig** húzható (nem 50 000-ig).
+2. Új gyors preset: **"Nagyregény" (100 000 szó)**.
+3. A skála jelzők: 1 000 / 25 000 / 50 000 / 100 000.
+4. A csúszka alatt egy kis info-sor mutatja:
+   - Maradék havi szó + extra kredit (pl. "Elérhető kredit: 75 000 szó")
+   - Ha a kiválasztott hossz > elérhető kredit: piros figyelmeztetés:
+     *"Nincs elég krediteted ehhez a hosszhoz (70 000 szó). Elérhető: 50 000 szó. Vásárolj extra kreditet vagy csökkentsd a hosszt."*
+   - Link/gomb a "Kredit vásárlás" oldalra.
+5. **A "Tovább" gomb le van tiltva**, ha a kiválasztott hossz meghaladja az elérhető kreditet.
+6. A non-fiction `Step5BookTypeData` csúszkák szintén 100 000 szóig mennek (ahol jelenleg 50 000 a max), és ugyanaz a kredit-ellenőrzés érvényesül a wizard tovább-léptetésekor.
 
-## Részletek
+> Megjegyzés: a `mem://features/projects/word-limit-expansion` szerint a 100 000 szó már korábbi terv volt — most ténylegesen érvényesítjük az UI-ban és a léptetés feltételeként is.
 
-### 1. UI — `src/components/wizard/steps/Step3BasicInfo.tsx`
+## Technikai változások
 
-- `tone` state: `Tone | null` → `Tone[]`.
-- Kattintásra toggle (hozzáad / eltávolít a tömbből).
-- Kis vizuális visszajelzés: a kiválasztott chipek számláló („3 kiválasztva") + finom hint: „Akár több hangnem is választható".
-- `canSubmit`: legalább 1 hangnem.
-- Az `onSubmit` `tone` propként az első kiválasztottat adja át vissza (legacy típus-kompatibilitás), DE új propként `tones: Tone[]`-ot is.
+### 1. Slider felső határ 100 000-re
+- `src/components/wizard/steps/Step3BasicInfo.tsx`
+  - `Slider max={50000}` → `max={100000}`
+  - Skála címkék: `1,000 / 25,000 / 50,000 / 100,000`
+- `src/types/wizard.ts`
+  - `BOOK_LENGTH_PRESETS` bővítése: `{ value: 100000, label: "Nagyregény" }`
+- `src/components/wizard/steps/Step5BookTypeData.tsx`
+  - Az összes `Slider max={50000}` → `max={100000}` (~8 előfordulás)
+  - A "comprehensive" / "full-course" preset választókhoz opcionálisan extra opció (csak ha logikailag illik), egyébként a slider már elérhető kézzel.
 
-### 2. Típus + hook — `src/types/wizard.ts`, `src/hooks/useBookWizard.ts`
+### 2. Kreditfedezet-ellenőrzés a Step3-ban
+- `src/components/wizard/steps/Step3BasicInfo.tsx`
+  - Importálja a `useSubscription` hookot (`getRemainingWords`).
+  - `const remaining = getRemainingWords();`
+  - `const hasEnoughCredits = remaining === Infinity || length <= remaining;`
+  - `canSubmit = tones.length > 0 && length >= 1000 && hasEnoughCredits;`
+  - Inline UI a csúszka alatt:
+    - "Elérhető kredit: X szó" (ha `Infinity`, akkor "Korlátlan")
+    - Figyelmeztető üzenet + `<Link to="/pricing">Kredit vásárlása</Link>` ha nincs elég.
 
-- `WizardData`-hoz hozzáadunk: `tones: Tone[]` (a meglévő `tone: Tone | null` marad backward-compat miatt, és mindig az első elemmel egyezik).
-- `setBasicInfo` payload: `tones?: Tone[]` mezőt is fogadja, beállítja mindkettőt (`tones` és `tone`).
-- `saveProject` és `storyStructure.tone`: a több hangnemet `tones.join("; ")` formátumban mentjük a `projects.tone` oszlopba (string), így a DB séma érintetlen.
+### 3. Kreditfedezet-ellenőrzés a non-fiction Step5-ben
+- `src/components/wizard/steps/Step5BookTypeData.tsx`
+  - Ugyanaz a `useSubscription` hook + `length` állapot kombináció.
+  - A "Tovább" gomb (a komponens végén lévő submit gomb) tiltva, ha `length > remaining`.
+  - Ugyanaz az inline figyelmeztetés a slider alatt (egy közös kis komponensben kiemelve, pl. `<CreditCoverageHint length={length} />`, hogy ne kelljen sokszor másolni).
 
-### 3. Lefelé adás a többi wizard-stepnek
+### 4. Új apró újrafelhasználható komponens
+- `src/components/wizard/CreditCoverageHint.tsx`
+  - Props: `length: number`
+  - Megjeleníti az elérhető kreditet és a figyelmeztetést, ha kevés.
+  - Tartalmazza a "Vásárolj kreditet" linket (`/pricing` vagy a meglévő kreditvásárló útvonalra mutatva — a kódban ellenőrizzük, mi a tényleges útvonal, valószínűleg `/pricing` vagy `/buy-credits`).
 
-- A Step4StoryIdeas, Step5StoryDetail props-ját nem változtatjuk: a `tone` prop a kombinált stringet kapja (`"Drámai; Feszült; Sötét"`).
-- Így a `generate-story-ideas`, `generate-story` stb. edge functions automatikusan a kombinált felirattal dolgoznak (a promptokban már `Hangnem: ${tone}` szerepel — ez most több is lehet).
-
-### 4. Edge functions kis kiegészítése
-
-- `supabase/functions/generate-story/index.ts`: a `toneNames` map csak egy egyetlen kulcsra fordított emberi nevet ad. Frissítjük úgy, hogy ha a `tone` pontosvesszőt tartalmaz, minden részt külön fordítson, majd magyar felsorolásként adja vissza (pl. „Drámai, Feszült és Sötét").
-- A többi edge function a tone-t nyers stringként használja prompt-kontextusban — ott a kombinált string ugyanúgy működik, nem kell módosítani.
+### 5. A backend / DB nem módosul
+- A `target_word_count` továbbra is `integer`, nincs felső korlát az adatbázisban.
+- A motor (`useBackgroundWriter`, `process-next-scene`, stb.) tetszőleges szószámmal dolgozik — a 100 000 nem igényel sémamódosítást.
 
 ## Mit NEM csinálunk
 
-- Nem érintjük a non-fiction altípus-specifikus tone mezőit (`leadershipTone`, `storyTone`, `memoirTone`, `investigationTone`) — azok továbbra is single-select, mert a könyvtípushoz kötött szerkezeti döntések.
-- Nem módosítjuk a DB sémát — a `projects.tone` `string` mező marad.
-- A meglévő projektek (single tone) változatlanul működnek.
+- Nem növeljük automatikusan a felhasználók havi szó-limitjét — a meglévő tarifa-rendszer marad (HOBBI / PROFI / ÜGYNÖKSÉG).
+- Nem engedjük át a kreditfedezet nélküli generálást (ez a kérés lényege).
+- Az író motort és az AI promptokat nem módosítjuk — a hosszabb projekt csak több jelenetet/fejezetet jelent.
 
-## Érintett fájlok
+## Fájlok
 
-- `src/components/wizard/steps/Step3BasicInfo.tsx`
-- `src/types/wizard.ts`
-- `src/hooks/useBookWizard.ts`
-- `supabase/functions/generate-story/index.ts` (csak a `toneNames` formázás)
+- `src/types/wizard.ts` — preset bővítés
+- `src/components/wizard/steps/Step3BasicInfo.tsx` — slider max + kredit-ellenőrzés
+- `src/components/wizard/steps/Step5BookTypeData.tsx` — slider max-ok + kredit-ellenőrzés
+- `src/components/wizard/CreditCoverageHint.tsx` — új komponens
+
+Mehet a módosítás?
