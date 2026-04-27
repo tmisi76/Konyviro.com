@@ -44,6 +44,12 @@ export function Navbar() {
               Hogyan működik
             </button>
             <button
+              onClick={() => scrollToSection("collaboration")}
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Csapat
+            </button>
+            <button
               onClick={() => scrollToSection("pricing")}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -104,6 +110,12 @@ export function Navbar() {
                 className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 Hogyan működik
+              </button>
+              <button
+                onClick={() => scrollToSection("collaboration")}
+                className="text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Csapat
               </button>
               <button
                 onClick={() => scrollToSection("pricing")}

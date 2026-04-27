@@ -4,6 +4,8 @@ import { Navbar } from "@/components/landing/Navbar";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
+import { CollaborationSection } from "@/components/landing/CollaborationSection";
+import { QualityShowcaseSection } from "@/components/landing/QualityShowcaseSection";
 // import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
 import { PricingSection } from "@/components/pricing/PricingSection";
 import { FAQSection } from "@/components/landing/FAQSection";
@@ -28,6 +30,8 @@ const Index = () => {
       <HeroSection />
       <FeaturesSection />
       <HowItWorksSection />
+      <CollaborationSection />
+      <QualityShowcaseSection />
       {/* <TestimonialsSection /> */}
       <PricingSection />
       <FAQSection />

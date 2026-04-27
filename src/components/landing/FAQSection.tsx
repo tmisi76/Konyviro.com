@@ -30,6 +30,14 @@ const faqs = [
     question: "Tudok offline dolgozni?",
     answer: "A KönyvÍró webalkalmazásként működik, de PWA támogatással telepítheted az eszközödre. Jelenleg az internet-kapcsolat szükséges, de dolgozunk az offline módú szerkesztésen.",
   },
+  {
+    question: "Lehet csapatban, közösen dolgozni egy könyvön?",
+    answer: "Igen! Bármelyik projektedhez meghívhatsz társszerzőket, szerkesztőket vagy lektorokat email alapján. Szerepköröket állíthatsz (szerkesztő / kommentelő / olvasó), és mindenki ugyanazt a vázlatot, karaktertárat és kéziratot látja — valós időben szinkronizálva.",
+  },
+  {
+    question: "Hogyan biztosítjátok, hogy a karakternevek illeszkedjenek a választott országhoz / kultúrához?",
+    answer: "A wizardben kiválasztod a könyv országát/kultúráját (pl. magyar, japán, angol), és ezt a beállítást minden AI-generálási lépés (vázlat, fejezetírás, új mellékszereplők) automatikusan figyelembe veszi. Egy külön Konzisztencia-audit motor utólag is átnézi a kéziratot, és jelzi, ha kulturálisan nem odavaló név vagy helyszín csúszna a szövegbe.",
+  },
 ];
 
 export function FAQSection() {
