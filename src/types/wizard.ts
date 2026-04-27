@@ -361,4 +361,5 @@ export const BOOK_LENGTH_PRESETS = [
   { value: 10000, label: "Novella" },
   { value: 25000, label: "Kisregény" },
   { value: 50000, label: "Regény" },
+  { value: 100000, label: "Nagyregény" },
 ];

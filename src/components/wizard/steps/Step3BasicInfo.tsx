@@ -9,6 +9,8 @@ import { Slider } from "@/components/ui/slider";
 import { ArrowRight } from "lucide-react";
 import type { Tone, Genre } from "@/types/wizard";
 import { TONES, BOOK_LENGTH_PRESETS } from "@/types/wizard";
+import { useSubscription } from "@/hooks/useSubscription";
+import { CreditCoverageHint } from "@/components/wizard/CreditCoverageHint";
 
 interface Step3BasicInfoProps {
   genre: Genre;
@@ -45,7 +47,11 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
   const [length, setLength] = useState<number>(initialData.length || 25000);
   const [additionalInstructions, setAdditionalInstructions] = useState(initialData.additionalInstructions);
 
-  const canSubmit = tones.length > 0 && length >= 1000;
+  const { getRemainingWords } = useSubscription();
+  const remaining = getRemainingWords();
+  const hasEnoughCredits = remaining === Infinity || length <= remaining;
+
+  const canSubmit = tones.length > 0 && length >= 1000 && hasEnoughCredits;
 
   const toggleTone = (id: Tone) => {
     setTones(prev =>
@@ -191,7 +197,7 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
             value={[length]}
             onValueChange={([value]) => setLength(value)}
             min={1000}
-            max={50000}
+            max={100000}
             step={1000}
             className="py-4"
           />
@@ -199,9 +205,9 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
           {/* Skála jelzők */}
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>1,000</span>
-            <span>10,000</span>
             <span>25,000</span>
             <span>50,000</span>
+            <span>100,000</span>
           </div>
 
           {/* Gyors preset gombok */}
@@ -221,6 +227,9 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
               </button>
             ))}
           </div>
+
+          {/* Kreditfedezet */}
+          <CreditCoverageHint length={length} />
         </div>
 
         {/* Additional Instructions */}
