@@ -103,7 +103,7 @@ Válaszolj CSAK JSON tömbként:
 
     const [projectResult, charactersResult, chaptersResult] = await Promise.all([
       supabase.from("projects")
-        .select("genre, subcategory, generated_story, story_idea, tone, target_audience")
+        .select("genre, subcategory, generated_story, story_idea, tone, target_audience, nonfiction_book_type")
         .eq("id", projectId).single(),
       isFiction ? supabase.from("characters")
         .select("name, role, positive_traits, negative_traits, backstory, motivation")
