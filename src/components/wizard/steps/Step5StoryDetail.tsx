@@ -136,6 +136,10 @@ export function Step5StoryDetail({
           authorProfile: isNonfiction ? authorProfile : undefined,
           // Pass nonfiction book type for investigative detection
           nonfictionBookType: isNonfiction ? nonfictionBookType : undefined,
+          // Character nationality for fiction (controls naming convention)
+          characterNationality: !isNonfiction ? (fictionStyle?.characterNationality ?? "ai_choose") : undefined,
+          // Setting can help AI choose location-appropriate names when "ai_choose"
+          setting: !isNonfiction ? (fictionStyle?.setting ?? undefined) : undefined,
         },
       });
 
