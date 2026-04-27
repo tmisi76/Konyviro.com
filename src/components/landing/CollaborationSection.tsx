@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Mail, ShieldCheck, Share2, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const bullets = [
   {
@@ -22,6 +22,15 @@ const bullets = [
 
 export function CollaborationSection() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const goToPricing = () => {
+    if (location.pathname === "/") {
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      navigate("/#pricing");
+    }
+  };
 
   return (
     <section id="collaboration" className="py-20 sm:py-28">
@@ -54,11 +63,11 @@ export function CollaborationSection() {
             </ul>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button size="lg" onClick={() => navigate("/auth?mode=register")}>
-                Próbáld ki ingyen
+              <Button size="lg" onClick={goToPricing}>
+                Ingyenesen kipróbálom hét napig
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" onClick={() => navigate("/pricing")}>
+              <Button size="lg" variant="outline" onClick={goToPricing}>
                 Csomagok megtekintése
               </Button>
             </div>
