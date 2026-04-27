@@ -20,6 +20,7 @@ import {
   buildPreviousChaptersSummary,
   buildFictionStylePrompt,
   buildStylePrompt,
+  buildInvestigativeResearchBlock,
 } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
@@ -538,6 +539,25 @@ serve(async (req) => {
 
       if (styleProfile?.style_summary) {
         systemPrompt += buildStylePrompt(styleProfile as Record<string, unknown>);
+      }
+    }
+
+    // Investigative real-case research dossier (Perplexity) — anti-hallucination guard
+    if (isInvestigative && projectId) {
+      try {
+        const { data: research } = await supabaseClient
+          .from('project_research')
+          .select('research_data, sources')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (research?.research_data) {
+          const block = buildInvestigativeResearchBlock(research.research_data, research.sources);
+          if (block) systemPrompt += block;
+        }
+      } catch (e) {
+        console.error("Failed to load project_research", e);
       }
     }
 

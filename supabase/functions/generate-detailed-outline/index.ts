@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { repairAndParseJSON, validateSceneOutline } from "../_shared/json-utils.ts";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { buildNewCharacterNamingGuide } from "../_shared/prompt-builder.ts";
+import { buildInvestigativeResearchBlock } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -61,7 +62,7 @@ serve(async (req) => {
     const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
     const { data: projectRow } = await serviceClient
       .from("projects")
-      .select("fiction_style")
+      .select("fiction_style, nonfiction_book_type")
       .eq("id", projectId)
       .single();
     const fictionStyle = (projectRow?.fiction_style as Record<string, unknown> | null) || null;
@@ -72,6 +73,21 @@ serve(async (req) => {
         ? characters.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean)
         : []
     );
+
+    // Investigative real-case research dossier
+    let investigativeResearchBlock = "";
+    if (projectRow?.nonfiction_book_type === "investigative") {
+      const { data: research } = await serviceClient
+        .from("project_research")
+        .select("research_data, sources")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (research?.research_data) {
+        investigativeResearchBlock = buildInvestigativeResearchBlock(research.research_data, research.sources);
+      }
+    }
 
     // Calculate how many scenes for this chapter based on word target
     const effectiveWordsForChapter = wordsForChapter || (targetWordCount ? Math.round(targetWordCount / (totalChapters || 3)) : 2500);
@@ -118,6 +134,7 @@ Válaszolj CSAK JSON tömbként:
     let userPrompt = `Készíts PONTOSAN ${scenesForChapter} jelenet-vázlatot (összesen ~${effectiveWordsForChapter} szó):\n\nFEJEZET: ${chapterTitle}\n${chapterSummary ? `ÖSSZEFOGLALÓ: ${chapterSummary}` : ""}\nMŰFAJ: ${genre}${characterNameList}`;
     if (storyStructure) userPrompt += `\nKONTEXTUS: ${JSON.stringify(storyStructure)}`;
     if (namingGuide) userPrompt += namingGuide;
+    if (investigativeResearchBlock) userPrompt += investigativeResearchBlock;
 
     // Rock-solid retry logic with max resilience
     const maxRetries = 7;

@@ -108,6 +108,9 @@ export interface BookTypeSpecificData {
   keyPlayers?: string;
   centralQuestion?: string;
   investigationTone?: "factual" | "dramatic" | "sardonic" | "urgent";
+  // Investigative – valós ügy kutatás (Perplexity)
+  realCaseReference?: string;
+  extraResearchInstructions?: string;
 }
 
 // Author profile for non-fiction books

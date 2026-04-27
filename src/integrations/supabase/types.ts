@@ -1362,6 +1362,50 @@ export type Database = {
           },
         ]
       }
+      project_research: {
+        Row: {
+          case_reference: string
+          created_at: string
+          extra_instructions: string | null
+          id: string
+          model_used: string | null
+          project_id: string
+          research_data: Json
+          sources: Json
+          updated_at: string
+        }
+        Insert: {
+          case_reference: string
+          created_at?: string
+          extra_instructions?: string | null
+          id?: string
+          model_used?: string | null
+          project_id: string
+          research_data?: Json
+          sources?: Json
+          updated_at?: string
+        }
+        Update: {
+          case_reference?: string
+          created_at?: string
+          extra_instructions?: string | null
+          id?: string
+          model_used?: string | null
+          project_id?: string
+          research_data?: Json
+          sources?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_research_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           additional_instructions: string | null

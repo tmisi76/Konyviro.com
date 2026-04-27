@@ -39,6 +39,47 @@ NYELVTANI HELYESSÉG:
 `;
 
 /**
+ * Investigative real-case research dossier block.
+ * Strict anti-hallucination instructions: only facts from the dossier are allowed.
+ */
+export function buildInvestigativeResearchBlock(research: unknown, sources: unknown): string {
+  if (!research) return "";
+  let researchStr: string;
+  try {
+    researchStr = typeof research === "string" ? research : JSON.stringify(research, null, 2);
+  } catch {
+    return "";
+  }
+  const sourcesArr = Array.isArray(sources) ? sources : [];
+  const sourcesBlock = sourcesArr.length
+    ? `\n\n### Hivatkozott forrás-URL-ek:\n${sourcesArr.slice(0, 30).map((s: unknown, i: number) => `${i + 1}. ${String(s)}`).join("\n")}`
+    : "";
+
+  return `
+
+## 🔍 VALÓS KUTATÁSI DOSSIER (KÖTELEZŐ TÉNYALAP — Perplexity verifikált)
+
+Ez egy oknyomozó tényfeltáró könyv. AZ ALÁBBI DOSSIER A TÉNYEK EGYETLEN MEGENGEDETT FORRÁSA:
+
+\`\`\`json
+${researchStr}
+\`\`\`${sourcesBlock}
+
+### KÖTELEZŐ ANTI-HALLUCINÁCIÓS SZABÁLYOK:
+1. TILOS olyan személyt, dátumot, helyszínt, idézetet vagy eseményt használni, ami NINCS a dossier-ben.
+2. TILOS bármit kitalálni, kiegészíteni, "kerekíteni" vagy spekulálni — ez nem fikció.
+3. Ha egy részlet hiányzik, írd le bizonytalanságként ("A nyilvánosan elérhető források szerint…", "A pontos részletek vitatottak…").
+4. Az "uncertainties" mezőben jelölt vitás pontokat MINDIG tüntesd fel vitásként, ne foglalj állást.
+5. A "documentedQuotes" idézeteket szó szerint kell idézni — sem új idézetet kitalálni, sem meglévőt módosítani nem szabad.
+6. A timeline kronológiát kötelezően kövesd — ne hozz létre új dátumokat.
+7. A keyPlayers neveit pontosan abban a formában használd, ahogy a dossier-ben szerepelnek.
+8. Tilos kitalált párbeszédeket írni a szereplők szájába — csak dokumentált idézetek vagy semleges narrátori leírás megengedett.
+
+A könyv hitelessége azon múlik, hogy KIZÁRÓLAG ezekre a tényekre építesz.
+`;
+}
+
+/**
  * Cultural / nationality naming guide.
  * Used by both generate-story (initial character creation) and the writing engine
  * (write-scene, write-section, process-next-scene, outline generators) so that
