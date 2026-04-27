@@ -897,6 +897,28 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
 
     const wordCount = countWords(sectionContent);
 
+    // Post-hoc cleanups (fiction only): chapter title dupe removal + character name consistency
+    if (isFiction) {
+      sectionContent = stripChapterTitleDupes(sectionContent, dbChapterTitle);
+      const registeredNames = ((allCharacters as Array<{ name: string }> | null) || []).map((c) => c.name);
+      const nameFix = validateAndFixCharacterNames(sectionContent, registeredNames);
+      if (Object.keys(nameFix.corrections).length > 0) {
+        console.log(`[write-section] Name corrections applied:`, nameFix.corrections);
+        sectionContent = nameFix.text;
+      }
+
+      // Track cliché counts and persist into the chapter row
+      try {
+        const sceneClicheCounts = countCliches(sectionContent);
+        const existingCounts =
+          (currentChapter?.cliche_counts as Record<string, number> | null) || {};
+        const newCounts = mergeClicheCounts(existingCounts, sceneClicheCounts);
+        await supabaseClient.from("chapters").update({ cliche_counts: newCounts }).eq("id", chapterId);
+      } catch (e) {
+        console.warn("[write-section] Failed to persist cliché counts:", e);
+      }
+    }
+
     if (wordCount > 0) {
       const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: project } = await supabase.from("projects").select("user_id").eq("id", projectId).single();
@@ -905,7 +927,7 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
       }
     }
 
-    return new Response(JSON.stringify({ content: sectionContent, wordCount }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ content: sectionContent, wordCount: countWords(sectionContent) }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
