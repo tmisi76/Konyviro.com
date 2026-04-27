@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChapterSidebar } from "@/components/editor/ChapterSidebar";
 import { EditorView } from "@/components/editor/EditorView";
 import { AIAssistantPanel } from "@/components/editor/AIAssistantPanel";
+import { ChapterRecapCard } from "@/components/editor/ChapterRecapCard";
 import { OutlineView } from "@/components/editor/OutlineView";
 import { CharacterList } from "@/components/characters/CharacterList";
 import { ResearchView } from "@/components/research/ResearchView";
@@ -365,7 +366,9 @@ export default function ProjectEditor() {
 
         {/* Content based on view mode */}
         {viewMode === "editor" ? (
-          <EditorView
+          <>
+            <ChapterRecapCard projectId={projectId} />
+            <EditorView
             isLoading={isLoadingBlocks}
             blocks={blocks}
             selectedBlockId={selectedBlockId}
@@ -381,7 +384,8 @@ export default function ProjectEditor() {
             onInsertCitation={() => setShowCitationPanel(true)}
             onAIAction={handleInlineAIAction}
             onCreateEmptyBlock={() => createBlock("paragraph", "", 0)}
-          />
+            />
+          </>
         ) : viewMode === "outline" ? (
           <OutlineView
             chapters={chapters}
