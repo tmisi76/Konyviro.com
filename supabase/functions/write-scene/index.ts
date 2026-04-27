@@ -23,6 +23,8 @@ import {
   buildAntiRepetitionPrompt,
 } from "../_shared/prompt-builder.ts";
 import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
+import { countCliches, mergeClicheCounts, buildClicheBlocklistPrompt } from "../_shared/cliche-tracker.ts";
+import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -323,12 +325,25 @@ serve(async (req) => {
       .single();
 
     // Fetch characters for name lock (parallel with style profile)
-    const [styleProfileResult, charactersResult] = await Promise.all([
+    const [styleProfileResult, charactersResult, chapterRowResult, projectChaptersResult] = await Promise.all([
       project?.user_id
         ? supabase.from("user_style_profiles").select("*").eq("user_id", project.user_id).single()
         : Promise.resolve({ data: null }),
       supabase.from("characters").select("name, role").eq("project_id", projectId),
+      supabase.from("chapters").select("cliche_counts, title").eq("id", chapterId).single(),
+      supabase.from("chapters").select("cliche_counts").eq("project_id", projectId),
     ]);
+
+    // Aggregate cliché counts across the whole book so far
+    const bookClicheCounts: Record<string, number> = {};
+    for (const row of (projectChaptersResult?.data as Array<{ cliche_counts: Record<string, number> }> | null) || []) {
+      const cc = row?.cliche_counts || {};
+      for (const [k, v] of Object.entries(cc)) {
+        bookClicheCounts[k] = (bookClicheCounts[k] || 0) + (Number(v) || 0);
+      }
+    }
+    const clicheBlocklist = buildClicheBlocklistPrompt(bookClicheCounts);
+    const dbChapterTitle = (chapterRowResult?.data as { title?: string } | null)?.title || chapterTitle;
 
     if (styleProfileResult?.data?.style_summary) {
       stylePrompt = buildStylePrompt(styleProfileResult.data);
@@ -393,6 +408,11 @@ serve(async (req) => {
     const sceneOpeningRules = buildSceneOpeningRules();
     const antiRepetition = buildAntiRepetitionPrompt((previousContent || '').slice(-2000));
 
+    // Chapter-title duplication ban — the AI sometimes echoes the chapter title as an internal heading
+    const titleDupeBan = dbChapterTitle
+      ? `\n\n## FEJEZETCÍM TILALOM:\n- A fejezet címe ("${dbChapterTitle}") TILTOTT belső szakasz-fejlécként vagy önálló sorként a próza belsejében.\n- NE írd újra a fejezetcímet a jeleneten belül, NE használd alcímként, NE ismételd meg sehol a szövegben.`
+      : "";
+
     const prompt = `KONTEXTUS:
 - KÖNYV MŰFAJA: ${genre || 'fiction'}
 - FEJEZET CÍME: "${chapterTitle}"
@@ -414,6 +434,7 @@ ${nameLock}${povEnforcement}
 ${characterHistoryContext}
 ${storyStructure ? `\nTÖRTÉNET KONTEXTUS:\n${typeof storyStructure === 'string' ? storyStructure : JSON.stringify(storyStructure)}` : ''}
 ${scenePositionCtx}${antiSummary}${dialogueVariety}${bodyLanguageVariety}${sceneOpeningRules}${antiRepetition}
+${clicheBlocklist}${titleDupeBan}
 ${previousContent ? `\nELŐZŐ SZÖVEG (a folytonosság érdekében, NE ismételd!):\n${previousContent.slice(-3000)}` : ''}
 
 HOSSZ: ~${effectiveTargetWords} szó. Ne lépd túl jelentősen!
@@ -624,12 +645,32 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
 
     const wordCount = countWords(content);
 
+    // Post-hoc cleanups: chapter title dupe removal + character name consistency
+    content = stripChapterTitleDupes(content, dbChapterTitle);
+    const registeredNames = ((charactersResult?.data as Array<{ name: string }> | null) || []).map((c) => c.name);
+    const nameFix = validateAndFixCharacterNames(content, registeredNames);
+    if (Object.keys(nameFix.corrections).length > 0) {
+      console.log(`[write-scene] Name corrections applied:`, nameFix.corrections);
+      content = nameFix.text;
+    }
+
+    // Track this scene's cliché counts and persist into the chapter row
+    try {
+      const sceneClicheCounts = countCliches(content);
+      const existingCounts =
+        ((chapterRowResult?.data as { cliche_counts?: Record<string, number> } | null)?.cliche_counts) || {};
+      const newCounts = mergeClicheCounts(existingCounts, sceneClicheCounts);
+      await supabase.from("chapters").update({ cliche_counts: newCounts }).eq("id", chapterId);
+    } catch (e) {
+      console.warn("[write-scene] Failed to persist cliché counts:", e);
+    }
+
     // Update usage
     if (project?.user_id && wordCount > 0) {
       await trackUsage(supabase, project.user_id, wordCount);
     }
 
-    return new Response(JSON.stringify({ content, wordCount }), {
+    return new Response(JSON.stringify({ content, wordCount: countWords(content) }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
