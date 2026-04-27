@@ -539,7 +539,14 @@ serve(async (req) => {
           status: subscription.status,
           cancelAtPeriodEnd: subscription.cancel_at_period_end 
         });
-        
+
+        // Detect "cancel scheduled" transition: cancel_at_period_end just flipped to true
+        const prevAttrs = (event.data as { previous_attributes?: { cancel_at_period_end?: boolean } })
+          .previous_attributes;
+        const cancelJustScheduled =
+          subscription.cancel_at_period_end === true &&
+          prevAttrs?.cancel_at_period_end === false;
+
         let targetUserId = subscription.metadata?.supabase_user_id;
 
         if (!targetUserId || targetUserId === "guest") {
@@ -587,6 +594,25 @@ serve(async (req) => {
           .eq("user_id", targetUserId);
 
         logStep("Subscription status updated", { userId: targetUserId, status });
+
+        // Notify admin if user just scheduled a cancellation
+        if (cancelJustScheduled) {
+          const { data: profileForNotify } = await supabaseAdmin
+            .from("profiles")
+            .select("subscription_tier")
+            .eq("user_id", targetUserId)
+            .single();
+          const customerInfo = await fetchCustomerInfo(stripe, (subscription.customer as string) || null);
+          const interval = subscription.items?.data?.[0]?.price?.recurring?.interval ?? null;
+          await sendAdminNotification("cancel_scheduled", {
+            customerName: customerInfo.name,
+            customerEmail: customerInfo.email,
+            tier: profileForNotify?.subscription_tier ?? "N/A",
+            billingPeriod: interval ?? "N/A",
+            periodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+          });
+        }
+
         break;
       }
 
@@ -616,6 +642,15 @@ serve(async (req) => {
           deletedUserId = profile.user_id;
         }
 
+        // Capture previous tier BEFORE we reset to "free"
+        const { data: prevProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("subscription_tier")
+          .eq("user_id", deletedUserId)
+          .single();
+        const previousTier = prevProfile?.subscription_tier ?? "N/A";
+        const interval = subscription.items?.data?.[0]?.price?.recurring?.interval ?? null;
+
         // Reset to free tier
         await supabaseAdmin
           .from("profiles")
@@ -632,6 +667,18 @@ serve(async (req) => {
           .eq("user_id", deletedUserId);
 
         logStep("Subscription expired, reset to free tier", { userId: deletedUserId });
+
+        // Notify admin: subscription ended (immediate cancel or end of period)
+        {
+          const customerInfo = await fetchCustomerInfo(stripe, (subscription.customer as string) || null);
+          await sendAdminNotification("subscription_ended", {
+            customerName: customerInfo.name,
+            customerEmail: customerInfo.email,
+            tier: previousTier,
+            billingPeriod: interval ?? "N/A",
+          });
+        }
+
         break;
       }
 
