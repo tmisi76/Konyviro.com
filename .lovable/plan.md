@@ -1,133 +1,80 @@
-# Új funkciók — 3 fázisos terv
+## Audit eredmény: mit találtam
 
-A 8 hiányzó funkcióból most **6-ot** valósítunk meg, a legnagyobb hatású prioritizálás szerint. (A komment-rendszer és helyszínek adatbázis külön, nagyobb körök — szólj, ha érdekel.)
+Átnéztem a teljes író-pipeline-t (wizard → generate-story → outline → write-scene/write-section → process-next-scene → auto-lector). A rendszer **alapvetően jól működik** a kezdeti karaktergenerálásnál, de **4 ponton szakad meg a kulturális/névi konzisztencia**, ami hosszabb könyveknél problémát okoz.
 
----
+### Mi működik már jól ✅
+- A wizard 3. lépésében kiválasztott **nemzetiség** (magyar, angol, japán, fantasy stb.) eljut a `generate-story` funkcióhoz, és a kezdeti karakterek nevei helyesen az adott kultúrából lesznek.
+- A **karakter név-zár** (`buildCharacterNameLock`) minden jelenetnél megvédi az adatbázisban tárolt neveket attól, hogy az AI átírja vagy magyarosítsa őket.
+- A **POV-zár** (nézőpont) működik.
+- A **karakter-előzmények** (ki mit csinált korábban) átadódnak.
+- A **sorozat-bibilia** (series context) átadódik a folytatásoknál.
 
-## 1. fázis — AI Flow funkciók (legnagyobb wow-faktor)
+### Mi szakad meg ❌
 
-A "leülök a géphez és azonnal írok" élmény. Ez a 3 feature együtt egy összefüggő narratívát ad: **"a szoftver tudja, hol tartottál, és segít folytatni."**
+**1. A `fiction_style.characterNationality` NEM jut el a író motorba**
+A `buildFictionStylePrompt` függvény (`_shared/prompt-builder.ts`) csak a `setting` mezőt teszi a promptba, a kiválasztott nemzetiséget kihagyja. Következmény: ha a könyv közepén az AI **új karaktert** vezet be (pl. mellékszereplőt, akit a wizard nem definiált), annak a neve random kultúrából lehet.
 
-### 1.1 🔄 Azonnali Flow — AI Recap a szerkesztő tetején
+**2. Az outline-generátorok teljesen "kultúravakok"**
+A `generate-detailed-outline`, `generate-chapter-outline`, `generate-next-outline`, `generate-section-outline` egyike sem kapja meg a nemzetiségi irányelvet. Így ha az outline új karaktert javasol, az nem garantáltan illeszkedik.
 
-Amikor megnyitsz egy projektet, egy összecsukható kártya a szerkesztő tetején:
-- AI összefoglaló az utolsó befejezett fejezetről (3-4 mondat)
-- Mit hagytál félbe (utolsó bekezdés idézet)
-- 2-3 javasolt következő lépés ("Folytasd a párbeszédet X-szel", "Vezesd be a fordulatot Y-ról")
+**3. A `auto-lector` nem ellenőrzi a név-konzisztenciát**
+A jelenlegi lektor-folyamat nyelvtani és stilisztikai javításokat végez, de **nem keresi**, hogy felbukkant-e valamelyik fejezetben olyan karakternév, ami nincs a `characters` táblában (azaz "vendégszereplő" probléma), vagy hogy egy név más-más változatban fordul-e elő (pl. "Anna" és "Annácska" vs. "Anna" és "Anikó").
 
-### 1.2 ⚡ "AI Folytatás" gomb — kurzor pozíciótól
-
-A szerkesztőben egy lebegő gomb a kurzor mellett (és az AI Assistant Panel-ben):
-- "Folytatás 1 bekezdéssel a TE stílusodban"
-- Beolvassa az előző 500-1000 szót, a karaktereket, a story_arc-ot, a stílusprofilodat
-- Generál 1-3 bekezdést, amit beilleszthetsz vagy elvethetsz
-
-### 1.3 🎓 Plot Twist Generator — "Megakadtam, adj 3 csavart"
-
-Új gomb az AI Assistant Panel-ben:
-- Megnézi az eddigi cselekményt + karaktereket + műfajt
-- Visszaad **3 különböző** plot twist javaslatot, mindegyikhez 1-2 mondatos magyarázat, hogy miért logikus
-
-### Backend (1. fázis)
-- `chapter-recap` edge function — Lovable AI (gemini-2.5-flash), 1500 szóból generál összefoglalót
-- `ai-continue-text` edge function — kontextus (előző bekezdések + karakter + stílusprofil) + folytatás
-- `suggest-plot-twists` edge function — kontextus + 3 strukturált javaslat (tool calling)
-- Nincs új tábla — minden meglévő adatból dolgozik
-
-### Frontend (1. fázis)
-- `src/components/editor/ChapterRecapCard.tsx` — összecsukható kártya tetején
-- `src/components/editor/AIContinueButton.tsx` — lebegő gomb + integráció az AI Assistant Panel-be
-- `src/components/editor/PlotTwistSuggestions.tsx` — modal 3 javaslattal
+**4. A helyszín-konzisztencia nincs ellenőrizve**
+A `setting` mező a fiction_style-ban szabad szöveg (pl. "1920-as évek Budapest"), de később semmi nem ellenőrzi, hogy a fejezetekben fel-fellépő helyszínek (utcák, épületek, városok) konzisztensek-e. Ha az egyik fejezetben a "Váci utca" szerepel, a másikban "Vámház körút", akkor nincs garancia a koherenciára.
 
 ---
 
-## 2. fázis — Csapat kollaboráció UI
+## Javítási terv (4 lépés)
 
-A `project_collaborators` tábla már létezik, csak felület hiányzik.
+### 1. lépés: Nemzetiségi irányelv beépítése a `buildFictionStylePrompt`-be
+**Fájl:** `supabase/functions/_shared/prompt-builder.ts`
 
-### 2.1 Kollaborátor kezelő panel
-- Új "Csapat" tab a projekt beállításokban
-- Email-alapú meghívás (writer / reader szerepkörrel)
-- Meghívó email Resend-en keresztül (lokalizált magyar template)
-- Listanézet: aktív kollaborátorok, függő meghívások, eltávolítás
+Bővíteni a függvényt, hogy a `characterNationality` mezőt is kitegye a promptba, a `NATIONALITY_GUIDE` lookup táblával együtt (amit a `generate-story`-ból át kell mozgatni, hogy mindkét helyen elérhető legyen).
 
-### 2.2 RLS frissítés
-A `chapters`, `blocks`, `characters` táblák RLS policy-jét bővíteni kell, hogy a `project_collaborators`-ban szereplő userek is hozzáférjenek a szerepkörük szerint:
-- `reader`: SELECT
-- `editor`: SELECT + UPDATE + INSERT
+**Hatás:** Minden jelenet- és szakaszgeneráláskor (write-scene, write-section, process-next-scene) az AI tudni fogja, hogy ÚJ karakternek milyen kulturális hátterű nevet kell adnia.
 
-### 2.3 Meghívás flow
-- Új user-nek auto-fiók (signup link), létező usernek azonnal hozzáférés
-- `accepted_at` jelölés meghívó link kattintásakor
+### 2. lépés: Outline-generátorok kulturális tudatossága
+**Fájlok:** `supabase/functions/generate-detailed-outline/index.ts`, `generate-chapter-outline/index.ts`, `generate-next-outline/index.ts`
 
-### Backend (2. fázis)
-- `invite-collaborator` edge function (meghívás + email)
-- `accept-collaboration` edge function (token-alapú elfogadás)
-- Migráció: helper függvény `is_project_collaborator(_project_id, _role)` és frissített RLS policy-k
+Az outline-generátorok promptjába bevezetni egy rövid "új karakter névkonvenciók" blokkot, ami a `project.fiction_style.characterNationality` és a `project.fiction_style.setting` alapján irányítja az AI-t.
 
-### Frontend (2. fázis)
-- `src/components/collaboration/CollaboratorsPanel.tsx`
-- `src/components/collaboration/InviteCollaboratorDialog.tsx`
-- `src/pages/AcceptInvitation.tsx` (új route: `/invite/:token`)
+**Hatás:** Az outline-ban javasolt új mellékszereplők neve illeszkedni fog a választott kultúrához.
 
----
+### 3. lépés: Név-konzisztencia auditor (új edge function)
+**Új fájl:** `supabase/functions/audit-name-consistency/index.ts`
 
-## 3. fázis — KDP Export Preset + Sorozat konzisztencia UI + Karakter háló
+Új edge function, ami egy projekt összes fejezetén végigfut és:
+- Kigyűjti az összes nagy kezdőbetűs tulajdonnévnek tűnő tokent (regex + AI)
+- Összeveti a `characters` táblával
+- Keres "vendégszereplőket" (nem regisztrált neveket)
+- Keres név-variánsokat (pl. "Kovács Anna" vs. "Anna Kovács" vs. "Annus")
+- Keres helyszín-inkonzisztenciát (pl. "Váci utca" / "Vámház körút" összevetés)
+- Eredményt ír a `quality_issues` táblába (severity szerint)
 
-### 3.1 📐 KDP (Kindle Direct Publishing) export preset
-Új preset az export modal-ban:
-- Trim size: 6"×9" (15.24×22.86 cm) — KDP standard
-- Margók: 0.75" külső, 0.875" belső gutter (300+ oldalas könyvhöz)
-- Tartalomjegyzék automatikus generálás, oldalszámozással
-- Page break minden fejezet előtt
-- Címoldal + copyright oldal + tartalomjegyzék
-- Egyetlen kattintás → KDP-kompatibilis PDF
+**Frontend integráció:** A meglévő **Konzisztencia Inbox** (`ConsistencyInbox.tsx`) automatikusan megjeleníti az új issue-kat — egy gomb hozzáadásával manuálisan elindítható az audit.
 
-Az `export-book` edge function-be új `preset: "kdp"` paraméter, ami felülírja a CloudConvert beállításokat.
+### 4. lépés: Konzisztencia gomb az editorba
+**Fájl:** `src/components/quality/ConsistencyInbox.tsx`
 
-### 3.2 🚨 Sorozat konzisztencia figyelmeztetések UI
-A `series_consistency_warnings` tábla már létezik, csak megjelenítés kell:
-- Új panel a szerkesztőben: "Sorozat-figyelmeztetések" badge counter-rel
-- Listanézet: súlyosság szerint csoportosítva (kritikus / közepes / kisebb)
-- Minden warning-hez: melyik kötetben jelent meg az ellentmondás, javasolt megoldás
-- Auto-trigger: új fejezet befejezésekor automatikusan lefuttatja a check-et háttérben
-
-### 3.3 🔗 Karakter kapcsolati háló — vizuális
-Új `react-flow` alapú graph view:
-- Csomópontok = karakterek (avatárral)
-- Élek = kapcsolatok (típus szerint színezve: család=kék, szerelmi=piros, ellenség=fekete, barát=zöld)
-- Drag-n-drop pozícionálás (pozíció mentve a karakter `metadata` mezőjébe)
-- Kattintás csomópontra → karakter modal
-- Új kapcsolat húzással hozzáadható
-
-### Backend (3. fázis)
-- Csak `export-book` bővítés (KDP preset)
-- Auto-trigger: `write-section` befejezésekor háttérben hívja a `check-series-consistency`-t
-
-### Frontend (3. fázis)
-- `src/components/export/KDPPresetCard.tsx` az export modal-ban
-- `src/components/series/ConsistencyWarningsPanel.tsx`
-- `src/components/characters/CharacterNetworkGraph.tsx` (`react-flow` lib telepítése)
+Egy "🔍 Teljes ellenőrzés most" gomb, ami meghívja az új `audit-name-consistency` edge functiont, és progress indicator mellett megmutatja az eredményt.
 
 ---
 
-## Kihagyott funkciók (külön körben)
+## Műszaki részletek
 
-Ezeket nem teszem be a tervbe most, mert mindegyik nagyobb feature és külön döntést igényel:
+**Adatbázis:** A `quality_issues` tábla már létezik, így nem kell migráció. Az új issue-ok a meglévő struktúrába mennek (`issue_type`: `name_consistency` / `location_consistency`, `severity`: `low/medium/high`).
 
-- **💬 Inline komment / javaslat rendszer** — új tábla (`comments`), Google Docs-szerű margó-kommentek, megoldatlan/megoldott állapotok. Nagy munka, külön kör.
-- **🌍 Helyszínek és világ-szabályok adatbázis** — új `locations` és `world_rules` táblák, wizard step, UI panel. Külön kör, mert érinti a writing engine prompt-jait is.
+**Költség:** Az audit egy projektre kb. 1 AI hívás (Gemini 2.5 Flash, structured output) — minimális.
+
+**Backward kompatibilitás:** A meglévő projektek is profitálnak (a 1. és 2. lépés azonnal érvényesül a következő íráskor; a 3-4. lépés bármikor manuálisan futtatható).
 
 ---
 
-## Javasolt sorrend és credit-költség
+## Mit fog érzékelni a felhasználó
 
-| Fázis | Idő | Új credit-költség |
-|---|---|---|
-| 1. AI Flow (recap + continue + twists) | gyors | recap: 200 / continue: 500 / twists: 800 |
-| 2. Kollaboráció | közepes | nincs (ingyenes) |
-| 3. KDP + konzisztencia UI + háló | közepes | sorozat-check: 1500 (már létezik) |
+- Új könyveknél: **a karakternevek végig a választott kultúrában** maradnak (még a 30. fejezetben felbukkanó mellékszereplők is).
+- Meglévő könyveknél: egy gombnyomással **megkapja a hibalistát** az inkonzisztens nevekről és helyszínekről.
+- Az outline-ban javasolt új karakterek neve **azonnal helyes kultúrából** származik.
 
-Mindhárom fázis külön mérföldkő, külön kipróbálható és kiszállítható. Javaslat: kezdjük az **1. fázissal**, mert ez ad azonnal érzékelhető wow-élményt a felhasználóknak az író felületen.
-
-Hagyd jóvá a tervet, és nekiállok a 1. fázisnak. Ha valamit átrendeznél, vagy a kihagyott funkciók (kommentek / helyszínek) egyikét most szeretnéd a tervbe — szólj.
+Mehet a megvalósítás?

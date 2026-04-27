@@ -38,6 +38,58 @@ NYELVTANI HELYESSÉG:
 - Összetett szavak: egybe vagy külön az MTA szabályai szerint
 `;
 
+/**
+ * Cultural / nationality naming guide.
+ * Used by both generate-story (initial character creation) and the writing engine
+ * (write-scene, write-section, process-next-scene, outline generators) so that
+ * NEW characters introduced mid-book also follow the chosen cultural convention.
+ */
+export const NATIONALITY_GUIDE: Record<string, string> = {
+  hungarian:    "magyar nevek (vezetéknév + keresztnév sorrend, pl. Kovács Anna, Nagy Bence, Tóth Eszter, Szilágyi Márton). Használj változatos magyar vezetékneveket, NE csak a Kovács/Nagy/Szabó hármast.",
+  english:      "brit angol nevek (pl. James Whitmore, Eleanor Hayes, Oliver Bennett, Charlotte Ashford)",
+  american:     "amerikai nevek, etnikailag változatos összetétellel (pl. Marcus Reed, Sofia Castillo, Tyler Brooks, Jasmine Carter)",
+  german:       "német nevek (pl. Lukas Hoffmann, Anna Becker, Felix Wagner, Lena Schmidt)",
+  french:       "francia nevek (pl. Julien Moreau, Camille Lefèvre, Antoine Dubois, Élodie Rousseau)",
+  spanish:      "spanyol vagy latin-amerikai nevek (pl. Diego Herrera, Lucía Morales, Mateo Ramírez, Valentina Castro)",
+  italian:      "olasz nevek (pl. Matteo Ricci, Giulia Conti, Lorenzo Romano, Sofia Bianchi)",
+  scandinavian: "skandináv nevek (pl. Lars Eriksson, Astrid Lindqvist, Mikael Berg, Freya Olsen)",
+  japanese:     "japán nevek (vezetéknév + keresztnév sorrend, pl. Tanaka Haruki, Sato Yuki, Yamamoto Kenji, Nakamura Aiko)",
+  russian:      "orosz nevek (pl. Dmitri Volkov, Anastasia Sokolova, Nikolai Petrov, Irina Romanova)",
+  mixed:        "nemzetközileg vegyes nevek többféle kulturális háttérből (európai, amerikai, ázsiai keverve)",
+  fantasy:      "kitalált, fantasy stílusú nevek (NEM létező kultúrákból kölcsönözve, hanem eredeti hangzású nevek)",
+  ai_choose:    "a történet helyszínéhez, korszakához és kulturális kontextusához illő nevek",
+};
+
+/**
+ * Build a "new character naming guide" prompt block.
+ * Used by writing engines AND outline generators so that ANY new character
+ * introduced after the initial cast also matches the chosen culture/setting.
+ */
+export function buildNewCharacterNamingGuide(
+  characterNationality: string | null | undefined,
+  setting: string | null | undefined,
+  existingCharacterNames: string[] = []
+): string {
+  const key = (characterNationality && NATIONALITY_GUIDE[characterNationality])
+    ? characterNationality
+    : "ai_choose";
+  const hint = NATIONALITY_GUIDE[key];
+  const settingHint = (setting && setting.trim().length > 0)
+    ? `\n- A történet helyszíne / korszaka: ${setting.trim()}. Ehhez illő nevek!`
+    : "";
+  const existingBlock = existingCharacterNames.length > 0
+    ? `\n- TILOS megismételni vagy alig módosítani ezeket a meglévő neveket: ${existingCharacterNames.join(", ")}.`
+    : "";
+
+  return `
+
+## ÚJ KARAKTEREK NEVEI (ha bármilyen új mellékszereplőt vezetsz be):
+- Az új karakterek nevei kapjanak ${hint}.${settingHint}${existingBlock}
+- A nevek legyenek változatosak, EGYEDIEK és kulturálisan hitelesek.
+- Kerüld a sablonokat: John Smith, John Doe, Kovács János, Nagy Péter, Szabó István.
+- Ha a felhasználó már létrehozott karaktereket (lásd KARAKTERNÉV ZÁR), AZOK pontosan úgy maradnak, ahogy ott szerepelnek — ez a szabály csak az új szereplőkre vonatkozik.`;
+}
+
 export const NO_MARKDOWN_RULE = `
 
 FORMÁZÁSI SZABÁLY (KÖTELEZŐ):
