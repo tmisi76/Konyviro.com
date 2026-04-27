@@ -51,12 +51,12 @@ export function Footer() {
             <h4 className="font-semibold text-foreground">Termék</h4>
             <ul className="mt-4 space-y-2">
               <li>
-                <Link
-                  to="/pricing"
+                <a
+                  href="#pricing"
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Ingyenes próba
-                </Link>
+                  Ingyenes próba hét napra
+                </a>
               </li>
               <li>
                 <a
