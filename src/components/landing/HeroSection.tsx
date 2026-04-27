@@ -1,8 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, BookOpen, Feather } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 export function HeroSection() {
-  const navigate = useNavigate();
   const scrollToPricing = () => {
     const element = document.getElementById("pricing");
     if (element) {
@@ -54,8 +52,8 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button size="lg" onClick={() => navigate("/pricing")} className="group w-full px-8 sm:w-auto">
-              Ingyenesen kipróbálom
+            <Button size="lg" onClick={scrollToPricing} className="group w-full px-8 sm:w-auto">
+              Ingyenesen kipróbálom hét napig
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
             <Button size="lg" variant="outline" onClick={scrollToPricing} className="w-full sm:w-auto">
