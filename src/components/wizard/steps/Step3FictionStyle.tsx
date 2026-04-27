@@ -210,6 +210,38 @@ export function Step3FictionStyle({ subcategory, initialData, onSubmit }: Step3F
           </p>
         </div>
 
+        {/* Character Nationality */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="w-5 h-5 text-primary" />
+            <Label className="text-base font-semibold">
+              Karakterek nemzetisége / nyelve
+            </Label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {NATIONALITY_OPTIONS.map((option) => (
+              <motion.button
+                key={option.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setCharacterNationality(option.id)}
+                className={cn(
+                  "px-4 py-2 rounded-full border-2 transition-all flex items-center gap-2",
+                  characterNationality === option.id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card hover:border-primary/40"
+                )}
+              >
+                <span>{option.flag}</span>
+                <span className="font-medium text-sm">{option.label}</span>
+              </motion.button>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Ez határozza meg, milyen nyelvű/eredetű neveket kapnak a szereplők (pl. János vagy John)
+          </p>
+        </div>
+
         {/* Age Rating */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 mb-2">
