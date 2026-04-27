@@ -2,53 +2,23 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 
-const HUNGARIAN_FIRST_NAMES_MALE = [
-  'Bence', 'Máté', 'Dániel', 'Gergő', 'Balázs', 'Tamás', 'István', 'Miklós',
-  'Zoltán', 'László', 'Attila', 'Gábor', 'Ferenc', 'Róbert', 'Csaba', 'Tibor',
-  'Kornél', 'Olivér', 'Márton', 'Sándor', 'Dominik', 'Levente', 'Nándor', 'Zsolt',
-  'Ákos', 'Benedek', 'Dénes', 'Ervin', 'Iván', 'Kristóf', 'Milán', 'Patrik',
-  'Soma', 'Vencel', 'Botond', 'Zalán', 'Vilmos', 'Szabolcs', 'Vince', 'Simon'
-];
-
-const HUNGARIAN_FIRST_NAMES_FEMALE = [
-  'Lilla', 'Réka', 'Eszter', 'Boglárka', 'Zsófia', 'Katalin', 'Dóra', 'Anita',
-  'Virág', 'Kinga', 'Noémi', 'Hajnalka', 'Enikő', 'Orsolya', 'Csilla', 'Ildikó',
-  'Adrienn', 'Fruzsina', 'Piroska', 'Dorottya', 'Sára', 'Blanka', 'Hanna', 'Léna',
-  'Nóra', 'Fanni', 'Gréta', 'Jázmin', 'Luca', 'Petra', 'Maja', 'Villő',
-  'Emese', 'Izabella', 'Nikolett', 'Rebeka', 'Vivien', 'Dalma', 'Flóra', 'Kamilla'
-];
-
-const HUNGARIAN_LAST_NAMES = [
-  'Szűcs', 'Vörös', 'Balogh', 'Németh', 'Fehér', 'Pintér', 'Papp', 'Bodnár',
-  'Takács', 'Mészáros', 'Orbán', 'Szilágyi', 'Hegedűs', 'Fazekas', 'Soós', 'Kocsis',
-  'Kelemen', 'Barta', 'Fülöp', 'Hajdu', 'Csikós', 'Deák', 'Antal', 'Lengyel',
-  'Vincze', 'Márkus', 'Barna', 'Somogyi', 'Rácz', 'Dudás', 'Bíró', 'Laczkó',
-  'Jakab', 'Halász', 'Fodor', 'Tamási', 'Farkas', 'Szalai', 'Bogdán', 'Gál'
-];
-
-function getRandomNames(count: number = 4): { male: string[], female: string[] } {
-  const shuffle = <T>(arr: T[]): T[] => {
-    const copy = [...arr];
-    for (let i = copy.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-  };
-
-  const lastNames = shuffle(HUNGARIAN_LAST_NAMES);
-  const maleFirsts = shuffle(HUNGARIAN_FIRST_NAMES_MALE);
-  const femaleFirsts = shuffle(HUNGARIAN_FIRST_NAMES_FEMALE);
-
-  const maleNames = Array.from({ length: Math.ceil(count / 2) }, (_, i) =>
-    `${lastNames[i]} ${maleFirsts[i]}`
-  );
-  const femaleNames = Array.from({ length: Math.floor(count / 2) }, (_, i) =>
-    `${lastNames[Math.ceil(count / 2) + i]} ${femaleFirsts[i]}`
-  );
-
-  return { male: maleNames, female: femaleNames };
-}
+// Nationality / language guide for character names. The AI generates names
+// itself based on the chosen cultural background instead of using a fixed list.
+const NATIONALITY_GUIDE: Record<string, string> = {
+  hungarian:    "magyar nevek (vezetéknév + keresztnév sorrend, pl. Kovács Anna, Nagy Bence, Tóth Eszter, Szilágyi Márton). Használj változatos magyar vezetékneveket, NE csak a Kovács/Nagy/Szabó hármast.",
+  english:      "brit angol nevek (pl. James Whitmore, Eleanor Hayes, Oliver Bennett, Charlotte Ashford)",
+  american:     "amerikai nevek, etnikailag változatos összetétellel (pl. Marcus Reed, Sofia Castillo, Tyler Brooks, Jasmine Carter)",
+  german:       "német nevek (pl. Lukas Hoffmann, Anna Becker, Felix Wagner, Lena Schmidt)",
+  french:       "francia nevek (pl. Julien Moreau, Camille Lefèvre, Antoine Dubois, Élodie Rousseau)",
+  spanish:      "spanyol vagy latin-amerikai nevek (pl. Diego Herrera, Lucía Morales, Mateo Ramírez, Valentina Castro)",
+  italian:      "olasz nevek (pl. Matteo Ricci, Giulia Conti, Lorenzo Romano, Sofia Bianchi)",
+  scandinavian: "skandináv nevek (pl. Lars Eriksson, Astrid Lindqvist, Mikael Berg, Freya Olsen)",
+  japanese:     "japán nevek (vezetéknév + keresztnév sorrend, pl. Tanaka Haruki, Sato Yuki, Yamamoto Kenji, Nakamura Aiko)",
+  russian:      "orosz nevek (pl. Dmitri Volkov, Anastasia Sokolova, Nikolai Petrov, Irina Romanova)",
+  mixed:        "nemzetközileg vegyes nevek többféle kulturális háttérből (európai, amerikai, ázsiai keverve)",
+  fantasy:      "kitalált, fantasy stílusú nevek (NEM létező kultúrákból kölcsönözve, hanem eredeti hangzású nevek)",
+  ai_choose:    "a történet helyszínéhez, korszakához és kulturális kontextusához illő nevek — ha a helyszín pl. London, akkor angol, ha Tokió, akkor japán, ha nincs egyértelmű helyszín, akkor a kontextushoz illő",
+};
 
 const NARRATIVE_STYLES = [
   {
