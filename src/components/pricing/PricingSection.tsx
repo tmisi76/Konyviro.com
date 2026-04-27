@@ -35,7 +35,7 @@ export function PricingSection() {
     // Paid plans - direct Stripe checkout (guest or authenticated)
     const priceId = billingPeriod === "yearly" ? plan.yearlyPriceId : plan.monthlyPriceId;
     if (priceId) {
-      createCheckoutSession(priceId, plan.id as "hobby" | "writer" | "pro", billingPeriod);
+      createCheckoutSession(priceId, plan.id as "hobby" | "writer" | "agency" | "pro", billingPeriod);
     }
   };
 
@@ -98,32 +98,16 @@ export function PricingSection() {
 
         {/* Pricing cards */}
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
-          {/* Free plan card */}
-          {freePlan && (
-            <PricingCard
-              name={freePlan.name}
-              price={freePlan.monthlyPrice}
-              originalPrice=""
-              monthlyEquivalent={freePlan.description}
-              features={freePlan.features}
-              onSelect={() => handlePlanSelect(freePlan)}
-              isLoading={false}
-              isFree={true}
-              ctaText="REGISZTRÁLOK"
-            />
-          )}
-
           {/* Paid plans */}
           {paidPlans.map((plan) => (
             <PricingCard
               key={plan.id}
               name={plan.name}
               price={billingPeriod === "yearly" ? plan.yearlyPrice : plan.monthlyPrice}
-              originalPrice={billingPeriod === "yearly" && programOpen ? plan.yearlyOriginalPrice : ""}
+              originalPrice=""
               monthlyEquivalent={billingPeriod === "yearly" ? plan.monthlyEquivalent : plan.description}
               features={plan.features}
               isPopular={plan.isPopular}
-              discountBadge={billingPeriod === "yearly" && programOpen ? "-50%" : undefined}
               onSelect={() => handlePlanSelect(plan)}
               isLoading={isLoading}
               ctaText="REGISZTRÁLOK"
