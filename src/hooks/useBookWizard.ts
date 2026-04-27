@@ -32,6 +32,7 @@ export function useBookWizard() {
     storyDescription: "",
     targetAudience: "",
     tone: null,
+    tones: [],
     length: null,
     additionalInstructions: "",
     storyIdeas: [],
@@ -127,10 +128,16 @@ export function useBookWizard() {
     tone: Tone;
     length: number;
     additionalInstructions: string;
+    tones?: Tone[];
   }) => {
+    const tonesArray =
+      info.tones && info.tones.length > 0 ? info.tones : [info.tone];
+    const primaryTone = tonesArray[0] ?? info.tone;
     setData(prev => ({
       ...prev,
       ...info,
+      tone: primaryTone,
+      tones: tonesArray,
       // Töröljük az ötleteket és minden utána következő adatot, hogy újrageneráljuk
       storyIdeas: [],
       selectedStoryIdea: null,
@@ -428,6 +435,7 @@ export function useBookWizard() {
       storyDescription: "",
       targetAudience: "",
       tone: null,
+      tones: [],
       length: null,
       additionalInstructions: "",
       storyIdeas: [],
