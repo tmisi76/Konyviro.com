@@ -333,7 +333,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { storyIdea, genre, tone, targetAudience, authorProfile, nonfictionBookType } = await req.json();
+    const { storyIdea, genre, tone, targetAudience, authorProfile, nonfictionBookType, characterNationality, setting } = await req.json();
 
     if (!storyIdea || storyIdea.trim().length < 10) {
       return new Response(
@@ -435,18 +435,23 @@ ${storyIdea}
 Készíts ebből egy professzionális SZAKKÖNYV koncepciót a megadott JSON formátumban!
 FONTOS: Ez egy SZAKKÖNYV, NEM regény! Ne használj fiktív karaktereket, antagonistát, vagy regény cselekménypontokat!`;
     } else {
-      const randomNames = getRandomNames(6);
+      const nationalityKey = (typeof characterNationality === "string" && NATIONALITY_GUIDE[characterNationality])
+        ? characterNationality
+        : "ai_choose";
+      const nationalityHint = NATIONALITY_GUIDE[nationalityKey];
+      const settingHint = (typeof setting === "string" && setting.trim().length > 0)
+        ? `\nA történet helyszíne / korszaka: ${setting.trim()}. Ezt is vedd figyelembe a nevek megválasztásánál.`
+        : "";
+
       const nameContext = `
-KARAKTER NEVEK (HASZNÁLD EZEKET, NE TALÁLJ KI SAJÁTOT!):
-Férfi nevek (válassz ezek közül): ${randomNames.male.join(', ')}
-Női nevek (válassz ezek közül): ${randomNames.female.join(', ')}
+KARAKTER NEVEK — KULTURÁLIS IRÁNYELV:
+A szereplők kapjanak ${nationalityHint}.${settingHint}
 
-TILOS az alábbi neveket használni (túl gyakori AI-generált nevek):
-- Kovács Ádám, Kovács János, Nagy Péter, Szabó István
-- Varga Endre, Tarján Viktor, Dr. Varga
-- Bármilyen "Kovács", "Nagy", "Szabó" vezetéknevű karakter
-
-A nevek legyenek VÁLTOZATOSAK és EGYEDIEK!`;
+SZABÁLYOK:
+- A nevek legyenek VÁLTOZATOSAK, EGYEDIEK és HITELESEK az adott kultúrához.
+- Ne ismételd ugyanazt a vezeték- vagy keresztnevet több karakternél.
+- Kerüld a túlhasznált sablon-neveket: Kovács Ádám, Kovács János, Nagy Péter, Szabó István, John Smith, John Doe, Jane Doe.
+- A főszereplő, antagonista és mellékszereplők neve mind illeszkedjen a fenti irányelvhez.`;
 
       const randomStyle = getRandomStyle();
       const styleContext = `
