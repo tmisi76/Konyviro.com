@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { repairAndParseJSON } from "../_shared/json-utils.ts";
 import { getAISettings } from "../_shared/ai-settings.ts";
-import { extractCandidateCharacterNames, buildExtractedNameLock } from "../_shared/prompt-builder.ts";
+import { extractCandidateCharacterNames, buildExtractedNameLock, buildNewCharacterNamingGuide } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
