@@ -16,6 +16,7 @@ import {
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import { MetaPixelEvents } from "@/components/analytics/MetaPixelEvents";
 
 // Lazy load heavy pages for performance
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -60,6 +61,7 @@ function AppContent() {
   return (
     <>
       <SkipToContent />
+      <MetaPixelEvents />
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/read/:shareToken" element={
