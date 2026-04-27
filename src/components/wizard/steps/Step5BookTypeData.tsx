@@ -832,6 +832,41 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
         <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={15000} max={50000} step={5000} />
       </div>
+
+      <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-4 space-y-4">
+        <div className="space-y-1">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            🔍 Valós ügy + AI kutatás
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Add meg a konkrét, megtörtént ügyet vagy személyt. Az AI valódi forrásokból fog kutatni
+            (Perplexity), és a könyv kizárólag dokumentált, ellenőrizhető tényekre épül — semmi kitalált.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Konkrét valós ügy / személy / esemény</Label>
+          <Textarea
+            value={formData.realCaseReference || ""}
+            onChange={(e) => updateField("realCaseReference", e.target.value)}
+            placeholder='Pl. "Watergate-botrány és Nixon bukása", "Ted Bundy sorozatgyilkos esete", "Postabank-ügy 1997-2003", "Magnyickij-ügy"…'
+            rows={3}
+          />
+          <p className="text-xs text-muted-foreground">
+            Minél pontosabb (név + időszak + helyszín), annál célzottabb a kutatás.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Extra kutatási instrukciók (opcionális)</Label>
+          <Textarea
+            value={formData.extraResearchInstructions || ""}
+            onChange={(e) => updateField("extraResearchInstructions", e.target.value)}
+            placeholder='Pl. "Fókuszálj a 2008-2012 közötti pénzmozgásokra", "Részletezd az áldozatok történeteit", "A bírósági iratokra építs"…'
+            rows={2}
+          />
+        </div>
+      </div>
     </>
   );
 
