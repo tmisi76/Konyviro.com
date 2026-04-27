@@ -366,7 +366,9 @@ export default function ProjectEditor() {
 
         {/* Content based on view mode */}
         {viewMode === "editor" ? (
-          <EditorView
+          <>
+            <ChapterRecapCard projectId={projectId} />
+            <EditorView
             isLoading={isLoadingBlocks}
             blocks={blocks}
             selectedBlockId={selectedBlockId}
@@ -382,7 +384,8 @@ export default function ProjectEditor() {
             onInsertCitation={() => setShowCitationPanel(true)}
             onAIAction={handleInlineAIAction}
             onCreateEmptyBlock={() => createBlock("paragraph", "", 0)}
-          />
+            />
+          </>
         ) : viewMode === "outline" ? (
           <OutlineView
             chapters={chapters}
