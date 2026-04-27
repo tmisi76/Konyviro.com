@@ -64,7 +64,7 @@ serve(async (req) => {
     const status = profile.subscription_status;
 
     // 1. Must have an active paid subscription
-    if (!["hobby", "writer", "pro"].includes(tier) || status !== "active") {
+    if (!["hobby", "writer", "agency", "pro"].includes(tier) || status !== "active") {
       logStep("Not eligible: not a paid active subscription");
       return new Response(JSON.stringify({ 
         eligible: false, 

@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export interface SubscriptionData {
   subscribed: boolean;
-  tier: "free" | "hobby" | "writer" | "pro";
+  tier: "free" | "hobby" | "writer" | "agency" | "pro";
   subscriptionStart: string | null;
   subscriptionEnd: string | null;
   cancelAtPeriodEnd: boolean;

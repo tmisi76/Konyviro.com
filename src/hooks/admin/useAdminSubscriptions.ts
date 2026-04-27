@@ -29,23 +29,27 @@ export function useAdminSubscriptions() {
 
       if (error) throw error;
 
-      // Monthly prices
+      // Monthly prices (új előfizetők; régi előfizetők grandfather áron futnak,
+      // a tényleges összegért lásd Stripe)
       const monthlyPrices: Record<string, number> = {
-        hobby: 4990,
-        writer: 14990,
+        hobby: 9990,
+        writer: 19990,
+        agency: 59990,
         pro: 29990,
       };
 
       // Yearly prices
       const yearlyPrices: Record<string, number> = {
-        hobby: 29940,
-        writer: 89940,
+        hobby: 59990,
+        writer: 119990,
+        agency: 359990,
         pro: 179940,
       };
 
       const tierNames: Record<string, string> = {
         hobby: 'Hobbi',
         writer: 'Profi',
+        agency: 'Ügynökség',
         pro: 'Pro',
       };
 
