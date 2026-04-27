@@ -99,8 +99,6 @@ serve(async (req) => {
     // Find current chapter context if provided
     let currentChapterText = "";
     if (currentChapterId) {
-      const current = chapters.find((c: any) => c.title && (c as any).id !== undefined);
-      // We didn't fetch ids; do an extra read for safety.
       const { data: cur } = await supabase
         .from("chapters")
         .select("title, content")
