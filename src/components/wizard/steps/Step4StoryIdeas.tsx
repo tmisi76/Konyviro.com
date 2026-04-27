@@ -64,6 +64,33 @@ export function Step4StoryIdeas({
     const previousTitles = ideas.map(i => i.title);
     
     try {
+      // === Oknyomozó valós ügy kutatás (Perplexity) ===
+      let realCaseResearch: { research: unknown; sources: unknown } | null = null;
+      const isInvestigative = nonfictionBookType === "investigative";
+      const caseRef = bookTypeSpecificData?.realCaseReference?.trim();
+
+      if (isInvestigative && caseRef && caseRef.length >= 3) {
+        try {
+          toast.info("🔍 Valós források kutatása folyamatban (Perplexity)…", { duration: 4000 });
+          const { data: rData, error: rErr } = await supabase.functions.invoke("research-real-case", {
+            body: {
+              caseReference: caseRef,
+              extraInstructions: bookTypeSpecificData?.extraResearchInstructions,
+              subcategory,
+              subject: bookTypeSpecificData?.investigationSubject,
+            },
+          });
+          if (rErr) throw rErr;
+          if (rData) {
+            realCaseResearch = { research: rData.research, sources: rData.sources };
+            toast.success("✅ Kutatás kész — valós források alapján generálunk ötleteket");
+          }
+        } catch (resErr) {
+          console.error("Research failed:", resErr);
+          toast.warning("Nem sikerült valós kutatást futtatni — általánosabb ötletek készülnek");
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("generate-story-ideas", {
         body: {
           genre,
@@ -77,6 +104,7 @@ export function Step4StoryIdeas({
           nonfictionBookType: nonfictionBookType || undefined,
           bookTypeSpecificData: bookTypeSpecificData || undefined,
           previousIdeas: previousTitles.length > 0 ? previousTitles : undefined,
+          realCaseResearch: realCaseResearch || undefined,
         },
       });
 
