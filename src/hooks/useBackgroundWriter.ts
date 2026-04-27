@@ -323,8 +323,9 @@ export function useBackgroundWriter(projectId: string | null) {
   const canPause = isWriting;
   const canResume = progress.status === 'paused';
   
-  // Új: helyreállítás lehetséges ha "completed" de nem érte el a célt, vagy "incomplete" státusz
-  const canRecover = progress.status === 'incomplete' || 
+  // Új: helyreállítás lehetséges ha "completed" de nem érte el a célt, "incomplete" státusz,
+  // vagy ha az auto-retry checksum hiányzó fejezeteket talált.
+  const canRecover = progress.status === 'incomplete' || progress.hasMissingChapters ||
     (progress.status === 'completed' && progress.targetWordCount > 0 && progress.wordCount < progress.targetWordCount * 0.8);
 
   return {
