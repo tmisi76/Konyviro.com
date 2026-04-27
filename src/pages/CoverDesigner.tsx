@@ -18,7 +18,7 @@ import { ArrowLeft, Loader2, Sparkles, Image as ImageIcon, Check, Pencil, Zap, L
 import { toast } from '@/hooks/use-toast';
 import { EditCoverModal } from '@/components/covers/EditCoverModal';
 import { useSubscription } from '@/hooks/useSubscription';
-import { COVER_GENERATION_COST } from '@/constants/credits';
+import { COVER_GENERATION_COST, COVER_VARIATIONS_COST, COVER_VARIATIONS_COUNT } from '@/constants/credits';
 
 const STYLE_OPTIONS = [
   { value: 'photorealistic', label: 'Fotórealisztikus' },
@@ -59,6 +59,7 @@ const CoverDesigner: React.FC = () => {
   // Subscription data for credit check
   const { canGenerateWords, getRemainingWords, refetch: refetchSubscription } = useSubscription();
   const hasEnoughCredits = canGenerateWords(COVER_GENERATION_COST);
+  const hasEnoughForVariations = canGenerateWords(COVER_VARIATIONS_COST);
   const remainingWords = getRemainingWords();
 
   // Fetch project data
@@ -102,7 +103,7 @@ const CoverDesigner: React.FC = () => {
 
   // Generate cover mutation
   const generateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (variations: number = 1) => {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       
@@ -124,6 +125,7 @@ const CoverDesigner: React.FC = () => {
             style,
             title,
             author,
+            variations,
           }),
         }
       );
@@ -137,11 +139,12 @@ const CoverDesigner: React.FC = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['covers', projectId] });
-      refetchSubscription(); // Refresh credit display
+      refetchSubscription();
       const creditsUsed = data?.credits_used || COVER_GENERATION_COST;
+      const generated = data?.variations_generated || 1;
       toast({
-        title: 'Borító elkészült!',
-        description: `Az új borító sikeresen létrejött. ${creditsUsed.toLocaleString()} szó kredit levonva.`,
+        title: generated > 1 ? `${generated} borító elkészült!` : 'Borító elkészült!',
+        description: `${creditsUsed.toLocaleString()} szó kredit levonva.`,
       });
       setPrompt('');
     },
@@ -188,7 +191,7 @@ const CoverDesigner: React.FC = () => {
     },
   });
 
-  const handleGenerate = (e: React.FormEvent) => {
+  const handleGenerate = (e: React.FormEvent, variations: number = 1) => {
     e.preventDefault();
     if (!prompt.trim()) {
       toast({
@@ -198,15 +201,16 @@ const CoverDesigner: React.FC = () => {
       });
       return;
     }
-    if (!hasEnoughCredits) {
+    const requiredCost = variations > 1 ? COVER_VARIATIONS_COST : COVER_GENERATION_COST;
+    if (!canGenerateWords(requiredCost)) {
       toast({
         title: 'Nincs elég kredit',
-        description: `A borító generálás ${COVER_GENERATION_COST.toLocaleString()} szó kreditet igényel. Vásárolj extra kreditet vagy válts nagyobb csomagra.`,
+        description: `${requiredCost.toLocaleString()} szó kreditet igényel. Vásárolj extra kreditet vagy válts nagyobb csomagra.`,
         variant: 'destructive',
       });
       return;
     }
-    generateMutation.mutate();
+    generateMutation.mutate(variations);
   };
 
   const handleEditClick = (cover: Cover, e: React.MouseEvent) => {
@@ -251,7 +255,7 @@ const CoverDesigner: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleGenerate} className="space-y-4">
+              <form onSubmit={(e) => handleGenerate(e, 1)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Könyv Címe</Label>
                   <Input
@@ -333,6 +337,29 @@ const CoverDesigner: React.FC = () => {
                     </>
                   )}
                 </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={generateMutation.isPending || !hasEnoughForVariations}
+                  onClick={(e) => handleGenerate(e as unknown as React.FormEvent, COVER_VARIATIONS_COUNT)}
+                >
+                  {!hasEnoughForVariations ? (
+                    <>
+                      <Lock className="mr-2 h-4 w-4" />
+                      Nincs elég kredit ({COVER_VARIATIONS_COST.toLocaleString()} szó)
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {COVER_VARIATIONS_COUNT} variáció generálása (4K)
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  3 különböző stílusú, nyomda-minőségű (4K) borító egyszerre
+                </p>
               </form>
             </CardContent>
           </Card>
