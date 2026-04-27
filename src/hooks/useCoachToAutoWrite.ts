@@ -70,6 +70,7 @@ export function useCoachToAutoWrite(): UseCoachToAutoWriteReturn {
         descriptionLevel: "moderate",
         setting: s.setting || "",
         ageRating: subcategory === "erotikus" ? "explicit" : "teen",
+        characterNationality: "ai_choose",
       } : null;
 
       // 1. Create project in database

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Eye, Gauge, MessageSquare, Palette, MapPin, Shield } from "lucide-react";
+import { ArrowRight, Eye, Gauge, MessageSquare, Palette, MapPin, Shield, Users } from "lucide-react";
 import type { 
   POVType, 
   PaceType, 
@@ -12,14 +12,16 @@ import type {
   DescriptionLevel, 
   AgeRating,
   FictionStyleSettings,
-  Subcategory 
+  Subcategory,
+  CharacterNationality
 } from "@/types/wizard";
 import { 
   POV_OPTIONS, 
   PACE_OPTIONS, 
   DIALOGUE_OPTIONS, 
   DESCRIPTION_OPTIONS, 
-  AGE_RATING_OPTIONS 
+  AGE_RATING_OPTIONS,
+  NATIONALITY_OPTIONS
 } from "@/types/wizard";
 
 interface Step3FictionStyleProps {
@@ -37,6 +39,9 @@ export function Step3FictionStyle({ subcategory, initialData, onSubmit }: Step3F
   const [ageRating, setAgeRating] = useState<AgeRating>(
     initialData?.ageRating || (subcategory === "erotikus" ? "explicit" : "adult")
   );
+  const [characterNationality, setCharacterNationality] = useState<CharacterNationality>(
+    initialData?.characterNationality || "ai_choose"
+  );
 
   const handleSubmit = () => {
     onSubmit({
@@ -46,6 +51,7 @@ export function Step3FictionStyle({ subcategory, initialData, onSubmit }: Step3F
       descriptionLevel,
       setting,
       ageRating,
+      characterNationality,
     });
   };
 
@@ -201,6 +207,38 @@ export function Step3FictionStyle({ subcategory, initialData, onSubmit }: Step3F
           />
           <p className="text-sm text-muted-foreground">
             Add meg, hol és mikor játszódik a történeted
+          </p>
+        </div>
+
+        {/* Character Nationality */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="w-5 h-5 text-primary" />
+            <Label className="text-base font-semibold">
+              Karakterek nemzetisége / nyelve
+            </Label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {NATIONALITY_OPTIONS.map((option) => (
+              <motion.button
+                key={option.id}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setCharacterNationality(option.id)}
+                className={cn(
+                  "px-4 py-2 rounded-full border-2 transition-all flex items-center gap-2",
+                  characterNationality === option.id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card hover:border-primary/40"
+                )}
+              >
+                <span>{option.flag}</span>
+                <span className="font-medium text-sm">{option.label}</span>
+              </motion.button>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Ez határozza meg, milyen nyelvű/eredetű neveket kapnak a szereplők (pl. János vagy John)
           </p>
         </div>
 
