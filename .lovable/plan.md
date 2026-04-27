@@ -1,43 +1,115 @@
+## Cél
 
+Eltávolítani a `generate-story` Edge Function-ből a beégetett magyar névgenerátort, és helyette egy felhasználó által beállítható **karakter-nemzetiség / nyelv** opciót adni a fikció wizardhoz. Ez alapján az AI maga generál nemzetiséghez illő neveket (magyar → János, Kovács; angol → John, Smith; spanyol → Juan, García; stb.).
 
-## Probléma
-1. **Hiba oka**: A `evacsillakepzes@gmail.com` cím már létezik az auth táblában. Ez gyakori eset, ha:
-   - A felhasználó valóban regisztrált korábban
-   - Egy korábbi admin létrehozás félig lefutott (auth user megvan, profil hiányzik vagy hibás)
-2. **UX probléma**: A felhasználó csak a homályos „Edge Function returned a non-2xx status code" üzenetet látja, nem érti mi a baj.
-3. **Nincs visszaállítási út**: Ha a user „árva" (auth létezik, profil rossz), nem tudja az admin újrahúzni.
+## Probléma röviden
 
-## Javítás
+Jelenleg a `generate-story/index.ts` 5–51. sorai egy fix `HUNGARIAN_FIRST_NAMES_MALE/FEMALE` és `HUNGARIAN_LAST_NAMES` listából véletlenszerű neveket választanak, és kötelezően ezeket nyomja a promptba. Ezért még angol/spanyol stb. helyszín esetén is magyar neveket kap a felhasználó.
 
-### 1. `admin-create-user` edge function — okosabb hibakezelés
-- **Email létezés ellenőrzése előre** (`auth.admin.listUsers` + filter) a `createUser` hívás előtt.
-- Ha létezik:
-  - Lekérni a meglévő profilt
-  - **Ha a profil free/üres** → a meglévő auth usert vesszük át, csak frissítjük a profilt az új előfizetéssel + opcionálisan jelszóreset emailt küldünk. Visszaadjuk: `mode: "updated_existing"`.
-  - **Ha már aktív fizetős előfizetése van** → tiszta hibaüzenet magyarul: „Ez az email már aktív előfizetéssel rendelkezik. Használja a Szerkesztés funkciót."
-- A válasz mindig 200-as legyen strukturált `{ success, mode, message }` mezőkkel — így a frontend nem „non-2xx"-et lát, hanem értelmes üzenetet.
+## Változtatások
 
-### 2. `AddUserModal.tsx` — érthető visszajelzés
-- A toast az `error.message` helyett a `data.message`-et használja, ha létezik.
-- Sikeres „updated_existing" esetén külön zöld toast: „Meglévő felhasználó frissítve új előfizetéssel".
-- Hibás esetben (pl. már aktív sub) sárga warning toast a magyar üzenettel.
+### 1. Új típus a wizardban — `src/types/wizard.ts`
 
-### 3. Edge funkciók átvizsgálása (a kérés szerint)
-Ellenőrzöm szúrópróba-szerűen a kritikus admin funkciókat (csak hibakezelés/CORS szempontból):
-- `admin-get-users` — működik (200-as logokból látszik)
-- `admin-update-subscription`, `admin-ban-user`, `admin-delete-user`, `admin-reset-password`, `admin-send-credentials`, `admin-create-user` — egységes hibakezelési minta ellenőrzése (CORS header minden válaszban, status code helyesen)
-- A többi 30+ edge funkciót csak akkor módosítom, ha konkrét bug derül ki, hogy ne legyen scope creep.
+Új `CharacterNationality` típus + opciólista, és a `FictionStyleSettings` bővítése egy `characterNationality` mezővel.
 
-### Nem módosítok
-- Nem nyúlok az AI/írás funkciókhoz, fizetés/webhook funkciókhoz, email küldéshez — ezek a logok alapján működnek.
+```ts
+export type CharacterNationality =
+  | "hungarian" | "english" | "american" | "german" | "french"
+  | "spanish" | "italian" | "scandinavian" | "japanese" | "russian"
+  | "mixed" | "fantasy" | "ai_choose";
+
+export const NATIONALITY_OPTIONS: { id: CharacterNationality; label: string; flag: string }[] = [
+  { id: "ai_choose",   label: "AI döntse el (a helyszín alapján)", flag: "✨" },
+  { id: "hungarian",   label: "Magyar (pl. Kovács János)",          flag: "🇭🇺" },
+  { id: "english",     label: "Angol (pl. John Smith)",             flag: "🇬🇧" },
+  { id: "american",    label: "Amerikai",                            flag: "🇺🇸" },
+  { id: "german",      label: "Német",                               flag: "🇩🇪" },
+  { id: "french",      label: "Francia",                             flag: "🇫🇷" },
+  { id: "spanish",     label: "Spanyol/Latin",                       flag: "🇪🇸" },
+  { id: "italian",     label: "Olasz",                               flag: "🇮🇹" },
+  { id: "scandinavian",label: "Skandináv",                           flag: "🇸🇪" },
+  { id: "japanese",    label: "Japán",                               flag: "🇯🇵" },
+  { id: "russian",     label: "Orosz",                               flag: "🇷🇺" },
+  { id: "mixed",       label: "Vegyes nemzetközi",                   flag: "🌍" },
+  { id: "fantasy",     label: "Fantasy / kitalált",                  flag: "🐉" },
+];
+```
+
+A `FictionStyleSettings` interfész kap egy új mezőt:
+```ts
+characterNationality: CharacterNationality;
+```
+Default érték: `"ai_choose"`.
+
+### 2. Wizard UI — `src/components/wizard/steps/Step3FictionStyle.tsx`
+
+Új szekció a meglévő opciók után (a `setting` mező mellett vagy után), egy lenyíló/chip-választó a `NATIONALITY_OPTIONS` alapján. Ikon: `Users` vagy `Globe`. State: `characterNationality`, default `"ai_choose"`. Belekerül a `handleSubmit` payloadba.
+
+### 3. Payload átadása — `src/components/wizard/steps/Step5StoryDetail.tsx`
+
+A `supabase.functions.invoke("generate-story", { body: ... })` body-ja kapjon egy új mezőt:
+```ts
+characterNationality: fictionStyle?.characterNationality ?? "ai_choose",
+```
+
+(A komponens propjai között már van `fictionStyle` valószínűleg — ha nincs, hozzá kell adni a `Step5StoryDetailProps` interfészhez és a `BookCreationWizard.tsx`-ben átadni.)
+
+### 4. `generate-story` Edge Function — `supabase/functions/generate-story/index.ts`
+
+**Törlendő:**
+- 5–27. sorok: `HUNGARIAN_FIRST_NAMES_MALE`, `HUNGARIAN_FIRST_NAMES_FEMALE`, `HUNGARIAN_LAST_NAMES` konstansok.
+- 29–51. sorok: `getRandomNames()` függvény.
+- 468–479. sorok: `randomNames` és `nameContext` blokk a `userPrompt`-ban.
+
+**Helyette** új szöveges instrukció a fiction prompt-ágba a nemzetiség alapján:
+
+```ts
+const NATIONALITY_GUIDE: Record<string, string> = {
+  hungarian:    "magyar nevek (pl. Kovács Anna, Nagy Bence) — vezetéknév + keresztnév sorrend",
+  english:      "brit angol nevek (pl. James Whitmore, Eleanor Hayes)",
+  american:     "amerikai nevek, etnikailag változatos (pl. Marcus Reed, Sofia Castillo)",
+  german:       "német nevek (pl. Lukas Hoffmann, Anna Becker)",
+  french:       "francia nevek (pl. Julien Moreau, Camille Lefèvre)",
+  spanish:      "spanyol/latin-amerikai nevek (pl. Diego Herrera, Lucía Morales)",
+  italian:      "olasz nevek (pl. Matteo Ricci, Giulia Conti)",
+  scandinavian: "skandináv nevek (pl. Lars Eriksson, Astrid Lindqvist)",
+  japanese:     "japán nevek (pl. Haruki Tanaka, Yuki Sato) — vezetéknév + keresztnév sorrend",
+  russian:      "orosz nevek (pl. Dmitri Volkov, Anastasia Sokolova)",
+  mixed:        "nemzetközileg vegyes nevek, többféle kulturális háttérből",
+  fantasy:      "kitalált, fantasy stílusú nevek, NEM létező kultúrákból kölcsönözve",
+  ai_choose:    "a történet helyszínéhez és kulturális kontextusához illő nevek",
+};
+
+const nationalityHint = NATIONALITY_GUIDE[characterNationality] ?? NATIONALITY_GUIDE.ai_choose;
+
+const nameContext = `
+KARAKTER NEVEK:
+A szereplők kapjanak ${nationalityHint}.
+A nevek legyenek VÁLTOZATOSAK, EGYEDIEK és HITELESEK az adott kultúrához.
+TILOS a következő, túl gyakran használt sablon-nevek: Kovács Ádám, Kovács János, Nagy Péter, Szabó István, John Smith, John Doe.
+Ne ismételd ugyanazt a vezeték- vagy keresztnevet több karakternél.`;
+```
+
+A `characterNationality` változót a request body-ból kell kiolvasni, default `"ai_choose"`. Backward compatible: ha a frontend nem küldi, az AI maga dönt → ugyanúgy működik új és régi hívás esetén.
+
+### 5. Mit NEM érintünk
+
+- `write-scene`, `write-section`, `process-next-scene` — ezek már a meglévő karakterlistából (chapter outline + characters tábla) dolgoznak, nem generálnak új neveket.
+- Szakkönyv (`isNonfiction`) ág — ott eddig sem volt névgenerálás.
+- Storybook (mesekönyv) — saját külön folyamat, ott nem releváns.
 
 ## Érintett fájlok
-- `supabase/functions/admin-create-user/index.ts` (fő javítás)
-- `src/components/admin/AddUserModal.tsx` (UX javítás)
-- Esetleg más admin edge functions, ha ellenőrzéskor hiányos hibakezelést találok
+
+1. `src/types/wizard.ts` — új típus + opciólista, `FictionStyleSettings` bővítése.
+2. `src/components/wizard/steps/Step3FictionStyle.tsx` — új UI szekció.
+3. `src/components/wizard/steps/Step5StoryDetail.tsx` — új mező továbbítása az invoke body-ban (esetleg props-bővítés).
+4. `src/components/wizard/BookCreationWizard.tsx` — ha kell, prop továbbítás.
+5. `supabase/functions/generate-story/index.ts` — magyar névlisták és `getRandomNames` törlése, helyette nemzetiség-alapú prompt instrukció.
 
 ## Tesztelési forgatókönyv
-1. Próbálj felvenni új, sosem használt emailt → létrejön normálisan
-2. Próbálj felvenni meglévő free usert → „Meglévő felhasználó frissítve" üzenet, profil frissül
-3. Próbálj felvenni meglévő aktív fizetős usert → érthető magyar hiba „Használja a Szerkesztés funkciót"
 
+1. Fikció wizard → Step3 stílus → új „Karakterek nemzetisége" szekció megjelenik, default „AI döntse el".
+2. „Angol" választása → generált koncepcióban John/Emma típusú nevek, NEM Kovács János.
+3. „Magyar" → továbbra is magyar nevek, de már nem a fix 40-es listából, hanem szabadabban.
+4. „Fantasy" → kitalált nevek (Aerion, Mirella stb.).
+5. Régi (mentett) wizard adat (nincs `characterNationality`) → fallback `ai_choose`, hibamentes generálás.
