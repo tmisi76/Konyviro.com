@@ -6,6 +6,15 @@ import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
 import {
+  countCliches,
+  mergeClicheCounts,
+  buildClicheBlocklistPrompt,
+} from "../_shared/cliche-tracker.ts";
+import {
+  validateAndFixCharacterNames,
+  stripChapterTitleDupes,
+} from "../_shared/name-consistency.ts";
+import {
   HUNGARIAN_GRAMMAR_RULES,
   buildCharacterContext,
   buildCharacterNameLock,
@@ -486,7 +495,7 @@ serve(async (req) => {
     // 6. Fetch chapter info for scene position context
     const { data: allChapters } = await supabaseClient
       .from('chapters')
-      .select('id, sort_order, scene_outline, title, summary, character_appearances')
+      .select('id, sort_order, scene_outline, title, summary, character_appearances, cliche_counts')
       .eq('project_id', projectId)
       .order('sort_order', { ascending: true });
 
@@ -496,6 +505,20 @@ serve(async (req) => {
     const sceneOutlineArray = (currentChapter?.scene_outline as unknown[]) || [];
     const totalScenes = sceneOutlineArray.length || 1;
     const currentSortOrder = currentChapter?.sort_order || 0;
+
+    // Aggregate cliché counts across the whole book so far (for the blocklist prompt)
+    const bookClicheCounts: Record<string, number> = {};
+    for (const ch of allChapters || []) {
+      const cc = (ch.cliche_counts as Record<string, number> | null) || {};
+      for (const [k, v] of Object.entries(cc)) {
+        bookClicheCounts[k] = (bookClicheCounts[k] || 0) + (Number(v) || 0);
+      }
+    }
+    const clicheBlocklistBlock = buildClicheBlocklistPrompt(bookClicheCounts);
+    const dbChapterTitle = currentChapter?.title || chapterTitle;
+    const titleDupeBan = dbChapterTitle
+      ? `\n\n## FEJEZETCÍM TILALOM:\n- A fejezet címe ("${dbChapterTitle}") TILTOTT belső szakasz-fejlécként vagy önálló sorként a próza belsejében.\n- NE írd újra a fejezetcímet a jeleneten belül, NE használd alcímként, NE ismételd meg sehol a szövegben.`
+      : "";
 
     // 6b. Build character history from previous chapters
     const prevChaptersForHistory = allChapters?.filter(ch => ch.character_appearances && ch.sort_order < currentSortOrder) || [];
@@ -653,6 +676,7 @@ ${antiSummaryBlock}
 ${dialogueVarietyBlock}
 ${bodyLanguageVarietyBlock}
 ${sceneOpeningRulesBlock}
+${clicheBlocklistBlock}${titleDupeBan}
 - KULCSESEMÉNYEK (ezeknek kötelezően meg kell történniük): ${(sectionOutline.key_events || []).join(', ')}
 - ÉRZELMI ÍV: ${sectionOutline.emotional_arc || 'Nincs megadva'}
 - VÁRHATÓ ÉRZELMI VÁLTOZÁS A JELENET VÉGÉRE: A karakter ${sectionOutline.pov_emotion_start || 'semleges'} állapotból ${sectionOutline.pov_emotion_end || 'változatlan'} állapotba jut.
@@ -873,6 +897,28 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
 
     const wordCount = countWords(sectionContent);
 
+    // Post-hoc cleanups (fiction only): chapter title dupe removal + character name consistency
+    if (isFiction) {
+      sectionContent = stripChapterTitleDupes(sectionContent, dbChapterTitle);
+      const registeredNames = ((allCharacters as Array<{ name: string }> | null) || []).map((c) => c.name);
+      const nameFix = validateAndFixCharacterNames(sectionContent, registeredNames);
+      if (Object.keys(nameFix.corrections).length > 0) {
+        console.log(`[write-section] Name corrections applied:`, nameFix.corrections);
+        sectionContent = nameFix.text;
+      }
+
+      // Track cliché counts and persist into the chapter row
+      try {
+        const sceneClicheCounts = countCliches(sectionContent);
+        const existingCounts =
+          (currentChapter?.cliche_counts as Record<string, number> | null) || {};
+        const newCounts = mergeClicheCounts(existingCounts, sceneClicheCounts);
+        await supabaseClient.from("chapters").update({ cliche_counts: newCounts }).eq("id", chapterId);
+      } catch (e) {
+        console.warn("[write-section] Failed to persist cliché counts:", e);
+      }
+    }
+
     if (wordCount > 0) {
       const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: project } = await supabase.from("projects").select("user_id").eq("id", projectId).single();
@@ -881,7 +927,7 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
       }
     }
 
-    return new Response(JSON.stringify({ content: sectionContent, wordCount }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ content: sectionContent, wordCount: countWords(sectionContent) }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Hiba" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }

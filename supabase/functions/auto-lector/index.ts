@@ -1,7 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { stripMarkdown } from "../_shared/quality-checker.ts";
+import { detectPOVDrift, buildPOVFixInstruction } from "../_shared/pov-detector.ts";
+import {
+  countCliches,
+  buildClicheLectorInstruction,
+} from "../_shared/cliche-tracker.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -87,6 +93,39 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Look up project POV expectation + book-level cliché counts so far for targeted lector hints
+    let expectedPov: string | null = null;
+    const bookClicheCounts: Record<string, number> = {};
+    try {
+      const supabase = createClient(supabaseUrl, serviceRoleKey);
+      const [{ data: proj }, { data: chapters }] = await Promise.all([
+        supabase.from("projects").select("fiction_style").eq("id", projectId).single(),
+        supabase.from("chapters").select("cliche_counts, id").eq("project_id", projectId),
+      ]);
+      const fs = (proj?.fiction_style as Record<string, unknown> | null) || null;
+      expectedPov = (fs?.pov as string | undefined) || null;
+      for (const ch of (chapters as Array<{ id: string; cliche_counts: Record<string, number> }> | null) || []) {
+        // Exclude the current chapter so we don't double count this scene
+        if (ch.id === chapterId) continue;
+        for (const [k, v] of Object.entries(ch.cliche_counts || {})) {
+          bookClicheCounts[k] = (bookClicheCounts[k] || 0) + (Number(v) || 0);
+        }
+      }
+    } catch (e) {
+      console.warn("[auto-lector] Could not load project pov / cliché history:", e);
+    }
+
+    const sceneClicheCounts = countCliches(originalContent);
+    const clicheLectorBlock = buildClicheLectorInstruction(sceneClicheCounts, bookClicheCounts);
+
+    const povDrift = detectPOVDrift(originalContent, expectedPov);
+    const povFixBlock = buildPOVFixInstruction(expectedPov, povDrift);
+    if (povDrift.hasDrift) {
+      console.log(
+        `[auto-lector] POV drift detected for scene ${sceneNumber}: e1=${povDrift.e1Count}, e3=${povDrift.e3Count}, expected=${expectedPov}`
+      );
+    }
+
     const userPrompt = `Lektoráld az alábbi jelenetet. Javítsd a klisék ismétlődését, a szókincs monotóniáját és a stílusproblémákat, de TARTSD MEG a cselekményt, a párbeszédek tartalmát és a jelenet hosszát.
 
 FEJEZET: "${chapterTitle || "Ismeretlen"}"
@@ -94,6 +133,7 @@ FEJEZET: "${chapterTitle || "Ismeretlen"}"
 JELENET: #${sceneNumber || 1}
 
 MŰFAJ: ${genre || 'fiction'}
+${povFixBlock}${clicheLectorBlock}
 
 --- A JAVÍTANDÓ SZÖVEG ---
 

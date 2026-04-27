@@ -27,6 +27,7 @@ export interface WritingProgress {
   error: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  hasMissingChapters: boolean;
 }
 
 export function useBackgroundWriter(projectId: string | null) {
@@ -43,6 +44,7 @@ export function useBackgroundWriter(projectId: string | null) {
     error: null,
     startedAt: null,
     completedAt: null,
+    hasMissingChapters: false,
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -54,7 +56,7 @@ export function useBackgroundWriter(projectId: string | null) {
     const fetchInitialState = async () => {
       const { data: project } = await supabase
         .from("projects")
-        .select("writing_status, total_scenes, completed_scenes, failed_scenes, current_chapter_index, current_scene_index, word_count, target_word_count, writing_error, writing_started_at, writing_completed_at")
+        .select("writing_status, total_scenes, completed_scenes, failed_scenes, current_chapter_index, current_scene_index, word_count, target_word_count, writing_error, writing_started_at, writing_completed_at, has_missing_chapters")
         .eq("id", projectId)
         .single();
 
@@ -71,6 +73,7 @@ export function useBackgroundWriter(projectId: string | null) {
           error: project.writing_error,
           startedAt: project.writing_started_at,
           completedAt: project.writing_completed_at,
+          hasMissingChapters: project.has_missing_chapters === true,
         });
       }
     };
@@ -102,6 +105,7 @@ export function useBackgroundWriter(projectId: string | null) {
             error: project.writing_error,
             startedAt: project.writing_started_at,
             completedAt: project.writing_completed_at,
+            hasMissingChapters: (project as { has_missing_chapters?: boolean }).has_missing_chapters === true,
           });
         }
       )
@@ -123,7 +127,7 @@ export function useBackgroundWriter(projectId: string | null) {
       // Projekt lekérése
       const { data: project } = await supabase
         .from("projects")
-        .select("writing_status, total_scenes, completed_scenes, failed_scenes, current_chapter_index, current_scene_index, target_word_count, writing_error, writing_started_at, writing_completed_at")
+        .select("writing_status, total_scenes, completed_scenes, failed_scenes, current_chapter_index, current_scene_index, target_word_count, writing_error, writing_started_at, writing_completed_at, has_missing_chapters")
         .eq("id", projectId)
         .single();
 
@@ -148,6 +152,7 @@ export function useBackgroundWriter(projectId: string | null) {
           error: project.writing_error,
           startedAt: project.writing_started_at,
           completedAt: project.writing_completed_at,
+          hasMissingChapters: project.has_missing_chapters === true,
         });
       }
     };
@@ -318,8 +323,9 @@ export function useBackgroundWriter(projectId: string | null) {
   const canPause = isWriting;
   const canResume = progress.status === 'paused';
   
-  // Új: helyreállítás lehetséges ha "completed" de nem érte el a célt, vagy "incomplete" státusz
-  const canRecover = progress.status === 'incomplete' || 
+  // Új: helyreállítás lehetséges ha "completed" de nem érte el a célt, "incomplete" státusz,
+  // vagy ha az auto-retry checksum hiányzó fejezeteket talált.
+  const canRecover = progress.status === 'incomplete' || progress.hasMissingChapters ||
     (progress.status === 'completed' && progress.targetWordCount > 0 && progress.wordCount < progress.targetWordCount * 0.8);
 
   return {

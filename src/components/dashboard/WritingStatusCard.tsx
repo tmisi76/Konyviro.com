@@ -108,6 +108,17 @@ export function WritingStatusCard({ projectId, projectTitle }: WritingStatusCard
           </div>
         )}
 
+        {/* Hiányzó fejezetek figyelmeztetés (auto-retry kifutott) */}
+        {progress.hasMissingChapters && (
+          <div className="text-sm text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 p-2 rounded-md flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">Hiányzó fejezetek észlelve</p>
+              <p className="text-xs opacity-90">Egyes fejezetek tartalma rövidebb a tervezettnél. Az automatikus újrapróbálkozás kifutott — kattints a „Hiányzó jelenetek pótlása" gombra a kézi újrageneráláshoz.</p>
+            </div>
+          </div>
+        )}
+
         {/* Hiba üzenet */}
         {progress.error && (
           <div className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">
