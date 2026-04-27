@@ -525,8 +525,10 @@ serve(async (req) => {
       if (fictionStyleSection) {
         systemPrompt += fictionStyleSection;
       }
+    }
 
-      // Add user writing style profile if available
+    // Add user writing style profile if available — for ALL book types (fiction + non-fiction)
+    if (project?.user_id) {
       const { data: styleProfile } = await supabaseClient
         .from('user_style_profiles')
         .select('*')

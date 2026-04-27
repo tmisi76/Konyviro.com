@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { 
   Sparkles, 
   Plus, 
@@ -10,7 +10,9 @@ import {
   BookOpen,
   Brain,
   Quote,
-  Lightbulb
+  Lightbulb,
+  Upload,
+  FileUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +32,7 @@ import {
 import { useWritingStyle } from "@/hooks/useWritingStyle";
 import { format } from "date-fns";
 import { hu } from "date-fns/locale";
+import { toast } from "sonner";
 
 export function StyleSettings() {
   const {
@@ -38,12 +42,18 @@ export function StyleSettings() {
     isAnalyzing,
     isSaving,
     addSample,
+    extractFromFile,
     deleteSample,
     analyzeStyle,
   } = useWritingStyle();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newSample, setNewSample] = useState({ title: "", content: "" });
+  const [activeTab, setActiveTab] = useState<"paste" | "upload">("paste");
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddSample = async () => {
     if (!newSample.title.trim() || !newSample.content.trim()) return;
@@ -51,8 +61,53 @@ export function StyleSettings() {
     const success = await addSample(newSample.title, newSample.content);
     if (success) {
       setNewSample({ title: "", content: "" });
+      setUploadedFileName(null);
+      setActiveTab("paste");
       setIsAddModalOpen(false);
     }
+  };
+
+  const handleFileSelected = async (file: File) => {
+    const ext = file.name.toLowerCase().split(".").pop() || "";
+    if (!["pdf", "docx", "txt"].includes(ext)) {
+      toast.error("Csak PDF, DOCX vagy TXT fájl engedélyezett.");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("A fájl túl nagy (max 20 MB).");
+      return;
+    }
+    setIsExtracting(true);
+    try {
+      const result = await extractFromFile(file);
+      if (result) {
+        setNewSample({ title: result.title, content: result.content });
+        setUploadedFileName(file.name);
+        toast.success(`${result.wordCount.toLocaleString("hu-HU")} szó kinyerve.`);
+      }
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await handleFileSelected(file);
+    // reset input so the same file can be selected again later
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await handleFileSelected(file);
+  };
+
+  const resetModal = () => {
+    setNewSample({ title: "", content: "" });
+    setUploadedFileName(null);
+    setActiveTab("paste");
   };
 
   const totalWords = samples.reduce((sum, s) => sum + s.wordCount, 0);
@@ -305,49 +360,166 @@ export function StyleSettings() {
       )}
 
       {/* Add Sample Modal */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+      <Dialog
+        open={isAddModalOpen}
+        onOpenChange={(open) => {
+          setIsAddModalOpen(open);
+          if (!open) resetModal();
+        }}
+      >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Szövegminta hozzáadása</DialogTitle>
             <DialogDescription>
-              Illeszd be egy korábbi írásodat, hogy az AI elemezni tudja a stílusodat.
+              Illeszd be vagy töltsd fel egy korábbi írásodat, hogy az AI elemezni tudja a stílusodat.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="sample-title">Cím</Label>
-              <Input
-                id="sample-title"
-                placeholder="Pl. Első regényem, 3. fejezet"
-                value={newSample.title}
-                onChange={(e) => setNewSample({ ...newSample, title: e.target.value })}
-              />
-            </div>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "paste" | "upload")}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="paste">
+                <FileText className="mr-2 h-4 w-4" />
+                Beillesztés
+              </TabsTrigger>
+              <TabsTrigger value="upload">
+                <FileUp className="mr-2 h-4 w-4" />
+                Fájl feltöltése
+              </TabsTrigger>
+            </TabsList>
 
-            <div className="space-y-2">
-              <Label htmlFor="sample-content">Szöveg</Label>
-              <Textarea
-                id="sample-content"
-                placeholder="Illeszd be a szöveget..."
-                value={newSample.content}
-                onChange={(e) => setNewSample({ ...newSample, content: e.target.value })}
-                rows={12}
-                className="font-serif"
-              />
-              <p className="text-xs text-muted-foreground">
-                {newSample.content.trim().split(/\s+/).filter(w => w.length > 0).length} szó
-              </p>
-            </div>
-          </div>
+            <TabsContent value="paste" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="sample-title">Cím</Label>
+                <Input
+                  id="sample-title"
+                  placeholder="Pl. Első regényem, 3. fejezet"
+                  value={newSample.title}
+                  onChange={(e) => setNewSample({ ...newSample, title: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sample-content">Szöveg</Label>
+                <Textarea
+                  id="sample-content"
+                  placeholder="Illeszd be a szöveget..."
+                  value={newSample.content}
+                  onChange={(e) => setNewSample({ ...newSample, content: e.target.value })}
+                  rows={12}
+                  className="font-serif"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {newSample.content.trim().split(/\s+/).filter((w) => w.length > 0).length} szó
+                </p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="upload" className="space-y-4 pt-4">
+              {!newSample.content ? (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
+                    isDragging
+                      ? "border-primary bg-primary/5"
+                      : "border-muted-foreground/30 bg-muted/30 hover:border-primary/50 hover:bg-muted/50"
+                  }`}
+                >
+                  {isExtracting ? (
+                    <>
+                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                      <p className="mt-4 font-medium text-foreground">Feldolgozás...</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Kinyerjük a szöveget a fájlból.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-10 w-10 text-muted-foreground" />
+                      <p className="mt-4 font-medium text-foreground">
+                        Húzd ide a fájlt, vagy kattints a tallózáshoz
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        PDF, DOCX vagy TXT • max 20 MB
+                      </p>
+                    </>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                    className="hidden"
+                    onChange={handleFileInputChange}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <FileText className="h-5 w-5 shrink-0 text-primary" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {uploadedFileName ?? newSample.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {newSample.content.trim().split(/\s+/).filter((w) => w.length > 0).length} szó kinyerve
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setNewSample({ title: "", content: "" });
+                        setUploadedFileName(null);
+                      }}
+                    >
+                      Másik fájl
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="upload-title">Cím</Label>
+                    <Input
+                      id="upload-title"
+                      value={newSample.title}
+                      onChange={(e) => setNewSample({ ...newSample, title: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Előnézet</Label>
+                    <div className="max-h-48 overflow-y-auto rounded-lg border bg-muted/20 p-3 font-serif text-sm text-foreground">
+                      {newSample.content.slice(0, 800)}
+                      {newSample.content.length > 800 && (
+                        <span className="text-muted-foreground">…</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddModalOpen(false);
+                resetModal();
+              }}
+            >
               Mégse
             </Button>
             <Button 
               onClick={handleAddSample} 
-              disabled={!newSample.title.trim() || !newSample.content.trim() || isSaving}
+              disabled={!newSample.title.trim() || !newSample.content.trim() || isSaving || isExtracting}
             >
               {isSaving ? (
                 <>

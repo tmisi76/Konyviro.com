@@ -138,6 +138,51 @@ export function useWritingStyle() {
     }
   };
 
+  const extractFromFile = async (
+    file: File,
+  ): Promise<
+    | { title: string; content: string; wordCount: number; truncated: boolean; originalWordCount: number }
+    | null
+  > => {
+    if (!user) {
+      toast.error("Nem vagy bejelentkezve");
+      return null;
+    }
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data, error } = await supabase.functions.invoke<{
+        title: string;
+        content: string;
+        wordCount: number;
+        truncated: boolean;
+        originalWordCount: number;
+      }>("extract-style-sample-text", { body: formData });
+      if (error) {
+        const message =
+          (error as { context?: { error?: string } })?.context?.error ||
+          error.message ||
+          "Feltöltési hiba";
+        toast.error(message);
+        return null;
+      }
+      if (!data) {
+        toast.error("Üres válasz a feldolgozótól");
+        return null;
+      }
+      if (data.truncated) {
+        toast.message(
+          `A fájl 30 000 szóra lett rövidítve (eredeti: ${data.originalWordCount.toLocaleString("hu-HU")} szó).`,
+        );
+      }
+      return data;
+    } catch (error) {
+      console.error("Error extracting file:", error);
+      toast.error(error instanceof Error ? error.message : "Feltöltési hiba");
+      return null;
+    }
+  };
+
   const deleteSample = async (sampleId: string) => {
     if (!user) return;
 
@@ -209,6 +254,7 @@ export function useWritingStyle() {
     isAnalyzing,
     isSaving,
     addSample,
+    extractFromFile,
     deleteSample,
     analyzeStyle,
     refetch: fetchData,
