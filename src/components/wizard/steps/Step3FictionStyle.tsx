@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Eye, Gauge, MessageSquare, Palette, MapPin, Shield } from "lucide-react";
+import { ArrowRight, Eye, Gauge, MessageSquare, Palette, MapPin, Shield, Users } from "lucide-react";
 import type { 
   POVType, 
   PaceType, 
@@ -12,14 +12,16 @@ import type {
   DescriptionLevel, 
   AgeRating,
   FictionStyleSettings,
-  Subcategory 
+  Subcategory,
+  CharacterNationality
 } from "@/types/wizard";
 import { 
   POV_OPTIONS, 
   PACE_OPTIONS, 
   DIALOGUE_OPTIONS, 
   DESCRIPTION_OPTIONS, 
-  AGE_RATING_OPTIONS 
+  AGE_RATING_OPTIONS,
+  NATIONALITY_OPTIONS
 } from "@/types/wizard";
 
 interface Step3FictionStyleProps {
@@ -37,6 +39,9 @@ export function Step3FictionStyle({ subcategory, initialData, onSubmit }: Step3F
   const [ageRating, setAgeRating] = useState<AgeRating>(
     initialData?.ageRating || (subcategory === "erotikus" ? "explicit" : "adult")
   );
+  const [characterNationality, setCharacterNationality] = useState<CharacterNationality>(
+    initialData?.characterNationality || "ai_choose"
+  );
 
   const handleSubmit = () => {
     onSubmit({
@@ -46,6 +51,7 @@ export function Step3FictionStyle({ subcategory, initialData, onSubmit }: Step3F
       descriptionLevel,
       setting,
       ageRating,
+      characterNationality,
     });
   };
 
