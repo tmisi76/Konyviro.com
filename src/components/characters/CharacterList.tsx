@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, List, Network } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { CharacterCard } from "./CharacterCard";
 import { CharacterDetailModal } from "./CharacterDetailModal";
+import { CharacterNetworkGraph } from "./CharacterNetworkGraph";
 import { useCharacters } from "@/hooks/useCharacters";
 import type { Character, CharacterRole } from "@/types/character";
 import { ROLE_LABELS } from "@/types/character";
@@ -85,7 +87,18 @@ export function CharacterList({ projectId }: CharacterListProps) {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <Tabs defaultValue="list" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="list" className="gap-2">
+            <List className="h-4 w-4" /> Lista
+          </TabsTrigger>
+          <TabsTrigger value="network" className="gap-2">
+            <Network className="h-4 w-4" /> Kapcsolati háló
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="list">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {characters.map((character) => (
           <CharacterCard
             key={character.id}
@@ -104,7 +117,13 @@ export function CharacterList({ projectId }: CharacterListProps) {
             <span className="text-sm">Új karakter</span>
           </CardContent>
         </Card>
-      </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="network">
+          <CharacterNetworkGraph projectId={projectId} />
+        </TabsContent>
+      </Tabs>
 
       {/* Create dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
