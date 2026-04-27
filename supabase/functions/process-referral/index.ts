@@ -77,15 +77,7 @@ Deno.serve(async (req) => {
     }
 
     // 4. Add bonus to referred user (new user)
-    const { error: updateReferredError } = await supabase
-      .from('profiles')
-      .update({
-        extra_words_balance: supabase.rpc ? undefined : 0, // Will use RPC below
-        referred_by: referrer.user_id,
-        referral_bonus_received: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', new_user_id);
+    // Note: balance is incremented via RPC below
 
     // Use RPC to safely increment the balance
     const { error: rpcReferredError } = await supabase.rpc('add_extra_credits_internal', {
