@@ -93,6 +93,11 @@ export function BookCreationWizard() {
     }
   }, [isSubscriptionLoading, isProjectLimitReached, navigate]);
 
+  // Scroll to top on every step change so users always see the new step from the top
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+  }, [currentStep]);
+
   const handleClose = () => {
     if (isDirty) {
       if (confirm("Biztosan kilépsz? A nem mentett módosítások elvesznek.")) {
