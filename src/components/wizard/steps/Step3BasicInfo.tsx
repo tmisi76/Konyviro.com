@@ -143,18 +143,27 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
 
         {/* Tone */}
         <div className="space-y-3">
-          <Label className="text-base">Hangnem</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-base">Hangnem</Label>
+            <span className="text-xs text-muted-foreground">
+              {tones.length > 0
+                ? `${tones.length} kiválasztva`
+                : "Akár több is választható"}
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {TONES.map((t) => (
               <motion.button
                 key={t.id}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setTone(t.id)}
+                onClick={() => toggleTone(t.id)}
+                type="button"
+                aria-pressed={tones.includes(t.id)}
                 className={cn(
                   "px-4 py-2 rounded-full border-2 transition-all",
                   "flex items-center gap-2",
-                  tone === t.id
+                  tones.includes(t.id)
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-card hover:border-primary/40"
                 )}
@@ -164,6 +173,9 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
               </motion.button>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground">
+            Több hangnem kombinálható — az AI mindegyiket figyelembe veszi a generálásnál.
+          </p>
         </div>
 
         {/* Length - Csúszka */}
