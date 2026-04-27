@@ -498,7 +498,7 @@ export function useBookWizard() {
     // Add common fields
     storyStructure.detailedConcept = data.detailedConcept;
     storyStructure.targetAudience = data.targetAudience;
-    storyStructure.tone = data.tone;
+    storyStructure.tone = buildCombinedTone(data.tones, data.tone);
     storyStructure.subcategory = data.subcategory;
     
     // Update writing status with story_structure
@@ -571,7 +571,7 @@ export function useBookWizard() {
 
     storyStructure.detailedConcept = data.detailedConcept;
     storyStructure.targetAudience = data.targetAudience;
-    storyStructure.tone = data.tone;
+    storyStructure.tone = buildCombinedTone(data.tones, data.tone);
     storyStructure.subcategory = data.subcategory;
 
     // Update project status
