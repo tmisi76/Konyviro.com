@@ -17,6 +17,7 @@ interface Step3BasicInfoProps {
     storyDescription: string;
     targetAudience: string;
     tone: Tone | null;
+    tones?: Tone[];
     length: number | null;
     additionalInstructions: string;
   };
@@ -25,6 +26,7 @@ interface Step3BasicInfoProps {
     storyDescription: string;
     targetAudience: string;
     tone: Tone;
+    tones: Tone[];
     length: number;
     additionalInstructions: string;
   }) => void;
@@ -34,19 +36,31 @@ export function Step3BasicInfo({ genre, initialData, onSubmit }: Step3BasicInfoP
   const [title, setTitle] = useState(initialData.title);
   const [storyDescription, setStoryDescription] = useState(initialData.storyDescription);
   const [targetAudience, setTargetAudience] = useState(initialData.targetAudience);
-  const [tone, setTone] = useState<Tone | null>(initialData.tone);
+  // Multi-select hangnem. Backward compatible: ha csak `tone` jött, abból init.
+  const [tones, setTones] = useState<Tone[]>(() => {
+    if (initialData.tones && initialData.tones.length > 0) return initialData.tones;
+    if (initialData.tone) return [initialData.tone];
+    return [];
+  });
   const [length, setLength] = useState<number>(initialData.length || 25000);
   const [additionalInstructions, setAdditionalInstructions] = useState(initialData.additionalInstructions);
 
-  const canSubmit = tone && length >= 1000;
+  const canSubmit = tones.length > 0 && length >= 1000;
+
+  const toggleTone = (id: Tone) => {
+    setTones(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
+  };
 
   const handleSubmit = () => {
-    if (!tone || !length) return;
+    if (tones.length === 0 || !length) return;
     onSubmit({
       title,
       storyDescription,
       targetAudience,
-      tone,
+      tone: tones[0],
+      tones,
       length,
       additionalInstructions,
     });
