@@ -137,6 +137,21 @@ export function useCoachToAutoWrite(): UseCoachToAutoWriteReturn {
 
       // 3. Generate chapter outline
       setProgress("Fejezetek tervezése...");
+      // Build a comprehensive concept text combining the story idea and any suggested outline
+      const conceptParts: string[] = [storyIdea];
+      if (s.suggestedOutline && s.suggestedOutline.length > 0) {
+        conceptParts.push("\nJavasolt fejezetstruktúra:");
+        s.suggestedOutline.forEach((ch, i) => {
+          conceptParts.push(`${i + 1}. ${ch}`);
+        });
+      }
+      if (tone) conceptParts.push(`\nHangnem: ${tone}`);
+      if (targetAudience) conceptParts.push(`Célközönség: ${targetAudience}`);
+      const concept = conceptParts.join("\n");
+
+      // Map word count to length string for the edge function
+      const length = targetWordCount < 15000 ? "short" : targetWordCount < 35000 ? "medium" : "long";
+
       const chapterResponse = await fetch(CHAPTER_OUTLINE_URL, {
         method: "POST",
         headers: {
@@ -144,17 +159,19 @@ export function useCoachToAutoWrite(): UseCoachToAutoWriteReturn {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          projectId: project.id,
-          storyIdea,
           genre: wizardGenre,
-          tone,
-          targetAudience,
+          length,
+          concept,
           targetWordCount,
-          suggestedChapters: s.suggestedOutline,
         }),
       });
 
       if (!chapterResponse.ok) {
+        // Roll back the project to idle so it doesn't appear stuck
+        await supabase
+          .from("projects")
+          .update({ writing_status: "idle", writing_error: "Fejezet vázlat generálási hiba" })
+          .eq("id", project.id);
         throw new Error("Fejezet vázlat generálási hiba");
       }
 
@@ -180,23 +197,64 @@ export function useCoachToAutoWrite(): UseCoachToAutoWriteReturn {
 
         if (chaptersError) {
           console.error("Chapter insert error:", chaptersError);
+          await supabase
+            .from("projects")
+            .update({ writing_status: "idle", writing_error: "Fejezetek mentése sikertelen" })
+            .eq("id", project.id);
+          throw new Error("Fejezetek mentése sikertelen");
         }
+      } else {
+        await supabase
+          .from("projects")
+          .update({ writing_status: "idle", writing_error: "Nem készültek fejezetek" })
+          .eq("id", project.id);
+        throw new Error("Nem készültek fejezetek");
       }
 
-      // 5. Update project to trigger autowrite
-      setProgress("Automata írás indítása...");
+      // 5. Mark wizard step complete
       await supabase
         .from("projects")
         .update({
           wizard_step: 8,
-          writing_status: "in_progress",
         })
         .eq("id", project.id);
+
+      // 6. ACTUALLY START THE WRITING ENGINE
+      // This creates writing_jobs entries that the pg_cron worker (process-writing-job)
+      // will pick up and execute. Without this call, the project sits idle forever.
+      setProgress("Automata írás indítása...");
+      const startResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/start-book-writing`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            projectId: project.id,
+            action: "start",
+          }),
+        }
+      );
+
+      if (!startResponse.ok) {
+        const errorData = await startResponse.json().catch(() => ({}));
+        console.error("start-book-writing failed:", errorData);
+        await supabase
+          .from("projects")
+          .update({
+            writing_status: "idle",
+            writing_error: errorData?.error || "Az automata írás indítása sikertelen",
+          })
+          .eq("id", project.id);
+        throw new Error(errorData?.error || "Az automata írás indítása sikertelen");
+      }
 
       // Increment projects created (no p_user_id needed - uses auth.uid())
       await supabase.rpc("increment_projects_created");
 
-      toast.success("Könyv létrehozva, automata írás indul!");
+      toast.success("Könyv létrehozva, az automata írás elindult!");
       return project.id;
 
     } catch (error) {
