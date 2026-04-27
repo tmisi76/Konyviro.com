@@ -74,7 +74,7 @@ export function Navbar() {
                 <Button variant="ghost" onClick={() => navigate("/auth")}>
                   Bejelentkezés
                 </Button>
-                <Button onClick={() => navigate("/auth?mode=register")}>
+                <Button onClick={() => navigate("/pricing")}>
                   Ingyenes próba
                 </Button>
               </>
@@ -139,7 +139,7 @@ export function Navbar() {
                     <Button variant="outline" onClick={() => navigate("/auth")} className="w-full">
                       Bejelentkezés
                     </Button>
-                    <Button onClick={() => navigate("/auth?mode=register")} className="w-full">
+                    <Button onClick={() => navigate("/pricing")} className="w-full">
                       Ingyenes próba
                     </Button>
                   </>
