@@ -541,6 +541,15 @@ serve(async (req) => {
       }
     }
 
+    // Series context — if this project belongs to a series, inject canonical world / characters / events
+    try {
+      const seriesCtx = await loadSeriesContext(supabaseClient, projectId);
+      const seriesPrompt = buildSeriesContextPrompt(seriesCtx);
+      if (seriesPrompt) systemPrompt += seriesPrompt;
+    } catch (e) {
+      console.error("Failed to load series context", e);
+    }
+
     // Build rich context-aware prompt
     // Extract story context from generated_story for richer prompt
     let bookStoryContext = project?.story_idea || 'Nincs megadva';
