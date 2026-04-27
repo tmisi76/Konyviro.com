@@ -54,6 +54,7 @@ serve(async (req) => {
     // Build a character name lock either from the saved characters (if projectId is provided)
     // or from the concept text (heuristic) so the AI cannot rename user-provided characters.
     let nameLockBlock = "";
+    let namingGuideBlock = "";
     try {
       const supabaseAdmin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
       let lockedNames: string[] = [];
@@ -64,6 +65,21 @@ serve(async (req) => {
           .eq("project_id", projectId);
         if (Array.isArray(chars) && chars.length > 0) {
           lockedNames = chars.map((c: { name: string }) => c.name).filter(Boolean);
+        }
+
+        // Fetch fiction_style for nationality + setting awareness
+        const { data: projectRow } = await supabaseAdmin
+          .from("projects")
+          .select("fiction_style")
+          .eq("id", projectId)
+          .single();
+        const fictionStyle = (projectRow?.fiction_style as Record<string, unknown> | null) || null;
+        if (fictionStyle && (fictionStyle.characterNationality || fictionStyle.setting)) {
+          namingGuideBlock = buildNewCharacterNamingGuide(
+            (fictionStyle.characterNationality as string) ?? null,
+            (fictionStyle.setting as string) ?? null,
+            lockedNames
+          );
         }
       }
       if (lockedNames.length === 0 && typeof concept === "string") {
