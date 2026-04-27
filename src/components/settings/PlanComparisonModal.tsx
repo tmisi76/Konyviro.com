@@ -27,12 +27,16 @@ interface PlanComparisonModalProps {
 // Price ID mappings
 const PRICE_IDS = {
   hobby: {
-    monthly: "price_1Ss8bGBqXALGTPIrOVHTHBPA",
-    yearly: "price_1Ss3QZBqXALGTPIr0z2uRD0a",
+    monthly: "price_1TQmGVBqXALGTPIrPvPRE6KC",
+    yearly: "price_1TQmGWBqXALGTPIr7S5g9RPw",
   },
   writer: {
-    monthly: "price_1Ss8bHBqXALGTPIrEmUEe1Gw",
-    yearly: "price_1Ss3QbBqXALGTPIrjbB9lSCI",
+    monthly: "price_1TQmGXBqXALGTPIrhCjEFaXk",
+    yearly: "price_1TQmGYBqXALGTPIrYIHATtgi",
+  },
+  agency: {
+    monthly: "price_1TQmGaBqXALGTPIrc79f9jvx",
+    yearly: "price_1TQmGcBqXALGTPIrdfmuEjxH",
   },
   pro: {
     monthly: "price_pro_monthly",
@@ -40,7 +44,7 @@ const PRICE_IDS = {
   },
 };
 
-const TIER_ORDER: SubscriptionTier[] = ["free", "hobby", "writer", "pro"];
+const TIER_ORDER: SubscriptionTier[] = ["free", "hobby", "writer", "agency", "pro"];
 
 export function PlanComparisonModal({ open, onOpenChange }: PlanComparisonModalProps) {
   const { subscription: stripeData, refresh } = useStripeSubscription();
@@ -88,7 +92,7 @@ export function PlanComparisonModal({ open, onOpenChange }: PlanComparisonModalP
 
       // If user has no subscription, create checkout
       if (currentTier === "free") {
-        await createCheckoutSession(priceId, plan.id as "hobby" | "writer" | "pro");
+        await createCheckoutSession(priceId, plan.id as "hobby" | "writer" | "agency" | "pro");
         return;
       }
 
