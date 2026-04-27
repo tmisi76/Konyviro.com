@@ -1606,6 +1606,60 @@ export type Database = {
           },
         ]
       }
+      raw_sources: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          extracted_text: string | null
+          id: string
+          original_filename: string | null
+          project_id: string
+          source_kind: string
+          source_url: string | null
+          status: string
+          storage_path: string | null
+          title: string | null
+          topic_cluster: string | null
+          updated_at: string
+          user_id: string
+          word_count: number
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          extracted_text?: string | null
+          id?: string
+          original_filename?: string | null
+          project_id: string
+          source_kind: string
+          source_url?: string | null
+          status?: string
+          storage_path?: string | null
+          title?: string | null
+          topic_cluster?: string | null
+          updated_at?: string
+          user_id: string
+          word_count?: number
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          extracted_text?: string | null
+          id?: string
+          original_filename?: string | null
+          project_id?: string
+          source_kind?: string
+          source_url?: string | null
+          status?: string
+          storage_path?: string | null
+          title?: string | null
+          topic_cluster?: string | null
+          updated_at?: string
+          user_id?: string
+          word_count?: number
+        }
+        Relationships: []
+      }
       referrals: {
         Row: {
           banned_at: string | null
