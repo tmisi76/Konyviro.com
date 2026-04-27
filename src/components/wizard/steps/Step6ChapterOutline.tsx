@@ -104,6 +104,7 @@ export function Step6ChapterOutline({
           length, // legacy fallback
           targetWordCount: length, // Now length is a number (1000-50000)
           concept: detailedConcept,
+          projectId: projectId || undefined,
         },
       });
 
