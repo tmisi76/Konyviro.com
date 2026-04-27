@@ -16,6 +16,7 @@ import { Step5BookTypeData } from "./steps/Step5BookTypeData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import type { AuthorProfile, FictionStyleSettings, NonfictionBookType, BookTypeSpecificData, Subcategory, StoryIdea } from "@/types/wizard";
+import { TONES } from "@/types/wizard";
 
 const Step4StoryIdeas = lazy(() => import("./steps/Step4StoryIdeas").then(m => ({ default: m.Step4StoryIdeas })));
 const Step5StoryDetail = lazy(() => import("./steps/Step5StoryDetail").then(m => ({ default: m.Step5StoryDetail })));
@@ -85,6 +86,22 @@ export function BookCreationWizard() {
   } = useBookWizard();
 
   const isNonFiction = data.genre === "szakkonyv";
+
+  /**
+   * Build the human-readable, possibly multi-tone string passed to the
+   * idea/concept generators so the AI sees every selected hangnem.
+   * Falls back to the legacy single `data.tone` when `data.tones` is empty.
+   */
+  const combinedTone = (() => {
+    const list = data.tones && data.tones.length > 0
+      ? data.tones
+      : data.tone
+        ? [data.tone]
+        : [];
+    if (list.length === 0) return data.tone ?? "";
+    const labelMap = new Map(TONES.map(t => [t.id, t.label]));
+    return list.map(id => labelMap.get(id) ?? id).join("; ");
+  })();
 
   useEffect(() => {
     if (!isSubscriptionLoading && isProjectLimitReached()) {
