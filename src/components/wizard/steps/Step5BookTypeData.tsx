@@ -9,6 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { ArrowRight } from "lucide-react";
 import type { NonfictionBookType, BookTypeSpecificData } from "@/types/wizard";
+import { useSubscription } from "@/hooks/useSubscription";
+import { CreditCoverageHint } from "@/components/wizard/CreditCoverageHint";
 
 interface Step5BookTypeDataProps {
   bookType: NonfictionBookType;
@@ -19,6 +21,9 @@ interface Step5BookTypeDataProps {
 export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5BookTypeDataProps) {
   const [formData, setFormData] = useState<BookTypeSpecificData>(initialData || {});
   const [length, setLength] = useState<number>(25000);
+  const { getRemainingWords } = useSubscription();
+  const remaining = getRemainingWords();
+  const hasEnoughCredits = remaining === Infinity || length <= remaining;
 
   const updateField = <K extends keyof BookTypeSpecificData>(
     key: K,
@@ -29,6 +34,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasEnoughCredits) return;
     onSubmit(formData, length);
   };
 
@@ -933,7 +939,9 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
         {renderFormContent()}
 
-        <Button type="submit" className="w-full gap-2" size="lg">
+        <CreditCoverageHint length={length} />
+
+        <Button type="submit" className="w-full gap-2" size="lg" disabled={!hasEnoughCredits}>
           Tovább
           <ArrowRight className="w-4 h-4" />
         </Button>
