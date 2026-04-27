@@ -108,6 +108,7 @@ export function AIAssistantPanel({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [plotTwistOpen, setPlotTwistOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Generation settings
