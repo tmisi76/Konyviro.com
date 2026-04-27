@@ -731,6 +731,17 @@ Bővítendő szöveg: "${selectedText}"`
           </div>
         </div>
       )}
+
+      <PlotTwistSuggestions
+        open={plotTwistOpen}
+        onOpenChange={setPlotTwistOpen}
+        projectId={projectId}
+        currentChapterId={currentChapterId}
+        onUseTwist={(twist) => {
+          const text = `\n\n[Plot twist ötlet: ${twist.title}]\n${twist.description}\n`;
+          if (onInsertText) onInsertText(text);
+        }}
+      />
     </aside>
   );
 }
