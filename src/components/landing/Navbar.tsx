@@ -1,13 +1,23 @@
 import { Button } from "@/components/ui/button";
 import { BookOpen, Menu, X } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const goToPricing = () => {
+    setMobileMenuOpen(false);
+    if (location.pathname === "/") {
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      navigate("/#pricing");
+    }
+  };
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -74,8 +84,8 @@ export function Navbar() {
                 <Button variant="ghost" onClick={() => navigate("/auth")}>
                   Bejelentkezés
                 </Button>
-                <Button onClick={() => navigate("/pricing")}>
-                  Ingyenes próba
+                <Button onClick={goToPricing}>
+                  Ingyenes próba hét napra
                 </Button>
               </>
             )}
@@ -139,8 +149,8 @@ export function Navbar() {
                     <Button variant="outline" onClick={() => navigate("/auth")} className="w-full">
                       Bejelentkezés
                     </Button>
-                    <Button onClick={() => navigate("/pricing")} className="w-full">
-                      Ingyenes próba
+                    <Button onClick={goToPricing} className="w-full">
+                      Ingyenes próba hét napra
                     </Button>
                   </>
                 )}

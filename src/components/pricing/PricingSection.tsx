@@ -86,7 +86,7 @@ export function PricingSection() {
               isPopular={plan.isPopular}
               onSelect={() => handlePlanSelect(plan)}
               isLoading={isLoading}
-              ctaText="REGISZTRÁLOK"
+              ctaText="Hét napig ingyenesen kipróbálom"
             />
           ))}
         </div>

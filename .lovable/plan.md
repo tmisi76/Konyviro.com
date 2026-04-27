@@ -1,29 +1,46 @@
-# Nyitóoldali CTA-k és csomag gomb átírása
+# CTA szövegek és viselkedés egységesítése
 
-## Cél
-1. A landing page minden "ingyenes próba" / "ingyenesen kipróbálom" / "regisztráció" típusú gombja a `/pricing` oldalra navigáljon (és ne a `/auth?mode=register` route-ra).
-2. A `/pricing` oldal csomagkártyáin a CTA gomb felirata legyen: **"Hét napig ingyenesen kipróbálom"** (a jelenlegi "REGISZTRÁLOK" helyett).
+## Mit változtatunk
 
-## Érintett fájlok és változtatások
+### 1. Landing oldali "ingyenes" CTA gombok szövegcseréje
+A "Ingyenesen kipróbálom" / "Ingyenes próba" / "Próbáld ki ingyen" szövegek lecserélése egységesen a hosszabb, 7 napos verzióra:
 
-### 1. `src/components/landing/HeroSection.tsx`
-- "Ingyenesen kipróbálom" gomb: `navigate("/auth?mode=register")` → `navigate("/pricing")`
+- **HeroSection.tsx**: `"Ingyenesen kipróbálom"` → `"Ingyenesen kipróbálom hét napig"`
+- **Navbar.tsx** (desktop + mobil): `"Ingyenes próba"` → `"Ingyenes próba hét napra"`
+- **CollaborationSection.tsx**: `"Próbáld ki ingyen"` → `"Ingyenesen kipróbálom hét napig"`
+- **Footer.tsx**: ha van hasonló CTA, ugyanígy frissítve
 
-### 2. `src/components/landing/Navbar.tsx`
-- Desktop "Ingyenes próba" gomb (78. sor): `/auth?mode=register` → `/pricing`
-- Mobil "Ingyenes próba" gomb (143. sor): `/auth?mode=register` → `/pricing`
-- A "Bejelentkezés" gomb marad `/auth`-on.
+### 2. Viselkedés: scroll a #pricing szekcióhoz, ne navigáció /pricing-re
+Jelenleg ezek a gombok `navigate("/pricing")`-et hívnak. Átállítjuk őket úgy, hogy:
 
-### 3. `src/components/landing/Footer.tsx`
-- "Ingyenes próba" link `to="/auth"` → `to="/pricing"`
+- Ha a felhasználó a **főoldalon (`/`)** van → smooth scroll a `#pricing` szekcióhoz (a `PricingSection`-nek már van `id="pricing"`).
+- Ha **másik oldalon** van (pl. /pricing már magán a pricing oldalon nem releváns, de Navbar mindenhol látszik) → `navigate("/#pricing")`, ami betölti a főoldalt és odagörget.
 
-### 4. `src/components/landing/CollaborationSection.tsx`
-- "Próbáld ki ingyen" gomb: `/auth?mode=register` → `/pricing`
-- A második gomb (`/pricing`) marad.
+Egy közös helper logika a komponensekben (kis inline függvény):
+```ts
+const goToPricing = () => {
+  if (location.pathname === "/") {
+    document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+  } else {
+    navigate("/#pricing");
+  }
+};
+```
+Plusz az `Index.tsx`-ben (vagy App szinten) egy kis effekt, ami betöltéskor `location.hash === "#pricing"` esetén legörget.
 
-### 5. `src/components/pricing/PricingSection.tsx`
-- A `<PricingCard>` `ctaText` propja: `"REGISZTRÁLOK"` → `"Hét napig ingyenesen kipróbálom"`
+### 3. Pricing kártya CTA szövege
+A `PricingSection.tsx`-ben a `PricingCard` `ctaText` prop:
+- Jelenleg: `"REGISZTRÁLOK"` (a korábbi körben már `"Hét napig ingyenesen kipróbálom"`-ra lett állítva, ellenőrizzük és tartjuk: **`"Hét napig ingyenesen kipróbálom"`**).
 
-## Megjegyzés
-- A `/pricing` oldalon a csomag kiválasztásakor a meglévő logika továbbra is Stripe checkoutot indít (vendég/auth flow), ami a 7 napos próbát kezeli a háttérben — ezzel külön nem kell foglalkozni ebben a körben.
-- Az AuthPage és más belső linkek (pl. már bejelentkezett user dashboard) változatlanok.
+## Érintett fájlok
+- `src/components/landing/HeroSection.tsx`
+- `src/components/landing/Navbar.tsx`
+- `src/components/landing/CollaborationSection.tsx`
+- `src/components/landing/Footer.tsx` (csak ha van releváns CTA)
+- `src/components/pricing/PricingSection.tsx` (ctaText megerősítés)
+- `src/pages/Index.tsx` (hash-scroll támogatás betöltéskor)
+
+## Amit NEM változtatunk
+- A `/pricing` oldal és a routing megmarad.
+- A "Bejelentkezés" gombok és más, nem-ingyenes CTA-k változatlanok.
+- A pricing kártyák Stripe checkout flow-ja változatlan.
