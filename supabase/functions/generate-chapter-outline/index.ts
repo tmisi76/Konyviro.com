@@ -166,7 +166,7 @@ Mindig érvényes JSON-t adj vissza.`;
       ? `A következő könyv koncepció alapján készíts egy részletes fejezet struktúrát:
 
 ${concept}
-${nameLockBlock}
+${nameLockBlock}${namingGuideBlock}
 
 Készíts pontosan ${chapterCount} fejezetet.
 
