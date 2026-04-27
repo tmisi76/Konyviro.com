@@ -26,7 +26,7 @@ const AI_MODELS = [
   { id: "openai/gpt-5.2", name: "GPT-5.2", description: "OpenAI legújabb, továbbfejlesztett modell" },
 ];
 
-const SUBSCRIPTION_TIERS = ['free', 'hobby', 'writer', 'pro'] as const;
+const SUBSCRIPTION_TIERS = ['free', 'hobby', 'writer', 'agency', 'pro'] as const;
 
 interface AISettings {
   default_model: string;
