@@ -1,69 +1,61 @@
-## A felfedezett problémák
+## Cél
+Megszüntetem azt, hogy az app az ötlet/koncepció után magyar nevekre cserélje a felhasználó által megadott vagy kiválasztott karakterneveket. A név- és karakterinformáció végigmenjen ezen a láncon:
 
-### 1. KönyvCoach → Automata írás: **eltört a flow** (ezért látsz hibaüzenetet)
+```text
+ötlet → koncepció → fejezetvázlat → jelenetvázlat → tényleges könyvírás
+```
 
-A `useCoachToAutoWrite` hook hibásan van bekötve:
+## Mit javítok
 
-- **Paraméter-eltérés**: A `generate-chapter-outline` edge function ezeket a mezőket várja: `{ genre, length, concept, targetWordCount }`, de a hívás ezeket küldi: `{ projectId, storyIdea, tone, targetAudience, suggestedChapters }`. A kötelező `concept` mező hiányzik → vagy üres outline-t generál, vagy hibára fut.
-- **A motor sosem indul el**: A flow csak `writing_status: 'in_progress'`-re állítja a projektet, de **soha nem hívja meg a `start-book-writing` edge function-t**, amely létrehozza a `writing_jobs` bejegyzéseket. A pg_cron `process-writing-job` üres queue-t talál, ezért semmi nem történik. A dashboardon ezért látod „elindul, de nem halad" állapotot.
+1. **Karakternevek kinyerése és zárolása már a koncepciógenerálásnál**
+   - A `generate-story` funkcióban felismerem a felhasználó által megadott karakterneveket a sztoriötletből/koncepcióból.
+   - Ezeket „név-zárként” adom át az AI-nak: meglévő karaktert nem nevezhet át, nem magyarosíthat, nem cserélhet le.
+   - Ha például a felhasználó azt írja, hogy „Géza a Galaktikus Szövetség kapitánya, kék bőrrel és csápokon lógó szemekkel”, akkor Géza nem válhat random magyar családnevű földi szereplővé, és a fizikai jellemzők is megmaradnak.
 
-Bizonyíték az adatbázisból: A te legutóbbi coach-projekted (Livi Boost, március 7.) `wizard_step: 7`, `writing_status: in_progress` — de **0 fejezet és 0 writing_job** tartozik hozzá.
+2. **A magyar névsorrend szabály finomítása**
+   - A közös promptban jelenleg túl erős a „magyar névsorrend” utasítás, ami nem magyar vagy sci-fi/fantasy történetnél félreviheti a modellt.
+   - Átírom úgy, hogy a magyar helyesírás és párbeszédformázás maradjon, de a névsorrend csak magyar karaktereknél legyen kötelező.
+   - Nem magyar, fantasy vagy sci-fi névnél az eredeti névforma maradjon.
 
-### 2. Ticketek: **az admin felület nem működik** (ezért nem válaszol senki)
+3. **Névtípus beállítás kiterjesztése sci-fi/fantasy irányba**
+   - A már hozzáadott „Karakterek nemzetisége / nyelve” opciót pontosítom.
+   - A „Fantasy / kitalált” mellé bevezetem vagy egyértelművé teszem a sci-fi/idegen név opciót is.
+   - A promptban külön szabályt kapnak az idegen/fantasy nevek: lehetnek nem földi, kitalált nevek, de ha a user adott konkrét nevet, az elsőbbséget élvez.
 
-Az `AdminTicketDetail.tsx` oldal jelenleg csak egy üres placeholder, amely mindössze ennyit ír ki: „Ticket adatok betöltése..." Sosem tölti be a tickethez tartozó beszélgetést, és **nincs válaszküldő űrlap**. Az adminok technikailag nem tudnak válaszolni.
+4. **A koncepcióból érkező karakterek tényleges mentése és felhasználása**
+   - Ellenőrzöm és javítom a wizard karaktermentési útját, hogy a generált/megadott karakterek tényleg bekerüljenek a `characters` táblába.
+   - A karaktermentésnél javítom a hibás/torzított szerepértékeket is, hogy ne legyen gond a későbbi karakterlekérdezésnél.
 
-A háttérben minden megvan és működik:
-- `useTicketMessages` hook — beszélgetést olvas
-- `useSendTicketReply` hook — választ ment és emailt küld a `send-ticket-reply-email` function-ön át
-- `useUpdateTicketStatus`, `useUpdateTicketPriority` — státusz/prioritás módosítás
+5. **Fejezet- és jelenetvázlat karakterkényszerítése**
+   - A `generate-chapter-outline` és `generate-section-outline` promptjába beépítem a karakterlistát és a név-zárat.
+   - A fejezetvázlat ne találjon ki új főszereplőt, ha már van megadott/projektbe mentett karakter.
+   - A jelenetvázlat `pov` és `characters_in_scene` mezői a meglévő neveket használják.
 
-Csak az UI nincs összerakva.
+6. **Tényleges író motor karakterkonzisztencia erősítése**
+   - A `write-section` / háttéríró motor már részben használ karakterzárat, de csak akkor működik jól, ha a karakterek ténylegesen el vannak mentve és a jelenetvázlatban ugyanazok a nevek szerepelnek.
+   - Ezt végig összekötöm, hogy a generált prózában ne jelenjenek meg önkényesen magyarított vagy lecserélt nevek.
 
-Bizonyíték: 4 sürgős/magas prioritású ticketed van `in_progress` státuszban (köztük 3 hetek óta nyitva), egyetlen admin válasz nélkül.
+7. **Könyv Coach útvonal javítása is**
+   - A Coach automata írási útja jelenleg nem kér névtípust, és alapból `ai_choose`-t használ.
+   - A Coachból érkező konkrét szereplőneveket is beépítem a projekt koncepciójába és a név-zárba.
+   - Ha a Coach összefoglalóban van helyszín/műfaj/sci-fi/fantasy jelzés, abból nem magyar nevek felé tereli a rendszert.
 
----
-
-## A javítás terve
-
-### A) Coach → Automata írás javítása
-
-`src/hooks/useCoachToAutoWrite.ts` átírása:
-
-1. **Paraméterek megfelelő átadása** a `generate-chapter-outline`-nak:
-   - `concept`: a `storyIdea`-ból + `s.suggestedOutline`-ból építve egy bővebb leírás
-   - `length`: a `targetWordCount` alapján (`short`/`medium`/`long`)
-   - `genre`, `targetWordCount`: ahogy most
-2. **A motor tényleges elindítása**: a chapters mentése után meghívja a `start-book-writing` edge function-t `action: 'start'` paraméterrel. Ez:
-   - létrehozza a `writing_jobs` bejegyzéseket minden fejezethez (`generate_outline` job, mert még nincs `scene_outline`)
-   - átállítja a project-et `writing_status: 'generating_outlines'`-ra
-   - a `process-writing-job` cron job innen átveszi és háttérben dolgozik
-3. **Jobb hibakezelés**: ha valami fail-el a flow közben, a részleges projekt törlődik vagy `writing_status: 'idle'` lesz, hogy ne ragadjon stuck állapotban.
-
-### B) Admin Ticket Detail oldal felépítése
-
-`src/pages/admin/AdminTicketDetail.tsx` teljes újraírása. Az új oldal:
-
-- **Ticket fejléc kártya**: tárgy, státusz badge, prioritás dropdown, létrehozás dátuma, kérelmező email
-- **Beszélgetés panel**: az összes üzenet időrendben (felhasználó vs. admin chat-buborékok), `useTicketMessages`-ből
-- **Válasz űrlap**: nagy textarea + „Válasz küldése" gomb, amely a `useSendTicketReply` hookot használja (ez automatikusan emailt is küld a felhasználónak a `send-ticket-reply-email` edge function-ön át)
-- **Státusz vezérlés**: dropdown (open / in_progress / waiting_for_customer / resolved / closed), `useUpdateTicketStatus`-ból
-- **Prioritás vezérlés**: dropdown (low / medium / high / urgent)
-- **Vissza gomb**: a már meglévő `/admin/support` listához
-
-### C) Bonusz: válasz a 4 nyitott ticketedre
-
-Amint az admin felület működik, közvetlenül a működő admin oldalról fogok rövid magyar nyelvű választ küldeni (emailben is megérkezik) a 4 nyitott ticketedre, megerősítve hogy a panaszaid (Magyar nevek, Coach hiba, Karakternevek) javítva lettek vagy javítás alatt vannak.
-
----
+## AI verzió kérdésére
+Az app már a Lovable AI-n keresztül működik, nem egy egyszerű sablonmotor. A gond itt nem feltétlenül az „AI butasága”, hanem az, hogy a promptlánc több pontján elveszik vagy gyengül a karakterkonteksztus. Ezt javítom most úgy, hogy ne csak az első 3 ötletnél, hanem a tényleges könyvírásnál is kötelezően érvényesüljön a megadott karakterlista.
 
 ## Érintett fájlok
+- `supabase/functions/_shared/prompt-builder.ts`
+- `supabase/functions/generate-story/index.ts`
+- `supabase/functions/generate-chapter-outline/index.ts`
+- `supabase/functions/generate-section-outline/index.ts`
+- `supabase/functions/write-section/index.ts`
+- `src/types/wizard.ts`
+- `src/components/wizard/steps/Step3FictionStyle.tsx`
+- `src/hooks/useBookWizard.ts`
+- `src/hooks/useCoachToAutoWrite.ts`
 
-- `src/hooks/useCoachToAutoWrite.ts` (paraméter-fix + start-book-writing meghívása)
-- `src/pages/admin/AdminTicketDetail.tsx` (teljes újraírás)
-- (opcionálisan) admin tickets listáról a row → detail oldal link ellenőrzése
-
-## Tesztelés
-
-1. **Coach end-to-end**: Új coach beszélgetés → összefoglaló elkészülte után „Indítás" gomb → projekt létrejön + chapters létrejönnek + writing_jobs bekerülnek → dashboard mutatja a haladást.
-2. **Admin ticket válasz**: `/admin/support` → ticket sorra kattintás → detail oldal megnyílik → válasz beírása → küldés → email megy a felhasználónak + üzenet megjelenik a thread-ben.
+## Ellenőrzési forgatókönyvek
+1. Sci-fi ötlet konkrét szereplővel: „Géza, kék bőrű kapitány...” → a koncepció, fejezetvázlat és jelenetek is Gézát használják.
+2. Angol/amerikai névtípus kiválasztása → John/Emily/Morgan jellegű nevek maradnak, nem lesz belőlük János/Anna/Kovács.
+3. Fantasy/sci-fi névtípus → az AI generálhat idegen/fantasy neveket, de a user által megadott neveket nem írja át.
+4. Coachból indított automata könyv → a Coachban megadott szereplők nem vesznek el az automata írásnál.

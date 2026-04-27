@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { repairAndParseJSON } from "../_shared/json-utils.ts";
 import { getAISettings } from "../_shared/ai-settings.ts";
+import { extractCandidateCharacterNames, buildExtractedNameLock } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +41,7 @@ serve(async (req) => {
     console.log(`Authenticated user: ${userData.user.id}`);
     // ========== END AUTHENTICATION CHECK ==========
 
-    const { genre, length, concept, targetWordCount } = await req.json();
+    const { genre, length, concept, targetWordCount, projectId } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -49,6 +50,31 @@ serve(async (req) => {
 
     // Fetch AI generation settings
     const aiSettings = await getAISettings(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
+
+    // Build a character name lock either from the saved characters (if projectId is provided)
+    // or from the concept text (heuristic) so the AI cannot rename user-provided characters.
+    let nameLockBlock = "";
+    try {
+      const supabaseAdmin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "");
+      let lockedNames: string[] = [];
+      if (projectId && typeof projectId === "string") {
+        const { data: chars } = await supabaseAdmin
+          .from("characters")
+          .select("name")
+          .eq("project_id", projectId);
+        if (Array.isArray(chars) && chars.length > 0) {
+          lockedNames = chars.map((c: { name: string }) => c.name).filter(Boolean);
+        }
+      }
+      if (lockedNames.length === 0 && typeof concept === "string") {
+        lockedNames = extractCandidateCharacterNames(concept);
+      }
+      if (lockedNames.length > 0) {
+        nameLockBlock = buildExtractedNameLock(lockedNames);
+      }
+    } catch (lockErr) {
+      console.warn("Failed to build character name lock:", lockErr);
+    }
 
     // Use targetWordCount (number) if provided, otherwise fall back to legacy length string
     const wordTarget = typeof targetWordCount === "number" && targetWordCount > 0 
@@ -124,6 +150,7 @@ Mindig érvényes JSON-t adj vissza.`;
       ? `A következő könyv koncepció alapján készíts egy részletes fejezet struktúrát:
 
 ${concept}
+${nameLockBlock}
 
 Készíts pontosan ${chapterCount} fejezetet.
 

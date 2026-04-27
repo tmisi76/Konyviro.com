@@ -7,7 +7,11 @@ export const HUNGARIAN_GRAMMAR_RULES = `
 
 ## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
 
-NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+NÉVSORREND (CSAK MAGYAR NEVEKNÉL!):
+- Magyar nevek esetében: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+- KÜLFÖLDI / IDEGEN nevek (pl. John Smith, Eleanor Hayes, Tanaka Haruki, Lars Eriksson) maradjanak az adott kultúra eredeti névsorrendjében — ezeket TILOS magyarosítani vagy felcserélni!
+- FANTASY / SCI-FI / KITALÁLT nevek (pl. Géza, Aelora, Zyx-7) maradjanak pontosan úgy, ahogy a kontextusban szerepelnek.
+- TILOS bármilyen nevet "magyarítani" (pl. John → János, Smith → Kovács), megrövidíteni vagy lecserélni.
 
 PÁRBESZÉD FORMÁZÁS:
 - Magyar párbeszédjelölés: gondolatjel (–) a sor elején
@@ -22,7 +26,8 @@ PÁRBESZÉD FORMÁZÁS:
 - Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
 
 KERÜLENDŐ HIBÁK:
-- NE használj angolszász névsorrendet
+- Magyar neveknél NE használj angolszász névsorrendet
+- Külföldi neveknél NE használj magyar névsorrendet — hagyd az eredeti formában
 - NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
 - NE használj angol idézőjeleket ("..." → „...")
 - NE használj felesleges névelőket angolosan
@@ -507,5 +512,85 @@ JELENETNYITÁS TECHNIKÁK (minden jelenetben MÁST használj!):
 SZINTÉN TILTOTT az egész szövegben:
 - "Ez nem lehet igaz" — MAXIMUM 1x az egész könyvben
 - "hangja rekedt volt" — MAXIMUM 1x fejezetenként
+---`;
+}
+
+/**
+ * Extract candidate character names from a free-form story idea / concept text.
+ * Heuristic: capitalized tokens (1-3 word sequences) that are not common Hungarian words / sentence starters.
+ * Used to lock user-provided names so the AI never renames or hungarianizes them.
+ */
+const NAME_STOPWORDS = new Set<string>([
+  // Hungarian sentence/connective starters
+  "A", "Az", "Egy", "És", "De", "Ha", "Mikor", "Amikor", "Hogy", "Mert", "Vagy", "Sem",
+  "Igen", "Nem", "Talán", "Mégis", "Akkor", "Most", "Ott", "Itt", "Ez", "Az", "Ezek", "Azok",
+  "Például", "Ugyanis", "Tehát", "Pedig", "Ami", "Aki", "Amely", "Amelyik",
+  // Headings often present in concept text
+  "Téma", "Cél", "Helyszín", "Műfaj", "Hangnem", "Célközönség", "Karakterek", "Konfliktus",
+  "Befejezés", "Szereplők", "Kapcsolat", "Történet", "Főszereplő", "Antagonista",
+  "Szinopszis", "Fejezet", "Bevezetés", "Összefoglaló",
+  // Geographic / generic
+  "Budapest", "Magyarország", "Európa", "Amerika", "Ázsia", "Tokió", "London", "Párizs",
+  "Galaktikus", "Szövetség", "Birodalom", "Föld", "Mars",
+]);
+
+export function extractCandidateCharacterNames(text: string | null | undefined): string[] {
+  if (!text || typeof text !== "string") return [];
+
+  // Match sequences of 1-3 capitalized tokens. Allow Hungarian accents and hyphens.
+  // A token starts with an uppercase Hungarian/Latin letter and continues with lowercase letters / hyphen.
+  const tokenRe = /\b([A-ZÁÉÍÓÖŐÚÜŰ][a-záéíóöőúüű\-']{1,})(?:\s+([A-ZÁÉÍÓÖŐÚÜŰ][a-záéíóöőúüű\-']{1,}))?(?:\s+([A-ZÁÉÍÓÖŐÚÜŰ][a-záéíóöőúüű\-']{1,}))?/g;
+
+  const found = new Map<string, number>();
+  let m: RegExpExecArray | null;
+  while ((m = tokenRe.exec(text)) !== null) {
+    const parts = [m[1], m[2], m[3]].filter(Boolean) as string[];
+    if (parts.length === 0) continue;
+    // Skip if the FIRST token is a stopword and we have only one token — it's likely just a sentence start.
+    if (parts.length === 1 && NAME_STOPWORDS.has(parts[0])) continue;
+    // Skip if every token is a stopword
+    if (parts.every(p => NAME_STOPWORDS.has(p))) continue;
+
+    // Strip trailing stopwords from a multi-token match (e.g. "Géza A" → "Géza")
+    while (parts.length > 1 && NAME_STOPWORDS.has(parts[parts.length - 1])) {
+      parts.pop();
+    }
+    // Strip leading stopwords (e.g. "A Géza" → "Géza")
+    while (parts.length > 1 && NAME_STOPWORDS.has(parts[0])) {
+      parts.shift();
+    }
+    if (parts.length === 0) continue;
+    if (parts.length === 1 && NAME_STOPWORDS.has(parts[0])) continue;
+
+    const candidate = parts.join(" ");
+    // Names should be 2-40 chars
+    if (candidate.length < 2 || candidate.length > 40) continue;
+
+    found.set(candidate, (found.get(candidate) || 0) + 1);
+  }
+
+  // Keep candidates that either appear at least once, sorted by frequency desc.
+  return Array.from(found.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name)
+    .slice(0, 12);
+}
+
+/**
+ * Build a name lock block from raw extracted names (e.g. from the user's story idea).
+ * Use this in `generate-story` BEFORE characters exist in the database.
+ */
+export function buildExtractedNameLock(names: string[]): string {
+  if (!names || names.length === 0) return "";
+  return `\n\n--- FELHASZNÁLÓI KARAKTERNÉV ZÁR (KÖTELEZŐ!) ---
+A felhasználó az ötletében / koncepciójában az alábbi neveket említette. Ezek SZENTEK:
+${names.map(n => `• ${n}`).join("\n")}
+
+SZIGORÚ SZABÁLYOK:
+- TILOS ezeket a neveket átírni, magyarosítani vagy más nyelvre fordítani.
+- Ha a felhasználó "Géza"-ról írt, akkor a karakter neve végig "Géza" marad — NEM lesz belőle "Greg", "Gergely", "Gabe" vagy bármi más.
+- Ha a név külföldinek tűnik (pl. "John Smith", "Aelora", "Zyx-7"), TILOS magyarosítani vagy lecserélni magyar névre.
+- A megadott karakterek fizikai jellemzőit (bőrszín, csápok, korszak, faj stb.) is meg KELL tartani — nem cserélheted "földi emberre" őket.
+- A koncepció és a karakterlista MINDEN előfordulásánál pontosan ezeket a neveket használd.
 ---`;
 }
