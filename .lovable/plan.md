@@ -1,175 +1,133 @@
+# Új funkciók — 3 fázisos terv
 
-## Cél
-
-Két új marketing-erős funkció a szakkönyv-szerzőknek:
-
-1. **Kutatás Modul – Tartalom Beolvasás:** A felhasználó beemelheti meglévő blogposztjait, jegyzeteit, PDF-jeit, URL-jeit. Az AI ebből összefüggő szakkönyv-vázlatot és fejezeteket fűz össze.
-2. **AI Tördelő & Borítóstúdió:** Egy gombnyomásra **3 különböző stílusú, 4K (nyomda-minőségű) borítóvariáció** + nyomdakész tipográfiai beállítások (PDF export print-ready profillal).
+A 8 hiányzó funkcióból most **6-ot** valósítunk meg, a legnagyobb hatású prioritizálás szerint. (A komment-rendszer és helyszínek adatbázis külön, nagyobb körök — szólj, ha érdekel.)
 
 ---
 
-## 1) Kutatás Modul – Tartalom Beolvasás (szakkönyv)
+## 1. fázis — AI Flow funkciók (legnagyobb wow-faktor)
 
-### Mit lát a felhasználó
-A Kutatás panel tetején új gomb: **„Tartalom hozzáadása"** → modal két fülön:
-- **Szöveg beillesztés**: nagy textarea, akár több blogposzt egymás után (címmel elválasztva)
-- **Fájl feltöltés**: PDF / DOCX / TXT / MD (drag & drop, max 10 fájl, 20 MB / fájl)
-- **URL lista**: blog-URL-ek soronként, az AI letölti és kinyeri a fő tartalmat
+A "leülök a géphez és azonnal írok" élmény. Ez a 3 feature együtt egy összefüggő narratívát ad: **"a szoftver tudja, hol tartottál, és segít folytatni."**
 
-A feltöltött nyersanyag a **„Forrásanyagok" (raw_sources)** listában jelenik meg → minden item: cím, kivonat (első 200 karakter), szószám, státusz (`pending` → `extracted` → `analyzed`).
+### 1.1 🔄 Azonnali Flow — AI Recap a szerkesztő tetején
 
-Új gomb a lista alatt: **„Szakkönyv-vázlat generálása ebből az anyagból"** → AI:
-1. Témákat klaszterez (mely blogposztok tartoznak össze)
-2. Logikus fejezet-sorrendet javasol
-3. Hiányokat jelez (mit érdemes még hozzáírnia a szerzőnek)
-4. A meglévő wizard `Step6 / outline` lépésbe tölti az eredményt → onnan futhat a normál szakkönyv-író motor
+Amikor megnyitsz egy projektet, egy összecsukható kártya a szerkesztő tetején:
+- AI összefoglaló az utolsó befejezett fejezetről (3-4 mondat)
+- Mit hagytál félbe (utolsó bekezdés idézet)
+- 2-3 javasolt következő lépés ("Folytasd a párbeszédet X-szel", "Vezesd be a fordulatot Y-ról")
 
-A scene/section író motor pedig a generálás során a `raw_sources.extracted_text` mezőt is megkapja kontextusként (új blokk a promptban: `--- SAJÁT FORRÁSANYAG ---`), így tényleg a felhasználó stílusát és tényeit használja, nem hallucinál.
+### 1.2 ⚡ "AI Folytatás" gomb — kurzor pozíciótól
 
-### Technikai részletek
+A szerkesztőben egy lebegő gomb a kurzor mellett (és az AI Assistant Panel-ben):
+- "Folytatás 1 bekezdéssel a TE stílusodban"
+- Beolvassa az előző 500-1000 szót, a karaktereket, a story_arc-ot, a stílusprofilodat
+- Generál 1-3 bekezdést, amit beilleszthetsz vagy elvethetsz
 
-**Új tábla: `raw_sources`**
-| oszlop | típus | megjegyzés |
+### 1.3 🎓 Plot Twist Generator — "Megakadtam, adj 3 csavart"
+
+Új gomb az AI Assistant Panel-ben:
+- Megnézi az eddigi cselekményt + karaktereket + műfajt
+- Visszaad **3 különböző** plot twist javaslatot, mindegyikhez 1-2 mondatos magyarázat, hogy miért logikus
+
+### Backend (1. fázis)
+- `chapter-recap` edge function — Lovable AI (gemini-2.5-flash), 1500 szóból generál összefoglalót
+- `ai-continue-text` edge function — kontextus (előző bekezdések + karakter + stílusprofil) + folytatás
+- `suggest-plot-twists` edge function — kontextus + 3 strukturált javaslat (tool calling)
+- Nincs új tábla — minden meglévő adatból dolgozik
+
+### Frontend (1. fázis)
+- `src/components/editor/ChapterRecapCard.tsx` — összecsukható kártya tetején
+- `src/components/editor/AIContinueButton.tsx` — lebegő gomb + integráció az AI Assistant Panel-be
+- `src/components/editor/PlotTwistSuggestions.tsx` — modal 3 javaslattal
+
+---
+
+## 2. fázis — Csapat kollaboráció UI
+
+A `project_collaborators` tábla már létezik, csak felület hiányzik.
+
+### 2.1 Kollaborátor kezelő panel
+- Új "Csapat" tab a projekt beállításokban
+- Email-alapú meghívás (writer / reader szerepkörrel)
+- Meghívó email Resend-en keresztül (lokalizált magyar template)
+- Listanézet: aktív kollaborátorok, függő meghívások, eltávolítás
+
+### 2.2 RLS frissítés
+A `chapters`, `blocks`, `characters` táblák RLS policy-jét bővíteni kell, hogy a `project_collaborators`-ban szereplő userek is hozzáférjenek a szerepkörük szerint:
+- `reader`: SELECT
+- `editor`: SELECT + UPDATE + INSERT
+
+### 2.3 Meghívás flow
+- Új user-nek auto-fiók (signup link), létező usernek azonnal hozzáférés
+- `accepted_at` jelölés meghívó link kattintásakor
+
+### Backend (2. fázis)
+- `invite-collaborator` edge function (meghívás + email)
+- `accept-collaboration` edge function (token-alapú elfogadás)
+- Migráció: helper függvény `is_project_collaborator(_project_id, _role)` és frissített RLS policy-k
+
+### Frontend (2. fázis)
+- `src/components/collaboration/CollaboratorsPanel.tsx`
+- `src/components/collaboration/InviteCollaboratorDialog.tsx`
+- `src/pages/AcceptInvitation.tsx` (új route: `/invite/:token`)
+
+---
+
+## 3. fázis — KDP Export Preset + Sorozat konzisztencia UI + Karakter háló
+
+### 3.1 📐 KDP (Kindle Direct Publishing) export preset
+Új preset az export modal-ban:
+- Trim size: 6"×9" (15.24×22.86 cm) — KDP standard
+- Margók: 0.75" külső, 0.875" belső gutter (300+ oldalas könyvhöz)
+- Tartalomjegyzék automatikus generálás, oldalszámozással
+- Page break minden fejezet előtt
+- Címoldal + copyright oldal + tartalomjegyzék
+- Egyetlen kattintás → KDP-kompatibilis PDF
+
+Az `export-book` edge function-be új `preset: "kdp"` paraméter, ami felülírja a CloudConvert beállításokat.
+
+### 3.2 🚨 Sorozat konzisztencia figyelmeztetések UI
+A `series_consistency_warnings` tábla már létezik, csak megjelenítés kell:
+- Új panel a szerkesztőben: "Sorozat-figyelmeztetések" badge counter-rel
+- Listanézet: súlyosság szerint csoportosítva (kritikus / közepes / kisebb)
+- Minden warning-hez: melyik kötetben jelent meg az ellentmondás, javasolt megoldás
+- Auto-trigger: új fejezet befejezésekor automatikusan lefuttatja a check-et háttérben
+
+### 3.3 🔗 Karakter kapcsolati háló — vizuális
+Új `react-flow` alapú graph view:
+- Csomópontok = karakterek (avatárral)
+- Élek = kapcsolatok (típus szerint színezve: család=kék, szerelmi=piros, ellenség=fekete, barát=zöld)
+- Drag-n-drop pozícionálás (pozíció mentve a karakter `metadata` mezőjébe)
+- Kattintás csomópontra → karakter modal
+- Új kapcsolat húzással hozzáadható
+
+### Backend (3. fázis)
+- Csak `export-book` bővítés (KDP preset)
+- Auto-trigger: `write-section` befejezésekor háttérben hívja a `check-series-consistency`-t
+
+### Frontend (3. fázis)
+- `src/components/export/KDPPresetCard.tsx` az export modal-ban
+- `src/components/series/ConsistencyWarningsPanel.tsx`
+- `src/components/characters/CharacterNetworkGraph.tsx` (`react-flow` lib telepítése)
+
+---
+
+## Kihagyott funkciók (külön körben)
+
+Ezeket nem teszem be a tervbe most, mert mindegyik nagyobb feature és külön döntést igényel:
+
+- **💬 Inline komment / javaslat rendszer** — új tábla (`comments`), Google Docs-szerű margó-kommentek, megoldatlan/megoldott állapotok. Nagy munka, külön kör.
+- **🌍 Helyszínek és világ-szabályok adatbázis** — új `locations` és `world_rules` táblák, wizard step, UI panel. Külön kör, mert érinti a writing engine prompt-jait is.
+
+---
+
+## Javasolt sorrend és credit-költség
+
+| Fázis | Idő | Új credit-költség |
 |---|---|---|
-| id | uuid PK | |
-| project_id | uuid | |
-| user_id | uuid | RLS |
-| source_kind | text | `text` / `file` / `url` |
-| original_filename | text | |
-| storage_path | text | `project-assets` bucket |
-| title | text | AI által javasolt vagy user-adott |
-| extracted_text | text | tisztított plain-text |
-| word_count | int | |
-| topic_cluster | text | AI által hozzárendelt téma |
-| status | text | `pending` / `extracted` / `analyzed` / `failed` |
-| created_at, updated_at | timestamptz | |
+| 1. AI Flow (recap + continue + twists) | gyors | recap: 200 / continue: 500 / twists: 800 |
+| 2. Kollaboráció | közepes | nincs (ingyenes) |
+| 3. KDP + konzisztencia UI + háló | közepes | sorozat-check: 1500 (már létezik) |
 
-RLS: a project tulajdonosa CRUD-ol.
+Mindhárom fázis külön mérföldkő, külön kipróbálható és kiszállítható. Javaslat: kezdjük az **1. fázissal**, mert ez ad azonnal érzékelhető wow-élményt a felhasználóknak az író felületen.
 
-**Új edge functions**
-- `ingest-raw-source` – fogadja a feltöltést (text/file/URL). PDF/DOCX → szövegre bontás (`pdf-parse` / `mammoth` esm.sh), URL → a meglévő `fetch-url-metadata` mintára `Readability` modullal. Beírja a `raw_sources` táblába.
-- `analyze-raw-sources` – Lovable AI (`google/gemini-2.5-pro`, nagy kontextus): klaszterezi a témákat, javasol fejezet-struktúrát → visszaad JSON outline-t, amelyet a kliens a meglévő wizard outline-jához fűz hozzá / cserél.
-- A `write-section/index.ts` és `generate-section-outline/index.ts` beolvassa az adott projekt `raw_sources` releváns chunkjait (téma-kulcsszó alapján) és bevágja a promptba.
-
-**Új komponensek**
-- `src/components/research/RawSourceUploader.tsx` – tabs (Szöveg / Fájl / URL)
-- `src/components/research/RawSourcesList.tsx` – lista státuszokkal
-- `src/components/research/GenerateOutlineFromSourcesButton.tsx`
-- `src/hooks/useRawSources.ts`
-
-**Storage**
-A meglévő `project-assets` publikus bucket alá: `raw-sources/{projectId}/{uuid}.{ext}`.
-
-**Kreditek**
-- Feltöltés / kinyerés: ingyenes
-- AI vázlat-generálás 1000 szó kreditet fogyaszt (per futtatás), a meglévő `use_extra_credits` / `increment_words_generated` logikán keresztül.
-
----
-
-## 2) AI Tördelő & Borítóstúdió – 3 db 4K variáció
-
-### Mit lát a felhasználó
-
-A Borító Tervezőben (`/cover-designer/:projectId`) a **„Borító Generálása"** gomb mellé új gomb: **„3 variáció generálása (4K)"**. Egy futtatásra **3 különböző stílusú, könyv-arányú (2:3), nagy felbontású (legalább 2048×3072) borítót** ad vissza, mindegyik más megközelítéssel (pl. illusztrált / fotórealisztikus / minimal-typo). A galéria ugyanúgy mutatja őket, kiválasztható a végleges.
-
-A 3 variáció költsége egy összegben kerül kommunikálásra a UI-on, és egyszer lesz levonva a tranzakció elején (ld. lent).
-
-A meglévő `ProjectExport` / `BookExportModal` PDF útvonalához új preset: **„Nyomdakész (Print-ready)"**:
-- A5 / B5 választó
-- belső margók (gutter) automatikus
-- futófejléc + oldalszám páros/páratlan elrendezésben
-- bekezdés-behúzás, özvegy/árva sor minimalizálás CSS-ből
-- automatikus címnegyed (címoldal, copyright, tartalomjegyzék, ajánlás)
-- 300 DPI képek (a kiválasztott 4K borító első oldalként beemelve)
-
-### Technikai részletek
-
-**`generate-cover/index.ts` bővítés**
-- Új request mező: `variations: number` (1 vagy 3, default 1).
-- 3 esetén **3 párhuzamos AI hívás** `Promise.allSettled`-lel, mindegyik más style-promptot kap (`illustrated`, `photographic`, `typographic-minimal`).
-- Modell: `google/gemini-3-pro-image-preview` (Nano Banana Pro, magas minőség). A prompthoz hozzáfűzzük: *„Generate at maximum resolution, book cover 2:3 portrait orientation, print-ready 300 DPI feel, no text artifacts."*
-- Kreditek: `COVER_GENERATION_COST * darabszám` (új konstans `COVER_VARIATIONS_COST = 3 * 2000 = 6000`). Az ellenőrzés ugyanúgy `monthly + extra` balance alapján. Sikertelen variáció esetén a sikeresek arányában csak a tényleg lefutott hívásért von kreditet.
-- Mind feltöltődik a `covers` táblába külön rekordként (hogy egyenként választható legyen).
-
-**Print-ready PDF preset (`export-book/index.ts`)**
-- Új `settings.preset === "print-ready"` ág:
-  - `pageSize`: A5 (default) vagy B5
-  - külön CSS print-szabályok: `@page { margin … }`, `prince-pdf-page-marks`, `widows: 3; orphans: 3`
-  - automatikus ToC + címnegyed beillesztése
-  - a kiválasztott `covers.image_url` (legmagasabb-felbontású) első oldalként beemelve, full-bleed
-- A meglévő DocRaptor / CloudConvert pipeline-t használjuk, a már beállított `DOCRAPTOR_API_KEY` secrettel.
-
-**Új UI komponensek**
-- `src/components/covers/VariationButton.tsx` (a CoverDesigner oldalon)
-- `src/components/export/PrintReadyPresetCard.tsx` (a BookExportModal-ban új tile)
-- A meglévő `ExportSettingsPanel`-ba gond nélkül illeszthető új checkbox / radio.
-
----
-
-## Üzleti / krediti logika összefoglaló
-
-| Művelet | Költség (szó-kredit) |
-|---|---|
-| Forrás-fájl feltöltés / kinyerés | 0 |
-| AI vázlat-generálás meglévő anyagból | 1 000 |
-| 1 borító (változatlan) | 2 000 |
-| 3 borító csomag (új) | 6 000 |
-| Print-ready PDF export | 0 (csak a normál export-limit) |
-
-A free tier nem érheti el a 3-borító csomagot (üzenet: „Bővíts csomagot vagy vegyél kreditet").
-
----
-
-## Adatbázis-migráció (összefoglaló)
-
-```sql
-create table public.raw_sources (
-  id uuid primary key default gen_random_uuid(),
-  project_id uuid not null,
-  user_id uuid not null,
-  source_kind text not null check (source_kind in ('text','file','url')),
-  original_filename text,
-  storage_path text,
-  title text,
-  extracted_text text,
-  word_count int default 0,
-  topic_cluster text,
-  status text not null default 'pending',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table public.raw_sources enable row level security;
--- 4 RLS policy a meglévő projects-mintára (owner CRUD)
-create index on public.raw_sources(project_id);
-```
-
----
-
-## Érintett fájlok
-
-**Új fájlok**
-- `supabase/functions/ingest-raw-source/index.ts`
-- `supabase/functions/analyze-raw-sources/index.ts`
-- `src/components/research/RawSourceUploader.tsx`
-- `src/components/research/RawSourcesList.tsx`
-- `src/components/research/GenerateOutlineFromSourcesButton.tsx`
-- `src/hooks/useRawSources.ts`
-- `src/components/covers/VariationButton.tsx`
-- `src/components/export/PrintReadyPresetCard.tsx`
-- DB migráció: `raw_sources` tábla + RLS
-
-**Módosított fájlok**
-- `src/components/research/ResearchView.tsx` (új „Forrásanyagok" fül)
-- `src/pages/CoverDesigner.tsx` (3-variáció gomb + galéria)
-- `src/components/export/BookExportModal.tsx` + `ExportSettingsPanel.tsx` (print-ready preset)
-- `supabase/functions/generate-cover/index.ts` (variations param + magasabb felbontás)
-- `supabase/functions/export-book/index.ts` (print-ready preset)
-- `supabase/functions/write-section/index.ts` + `generate-section-outline/index.ts` (`raw_sources` kontextus)
-- `src/constants/credits.ts` (új `COVER_VARIATIONS_COST`, `OUTLINE_FROM_SOURCES_COST`)
-
----
-
-## Mi marad ki tudatosan
-- A wizardba most nem építjük be a forrás-feltöltést – a Kutatás panelből indul a flow, hogy meglévő projekteknél is működjön. (Később egy lépéssel beilleszthető.)
-- Borító-szerkesztés (inpainting) változatlan marad – a 3-variáció csak generálásra vonatkozik.
-- Hivatalos „nyomda-előírás" (CMYK, kifutó, ICC profil) az első iterációban nem cél – a print-ready PDF a beltartalom + 4K borító szintjén lesz nyomdakész. Ezt később külön lépésben lehet bővíteni.
+Hagyd jóvá a tervet, és nekiállok a 1. fázisnak. Ha valamit átrendeznél, vagy a kihagyott funkciók (kommentek / helyszínek) egyikét most szeretnéd a tervbe — szólj.
