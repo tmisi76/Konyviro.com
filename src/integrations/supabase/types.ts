@@ -2745,6 +2745,10 @@ export type Database = {
           }
         | { Args: { p_word_count: number }; Returns: undefined }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_project_collaborator: {
+        Args: { _min_role?: string; _project_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       use_audiobook_minutes: { Args: { p_minutes: number }; Returns: boolean }
       use_extra_credits:
