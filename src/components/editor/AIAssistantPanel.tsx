@@ -448,6 +448,39 @@ Bővítendő szöveg: "${selectedText}"`
             </div>
           </div>
 
+          {/* Inspiration tools */}
+          <div className="border-b border-border p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Inspirációs eszközök</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPlotTwistOpen(true)}
+                disabled={isGenerating}
+                className="flex h-auto flex-col gap-1 py-2 text-xs"
+                title="3 plot twist javaslat az eddigi cselekményből"
+              >
+                <Zap className="h-4 w-4" />
+                <span>3 plot twist</span>
+              </Button>
+              <AIContinueButton
+                projectId={projectId}
+                chapterId={currentChapterId || null}
+                contextText={currentChapterContent || ""}
+                paragraphCount={1}
+                onInsert={(text) => {
+                  if (cursorPosition && onInsertTextAtCursor) {
+                    onInsertTextAtCursor(text, cursorPosition);
+                  } else if (onInsertText) {
+                    onInsertText(text);
+                  }
+                }}
+                variant="default"
+                className="h-auto py-2 text-xs"
+              />
+            </div>
+          </div>
+
           {/* Context Display */}
           <div className="border-b border-border bg-muted/30 px-3 py-2">
             <p className="mb-1 text-xs font-medium text-muted-foreground">Kontextus</p>
