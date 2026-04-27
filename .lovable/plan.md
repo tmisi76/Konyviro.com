@@ -1,65 +1,136 @@
 ## Cél
 
-A `/` nyitóoldal frissítése úgy, hogy a ma elkészült új képességek (Csapat / kollaboráció, AI Folytatás, Fejezet Recap, Plot Twist, Karakter Hálózat, Konzisztencia-audit / Inbox, Kulturális névadás) is megjelenjenek és eladhatóvá váljanak.
+Amikor a felhasználó **Oknyomozó (investigative)** szakkönyvet ír — különösen **Politika/Közélet** vagy **Bűnügy/True Crime** alkategóriában —, a könyv **valós, megtörtént eseményeken** alapuljon (elnök bukása, sorozatgyilkos története, korrupciós botrány stb.), ne hallucinált fikción. Ehhez:
 
-## Mit változtatunk
+1. Egy **új extra mező** a wizardban, ahol a felhasználó megadhatja a konkrét ügyet/személyt/eseményt és bármi extra utasítást.
+2. Egy **valós kutatási réteg** (web search), amely tényeket, dátumokat, neveket, idézeteket gyűjt egy edge functionnel.
+3. A kutatási eredmények **bekerülnek a story idea, az outline és a fejezetírás promptjaiba** kötelező hivatkozási forrásként, szigorú anti-hallucination szabályokkal.
 
-### 1. `FeaturesSection.tsx` — bővített funkciórács
-A jelenlegi 6 általános kártya helyett **9 kártya** 3×3 elrendezésben, hogy a friss képességek is helyet kapjanak. Új / frissített kártyák:
+## Miért Perplexity (nem natív Gemini grounding)
 
-- **Csapat & Kollaboráció** (ikon: `Users2`) — „Hívd meg a társszerződ vagy szerkesztőd. Megosztott projektek, szerepkörök (szerkesztő / olvasó), és valós idejű együttműködés."
-- **AI Folytatás 1 kattintással** (ikon: `Wand2`) — „Soha ne akadj el. Az AI a stílusodban folytatja a mondatot, bekezdést vagy jelenetet."
-- **Konzisztencia Őr** (ikon: `ShieldCheck`) — „Automatikus audit: karakternév-ellentmondások, kulturális hibák, helyszín-eltérések felismerése és javítási javaslatok."
-- **Karakter Hálózat** (ikon: `Network` / `Share2`) — „Vizuális gráf a karaktereid kapcsolatairól — egy pillantás alatt átlátod a szereplőhálót."
-- **Plot Twist Generátor** (ikon: `Zap`) — „Megakadtál? Az AI 3 logikus, mégis meglepő fordulatot javasol a vázlatod alapján."
-- **Fejezet Recap** (ikon: `BookmarkCheck`) — „Visszatérve azonnal képben vagy: 3-4 mondatos AI összefoglaló + folytatási irányok."
+A Lovable AI Gateway a Gemini modelleket az OpenAI-kompatibilis chat completions formátumban szolgálja ki — **a Google natív `googleSearch` grounding tool nem érhető el** ezen a felületen. Ezért valós idejű web-kutatáshoz a **Perplexity `sonar` / `sonar-reasoning` modellt** használjuk (külön connector), amely visszaad citation URL-eket is. Ez biztosítja a tényalapú, ellenőrizhető forrásokat.
 
-A meglévő kártyákból megtartjuk: **Könyv Coach**, **Karakter Menedzsment**, **Export Formátumok**. (A „Kutatás Modul" és „Fejezet Szervezés" kikerül a 9 kártyás keretbe való illesztés miatt — rövid funkciórács, kevesebb redundancia.)
+> A Perplexity connector csatlakoztatása szükséges (egyszeri lépés a felhasználó részéről). Jelzem neki és felajánlom a connect flow-t a megvalósítás elején.
 
-### 2. Új szekció: **Csapatban dolgozz** (`CollaborationSection.tsx`)
-Dedikált szekció a `HowItWorksSection` után, két oszlopban:
-- Bal: cím + leírás + 3 bullet (Meghívás emailen / Szerepkörök / Megosztott karakterek és vázlat) + CTA „Próbáld ki ingyen".
-- Jobb: vizuális mockup card — több színes avatar + projekt cím + „3 társszerző aktív" badge.
+## Felhasználói folyamat
 
-### 3. Új szekció: **Profi minőség, automatikusan** (`QualityShowcaseSection.tsx`)
-A Pricing előtt, sötét háttérrel kiemelve. Bemutatja a minőség-vezérelt motort:
-- 3 kis kártya: **Konzisztencia-audit**, **Auto-lektor**, **Kulturális névadás** (pl. „Magyar regényhez magyar nevek — Japán helyszínhez japán nevek, automatikusan").
-- Mini „előtte/utána" példa: nyers AI mondat → lektorált verzió.
-
-### 4. `Navbar.tsx` — új menüpont
-Új link: **„Csapat"** ami a `#collaboration` szekcióra ugrik (desktop + mobile menüben is). Sorrend: Funkciók · Hogyan működik · Csapat · Árazás · GYIK.
-
-### 5. `Index.tsx` — szekciók beillesztése
-Új sorrend:
 ```text
-Navbar
-HeroSection
-FeaturesSection             (9 kártya, frissítve)
-HowItWorksSection
-CollaborationSection        (ÚJ – id="collaboration")
-QualityShowcaseSection      (ÚJ)
-PricingSection
-FAQSection
-Footer
+Wizard → Step 5 (Investigative form)
+  ├─ Meglévő mezők (subject, central question, scope, ...)
+  └─ ÚJ: "Konkrét valós ügy / extra kutatási instrukció" textarea
+         (Pl. "Watergate-botrány", "Ted Bundy", "Postabank-ügy")
+              ↓
+Story Ideas generálás
+  ├─ research-real-case edge function → Perplexity Sonar
+  │     (tényeket, dátumokat, szereplőket, idézeteket, forrás-URL-eket gyűjt)
+  └─ generate-story-ideas megkapja a kutatási csomagot → tényalapú ötletek
+              ↓
+Detailed Outline + Fejezet írás
+  └─ Minden prompt megkapja a research dossier-t
+        + szigorú szabály: "csak a dossier-ben szereplő tényeket használd"
 ```
 
-### 6. FAQ frissítés (opcionális, kis bővítés)
-2 új kérdés a `FAQSection`-be: „Lehet csapatban dolgozni?" és „Hogyan biztosítjátok, hogy a karakternevek illeszkedjenek a választott országhoz?"
+## Mit fejlesztünk
 
-## Stílus / dizájn
+### 1. Wizard – új mező
 
-- A meglévő design tokeneket használjuk (`bg-card`, `text-primary`, `text-secondary`, `text-accent`, `text-success`, `text-warning`, `text-info`).
-- Kártyák ugyanolyan `rounded-2xl border bg-card hover:-translate-y-1` interakcióval, mint a jelenlegi `FeaturesSection`.
-- Konzisztens `py-20 sm:py-28` szekció-paddingek és `container mx-auto`.
-- Csak Lucide ikonok (`Users2`, `Wand2`, `ShieldCheck`, `Network`, `Zap`, `BookmarkCheck`).
+**`src/types/wizard.ts`** – `BookTypeSpecificData` interfész bővítése:
+- `realCaseReference?: string` — a felhasználó megnevezi a konkrét ügyet/személyt
+- `extraResearchInstructions?: string` — extra utasítás a kutatáshoz (pl. "fókuszálj a 2008–2012 közti időszakra")
+
+**`src/components/wizard/steps/Step5BookTypeData.tsx`** – `renderInvestigativeForm()` bővítése:
+- Új kiemelt szekció: "🔍 Valós ügy + AI kutatás"
+- `Textarea`: "Melyik konkrét, valós ügy, személy vagy esemény legyen a könyv alapja?"
+  - placeholder: pl. "Postabank-botrány", "Ted Bundy sorozatgyilkos", "Nixon és a Watergate"
+  - segítő szöveg: "Az AI valódi forrásokból fog kutatni — csak megtörtént események kerülnek bele"
+- `Textarea`: "Extra kutatási instrukciók (opcionális)"
+
+### 2. Új Edge Function: `research-real-case`
+
+**`supabase/functions/research-real-case/index.ts`** (új):
+- Bemenet: `{ subject, realCaseReference, extraInstructions, subcategory, language: "hu" }`
+- Hívja a **Perplexity `sonar-reasoning`** modellt (connector gateway-en keresztül NEM — Perplexity direkt API kulccsal, mert nem gateway-es connector)
+- A prompt: "Gyűjts össze megtörtént, ellenőrizhető tényeket [X]-ről: kulcsszereplők, dátumok, helyszínek, fordulópontok, dokumentált idézetek, jogi következmények, források."
+- Strukturált JSON kimenet (Perplexity `response_format: json_schema`):
+  ```json
+  {
+    "caseTitle": "...",
+    "verifiedSummary": "...",
+    "keyPlayers": [{ "name", "role", "verifiedFacts" }],
+    "timeline": [{ "date", "event", "source" }],
+    "documentedQuotes": [{ "quote", "speaker", "source" }],
+    "consequences": "...",
+    "sources": ["url1", "url2", ...],
+    "uncertainties": "ami nem ellenőrizhető vagy vitatott"
+  }
+  ```
+- Mentés: új `project_research` táblába (cache, hogy ne kelljen újrafutni minden lépésnél). RLS: csak a projekt tulajdonosa olvassa.
+
+### 3. Új tábla: `project_research`
+
+```sql
+create table public.project_research (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references projects(id) on delete cascade,
+  case_reference text not null,
+  research_data jsonb not null,
+  sources jsonb not null default '[]'::jsonb,
+  created_at timestamptz default now()
+);
+-- RLS: SELECT/INSERT csak a projekt tulajdonosa (auth.uid() = projects.user_id)
+```
+
+### 4. Promptok bővítése – kötelező tényhasználat
+
+**`supabase/functions/generate-story-ideas/index.ts`** (investigative ágban):
+- Ha van `realCaseReference` → meghívja a `research-real-case` functiont
+- A `bookTypeContext`-be beilleszti: `## VALÓS KUTATÁSI DOSSIER (KÖTELEZŐ FORRÁS):` + JSON
+- Új szabály a prompthoz:
+  > "TILOS kitalált eseményeket, neveket vagy dátumokat használni. KIZÁRÓLAG a kutatási dossier-ben szereplő tényekre építhetsz. Ha valami nincs a dossier-ben, ne találd ki — hagyd ki."
+
+**`supabase/functions/generate-detailed-outline/index.ts`** + **`generate-chapter-outline`**:
+- Ha investigative és van research → research_data injection a promptba
+- Fejezetcímek és events csak valós dátumokhoz/eseményekhez kötődhetnek
+
+**`supabase/functions/write-section/index.ts`** (és/vagy `write-scene`):
+- A research dossier bekerül a system promptba
+- Anti-hallucination guard: "Ha nincs forrásod egy konkrét állításra, írd le bizonytalanságként ('A források szerint...', 'Nem teljesen tisztázott...') — SOSE találj ki neveket, dátumokat, helyszíneket, idézeteket."
+- A `_shared/prompt-builder.ts`-be új helper: `buildInvestigativeResearchBlock(research)`.
+
+### 5. UI visszajelzés
+
+A wizard Step 5 és a story ideas képernyőn:
+- Loading state: "🔍 Valós források kutatása folyamatban (Perplexity)..."
+- Story idea kártyán "Forrás-alapú" badge + kis link a forrásokra (sources accordion)
+
+## Technikai részletek
+
+- **Perplexity API kulcs**: connector flow-val kérjük be (`standard_connectors--connect` `perplexity`). Ha a felhasználó nem akarja csatlakoztatni, a feature inaktív marad és figyelmeztetést kap.
+- **Modell**: `sonar-reasoning` (mély kutatás citation-ökkel). Magyar ügyeknél `search_domain_filter` nélkül, hogy magyar források is bejöjjenek.
+- **Cache**: a `project_research` tábla miatt egy ügy csak egyszer kerül lekérdezésre projektenként; a refresh-hez gomb.
+- **Költség kontroll**: csak akkor fut, ha (a) genre = `szakkonyv`, (b) `nonfictionBookType = investigative`, (c) `realCaseReference` ki van töltve.
+- **Visszafelé kompatibilitás**: a meglévő investigative flow tovább működik, ha a felhasználó nem ad meg `realCaseReference`-et (csak generikus oknyomozó marad).
 
 ## Érintett fájlok
 
-- `src/pages/Index.tsx` (szerkesztés)
-- `src/components/landing/Navbar.tsx` (szerkesztés — új menüpont)
-- `src/components/landing/FeaturesSection.tsx` (szerkesztés — 9 kártya)
-- `src/components/landing/FAQSection.tsx` (szerkesztés — 2 új kérdés)
-- `src/components/landing/CollaborationSection.tsx` (új)
-- `src/components/landing/QualityShowcaseSection.tsx` (új)
+Új:
+- `supabase/functions/research-real-case/index.ts`
+- `supabase/migrations/<ts>_project_research.sql`
 
-Nincs adatbázis-, edge function- vagy auth-változás — kizárólag a marketing felület frissítése.
+Módosítva:
+- `src/types/wizard.ts` — 2 új mező
+- `src/components/wizard/steps/Step5BookTypeData.tsx` — extra szekció a `renderInvestigativeForm`-ban
+- `src/hooks/useStoryGeneration.ts` (vagy ahol a generate-story-ideas hívás történik) — research trigger
+- `supabase/functions/generate-story-ideas/index.ts` — research dossier injekció + anti-hallucination szabály
+- `supabase/functions/generate-detailed-outline/index.ts` — research injekció
+- `supabase/functions/generate-chapter-outline/index.ts` — research injekció
+- `supabase/functions/write-section/index.ts` (+ esetleg `write-scene`) — research a system promptba
+- `supabase/functions/_shared/prompt-builder.ts` — `buildInvestigativeResearchBlock()` helper
+
+## Megerősítések, mielőtt elkezdem
+
+1. **Perplexity csatlakoztatása**: a megvalósítás első lépése a Perplexity connector csatlakoztatása lesz (egy gomb-nyomás). Ez ad valós, citation-alapú forrásokat.
+2. **Költség**: minden investigative projekt 1 darab Perplexity hívást generál a research-hez (cache után 0).
+3. Ha a felhasználó NEM ad meg konkrét ügyet, a rendszer figyelmeztet: "Add meg a konkrét ügyet/személyt, hogy valós forrásokból dolgozzunk — különben a könyv általánosabb lesz."
+
+Jóváhagyás után megvalósítom.
