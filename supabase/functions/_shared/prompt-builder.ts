@@ -7,7 +7,11 @@ export const HUNGARIAN_GRAMMAR_RULES = `
 
 ## MAGYAR NYELVI SZABÁLYOK (KÖTELEZŐ):
 
-NÉVSORREND: Magyar névsorrend: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+NÉVSORREND (CSAK MAGYAR NEVEKNÉL!):
+- Magyar nevek esetében: Vezetéknév + Keresztnév (pl. "Kovács János", NEM "János Kovács").
+- KÜLFÖLDI / IDEGEN nevek (pl. John Smith, Eleanor Hayes, Tanaka Haruki, Lars Eriksson) maradjanak az adott kultúra eredeti névsorrendjében — ezeket TILOS magyarosítani vagy felcserélni!
+- FANTASY / SCI-FI / KITALÁLT nevek (pl. Géza, Aelora, Zyx-7) maradjanak pontosan úgy, ahogy a kontextusban szerepelnek.
+- TILOS bármilyen nevet "magyarítani" (pl. John → János, Smith → Kovács), megrövidíteni vagy lecserélni.
 
 PÁRBESZÉD FORMÁZÁS:
 - Magyar párbeszédjelölés: gondolatjel (–) a sor elején
@@ -22,7 +26,8 @@ PÁRBESZÉD FORMÁZÁS:
 - Vessző MINDIG a kötőszavak előtt: "de, hogy, mert, ha, amikor, amely, ami"
 
 KERÜLENDŐ HIBÁK:
-- NE használj angolszász névsorrendet
+- Magyar neveknél NE használj angolszász névsorrendet
+- Külföldi neveknél NE használj magyar névsorrendet — hagyd az eredeti formában
 - NE használj tükörfordításokat ("ez csinál értelmet" → "ennek van értelme")
 - NE használj angol idézőjeleket ("..." → „...")
 - NE használj felesleges névelőket angolosan
