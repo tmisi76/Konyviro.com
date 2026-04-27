@@ -13,6 +13,7 @@ import { useCoachToAutoWrite } from "@/hooks/useCoachToAutoWrite";
 import { useAdultVerification } from "@/hooks/useAdultVerification";
 import { AgeVerificationModal } from "@/components/projects/AgeVerificationModal";
 import { cn } from "@/lib/utils";
+import { StyleProfileBanner } from "@/components/style/StyleProfileBanner";
 
 type CoachGenre = "szakkonyv" | "fiction" | "erotikus";
 
@@ -185,6 +186,10 @@ export default function BookCoach() {
                 <p className="text-muted-foreground">
                   Válaszd ki a műfajt, és segítek megtervezni a könyvedet
                 </p>
+              </div>
+
+              <div className="mb-6">
+                <StyleProfileBanner />
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
