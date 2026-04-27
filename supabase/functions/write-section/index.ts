@@ -542,6 +542,25 @@ serve(async (req) => {
       }
     }
 
+    // Investigative real-case research dossier (Perplexity) — anti-hallucination guard
+    if (isInvestigative && projectId) {
+      try {
+        const { data: research } = await supabaseClient
+          .from('project_research')
+          .select('research_data, sources')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (research?.research_data) {
+          const block = buildInvestigativeResearchBlock(research.research_data, research.sources);
+          if (block) systemPrompt += block;
+        }
+      } catch (e) {
+        console.error("Failed to load project_research", e);
+      }
+    }
+
     // Series context — if this project belongs to a series, inject canonical world / characters / events
     try {
       const seriesCtx = await loadSeriesContext(supabaseClient, projectId);
