@@ -37,6 +37,9 @@ import { useAIGeneration, AIAction, AISettings, AIContext } from "@/hooks/useAIG
 import { useWritingStyle } from "@/hooks/useWritingStyle";
 import { useAIModel } from "@/hooks/useAIModel";
 import { toast } from "sonner";
+import { PlotTwistSuggestions } from "./PlotTwistSuggestions";
+import { AIContinueButton } from "./AIContinueButton";
+import { Zap } from "lucide-react";
 
 interface AIAssistantPanelProps {
   isCollapsed: boolean;
