@@ -23,6 +23,155 @@ const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: numb
   pro: { projectLimit: -1, monthlyWordLimit: -1, storybookLimit: 999 },
 };
 
+const ADMIN_NOTIFY_EMAIL = "hello@freedombiznisz.hu";
+const ADMIN_NOTIFY_FROM = "KönyvÍró <noreply@digitalisbirodalom.hu>";
+
+const TIER_NAMES: Record<string, string> = {
+  hobby: "Hobbi",
+  writer: "Profi",
+  agency: "Ügynökség",
+  pro: "Pro",
+  free: "Ingyenes",
+};
+
+const PERIOD_NAMES: Record<string, string> = {
+  monthly: "havi",
+  yearly: "éves",
+  month: "havi",
+  year: "éves",
+};
+
+type AdminNotifyType = "new_subscription" | "cancel_scheduled" | "subscription_ended";
+
+interface AdminNotifyData {
+  customerName?: string;
+  customerEmail?: string;
+  tier?: string;
+  billingPeriod?: string;
+  amount?: number;
+  periodEnd?: string;
+}
+
+function buildAdminEmail(type: AdminNotifyType, d: AdminNotifyData): { subject: string; html: string } {
+  const dateStr = new Date().toLocaleDateString("hu-HU", {
+    year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  const tierLabel = TIER_NAMES[d.tier ?? ""] ?? d.tier ?? "N/A";
+  const periodLabel = PERIOD_NAMES[d.billingPeriod ?? ""] ?? d.billingPeriod ?? "N/A";
+  const periodEndStr = d.periodEnd
+    ? new Date(d.periodEnd).toLocaleDateString("hu-HU", { year: "numeric", month: "long", day: "numeric" })
+    : "N/A";
+
+  const styles: Record<AdminNotifyType, { color: string; emoji: string; title: string; subject: string }> = {
+    new_subscription: {
+      color: "#22c55e",
+      emoji: "🎉",
+      title: "Új előfizetés!",
+      subject: `🎉 Új előfizető: ${tierLabel} (${periodLabel})`,
+    },
+    cancel_scheduled: {
+      color: "#f59e0b",
+      emoji: "⚠️",
+      title: "Lemondás bejelentve",
+      subject: `⚠️ Lemondás bejelentve: ${tierLabel}`,
+    },
+    subscription_ended: {
+      color: "#ef4444",
+      emoji: "❌",
+      title: "Előfizetés megszűnt",
+      subject: `❌ Előfizetés megszűnt: ${tierLabel}`,
+    },
+  };
+  const s = styles[type];
+
+  const rows: Array<[string, string]> = [
+    ["Név", d.customerName || "N/A"],
+    ["Email", d.customerEmail || "N/A"],
+    ["Csomag", tierLabel],
+    ["Időszak", periodLabel],
+  ];
+  if (type === "new_subscription" && typeof d.amount === "number") {
+    rows.push(["Összeg", `<span style="color:#22c55e">${d.amount.toLocaleString()} Ft</span>`]);
+  }
+  if (type === "cancel_scheduled" && d.periodEnd) {
+    rows.push(["Érvényes eddig", periodEndStr]);
+  }
+  rows.push(["Dátum", dateStr]);
+
+  const tableRows = rows
+    .map(
+      ([k, v]) => `
+      <tr>
+        <td style="padding:10px 0;border-bottom:1px solid #eee;color:#666;">${k}:</td>
+        <td style="padding:10px 0;border-bottom:1px solid #eee;font-weight:bold;">${v}</td>
+      </tr>`
+    )
+    .join("");
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;background-color:#f5f5f5;padding:20px;">
+  <div style="max-width:500px;margin:0 auto;background:white;border-radius:12px;padding:30px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+    <h1 style="color:${s.color};margin:0 0 20px;">${s.emoji} ${s.title}</h1>
+    <table style="width:100%;border-collapse:collapse;">${tableRows}</table>
+    <p style="margin:20px 0 0;padding-top:15px;border-top:1px solid #eee;color:#888;font-size:12px;text-align:center;">
+      KönyvÍró Admin Értesítő
+    </p>
+  </div>
+</body>
+</html>`;
+
+  return { subject: s.subject, html };
+}
+
+async function sendAdminNotification(type: AdminNotifyType, data: AdminNotifyData): Promise<void> {
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) {
+    logStep("Admin notification skipped - no RESEND_API_KEY");
+    return;
+  }
+  try {
+    const { subject, html } = buildAdminEmail(type, data);
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resendKey}`,
+      },
+      body: JSON.stringify({
+        from: ADMIN_NOTIFY_FROM,
+        to: [ADMIN_NOTIFY_EMAIL],
+        subject,
+        html,
+      }),
+    });
+    if (res.ok) {
+      logStep("Admin notification sent", { type, tier: data.tier });
+    } else {
+      const errText = await res.text();
+      logStep("Admin notification failed", { type, error: errText });
+    }
+  } catch (e) {
+    logStep("Admin notification error", { type, error: String(e) });
+  }
+}
+
+async function fetchCustomerInfo(
+  stripe: Stripe,
+  customerId: string | null
+): Promise<{ email: string; name: string }> {
+  if (!customerId) return { email: "N/A", name: "N/A" };
+  try {
+    const customerData = (await stripe.customers.retrieve(customerId)) as Stripe.Customer;
+    if (customerData.deleted) return { email: "N/A", name: "N/A" };
+    return { email: customerData.email || "N/A", name: customerData.name || "N/A" };
+  } catch {
+    return { email: "N/A", name: "N/A" };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -359,104 +508,18 @@ serve(async (req) => {
         });
 
         // Send admin notification email about new subscription
-        const resendKeyAdmin = Deno.env.get("RESEND_API_KEY");
-        if (resendKeyAdmin) {
-          try {
-            const tierNamesAdmin: Record<string, string> = {
-              hobby: "Hobbi",
-              writer: "Profi",
-              agency: "Ügynökség",
-              pro: "Pro"
-            };
-            const periodNamesAdmin: Record<string, string> = {
-              monthly: "havi",
-              yearly: "éves"
-            };
-            const tierPricesAdmin = billingPeriod === "yearly" 
-              ? { hobby: 59990, writer: 119990, agency: 359990, pro: 179940 }
-              : { hobby: 9990, writer: 19990, agency: 59990, pro: 29990 };
-
-            // Get customer info for the email
-            let customerEmailForAdmin = "N/A";
-            let customerNameForAdmin = "N/A";
-            const customerId = session.customer as string;
-            if (customerId) {
-              try {
-                const customerData = await stripe.customers.retrieve(customerId) as Stripe.Customer;
-                if (!customerData.deleted) {
-                  customerEmailForAdmin = customerData.email || "N/A";
-                  customerNameForAdmin = customerData.name || "N/A";
-                }
-              } catch {
-                logStep("Could not retrieve customer for admin email");
-              }
-            }
-
-            const adminEmailHtml = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
-  <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-    <h1 style="color: #7c3aed; margin: 0 0 20px;">🎉 Új előfizetés!</h1>
-    
-    <table style="width: 100%; border-collapse: collapse;">
-      <tr>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Név:</td>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${customerNameForAdmin}</td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Email:</td>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${customerEmailForAdmin}</td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Csomag:</td>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${tierNamesAdmin[tier] || tier}</td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Időszak:</td>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold;">${periodNamesAdmin[billingPeriod] || billingPeriod}</td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; color: #666;">Összeg:</td>
-        <td style="padding: 10px 0; border-bottom: 1px solid #eee; font-weight: bold; color: #22c55e;">${(tierPricesAdmin[tier as keyof typeof tierPricesAdmin] || 0).toLocaleString()} Ft</td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 0; color: #666;">Dátum:</td>
-        <td style="padding: 10px 0; font-weight: bold;">${new Date().toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-      </tr>
-    </table>
-    
-    <p style="margin: 20px 0 0; padding-top: 15px; border-top: 1px solid #eee; color: #888; font-size: 12px; text-align: center;">
-      KönyvÍró Admin Értesítő
-    </p>
-  </div>
-</body>
-</html>`;
-
-            const adminEmailRes = await fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${resendKeyAdmin}`,
-              },
-              body: JSON.stringify({
-                from: "KönyvÍró <noreply@digitalisbirodalom.hu>",
-                to: ["tmisi76@gmail.com"],
-                subject: `🎉 Új előfizető: ${tierNamesAdmin[tier] || tier} (${periodNamesAdmin[billingPeriod] || billingPeriod})`,
-                html: adminEmailHtml,
-              }),
-            });
-
-            if (adminEmailRes.ok) {
-              logStep("Admin notification email sent", { tier, billingPeriod });
-            } else {
-              const errText = await adminEmailRes.text();
-              logStep("Admin email failed", { error: errText });
-            }
-          } catch (adminEmailError) {
-            logStep("Admin email error", { error: String(adminEmailError) });
-          }
+        {
+          const tierPricesAdmin: Record<string, number> = billingPeriod === "yearly"
+            ? { hobby: 59990, writer: 119990, agency: 359990, pro: 179940 }
+            : { hobby: 9990, writer: 19990, agency: 59990, pro: 29990 };
+          const customerInfo = await fetchCustomerInfo(stripe, (session.customer as string) || null);
+          await sendAdminNotification("new_subscription", {
+            customerName: customerInfo.name,
+            customerEmail: customerInfo.email,
+            tier,
+            billingPeriod,
+            amount: tierPricesAdmin[tier] ?? 0,
+          });
         }
 
         break;
@@ -476,7 +539,14 @@ serve(async (req) => {
           status: subscription.status,
           cancelAtPeriodEnd: subscription.cancel_at_period_end 
         });
-        
+
+        // Detect "cancel scheduled" transition: cancel_at_period_end just flipped to true
+        const prevAttrs = (event.data as { previous_attributes?: { cancel_at_period_end?: boolean } })
+          .previous_attributes;
+        const cancelJustScheduled =
+          subscription.cancel_at_period_end === true &&
+          prevAttrs?.cancel_at_period_end === false;
+
         let targetUserId = subscription.metadata?.supabase_user_id;
 
         if (!targetUserId || targetUserId === "guest") {
@@ -524,6 +594,25 @@ serve(async (req) => {
           .eq("user_id", targetUserId);
 
         logStep("Subscription status updated", { userId: targetUserId, status });
+
+        // Notify admin if user just scheduled a cancellation
+        if (cancelJustScheduled) {
+          const { data: profileForNotify } = await supabaseAdmin
+            .from("profiles")
+            .select("subscription_tier")
+            .eq("user_id", targetUserId)
+            .single();
+          const customerInfo = await fetchCustomerInfo(stripe, (subscription.customer as string) || null);
+          const interval = subscription.items?.data?.[0]?.price?.recurring?.interval ?? null;
+          await sendAdminNotification("cancel_scheduled", {
+            customerName: customerInfo.name,
+            customerEmail: customerInfo.email,
+            tier: profileForNotify?.subscription_tier ?? "N/A",
+            billingPeriod: interval ?? "N/A",
+            periodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+          });
+        }
+
         break;
       }
 
@@ -553,6 +642,15 @@ serve(async (req) => {
           deletedUserId = profile.user_id;
         }
 
+        // Capture previous tier BEFORE we reset to "free"
+        const { data: prevProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("subscription_tier")
+          .eq("user_id", deletedUserId)
+          .single();
+        const previousTier = prevProfile?.subscription_tier ?? "N/A";
+        const interval = subscription.items?.data?.[0]?.price?.recurring?.interval ?? null;
+
         // Reset to free tier
         await supabaseAdmin
           .from("profiles")
@@ -569,6 +667,18 @@ serve(async (req) => {
           .eq("user_id", deletedUserId);
 
         logStep("Subscription expired, reset to free tier", { userId: deletedUserId });
+
+        // Notify admin: subscription ended (immediate cancel or end of period)
+        {
+          const customerInfo = await fetchCustomerInfo(stripe, (subscription.customer as string) || null);
+          await sendAdminNotification("subscription_ended", {
+            customerName: customerInfo.name,
+            customerEmail: customerInfo.email,
+            tier: previousTier,
+            billingPeriod: interval ?? "N/A",
+          });
+        }
+
         break;
       }
 
