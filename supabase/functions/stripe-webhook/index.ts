@@ -19,6 +19,7 @@ const APP_ID = "konyviro";
 const TIER_LIMITS: Record<string, { projectLimit: number; monthlyWordLimit: number; storybookLimit: number }> = {
   hobby: { projectLimit: 5, monthlyWordLimit: 100000, storybookLimit: 1 },
   writer: { projectLimit: 50, monthlyWordLimit: 250000, storybookLimit: 5 },
+  agency: { projectLimit: 250, monthlyWordLimit: 1250000, storybookLimit: 25 },
   pro: { projectLimit: -1, monthlyWordLimit: -1, storybookLimit: 999 },
 };
 
@@ -147,7 +148,8 @@ serve(async (req) => {
                   if (resendKey) {
                     const tierNames: Record<string, string> = {
                       hobby: "Hobbi",
-                      writer: "Író",
+                      writer: "Profi",
+                      agency: "Ügynökség",
                       pro: "Profi"
                     };
                     const periodNames: Record<string, string> = {
@@ -363,6 +365,7 @@ serve(async (req) => {
             const tierNamesAdmin: Record<string, string> = {
               hobby: "Hobbi",
               writer: "Profi",
+              agency: "Ügynökség",
               pro: "Pro"
             };
             const periodNamesAdmin: Record<string, string> = {
@@ -370,8 +373,8 @@ serve(async (req) => {
               yearly: "éves"
             };
             const tierPricesAdmin = billingPeriod === "yearly" 
-              ? { hobby: 29940, writer: 89940, pro: 179940 }
-              : { hobby: 4990, writer: 14990, pro: 29990 };
+              ? { hobby: 59990, writer: 119990, agency: 359990, pro: 179940 }
+              : { hobby: 9990, writer: 19990, agency: 59990, pro: 29990 };
 
             // Get customer info for the email
             let customerEmailForAdmin = "N/A";
