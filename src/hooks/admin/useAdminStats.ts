@@ -62,6 +62,7 @@ export function useAdminStats() {
         free: 0,
         hobby: 0,
         writer: 0,
+        agency: 0,
         pro: 0,
       };
 
@@ -72,7 +73,7 @@ export function useAdminStats() {
         }
       });
 
-      const activeSubscriptions = tierCounts.hobby + tierCounts.writer + tierCounts.pro;
+      const activeSubscriptions = tierCounts.hobby + tierCounts.writer + tierCounts.agency + tierCounts.pro;
 
       // Total projects and words by subscription tier
       const { data: projectStats } = await supabase
@@ -146,7 +147,8 @@ export function useAdminStats() {
       const subscriptionDistribution = [
         { name: "Ingyenes", count: tierCounts.free, percentage: totalSubs ? Math.round((tierCounts.free / totalSubs) * 100) : 0, color: "#6b7280" },
         { name: "Hobbi", count: tierCounts.hobby, percentage: totalSubs ? Math.round((tierCounts.hobby / totalSubs) * 100) : 0, color: "#3b82f6" },
-        { name: "Író", count: tierCounts.writer, percentage: totalSubs ? Math.round((tierCounts.writer / totalSubs) * 100) : 0, color: "#8b5cf6" },
+        { name: "Profi", count: tierCounts.writer, percentage: totalSubs ? Math.round((tierCounts.writer / totalSubs) * 100) : 0, color: "#8b5cf6" },
+        { name: "Ügynökség", count: tierCounts.agency, percentage: totalSubs ? Math.round((tierCounts.agency / totalSubs) * 100) : 0, color: "#10b981" },
         { name: "Pro", count: tierCounts.pro, percentage: totalSubs ? Math.round((tierCounts.pro / totalSubs) * 100) : 0, color: "#f59e0b" },
       ];
 
@@ -155,12 +157,14 @@ export function useAdminStats() {
       const booksChange = booksLastMonth ? Math.round(((booksThisMonth || 0) - booksLastMonth) / booksLastMonth * 100) : 0;
 
       // Monthly revenue (estimated from subscription tiers)
-      const hobbyPrice = 4990;
-      const writerPrice = 14990;
+      const hobbyPrice = 9990;
+      const writerPrice = 19990;
+      const agencyPrice = 59990;
       const proPrice = 29990;
       const monthlyRevenue = 
         tierCounts.hobby * hobbyPrice + 
         tierCounts.writer * writerPrice + 
+        tierCounts.agency * agencyPrice + 
         tierCounts.pro * proPrice;
 
       // Get active users (users who updated projects today)
@@ -179,7 +183,7 @@ export function useAdminStats() {
         new Date(u.created_at) < startOfMonth
       );
       
-      const lastMonthTiers: Record<string, number> = { hobby: 0, writer: 0, pro: 0 };
+      const lastMonthTiers: Record<string, number> = { hobby: 0, writer: 0, agency: 0, pro: 0 };
       lastMonthUsers.forEach((u: { subscription_tier: string; subscription_status: string }) => {
         if (u.subscription_status === "active" && lastMonthTiers[u.subscription_tier] !== undefined) {
           lastMonthTiers[u.subscription_tier]++;
@@ -189,6 +193,7 @@ export function useAdminStats() {
       const lastMonthRevenue = 
         lastMonthTiers.hobby * hobbyPrice + 
         lastMonthTiers.writer * writerPrice + 
+        lastMonthTiers.agency * agencyPrice + 
         lastMonthTiers.pro * proPrice;
       
       const revenueChange = lastMonthRevenue > 0 
@@ -196,7 +201,7 @@ export function useAdminStats() {
         : 0;
 
       // Calculate subscriptions change
-      const lastMonthSubs = lastMonthTiers.hobby + lastMonthTiers.writer + lastMonthTiers.pro;
+      const lastMonthSubs = lastMonthTiers.hobby + lastMonthTiers.writer + lastMonthTiers.agency + lastMonthTiers.pro;
       const subscriptionsChange = lastMonthSubs > 0
         ? Math.round(((activeSubscriptions - lastMonthSubs) / lastMonthSubs) * 100)
         : 0;
