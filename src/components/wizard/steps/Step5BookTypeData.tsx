@@ -145,7 +145,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
           value={[length]}
           onValueChange={([v]) => setLength(v)}
           min={10000}
-          max={50000}
+          max={100000}
           step={5000}
         />
       </div>
@@ -214,7 +214,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -268,7 +268,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -337,7 +337,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -404,7 +404,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -471,7 +471,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -558,7 +558,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -692,7 +692,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={10000} max={100000} step={5000} />
       </div>
     </>
   );
@@ -830,7 +830,7 @@ export function Step5BookTypeData({ bookType, initialData, onSubmit }: Step5Book
 
       <div className="space-y-2">
         <Label>Tervezett hosszúság: {(length / 1000).toFixed(0)}k szó</Label>
-        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={15000} max={50000} step={5000} />
+        <Slider value={[length]} onValueChange={([v]) => setLength(v)} min={15000} max={100000} step={5000} />
       </div>
 
       <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-4 space-y-4">
