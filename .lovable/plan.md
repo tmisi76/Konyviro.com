@@ -1,61 +1,48 @@
+
+# Admin értesítések: új előfizetés + lemondás
+
 ## Cél
+Minden új előfizetésnél **és** minden lemondásnál (akár azonnali, akár időszak végi) admin értesítő email menjen a **hello@freedombiznisz.hu** címre.
 
-Áremelés és új ÜGYNÖKSÉG csomag bevezetése. Az INGYENES csomag eltüntetése a publikus oldalakról. Meglévő előfizetők ára nem változik (Stripe automatikusan grandfatherezi a régi `price_id`-kat — csak az új feliratkozók kapják az új árakat, mert új `price_id`-okat hozunk létre).
+## Jelenlegi állapot
+- A `stripe-webhook` Edge Function már most küld admin emailt új előfizetésnél (`checkout.session.completed`), de **a `tmisi76@gmail.com` címre**.
+- **Lemondásnál nincs értesítés** — sem a `customer.subscription.updated` (cancel_at_period_end=true), sem a `customer.subscription.deleted` ágban.
+- A `cancel-subscription` Edge Function (a felhasználói lemondás belépési pontja) szintén nem küld admin emailt.
+- A küldés Resend API-n keresztül történik, közvetlen `fetch` hívással (lásd memória: `edge-functions/email-sending-standard`).
+- Feladó: `KönyvÍró <noreply@digitalisbirodalom.hu>` (már bevált).
 
-## Új árak
+## Módosítások
 
-| Csomag | Havi | Éves | Projekt | AI szó/hó | Mesekönyv/hó |
-|---|---|---|---|---|---|
-| HOBBI | 9.990 Ft | 59.990 Ft | 5 | 100.000 | 1 |
-| PROFI | 19.990 Ft | 119.990 Ft | 50 | 250.000 | 5 |
-| **ÜGYNÖKSÉG (új)** | 59.990 Ft | 359.990 Ft | **250** | **1.250.000** | **25** |
+### 1) `supabase/functions/stripe-webhook/index.ts`
 
-ÜGYNÖKSÉG = 5× a PROFI limitjei.
+**a) Új előfizetés email címzettjének cseréje**
+- A 445. sorban a `to: ["tmisi76@gmail.com"]` helyett `to: ["hello@freedombiznisz.hu"]`.
 
-## Lépések
+**b) Lemondás-értesítő hozzáadása — `customer.subscription.updated` ágban**
+- A `subscription.cancel_at_period_end === true` és **az új update** flag (azaz az előző állapotban még nem volt cancel) esetén küldjünk emailt.
+- Detektálás: `event.data.previous_attributes?.cancel_at_period_end === false && subscription.cancel_at_period_end === true` → "Időszak végi lemondás" típus.
+- Email tartalma: felhasználó neve, email, csomag (tier), időszak (havi/éves), lemondás dátuma, **érvényesség vége** (`current_period_end`), típus: "Időszak végi lemondás".
 
-### 1. Új Stripe árak létrehozása
-Új `price_id`-okat hozok létre Stripe-ban (a meglévő termékekhez új price-okat, illetve egy új ÜGYNÖKSÉG terméket):
-- HOBBI havi 9.990 Ft, HOBBI éves 59.990 Ft (új price-ok meglévő termékhez)
-- PROFI havi 19.990 Ft, PROFI éves 119.990 Ft (új price-ok meglévő termékhez)
-- ÜGYNÖKSÉG új termék + havi 59.990 Ft + éves 359.990 Ft price-ok
+**c) Lemondás-értesítő hozzáadása — `customer.subscription.deleted` ágban**
+- Minden végleges törlésnél (azonnali cancel, vagy a periódus lejárta után) küldjünk emailt.
+- Email tartalma: felhasználó neve, email, korábbi csomag, dátum, típus: "Előfizetés véglegesen megszűnt".
 
-A régi `price_id`-okat **nem töröljük** — a meglévő előfizetők változatlan áron futnak tovább.
+**d) Közös segédfüggvény (DRY)**
+- Egy `sendAdminNotification(type, data)` helper a fájl tetejére, ami a Resend hívást és a HTML sablon-választást összefogja. Kerüli a kódduplikációt a 3 értesítési típusnál (új / időszak végi lemondás / végleges lemondás).
 
-### 2. `src/types/subscription.ts`
-- INGYENES csomag → `isHidden: true` (vagy eltávolítás a publikus listáról)
-- HOBBI: új árak + új `monthlyPriceId` / `yearlyPriceId`
-- PROFI (writer): új árak + új price ID-k
-- Új `agency` tier hozzáadása: `id: "agency"`, név: "ÜGYNÖKSÉG", limitek 5× PROFI
-- `SubscriptionTier` típus bővítése: `"agency"` hozzáadása
-- Az "Alapító -50%" badge logikát eltávolítjuk a pricing oldalról (mert az új árak már a teljes árak)
+**e) HTML sablonok**
+- 3 sablon: új előfizetés (zöld 🎉), időszak végi lemondás (sárga ⚠️ "Lemondás bejelentve"), végleges lemondás (piros ❌ "Előfizetés megszűnt"). Konzisztens stílus a meglévő admin email design-nal.
 
-### 3. `supabase/functions/stripe-webhook/index.ts`
-- `TIER_LIMITS` bővítése `agency: { projectLimit: 250, monthlyWordLimit: 1250000, storybookLimit: 25 }`
-- `tierNames` és `tierPricesAdmin` bővítése az ÜGYNÖKSÉG-gel és új árakkal
-
-### 4. `src/components/settings/PlanComparisonModal.tsx`
-- `PRICE_IDS` frissítése új ID-kkal + `agency` hozzáadása
-- `TIER_ORDER` bővítése `"agency"`-vel
-- Típuscast-ek `"hobby" | "writer" | "pro" | "agency"`
-
-### 5. `src/hooks/useCheckout.ts` és `src/components/pricing/PricingSection.tsx`
-- Tier típusok kiegészítése `"agency"`-vel
-- Pricing oldal rácsa 4 oszlopra (lg:grid-cols-4) hogy a 3 fizetős csomag elférjen (ingyenes nélkül 3 csomag → `lg:grid-cols-3`)
-- INGYENES kártya nem jelenik meg
-
-### 6. Pricing card visual
-- ÜGYNÖKSÉG kártya distinctive színt kap (pl. arany/secondary), megjelölve "Csapatoknak / Ügynökségeknek"
-- A "Legnépszerűbb" badge marad PROFI-n
-
-### 7. Magyar formázás
-A HOBBI havi 9.990 Ft, éves 59.990 Ft → `monthlyEquivalent` az éves árhoz: "(havi 4.999 Ft)" stb.
+### Pontos címzett
+- Minden 3 típusnál: `to: ["hello@freedombiznisz.hu"]`.
 
 ## Mit NEM csinálunk
-- Nem migráljuk a meglévő előfizetőket — ők maradnak a régi price-on (Stripe ezt automatikusan kezeli)
-- Nem töröljük a régi Stripe price-okat
-- Az adatbázisban a `subscription_tier` enumot nem korlátozza CHECK constraint, így nem kell migráció — `"agency"` szöveg simán beíródik
+- A `cancel-subscription` Edge Function-t nem módosítjuk: az csak Stripe-on hív `subscriptions.update({cancel_at_period_end: true})`-t, ami **automatikusan kiváltja** a `customer.subscription.updated` webhook eseményt — így a webhook-ban elég egyszer kezelni.
+- Nem érintjük a felhasználó felé menő emaileket (welcome, completion stb.).
+- Nem váltunk át Lovable Email infrastruktúrára (a Resend + `digitalisbirodalom.hu` feladó már stabilan működik a projekten).
+
+## Érintett fájl
+- `supabase/functions/stripe-webhook/index.ts` (1 fájl, ~3 új email-blokk + 1 helper függvény)
 
 ## Megerősítendő
-- Az ÜGYNÖKSÉG csomag features listája (a PROFI-éhoz képest mit emeljünk ki külön: pl. "Csapat együttműködés", "Prioritás támogatás", "Több párhuzamos generálás"?)
-- Ha jó a default: 5× projekt + 5× szó + 5× mesekönyv + minden PROFI feature + "Ügynökségi prioritás támogatás" + "Csapat hozzáférés (collaboration)"
+- A **régi** `tmisi76@gmail.com` címre is menjen a tájékoztatás párhuzamosan, vagy **csak** a `hello@freedombiznisz.hu` legyen a címzett? (Alapértelmezetten csak az új címet állítom be, a régit lecserélem.)
