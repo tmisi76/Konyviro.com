@@ -150,6 +150,7 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
       ? `Generálj 3 egyedi OKNYOMOZÓ TÉNYFELTÁRÓ KÖNYV ötletet a következő paraméterek alapján:
 ${storyDescriptionClause}
 ${bookTypeContext}
+${researchBlock}
 
 Téma: ${subcategory}
 Hangnem: ${tone}
