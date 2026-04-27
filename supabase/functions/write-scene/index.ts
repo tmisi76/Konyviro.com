@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { loadSeriesContext, buildSeriesContextPrompt } from "../_shared/series-context.ts";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
@@ -340,7 +341,15 @@ serve(async (req) => {
     }
 
     const basePrompt = PROMPTS[genre] || PROMPTS.fiction;
-    const systemPrompt = basePrompt + fictionStylePrompt + stylePrompt;
+    // Series context (if this project belongs to a series, inject canonical world / characters / events)
+    let seriesPrompt = "";
+    try {
+      const seriesCtx = await loadSeriesContext(supabase, projectId);
+      seriesPrompt = buildSeriesContextPrompt(seriesCtx);
+    } catch (e) {
+      console.error("Failed to load series context", e);
+    }
+    const systemPrompt = basePrompt + fictionStylePrompt + stylePrompt + seriesPrompt;
 
     // Calculate effective target words (from request or scene outline)
     const effectiveTargetWords = targetSceneWords || sceneOutline.target_words || 500;

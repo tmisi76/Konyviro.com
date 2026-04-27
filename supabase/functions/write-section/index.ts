@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { loadSeriesContext, buildSeriesContextPrompt } from "../_shared/series-context.ts";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
@@ -538,6 +539,15 @@ serve(async (req) => {
       if (styleProfile?.style_summary) {
         systemPrompt += buildStylePrompt(styleProfile as Record<string, unknown>);
       }
+    }
+
+    // Series context — if this project belongs to a series, inject canonical world / characters / events
+    try {
+      const seriesCtx = await loadSeriesContext(supabaseClient, projectId);
+      const seriesPrompt = buildSeriesContextPrompt(seriesCtx);
+      if (seriesPrompt) systemPrompt += seriesPrompt;
+    } catch (e) {
+      console.error("Failed to load series context", e);
     }
 
     // Build rich context-aware prompt

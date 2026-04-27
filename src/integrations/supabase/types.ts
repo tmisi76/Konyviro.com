@@ -1386,6 +1386,8 @@ export type Database = {
           lector_enabled: boolean
           nonfiction_book_type: string | null
           selected_story_idea: Json | null
+          series_id: string | null
+          series_volume_number: number | null
           status: string
           story_arc: Json | null
           story_idea: string | null
@@ -1434,6 +1436,8 @@ export type Database = {
           lector_enabled?: boolean
           nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
+          series_id?: string | null
+          series_volume_number?: number | null
           status?: string
           story_arc?: Json | null
           story_idea?: string | null
@@ -1482,6 +1486,8 @@ export type Database = {
           lector_enabled?: boolean
           nonfiction_book_type?: string | null
           selected_story_idea?: Json | null
+          series_id?: string | null
+          series_volume_number?: number | null
           status?: string
           story_arc?: Json | null
           story_idea?: string | null
@@ -1644,6 +1650,218 @@ export type Database = {
           status?: string | null
         }
         Relationships: []
+      }
+      series: {
+        Row: {
+          bible: Json
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bible?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bible?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      series_character_arcs: {
+        Row: {
+          arc_summary: string | null
+          created_at: string
+          id: string
+          project_id: string
+          series_character_id: string
+          state_changes: Json
+          volume_number: number
+        }
+        Insert: {
+          arc_summary?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          series_character_id: string
+          state_changes?: Json
+          volume_number: number
+        }
+        Update: {
+          arc_summary?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          series_character_id?: string
+          state_changes?: Json
+          volume_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "series_character_arcs_series_character_id_fkey"
+            columns: ["series_character_id"]
+            isOneToOne: false
+            referencedRelation: "series_characters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      series_characters: {
+        Row: {
+          aliases: string[] | null
+          canonical_data: Json
+          created_at: string
+          first_volume: number | null
+          id: string
+          name: string
+          series_id: string
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[] | null
+          canonical_data?: Json
+          created_at?: string
+          first_volume?: number | null
+          id?: string
+          name: string
+          series_id: string
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[] | null
+          canonical_data?: Json
+          created_at?: string
+          first_volume?: number | null
+          id?: string
+          name?: string
+          series_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "series_characters_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      series_consistency_warnings: {
+        Row: {
+          chapter_id: string | null
+          created_at: string
+          description: string
+          excerpt: string | null
+          id: string
+          project_id: string
+          series_id: string
+          severity: string
+          status: string
+          suggestion: string | null
+          updated_at: string
+          warning_type: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          created_at?: string
+          description: string
+          excerpt?: string | null
+          id?: string
+          project_id: string
+          series_id: string
+          severity?: string
+          status?: string
+          suggestion?: string | null
+          updated_at?: string
+          warning_type: string
+        }
+        Update: {
+          chapter_id?: string | null
+          created_at?: string
+          description?: string
+          excerpt?: string | null
+          id?: string
+          project_id?: string
+          series_id?: string
+          severity?: string
+          status?: string
+          suggestion?: string | null
+          updated_at?: string
+          warning_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "series_consistency_warnings_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      series_events: {
+        Row: {
+          chapter_id: string | null
+          created_at: string
+          event_description: string | null
+          event_title: string
+          id: string
+          importance: string
+          involved_characters: string[] | null
+          project_id: string | null
+          series_id: string
+          sort_order: number
+          volume_number: number | null
+        }
+        Insert: {
+          chapter_id?: string | null
+          created_at?: string
+          event_description?: string | null
+          event_title: string
+          id?: string
+          importance?: string
+          involved_characters?: string[] | null
+          project_id?: string | null
+          series_id: string
+          sort_order?: number
+          volume_number?: number | null
+        }
+        Update: {
+          chapter_id?: string | null
+          created_at?: string
+          event_description?: string | null
+          event_title?: string
+          id?: string
+          importance?: string
+          involved_characters?: string[] | null
+          project_id?: string | null
+          series_id?: string
+          sort_order?: number
+          volume_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "series_events_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "series"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sources: {
         Row: {
