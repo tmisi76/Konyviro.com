@@ -98,6 +98,7 @@ export function Step5StoryDetail({
   onConceptGenerated,
   onAccept,
   authorProfile,
+  fictionStyle,
   nonfictionBookType,
 }: Step5StoryDetailProps) {
   const [concept, setConcept] = useState(existingConcept);
