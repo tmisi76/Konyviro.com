@@ -1,85 +1,175 @@
-## Mit építünk
 
-Egy új **„Könyvsorozat" (Series)** koncepciót, amivel több könyvet egy közös univerzumba lehet kötni. Az AI minden új könyv írásakor automatikusan ismeri az előző kötetek karaktereit, történéseit, helyszíneit, és figyelmeztet, ha ellentmondás keletkezik.
+## Cél
 
-## Felhasználói folyamat
+Két új marketing-erős funkció a szakkönyv-szerzőknek:
 
-1. **Új könyv létrehozásakor** (vagy meglévő könyvnél a Beállításoknál) a wizard első lépésében új kapcsoló: *„Ez egy könyvsorozat része?"*
-   - **Új sorozat indítása** → megadod a sorozat nevét (pl. *„Galaktikus Szövetség"*) és rövid leírását.
-   - **Csatlakozás meglévő sorozathoz** → legördülőből kiválasztod, hányadik kötet ez a sorrendben.
+1. **Kutatás Modul – Tartalom Beolvasás:** A felhasználó beemelheti meglévő blogposztjait, jegyzeteit, PDF-jeit, URL-jeit. Az AI ebből összefüggő szakkönyv-vázlatot és fejezeteket fűz össze.
+2. **AI Tördelő & Borítóstúdió:** Egy gombnyomásra **3 különböző stílusú, 4K (nyomda-minőségű) borítóvariáció** + nyomdakész tipográfiai beállítások (PDF export print-ready profillal).
 
-2. **Dashboard / Saját könyvek**: új „**Sorozataim**" szekció, ahol látod a sorozatokat, a köteteket sorrendben, és a sorozat „bibliáját" (karakterek, helyszínek, idővonal).
+---
 
-3. **Sorozat bibliája** oldal (`/series/:id`):
-   - **Karakterek**: a sorozat összes karaktere egy helyen, melyik kötetben szerepel, fejlődési íve (pl. *„Anna 1. kötet: novice nyomozó → 3. kötet: kapitány"*).
-   - **Helyszínek / Világ**: glossary-szerű lista (pl. *„Nova Prime — fővilág, Galaktikus Szövetség központja"*).
-   - **Idővonal**: kötetenként a fontos események, kronológiailag.
-   - **Konzisztencia napló**: minden olyan AI-figyelmeztetés, amit írás közben kapott a felhasználó.
+## 1) Kutatás Modul – Tartalom Beolvasás (szakkönyv)
 
-4. **Írás közben (új kötet generálása)**:
-   - Az AI minden szcénánál automatikusan megkapja kontextusként a korábbi kötetek **összefoglalóit**, **karakter-állapotát** és a **világ-bibliát**.
-   - Ha karaktert hívnak, az AI az előző kötetekben rögzített néven, kinézettel, beszédstílussal írja meg.
+### Mit lát a felhasználó
+A Kutatás panel tetején új gomb: **„Tartalom hozzáadása"** → modal két fülön:
+- **Szöveg beillesztés**: nagy textarea, akár több blogposzt egymás után (címmel elválasztva)
+- **Fájl feltöltés**: PDF / DOCX / TXT / MD (drag & drop, max 10 fájl, 20 MB / fájl)
+- **URL lista**: blog-URL-ek soronként, az AI letölti és kinyeri a fő tartalmat
 
-5. **Konzisztencia-ellenőrző**:
-   - Egy új „**Konzisztencia ellenőrzés**" gomb a szerkesztőben (és automatikusan minden generált fejezet után).
-   - Az AI összeveti az aktuálisan írt szöveget a sorozat bibliájával, és listázza az ellentmondásokat:
-     > *„Anna szemszíne korábban kék volt, itt zöld."*
-     > *„Az 1. kötetben Géza a Galaktikus Szövetség kapitánya, itt admirálisként szerepel."*
-     > *„A Nova Prime az 1. kötet végén megsemmisült, itt érintetlenként van leírva."*
-   - Egy kattintással a felhasználó elfogadhatja vagy átírhatja a problémás részt.
+A feltöltött nyersanyag a **„Forrásanyagok" (raw_sources)** listában jelenik meg → minden item: cím, kivonat (első 200 karakter), szószám, státusz (`pending` → `extracted` → `analyzed`).
 
-## Mit kap az író motor (technikai szinten)
+Új gomb a lista alatt: **„Szakkönyv-vázlat generálása ebből az anyagból"** → AI:
+1. Témákat klaszterez (mely blogposztok tartoznak össze)
+2. Logikus fejezet-sorrendet javasol
+3. Hiányokat jelez (mit érdemes még hozzáírnia a szerzőnek)
+4. A meglévő wizard `Step6 / outline` lépésbe tölti az eredményt → onnan futhat a normál szakkönyv-író motor
 
-- **Új tábla**: `series` (id, user_id, title, description, bible, created_at).
-  - `bible` mező: JSON, AI által karbantartott összefoglaló (világ-szabályok, főbb helyszínek, kulcstémák).
-- **Új tábla**: `series_characters` — a karakterek a sorozathoz kötődnek, nem csak egy könyvhöz. Egy karakter több kötetben szerepelhet, kötetenként rögzíthető a fejlődési íve (`series_character_arcs`).
-- **Új tábla**: `series_events` — kötetenkénti fontos események idővonala (kötet sorszám, fejezet, esemény leírása, érintett karakterek).
-- **Új tábla**: `series_consistency_warnings` — AI által észlelt ellentmondások, státusz (új / elfogadva / javítva / figyelmen kívül hagyva).
-- **`projects` tábla** kiegészítés: `series_id` (uuid, nullable), `series_volume_number` (int).
+A scene/section író motor pedig a generálás során a `raw_sources.extracted_text` mezőt is megkapja kontextusként (új blokk a promptban: `--- SAJÁT FORRÁSANYAG ---`), így tényleg a felhasználó stílusát és tényeit használja, nem hallucinál.
 
-## Új edge functions
+### Technikai részletek
 
-- **`generate-series-bible`**: új sorozat indításakor, vagy később bármikor, az AI generálja/frissíti a sorozat bibliáját az eddigi kötetek alapján.
-- **`update-series-bible-on-chapter-complete`**: minden befejezett fejezet után frissíti a karakter-állapotot, idővonalat, helyszín-adatbázist a sorozatban.
-- **`check-series-consistency`**: bemenet egy fejezet/szakasz szövege + sorozat bibliája. Az AI visszaad egy listát az észlelt ellentmondásokról (típus: karakter / cselekmény / helyszín / idővonal, súlyosság, leírás, javaslat).
-- **`get-series-context`**: visszaadja a sorozat összes releváns kontextusát egy adott kötethez (előző kötetek összefoglalói, karakter-állapotok, idővonal) — ezt használja `write-scene` és `write-section`.
+**Új tábla: `raw_sources`**
+| oszlop | típus | megjegyzés |
+|---|---|---|
+| id | uuid PK | |
+| project_id | uuid | |
+| user_id | uuid | RLS |
+| source_kind | text | `text` / `file` / `url` |
+| original_filename | text | |
+| storage_path | text | `project-assets` bucket |
+| title | text | AI által javasolt vagy user-adott |
+| extracted_text | text | tisztított plain-text |
+| word_count | int | |
+| topic_cluster | text | AI által hozzárendelt téma |
+| status | text | `pending` / `extracted` / `analyzed` / `failed` |
+| created_at, updated_at | timestamptz | |
 
-## Változtatások a meglévő motorban
+RLS: a project tulajdonosa CRUD-ol.
 
-- **`write-scene`, `write-section`**: ha a `project.series_id` ki van töltve, a system promptba bekerül egy új szekció:
-  ```
-  --- KÖNYVSOROZAT KONTEXTUS ---
-  Sorozat: {címe}
-  Ez a {N}. kötet.
-  Korábbi kötetek összefoglalói:
-  ...
-  Karakterek aktuális állapota:
-  ...
-  Világ bibliája:
-  ...
-  KÖTELEZŐ: A karakter-nevek, kinézet, képességek, helyszín-leírások MINDEN PONTBAN EGYEZZENEK a fenti adatokkal!
-  ```
-- **`process-next-scene`**: minden fejezet befejezése után automatikusan meghívja a `check-series-consistency`-t, és ha talál ellentmondást, beírja a `series_consistency_warnings` táblába (a felhasználó értesítést kap a szerkesztőben).
-- **`generate-story`** (történet-koncepció): ha sorozat-kötet, a 3 verzió generálásakor is megkapja a sorozat-bibliát, így a generált karakterek és helyszínek egyezni fognak a korábbiakkal.
+**Új edge functions**
+- `ingest-raw-source` – fogadja a feltöltést (text/file/URL). PDF/DOCX → szövegre bontás (`pdf-parse` / `mammoth` esm.sh), URL → a meglévő `fetch-url-metadata` mintára `Readability` modullal. Beírja a `raw_sources` táblába.
+- `analyze-raw-sources` – Lovable AI (`google/gemini-2.5-pro`, nagy kontextus): klaszterezi a témákat, javasol fejezet-struktúrát → visszaad JSON outline-t, amelyet a kliens a meglévő wizard outline-jához fűz hozzá / cserél.
+- A `write-section/index.ts` és `generate-section-outline/index.ts` beolvassa az adott projekt `raw_sources` releváns chunkjait (téma-kulcsszó alapján) és bevágja a promptba.
 
-## Új UI komponensek (rövid lista)
+**Új komponensek**
+- `src/components/research/RawSourceUploader.tsx` – tabs (Szöveg / Fájl / URL)
+- `src/components/research/RawSourcesList.tsx` – lista státuszokkal
+- `src/components/research/GenerateOutlineFromSourcesButton.tsx`
+- `src/hooks/useRawSources.ts`
 
-- `src/pages/Series.tsx` — sorozat-kezelő oldal.
-- `src/pages/SeriesBible.tsx` — egy sorozat bibliája (karakterek / helyszínek / idővonal / figyelmeztetések).
-- `src/components/series/SeriesSelector.tsx` — wizard első lépésébe építve: „Sorozat része?" kapcsoló + új/meglévő.
-- `src/components/series/ConsistencyWarningsPanel.tsx` — szerkesztőben oldalsáv vagy modal a figyelmeztetésekhez.
-- `src/components/series/SeriesBibleEditor.tsx` — a felhasználó manuálisan is szerkesztheti / megerősítheti a bibliát.
-- Dashboard-on (`src/pages/Dashboard.tsx`) új „Sorozataim" szekció, és a `ProjectCard.tsx`-en sorozat-jelzés (pl. *„Galaktikus Szövetség — 2. kötet"*).
+**Storage**
+A meglévő `project-assets` publikus bucket alá: `raw-sources/{projectId}/{uuid}.{ext}`.
 
-## Korlátok / pontosítások
+**Kreditek**
+- Feltöltés / kinyerés: ingyenes
+- AI vázlat-generálás 1000 szó kreditet fogyaszt (per futtatás), a meglévő `use_extra_credits` / `increment_words_generated` logikán keresztül.
 
-- A konzisztencia-ellenőrzés **AI-alapú**, így nem 100% biztos — a felhasználó dönt, hogy elfogadja vagy figyelmen kívül hagyja a figyelmeztetést.
-- A sorozat bibliája **automatikusan frissül**, de a felhasználó bármikor manuálisan is szerkesztheti.
-- Egy könyv **csak egy sorozathoz** tartozhat (legalábbis az első verzióban).
-- A meglévő, nem sorozatba szervezett könyveket utólag is hozzá lehet rendelni egy sorozathoz a beállításokban.
+---
 
-## Eredmény
+## 2) AI Tördelő & Borítóstúdió – 3 db 4K variáció
 
-- Bejelölöd, hogy ez egy sorozat — a következő kötet írásakor az AI automatikusan emlékszik mindenre.
-- Ha véletlenül ellentmondó dolog kerülne be (pl. karakter szemszíne, halott szereplő visszatérése, képesség-eltérés), **azonnal jelez**.
-- Egy átfogó „**sorozat-biblia**" felület, ahol lásd, ki kicsoda, hol járunk a történetben.
+### Mit lát a felhasználó
+
+A Borító Tervezőben (`/cover-designer/:projectId`) a **„Borító Generálása"** gomb mellé új gomb: **„3 variáció generálása (4K)"**. Egy futtatásra **3 különböző stílusú, könyv-arányú (2:3), nagy felbontású (legalább 2048×3072) borítót** ad vissza, mindegyik más megközelítéssel (pl. illusztrált / fotórealisztikus / minimal-typo). A galéria ugyanúgy mutatja őket, kiválasztható a végleges.
+
+A 3 variáció költsége egy összegben kerül kommunikálásra a UI-on, és egyszer lesz levonva a tranzakció elején (ld. lent).
+
+A meglévő `ProjectExport` / `BookExportModal` PDF útvonalához új preset: **„Nyomdakész (Print-ready)"**:
+- A5 / B5 választó
+- belső margók (gutter) automatikus
+- futófejléc + oldalszám páros/páratlan elrendezésben
+- bekezdés-behúzás, özvegy/árva sor minimalizálás CSS-ből
+- automatikus címnegyed (címoldal, copyright, tartalomjegyzék, ajánlás)
+- 300 DPI képek (a kiválasztott 4K borító első oldalként beemelve)
+
+### Technikai részletek
+
+**`generate-cover/index.ts` bővítés**
+- Új request mező: `variations: number` (1 vagy 3, default 1).
+- 3 esetén **3 párhuzamos AI hívás** `Promise.allSettled`-lel, mindegyik más style-promptot kap (`illustrated`, `photographic`, `typographic-minimal`).
+- Modell: `google/gemini-3-pro-image-preview` (Nano Banana Pro, magas minőség). A prompthoz hozzáfűzzük: *„Generate at maximum resolution, book cover 2:3 portrait orientation, print-ready 300 DPI feel, no text artifacts."*
+- Kreditek: `COVER_GENERATION_COST * darabszám` (új konstans `COVER_VARIATIONS_COST = 3 * 2000 = 6000`). Az ellenőrzés ugyanúgy `monthly + extra` balance alapján. Sikertelen variáció esetén a sikeresek arányában csak a tényleg lefutott hívásért von kreditet.
+- Mind feltöltődik a `covers` táblába külön rekordként (hogy egyenként választható legyen).
+
+**Print-ready PDF preset (`export-book/index.ts`)**
+- Új `settings.preset === "print-ready"` ág:
+  - `pageSize`: A5 (default) vagy B5
+  - külön CSS print-szabályok: `@page { margin … }`, `prince-pdf-page-marks`, `widows: 3; orphans: 3`
+  - automatikus ToC + címnegyed beillesztése
+  - a kiválasztott `covers.image_url` (legmagasabb-felbontású) első oldalként beemelve, full-bleed
+- A meglévő DocRaptor / CloudConvert pipeline-t használjuk, a már beállított `DOCRAPTOR_API_KEY` secrettel.
+
+**Új UI komponensek**
+- `src/components/covers/VariationButton.tsx` (a CoverDesigner oldalon)
+- `src/components/export/PrintReadyPresetCard.tsx` (a BookExportModal-ban új tile)
+- A meglévő `ExportSettingsPanel`-ba gond nélkül illeszthető új checkbox / radio.
+
+---
+
+## Üzleti / krediti logika összefoglaló
+
+| Művelet | Költség (szó-kredit) |
+|---|---|
+| Forrás-fájl feltöltés / kinyerés | 0 |
+| AI vázlat-generálás meglévő anyagból | 1 000 |
+| 1 borító (változatlan) | 2 000 |
+| 3 borító csomag (új) | 6 000 |
+| Print-ready PDF export | 0 (csak a normál export-limit) |
+
+A free tier nem érheti el a 3-borító csomagot (üzenet: „Bővíts csomagot vagy vegyél kreditet").
+
+---
+
+## Adatbázis-migráció (összefoglaló)
+
+```sql
+create table public.raw_sources (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null,
+  user_id uuid not null,
+  source_kind text not null check (source_kind in ('text','file','url')),
+  original_filename text,
+  storage_path text,
+  title text,
+  extracted_text text,
+  word_count int default 0,
+  topic_cluster text,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.raw_sources enable row level security;
+-- 4 RLS policy a meglévő projects-mintára (owner CRUD)
+create index on public.raw_sources(project_id);
+```
+
+---
+
+## Érintett fájlok
+
+**Új fájlok**
+- `supabase/functions/ingest-raw-source/index.ts`
+- `supabase/functions/analyze-raw-sources/index.ts`
+- `src/components/research/RawSourceUploader.tsx`
+- `src/components/research/RawSourcesList.tsx`
+- `src/components/research/GenerateOutlineFromSourcesButton.tsx`
+- `src/hooks/useRawSources.ts`
+- `src/components/covers/VariationButton.tsx`
+- `src/components/export/PrintReadyPresetCard.tsx`
+- DB migráció: `raw_sources` tábla + RLS
+
+**Módosított fájlok**
+- `src/components/research/ResearchView.tsx` (új „Forrásanyagok" fül)
+- `src/pages/CoverDesigner.tsx` (3-variáció gomb + galéria)
+- `src/components/export/BookExportModal.tsx` + `ExportSettingsPanel.tsx` (print-ready preset)
+- `supabase/functions/generate-cover/index.ts` (variations param + magasabb felbontás)
+- `supabase/functions/export-book/index.ts` (print-ready preset)
+- `supabase/functions/write-section/index.ts` + `generate-section-outline/index.ts` (`raw_sources` kontextus)
+- `src/constants/credits.ts` (új `COVER_VARIATIONS_COST`, `OUTLINE_FROM_SOURCES_COST`)
+
+---
+
+## Mi marad ki tudatosan
+- A wizardba most nem építjük be a forrás-feltöltést – a Kutatás panelből indul a flow, hogy meglévő projekteknél is működjön. (Később egy lépéssel beilleszthető.)
+- Borító-szerkesztés (inpainting) változatlan marad – a 3-variáció csak generálásra vonatkozik.
+- Hivatalos „nyomda-előírás" (CMYK, kifutó, ICC profil) az első iterációban nem cél – a print-ready PDF a beltartalom + 4K borító szintjén lesz nyomdakész. Ezt később külön lépésben lehet bővíteni.
