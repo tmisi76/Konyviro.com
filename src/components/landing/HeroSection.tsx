@@ -54,7 +54,7 @@ export function HeroSection() {
 
           {/* CTA Buttons */}
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button size="lg" onClick={() => navigate("/auth?mode=register")} className="group w-full px-8 sm:w-auto">
+            <Button size="lg" onClick={() => navigate("/pricing")} className="group w-full px-8 sm:w-auto">
               Ingyenesen kipróbálom
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
