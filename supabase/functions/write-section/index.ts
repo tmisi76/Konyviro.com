@@ -6,6 +6,15 @@ import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown } from "../_shared/quality-checker.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
 import {
+  countCliches,
+  mergeClicheCounts,
+  buildClicheBlocklistPrompt,
+} from "../_shared/cliche-tracker.ts";
+import {
+  validateAndFixCharacterNames,
+  stripChapterTitleDupes,
+} from "../_shared/name-consistency.ts";
+import {
   HUNGARIAN_GRAMMAR_RULES,
   buildCharacterContext,
   buildCharacterNameLock,
