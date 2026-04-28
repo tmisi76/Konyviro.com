@@ -397,6 +397,56 @@ Ha egy karakter neve "John Smith", akkor végig "John Smith" marad, NEM "Smith J
 }
 
 /**
+ * Build a character status lock to prevent dead characters from reappearing as alive.
+ * Also enforces consistent profession/role across the book.
+ */
+export function buildCharacterStatusLock(
+  characters: Array<{
+    name: string;
+    status?: string | null;
+    death_chapter?: number | null;
+    role?: string | null;
+  }> | null
+): string {
+  if (!characters || characters.length === 0) return "";
+
+  const dead = characters.filter(c => c.status === "dead");
+  const missing = characters.filter(c => c.status === "missing");
+  const roleMap = characters.filter(c => c.role && c.role.trim().length > 0);
+
+  const blocks: string[] = [];
+
+  if (dead.length > 0) {
+    blocks.push(
+      "--- HALOTT KARAKTEREK (TILOS ÉLŐKÉNT MEGJELENNI!) ---\n" +
+      dead.map(c =>
+        `• ${c.name} — meghalt${c.death_chapter ? ` a(z) ${c.death_chapter}. fejezetben` : ""}.`
+      ).join("\n") +
+      "\n\nKRITIKUS: Ezek a karakterek NEM jelenhetnek meg élőként, NEM beszélhetnek, NEM cselekedhetnek a jelenben. " +
+      "Ha visszatérést igényel a cselekmény, KIZÁRÓLAG visszaemlékezésként, álomként vagy szellemként, és JELÖLD egyértelműen ('emlékezett', 'álmodta', 'a szellem')."
+    );
+  }
+
+  if (missing.length > 0) {
+    blocks.push(
+      "--- ELTŰNT KARAKTEREK ---\n" +
+      missing.map(c => `• ${c.name} — eltűnt, jelenlegi tartózkodási helye ismeretlen.`).join("\n")
+    );
+  }
+
+  if (roleMap.length > 0) {
+    blocks.push(
+      "--- KARAKTER FOGLALKOZÁS LOCK ---\n" +
+      roleMap.map(c => `• ${c.name}: ${c.role}`).join("\n") +
+      "\n\nA fenti foglalkozások/szerepek SZENTEK. Egyetlen karaktert sem jellemezhetsz más foglalkozással, mint ami fent szerepel."
+    );
+  }
+
+  if (blocks.length === 0) return "";
+  return "\n\n" + blocks.join("\n\n") + "\n";
+}
+
+/**
  * Build POV enforcement rules based on project and scene settings.
  */
 export function buildPOVEnforcement(

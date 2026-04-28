@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -14,6 +15,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const AI_MODEL = await getModelForTask("fast");
     const character = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
@@ -50,7 +52,7 @@ CSAK a JSON választ add vissza.`;
         "Content-Type": "application/json" 
       },
       body: JSON.stringify({ 
-        model: "google/gemini-3-flash-preview", 
+        model: AI_MODEL, 
         max_tokens: 2048,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },

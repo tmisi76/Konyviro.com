@@ -5,6 +5,7 @@ import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { stripMarkdown } from "../_shared/quality-checker.ts";
 import { detectPOVDrift, buildPOVFixInstruction } from "../_shared/pov-detector.ts";
 import {
+import { getModelForTask } from "../_shared/ai-settings.ts";
   countCliches,
   buildClicheLectorInstruction,
 } from "../_shared/cliche-tracker.ts";
@@ -72,6 +73,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("lector");
     const { projectId, chapterId, sceneNumber, originalContent, genre, chapterTitle } = await req.json();
 
     if (!projectId || !chapterId || !originalContent) {
@@ -160,7 +162,7 @@ Add vissza a TELJES JAVÍTOTT jelenetet, semmi mást.`;
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             messages: [
               { role: "system", content: LECTOR_SYSTEM_PROMPT },
               { role: "user", content: userPrompt },

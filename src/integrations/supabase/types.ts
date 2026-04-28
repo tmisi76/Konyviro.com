@@ -744,6 +744,8 @@ export type Database = {
           body_type: string | null
           character_voice: string | null
           created_at: string
+          death_chapter: number | null
+          death_scene_id: string | null
           development_arc: Json | null
           distinguishing_features: string | null
           eye_color: string | null
@@ -762,6 +764,7 @@ export type Database = {
           project_id: string
           role: string
           speech_style: string | null
+          status: string | null
           updated_at: string
         }
         Insert: {
@@ -772,6 +775,8 @@ export type Database = {
           body_type?: string | null
           character_voice?: string | null
           created_at?: string
+          death_chapter?: number | null
+          death_scene_id?: string | null
           development_arc?: Json | null
           distinguishing_features?: string | null
           eye_color?: string | null
@@ -790,6 +795,7 @@ export type Database = {
           project_id: string
           role?: string
           speech_style?: string | null
+          status?: string | null
           updated_at?: string
         }
         Update: {
@@ -800,6 +806,8 @@ export type Database = {
           body_type?: string | null
           character_voice?: string | null
           created_at?: string
+          death_chapter?: number | null
+          death_scene_id?: string | null
           development_arc?: Json | null
           distinguishing_features?: string | null
           eye_color?: string | null
@@ -818,6 +826,7 @@ export type Database = {
           project_id?: string
           role?: string
           speech_style?: string | null
+          status?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1419,6 +1428,7 @@ export type Database = {
           author_profile: Json | null
           background_error: string | null
           background_started_at: string | null
+          bigram_counts: Json | null
           book_type: string | null
           book_type_data: Json | null
           completed_scenes: number | null
@@ -1471,6 +1481,7 @@ export type Database = {
           author_profile?: Json | null
           background_error?: string | null
           background_started_at?: string | null
+          bigram_counts?: Json | null
           book_type?: string | null
           book_type_data?: Json | null
           completed_scenes?: number | null
@@ -1523,6 +1534,7 @@ export type Database = {
           author_profile?: Json | null
           background_error?: string | null
           background_started_at?: string | null
+          bigram_counts?: Json | null
           book_type?: string | null
           book_type_data?: Json | null
           completed_scenes?: number | null

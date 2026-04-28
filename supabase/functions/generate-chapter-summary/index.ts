@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("fast");
     const { chapterId, chapterContent, chapterTitle, genre, characters } = await req.json();
 
     if (!chapterId || !chapterContent) {
@@ -88,7 +90,7 @@ FONTOS SZABÁLYOK:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: AI_MODEL,
         max_tokens: 2048,
         messages: [
           { role: "system", content: systemPrompt },

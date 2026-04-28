@@ -11,7 +11,17 @@ import {
   detectClicheOverflow,
 } from "../_shared/cliche-tracker.ts";
 import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
+import { findInvalidHonorificNames } from "../_shared/name-validator.ts";
 import {
+  extractBigrams,
+  mergeBigrams,
+  loadBigrams,
+  persistBigrams,
+  buildBigramAvoidanceInstruction,
+  BIGRAM_RETRY_THRESHOLD,
+} from "../_shared/bigram-cliche-tracker.ts";
+import {
+import { getModelForTask } from "../_shared/ai-settings.ts";
   NO_MARKDOWN_RULE,
   HUNGARIAN_GRAMMAR_RULES,
   buildStylePrompt,
@@ -26,6 +36,7 @@ import {
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
   buildCharacterIdentityLock,
+  buildCharacterStatusLock,
   buildRecurringNamesLock,
   extractCandidateCharacterNames,
 } from "../_shared/prompt-builder.ts";
@@ -47,6 +58,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("scene");
     const { projectId } = await req.json();
     
     if (!projectId) {
@@ -130,7 +142,7 @@ serve(async (req) => {
     // Fetch characters and style profile for enriched prompts (parallel)
     const [charactersResult, styleProfileResult] = await Promise.all([
       supabase.from("characters")
-        .select("name, role, occupation, backstory, appearance_description, positive_traits, negative_traits, speech_style, development_arc")
+        .select("name, role, occupation, backstory, appearance_description, positive_traits, negative_traits, speech_style, development_arc, status, death_chapter")
         .eq("project_id", projectId),
       supabase.from("user_style_profiles")
         .select("*")
@@ -305,6 +317,13 @@ serve(async (req) => {
     // Identity lock — explicit "who is what" cards
     const identityLock = buildCharacterIdentityLock(charactersResult?.data || null);
 
+    // Status lock — dead/missing characters and profession lock
+    const statusLock = buildCharacterStatusLock(charactersResult?.data || null);
+
+    // Project-wide bigram cliché counts
+    const bookBigrams = await loadBigrams(projectId);
+    const bigramAvoidance = buildBigramAvoidanceInstruction(bookBigrams);
+
     // Recurring names lock — minor characters reused across chapters
     const recurringNamesMap = ((project as { recurring_names?: Record<string, { role?: string; first_chapter?: number }> }).recurring_names) || {};
     const recurringNamesLock = buildRecurringNamesLock(recurringNamesMap);
@@ -354,8 +373,8 @@ ${scene.pov_goal ? `POV karakter célja: ${scene.pov_goal}` : ""}
 ${scene.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${scene.pov_emotion_start}` : ""}
 ${scene.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${scene.pov_emotion_end}` : ""}
 Célhossz: ~${scene.target_words || 1000} szó
-${characterCtx}${nameLock}${identityLock}${recurringNamesLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
-${clicheBlocklist}${titleDupeBan}
+${characterCtx}${nameLock}${identityLock}${statusLock}${recurringNamesLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
+${clicheBlocklist}${bigramAvoidance ? "\n\n" + bigramAvoidance : ""}${titleDupeBan}
 ${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-2000)}` : ""}
 
 CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
@@ -386,7 +405,7 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 8192,
             temperature: aiSettings.temperature,
             frequency_penalty: aiSettings.frequency_penalty,
@@ -521,7 +540,7 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                model: "google/gemini-3-flash-preview",
+                model: AI_MODEL,
                 max_tokens: 8192,
                 temperature: aiSettings.temperature,
                 frequency_penalty: aiSettings.frequency_penalty,
@@ -652,6 +671,37 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
       await supabase.from("chapters").update({ cliche_counts: newCounts }).eq("id", targetChapter.id);
     } catch (e) {
       console.warn("[process-next-scene] Failed to persist cliché counts:", e);
+    }
+
+    // Bigram cliché tracking (project-wide body-part + verb pairs)
+    try {
+      const sceneBigrams = extractBigrams(sceneText);
+      if (Object.keys(sceneBigrams).length > 0) {
+        const merged = mergeBigrams(bookBigrams, sceneBigrams);
+        await persistBigrams(projectId, merged);
+        const overflow = Object.entries(merged).filter(([, n]) => n >= BIGRAM_RETRY_THRESHOLD);
+        if (overflow.length > 0) {
+          console.warn(
+            `[process-next-scene] Bigram overflow:`,
+            overflow.map(([k, n]) => `${k}=${n}`).join(", ")
+          );
+        }
+      }
+    } catch (e) {
+      console.warn("[process-next-scene] Bigram tracking failed:", e);
+    }
+
+    // Hungarian honorific name validation
+    try {
+      const nameIssues = findInvalidHonorificNames(sceneText, registeredNames);
+      if (nameIssues.length > 0) {
+        console.warn(
+          `[process-next-scene] Invalid honorific names:`,
+          nameIssues.map((i) => `${i.invalidName} ${i.honorific}`).join(", ")
+        );
+      }
+    } catch (e) {
+      console.warn("[process-next-scene] Name validation failed:", e);
     }
 
     await supabase

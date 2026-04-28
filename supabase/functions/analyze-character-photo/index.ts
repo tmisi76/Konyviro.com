@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("vision");
     const { imageUrl } = await req.json();
 
     if (!imageUrl) {
@@ -57,7 +59,7 @@ FONTOS: Csak a tiszta JSON objektumot add vissza, semmi mást. Ne használj mark
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: AI_MODEL,
         messages: [
           {
             role: "user",
@@ -148,7 +150,7 @@ FONTOS: Csak a leírást add vissza, semmi mást. Ne használj idézőjeleket a 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: AI_MODEL,
         messages: [
           {
             role: "user",
