@@ -21,9 +21,17 @@ import {
   buildBodyLanguageVarietyRules,
   buildSceneOpeningRules,
   buildAntiRepetitionPrompt,
+  buildCharacterIdentityLock,
+  buildRecurringNamesLock,
+  extractCandidateCharacterNames,
 } from "../_shared/prompt-builder.ts";
 import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
-import { countCliches, mergeClicheCounts, buildClicheBlocklistPrompt } from "../_shared/cliche-tracker.ts";
+import {
+  countCliches,
+  mergeClicheCounts,
+  buildClicheBlocklistPrompt,
+  detectClicheOverflow,
+} from "../_shared/cliche-tracker.ts";
 import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
 
 const corsHeaders = {
@@ -320,7 +328,7 @@ serve(async (req) => {
     let fictionStylePrompt = "";
     const { data: project } = await supabase
       .from("projects")
-      .select("user_id, fiction_style, subcategory")
+      .select("user_id, fiction_style, subcategory, recurring_names")
       .eq("id", projectId)
       .single();
 
@@ -329,7 +337,7 @@ serve(async (req) => {
       project?.user_id
         ? supabase.from("user_style_profiles").select("*").eq("user_id", project.user_id).single()
         : Promise.resolve({ data: null }),
-      supabase.from("characters").select("name, role").eq("project_id", projectId),
+      supabase.from("characters").select("name, role, occupation, backstory, appearance_description").eq("project_id", projectId),
       supabase.from("chapters").select("cliche_counts, title").eq("id", chapterId).single(),
       supabase.from("chapters").select("cliche_counts").eq("project_id", projectId),
     ]);
@@ -344,6 +352,13 @@ serve(async (req) => {
     }
     const clicheBlocklist = buildClicheBlocklistPrompt(bookClicheCounts);
     const dbChapterTitle = (chapterRowResult?.data as { title?: string } | null)?.title || chapterTitle;
+
+    // Recurring names (mid-book minor characters NOT in characters table)
+    const recurringNamesMap = (project?.recurring_names as Record<string, { role?: string; first_chapter?: number }> | null) || {};
+    const recurringNamesLock = buildRecurringNamesLock(recurringNamesMap);
+
+    // Identity lock — explicit "who is what" cards to prevent character-type drift
+    const identityLock = buildCharacterIdentityLock(charactersResult?.data || null);
 
     if (styleProfileResult?.data?.style_summary) {
       stylePrompt = buildStylePrompt(styleProfileResult.data);
@@ -430,7 +445,7 @@ JELENET FELADAT:
 - ÉRZELEM ELEJÉN: ${sceneOutline.pov_emotion_start || 'Semleges'}
 - ÉRZELEM VÉGÉN: ${sceneOutline.pov_emotion_end || 'Változatlan'}
 ${characters ? `\nKARAKTEREK A JELENETBEN:\n${characters}` : ''}
-${nameLock}${povEnforcement}
+${nameLock}${identityLock}${recurringNamesLock}${povEnforcement}
 ${characterHistoryContext}
 ${storyStructure ? `\nTÖRTÉNET KONTEXTUS:\n${typeof storyStructure === 'string' ? storyStructure : JSON.stringify(storyStructure)}` : ''}
 ${scenePositionCtx}${antiSummary}${dialogueVariety}${bodyLanguageVariety}${sceneOpeningRules}${antiRepetition}
@@ -648,10 +663,50 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
     // Post-hoc cleanups: chapter title dupe removal + character name consistency
     content = stripChapterTitleDupes(content, dbChapterTitle);
     const registeredNames = ((charactersResult?.data as Array<{ name: string }> | null) || []).map((c) => c.name);
-    const nameFix = validateAndFixCharacterNames(content, registeredNames);
+    const recurringNameList = Object.keys(recurringNamesMap);
+    const nameFix = validateAndFixCharacterNames(content, registeredNames, recurringNameList);
     if (Object.keys(nameFix.corrections).length > 0) {
       console.log(`[write-scene] Name corrections applied:`, nameFix.corrections);
       content = nameFix.text;
+    }
+
+    // Cliché-overflow hard check: if the scene would push a tracked cliché past
+    // the per-chapter or per-book limit, log it (auto-lector handles substitution).
+    try {
+      const overflow = detectClicheOverflow(content, bookClicheCounts);
+      if (overflow.overflow) {
+        console.warn(`[write-scene] Cliché overflow on scene ${sceneNumber}:`, overflow.details);
+      }
+    } catch (e) {
+      console.warn("[write-scene] Cliché overflow check failed:", e);
+    }
+
+    // Recurring-names tracking: capture recurring proper nouns that are NOT
+    // registered characters but appear repeatedly — store them so future
+    // chapters use the same name (prevents Viktor → Márk drift).
+    try {
+      const candidates = extractCandidateCharacterNames(content);
+      const registeredSet = new Set(registeredNames.map((n) => n.split(/\s+/)[0]));
+      const updates: Record<string, { role?: string; first_chapter?: number }> = { ...recurringNamesMap };
+      let changed = false;
+      for (const cand of candidates) {
+        const firstToken = cand.split(/\s+/)[0];
+        if (firstToken.length < 3) continue;
+        if (registeredSet.has(firstToken)) continue;
+        if (updates[firstToken]) continue; // already tracked
+        // Count occurrences in scene; only promote if mentioned 2+ times
+        const occ = (content.match(new RegExp(`\\b${firstToken}\\b`, "g")) || []).length;
+        if (occ >= 2) {
+          updates[firstToken] = { first_chapter: sceneOutline.chapter_index ? sceneOutline.chapter_index + 1 : undefined };
+          changed = true;
+        }
+      }
+      if (changed) {
+        await supabase.from("projects").update({ recurring_names: updates }).eq("id", projectId);
+        console.log(`[write-scene] Recurring names updated:`, Object.keys(updates));
+      }
+    } catch (e) {
+      console.warn("[write-scene] Recurring names tracking failed:", e);
     }
 
     // Track this scene's cliché counts and persist into the chapter row
