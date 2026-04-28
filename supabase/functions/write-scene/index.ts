@@ -33,6 +33,15 @@ import {
   detectClicheOverflow,
 } from "../_shared/cliche-tracker.ts";
 import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
+import { findInvalidHonorificNames } from "../_shared/name-validator.ts";
+import {
+  extractBigrams,
+  mergeBigrams,
+  loadBigrams,
+  persistBigrams,
+  buildBigramAvoidanceInstruction,
+  BIGRAM_RETRY_THRESHOLD,
+} from "../_shared/bigram-cliche-tracker.ts";
 import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
