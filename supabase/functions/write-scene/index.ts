@@ -22,6 +22,7 @@ import {
   buildSceneOpeningRules,
   buildAntiRepetitionPrompt,
   buildCharacterIdentityLock,
+  buildCharacterStatusLock,
   buildRecurringNamesLock,
   extractCandidateCharacterNames,
 } from "../_shared/prompt-builder.ts";
