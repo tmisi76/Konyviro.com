@@ -463,11 +463,11 @@ JELENET FELADAT:
 - ÉRZELEM ELEJÉN: ${sceneOutline.pov_emotion_start || 'Semleges'}
 - ÉRZELEM VÉGÉN: ${sceneOutline.pov_emotion_end || 'Változatlan'}
 ${characters ? `\nKARAKTEREK A JELENETBEN:\n${characters}` : ''}
-${nameLock}${identityLock}${recurringNamesLock}${povEnforcement}
+${nameLock}${identityLock}${statusLock}${recurringNamesLock}${povEnforcement}
 ${characterHistoryContext}
 ${storyStructure ? `\nTÖRTÉNET KONTEXTUS:\n${typeof storyStructure === 'string' ? storyStructure : JSON.stringify(storyStructure)}` : ''}
 ${scenePositionCtx}${antiSummary}${dialogueVariety}${bodyLanguageVariety}${sceneOpeningRules}${antiRepetition}
-${clicheBlocklist}${titleDupeBan}
+${clicheBlocklist}${bigramAvoidance ? "\n\n" + bigramAvoidance : ""}${titleDupeBan}
 ${previousContent ? `\nELŐZŐ SZÖVEG (a folytonosság érdekében, NE ismételd!):\n${previousContent.slice(-3000)}` : ''}
 
 HOSSZ: ~${effectiveTargetWords} szó. Ne lépd túl jelentősen!
