@@ -703,3 +703,84 @@ SZIGORÚ SZABÁLYOK:
 - A koncepció és a karakterlista MINDEN előfordulásánál pontosan ezeket a neveket használd.
 ---`;
 }
+
+/**
+ * Build a per-character "identity lock" — explicit one-line cards stating
+ * WHO each character IS (human / mermaid / wizard / villager / detective…)
+ * and importantly, WHAT THEY ARE NOT. Prevents the AI from drifting between
+ * chapters and re-casting an ordinary human as a magical being (or vice versa).
+ */
+export function buildCharacterIdentityLock(
+  characters: Array<{
+    name: string;
+    role?: string | null;
+    occupation?: string | null;
+    backstory?: string | null;
+    appearance_description?: string | null;
+  }> | null
+): string {
+  if (!characters || characters.length === 0) return "";
+
+  const cards = characters
+    .filter((c) => c?.name)
+    .map((c) => {
+      const bits: string[] = [];
+      if (c.role) bits.push(c.role);
+      if (c.occupation) bits.push(c.occupation);
+      if (c.appearance_description) {
+        const short = c.appearance_description.length > 140
+          ? c.appearance_description.slice(0, 140).trim() + "…"
+          : c.appearance_description.trim();
+        bits.push(short);
+      }
+      if (c.backstory) {
+        const short = c.backstory.length > 220
+          ? c.backstory.slice(0, 220).trim() + "…"
+          : c.backstory.trim();
+        bits.push(`háttér: ${short}`);
+      }
+      const summary = bits.length > 0 ? bits.join(" | ") : "(nincs profil — tartsd meg az eddigi ábrázolását)";
+      return `• ${c.name} — ${summary}`;
+    })
+    .join("\n");
+
+  return `\n\n--- KARAKTER-IDENTITÁS ZÁR (NEM KEVERHETŐK ÖSSZE!) ---
+Minden karakter pontosan AZ, ami a profiljában szerepel. TILOS őket más típusú lénnyé átalakítani fejezetek közt!
+${cards}
+
+SZIGORÚ SZABÁLYOK:
+- Ha egy karakter a profil szerint EMBER, akkor végig ember marad — NEM válik sellővé, vámpírrá, varázslóvá, idegenné, vagy bármilyen mágikus lénnyé.
+- Ha egy karakter a profil szerint TENGERI LÉNY / MÁGIKUS / NEM-EMBER, akkor a fizikai jellemzőit (pikkelyek, kopoltyú, mágia stb.) végig meg kell tartani — NEM lehet hirtelen átlagos emberré tenni.
+- Ha az egyik karakter testi jellemzőit egy másik karakterre ráruháznád (pl. "ezüstös pikkelyek a kulcscsontján"), STOP — ellenőrizd a profilt: melyik karakteré az a tulajdonság?
+- Ha a profil hiányos vagy ellentmondásos, az ELSŐ FEJEZETBEN bemutatott identitás a mérvadó — végig azt tartsd.
+---`;
+}
+
+/**
+ * Build a "recurring minor characters" lock from a project.recurring_names map.
+ * The map records names that appear in 2+ chapters but are NOT registered
+ * in the characters table (e.g. a fiancé briefly mentioned by name).
+ * The shape: `{ "Viktor": { role: "Eszter pesti vőlegénye", first_chapter: 1 } }`
+ */
+export function buildRecurringNamesLock(
+  recurring: Record<string, { role?: string; first_chapter?: number }> | null | undefined
+): string {
+  if (!recurring) return "";
+  const entries = Object.entries(recurring).filter(([n]) => !!n && n.trim().length > 0);
+  if (entries.length === 0) return "";
+
+  const lines = entries.map(([name, info]) => {
+    const role = info?.role ? ` — ${info.role}` : "";
+    const ch = info?.first_chapter ? ` (${info.first_chapter}. fejezetben bevezetve)` : "";
+    return `• ${name}${role}${ch}`;
+  });
+
+  return `\n\n--- VISSZATÉRŐ MELLÉKKARAKTEREK NEVEI (KÖTELEZŐ!) ---
+Az alábbi nevek már szerepeltek korábbi fejezetekben. Ha rájuk hivatkozol, PONTOSAN ezeken a neveken nevezd őket — NE találj ki új nevet ugyanannak a karakternek!
+${lines.join("\n")}
+
+TILOS:
+- Egy korábban "Viktor"-ként bemutatott szereplőt később "Márk"-nak vagy más néven hívni.
+- Új nevet adni egy mellékkarakternek, akit korábban már megneveztél.
+---`;
+}
