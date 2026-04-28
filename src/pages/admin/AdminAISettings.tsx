@@ -222,6 +222,67 @@ export default function AdminAISettings() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        {/* Task-specific AI Models */}
+        <Card className="border-primary/40 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              Feladat-szintű AI modellek
+              <Badge variant="default" className="ml-2 bg-primary">✓ Aktív</Badge>
+            </CardTitle>
+            <CardDescription>
+              Minden AI feladathoz külön modell rendelhető. Alapértelmezetten minden a Pro modellen fut a maximális minőségért. A 'fast' és 'vision' Flash-en marad költséghatékonyság miatt.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {TASK_DEFINITIONS.map(task => (
+                <div key={task.key} className="space-y-2">
+                  <Label className="font-medium">{task.label}</Label>
+                  <p className="text-xs text-muted-foreground">{task.description}</p>
+                  <Select
+                    value={settings.task_models[task.key]}
+                    onValueChange={(value) => {
+                      setSettings(prev => ({
+                        ...prev,
+                        task_models: { ...prev.task_models, [task.key]: value },
+                      }));
+                      setHasChanges(true);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AI_MODELS.map(model => (
+                        <SelectItem key={model.id} value={model.id}>
+                          <div className="flex flex-col">
+                            <span>{model.name}</span>
+                            <span className="text-xs text-muted-foreground">{model.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 pt-4 border-t">
+              <Switch
+                id="pro-fallback"
+                checked={settings.pro_fallback_to_flash}
+                onCheckedChange={(checked) => {
+                  setSettings(prev => ({ ...prev, pro_fallback_to_flash: checked }));
+                  setHasChanges(true);
+                }}
+              />
+              <Label htmlFor="pro-fallback" className="cursor-pointer">
+                Automatikus Flash fallback ha a Pro modell rate-limitet kap (ajánlott)
+              </Label>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Default Model */}
         <Card className="border-green-500/30">
           <CardHeader>
