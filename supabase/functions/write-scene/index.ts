@@ -349,7 +349,7 @@ serve(async (req) => {
       project?.user_id
         ? supabase.from("user_style_profiles").select("*").eq("user_id", project.user_id).single()
         : Promise.resolve({ data: null }),
-      supabase.from("characters").select("name, role, occupation, backstory, appearance_description").eq("project_id", projectId),
+      supabase.from("characters").select("name, role, occupation, backstory, appearance_description, status, death_chapter").eq("project_id", projectId),
       supabase.from("chapters").select("cliche_counts, title").eq("id", chapterId).single(),
       supabase.from("chapters").select("cliche_counts").eq("project_id", projectId),
     ]);
@@ -371,6 +371,12 @@ serve(async (req) => {
 
     // Identity lock — explicit "who is what" cards to prevent character-type drift
     const identityLock = buildCharacterIdentityLock(charactersResult?.data || null);
+    // Status lock — prevent dead characters from reappearing as alive, lock professions
+    const statusLock = buildCharacterStatusLock(charactersResult?.data || null);
+
+    // Load project-wide bigram cliché counts and build avoidance instruction
+    const bookBigrams = await loadBigrams(projectId);
+    const bigramAvoidance = buildBigramAvoidanceInstruction(bookBigrams);
 
     if (styleProfileResult?.data?.style_summary) {
       stylePrompt = buildStylePrompt(styleProfileResult.data);
