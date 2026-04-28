@@ -28,6 +28,15 @@ const AI_MODELS = [
 
 const SUBSCRIPTION_TIERS = ['free', 'hobby', 'writer', 'agency', 'pro'] as const;
 
+const TASK_DEFINITIONS = [
+  { key: 'ai_model_scene', label: 'Jelenetírás (scene)', description: 'A könyvprózát generáló kritikus modell — drága de minőségi.' },
+  { key: 'ai_model_structural', label: 'Struktúra (story / outline / karakter)', description: 'Cselekmény-, fejezet- és karakter-generálás.' },
+  { key: 'ai_model_lector', label: 'Lektor (auto-lector / refine)', description: 'Stílus-finomítás és klisé-eltávolítás.' },
+  { key: 'ai_model_quality', label: 'Minőség-ellenőrzés (audit / fact-check)', description: 'Név-konzisztencia és tényellenőrzés.' },
+  { key: 'ai_model_fast', label: 'Gyors taskok (recap / summary / voice)', description: 'Rövid metaadat-generálás — itt a Flash költséghatékonyabb.' },
+  { key: 'ai_model_vision', label: 'Képelemzés (vision)', description: 'Karakter- és borítóelemzés képből.' },
+] as const;
+
 interface AISettings {
   default_model: string;
   available_models: string[];
@@ -36,6 +45,8 @@ interface AISettings {
   presence_penalty: number;
   token_limits: Record<string, number>;
   tier_models: Record<string, string[]>;
+  task_models: Record<string, string>;
+  pro_fallback_to_flash: boolean;
 }
 
 const DEFAULT_SETTINGS: AISettings = {
@@ -55,7 +66,16 @@ const DEFAULT_SETTINGS: AISettings = {
     hobby: ["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash"],
     writer: ["google/gemini-2.5-flash", "google/gemini-2.5-pro", "openai/gpt-5-mini"],
     pro: AI_MODELS.map(m => m.id)
-  }
+  },
+  task_models: {
+    ai_model_scene: "google/gemini-3-pro-preview",
+    ai_model_structural: "google/gemini-3-pro-preview",
+    ai_model_lector: "google/gemini-3-pro-preview",
+    ai_model_quality: "google/gemini-3-pro-preview",
+    ai_model_fast: "google/gemini-3-flash-preview",
+    ai_model_vision: "google/gemini-2.5-flash",
+  },
+  pro_fallback_to_flash: true,
 };
 
 export default function AdminAISettings() {
@@ -74,7 +94,16 @@ export default function AdminAISettings() {
         frequency_penalty: savedSettings.ai_frequency_penalty ?? DEFAULT_SETTINGS.frequency_penalty,
         presence_penalty: savedSettings.ai_presence_penalty ?? DEFAULT_SETTINGS.presence_penalty,
         token_limits: savedSettings.ai_token_limits || DEFAULT_SETTINGS.token_limits,
-        tier_models: savedSettings.ai_tier_models || DEFAULT_SETTINGS.tier_models
+        tier_models: savedSettings.ai_tier_models || DEFAULT_SETTINGS.tier_models,
+        task_models: {
+          ai_model_scene: savedSettings.ai_model_scene || DEFAULT_SETTINGS.task_models.ai_model_scene,
+          ai_model_structural: savedSettings.ai_model_structural || DEFAULT_SETTINGS.task_models.ai_model_structural,
+          ai_model_lector: savedSettings.ai_model_lector || DEFAULT_SETTINGS.task_models.ai_model_lector,
+          ai_model_quality: savedSettings.ai_model_quality || DEFAULT_SETTINGS.task_models.ai_model_quality,
+          ai_model_fast: savedSettings.ai_model_fast || DEFAULT_SETTINGS.task_models.ai_model_fast,
+          ai_model_vision: savedSettings.ai_model_vision || DEFAULT_SETTINGS.task_models.ai_model_vision,
+        },
+        pro_fallback_to_flash: savedSettings.ai_pro_fallback_to_flash ?? DEFAULT_SETTINGS.pro_fallback_to_flash,
       });
     }
   }, [savedSettings]);
@@ -123,7 +152,14 @@ export default function AdminAISettings() {
         ai_frequency_penalty: settings.frequency_penalty,
         ai_presence_penalty: settings.presence_penalty,
         ai_token_limits: settings.token_limits,
-        ai_tier_models: settings.tier_models
+        ai_tier_models: settings.tier_models,
+        ai_model_scene: settings.task_models.ai_model_scene,
+        ai_model_structural: settings.task_models.ai_model_structural,
+        ai_model_lector: settings.task_models.ai_model_lector,
+        ai_model_quality: settings.task_models.ai_model_quality,
+        ai_model_fast: settings.task_models.ai_model_fast,
+        ai_model_vision: settings.task_models.ai_model_vision,
+        ai_pro_fallback_to_flash: settings.pro_fallback_to_flash,
       });
       toast.success("AI beállítások mentve!");
       setHasChanges(false);
