@@ -15,6 +15,7 @@ import {
   stripChapterTitleDupes,
 } from "../_shared/name-consistency.ts";
 import {
+import { getModelForTask } from "../_shared/ai-settings.ts";
   HUNGARIAN_GRAMMAR_RULES,
   buildCharacterContext,
   buildCharacterNameLock,
@@ -426,6 +427,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const AI_MODEL = await getModelForTask("scene");
     const { projectId, chapterId, sectionNumber, sectionOutline, previousContent, bookTopic, targetAudience, chapterTitle, genre, authorProfile, previousChapterSummaries } = await req.json();
     if (!projectId || !chapterId || !sectionOutline) return new Response(JSON.stringify({ error: "Hiányzó mezők" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -775,7 +777,7 @@ CSAK a szekció szövegét add vissza, mindenféle bevezető vagy záró komment
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 8192,
             temperature: aiSettings.temperature,
             frequency_penalty: aiSettings.frequency_penalty,

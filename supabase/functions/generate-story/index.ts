@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { extractCandidateCharacterNames, buildExtractedNameLock, NATIONALITY_GUIDE } from "../_shared/prompt-builder.ts";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const NARRATIVE_STYLES = [
   {
@@ -290,6 +291,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("structural");
     // ========== AUTHENTICATION CHECK ==========
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -498,7 +500,7 @@ Készíts ebből egy részletes, bestseller-minőségű történet vázlatot a m
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 8000,
             temperature: aiSettings.temperature,
             frequency_penalty: aiSettings.frequency_penalty,

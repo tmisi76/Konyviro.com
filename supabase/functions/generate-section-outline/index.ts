@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { repairAndParseJSON } from "../_shared/json-utils.ts";
 import { getAISettings } from "../_shared/ai-settings.ts";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -68,6 +69,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const AI_MODEL = await getModelForTask("structural");
     const { projectId, chapterId, chapterTitle, chapterSummary, bookTopic, targetAudience, genre, chapterType } = await req.json();
     if (!projectId || !chapterId) return new Response(JSON.stringify({ error: "projectId és chapterId szükséges" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -192,7 +194,7 @@ KÖTELEZŐ SZEKCIÓK:
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 6000,
             temperature: aiSettings.temperature,
             frequency_penalty: aiSettings.frequency_penalty,

@@ -12,6 +12,7 @@ import {
 } from "../_shared/cliche-tracker.ts";
 import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
 import {
+import { getModelForTask } from "../_shared/ai-settings.ts";
   NO_MARKDOWN_RULE,
   HUNGARIAN_GRAMMAR_RULES,
   buildStylePrompt,
@@ -47,6 +48,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("scene");
     const { projectId } = await req.json();
     
     if (!projectId) {
@@ -386,7 +388,7 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 8192,
             temperature: aiSettings.temperature,
             frequency_penalty: aiSettings.frequency_penalty,
@@ -521,7 +523,7 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
                 "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                model: "google/gemini-3-flash-preview",
+                model: AI_MODEL,
                 max_tokens: 8192,
                 temperature: aiSettings.temperature,
                 frequency_penalty: aiSettings.frequency_penalty,

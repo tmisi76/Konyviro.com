@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildInvestigativeResearchBlock } from "../_shared/prompt-builder.ts";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +14,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("structural");
     // ========== AUTHENTICATION CHECK ==========
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -254,7 +256,7 @@ VÁLASZOLJ ÉRVÉNYES JSON FORMÁTUMBAN:
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 2000,
             messages: [
               { role: "system", content: systemPrompt },

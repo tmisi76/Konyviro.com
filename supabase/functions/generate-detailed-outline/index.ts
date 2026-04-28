@@ -4,6 +4,7 @@ import { repairAndParseJSON, validateSceneOutline } from "../_shared/json-utils.
 import { getAISettings } from "../_shared/ai-settings.ts";
 import { buildNewCharacterNamingGuide } from "../_shared/prompt-builder.ts";
 import { buildInvestigativeResearchBlock } from "../_shared/prompt-builder.ts";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 
@@ -11,6 +12,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const AI_MODEL = await getModelForTask("structural");
     // ========== AUTHENTICATION CHECK ==========
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -155,7 +157,7 @@ Válaszolj CSAK JSON tömbként:
             "Content-Type": "application/json" 
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 4096,
             temperature: aiSettings.temperature,
             frequency_penalty: aiSettings.frequency_penalty,

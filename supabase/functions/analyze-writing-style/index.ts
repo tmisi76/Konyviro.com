@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +24,7 @@ serve(async (req) => {
   );
 
   try {
+    const AI_MODEL = await getModelForTask("fast");
     logStep("Function started");
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -111,7 +113,7 @@ Csak a JSON-t add vissza, semmi mást!`;
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: 1500,
             messages: [
               { role: "system", content: "Te egy irodalmi elemző vagy. Elemezd a szövegeket és adj strukturált visszajelzést JSON formátumban." },

@@ -33,6 +33,7 @@ import {
   detectClicheOverflow,
 } from "../_shared/cliche-tracker.ts";
 import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -299,6 +300,7 @@ serve(async (req) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("scene");
     const { projectId, chapterId, sceneNumber, sceneOutline, previousContent, characters, storyStructure, genre, chapterTitle, subcategory, targetSceneWords, characterHistory } = await req.json();
     
     if (!projectId || !chapterId || !sceneOutline) {
@@ -476,7 +478,7 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: AI_MODEL,
             max_tokens: dynamicMaxTokens,
             temperature: aiSettings.temperature,
             frequency_penalty: aiSettings.frequency_penalty,
@@ -628,7 +630,7 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              model: "google/gemini-3-flash-preview",
+              model: AI_MODEL,
               max_tokens: dynamicMaxTokens,
               temperature: aiSettings.temperature,
               frequency_penalty: aiSettings.frequency_penalty,

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getModelForTask } from "../_shared/ai-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,6 +64,7 @@ serve(async (req: Request) => {
   }
 
   try {
+    const AI_MODEL = await getModelForTask("quality");
     // ===== AUTH =====
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -224,7 +226,7 @@ Válaszolj CSAK egy JSON tömbbel (max 8 issue):
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: AI_MODEL,
             messages: [
               { role: "system", content: "Te egy szigorú könyvszerkesztő vagy. Csak érvényes JSON-nal válaszolj." },
               { role: "user", content: aiPrompt },
