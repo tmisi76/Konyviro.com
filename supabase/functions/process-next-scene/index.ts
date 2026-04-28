@@ -142,7 +142,7 @@ serve(async (req) => {
     // Fetch characters and style profile for enriched prompts (parallel)
     const [charactersResult, styleProfileResult] = await Promise.all([
       supabase.from("characters")
-        .select("name, role, occupation, backstory, appearance_description, positive_traits, negative_traits, speech_style, development_arc")
+        .select("name, role, occupation, backstory, appearance_description, positive_traits, negative_traits, speech_style, development_arc, status, death_chapter")
         .eq("project_id", projectId),
       supabase.from("user_style_profiles")
         .select("*")
