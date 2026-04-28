@@ -4,7 +4,12 @@ import { getAISettings } from "../_shared/ai-settings.ts";
 import { detectRepetition } from "../_shared/repetition-detector.ts";
 import { checkSceneQuality, stripMarkdown, buildQualityRetryPrompt } from "../_shared/quality-checker.ts";
 import { trackUsage } from "../_shared/usage-tracker.ts";
-import { countCliches, mergeClicheCounts, buildClicheBlocklistPrompt } from "../_shared/cliche-tracker.ts";
+import {
+  countCliches,
+  mergeClicheCounts,
+  buildClicheBlocklistPrompt,
+  detectClicheOverflow,
+} from "../_shared/cliche-tracker.ts";
 import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
 import {
   NO_MARKDOWN_RULE,
@@ -20,6 +25,9 @@ import {
   buildAntiSummaryRules,
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
+  buildCharacterIdentityLock,
+  buildRecurringNamesLock,
+  extractCandidateCharacterNames,
 } from "../_shared/prompt-builder.ts";
 
 const corsHeaders = {
@@ -122,7 +130,7 @@ serve(async (req) => {
     // Fetch characters and style profile for enriched prompts (parallel)
     const [charactersResult, styleProfileResult] = await Promise.all([
       supabase.from("characters")
-        .select("name, role, positive_traits, negative_traits, speech_style, development_arc")
+        .select("name, role, occupation, backstory, appearance_description, positive_traits, negative_traits, speech_style, development_arc")
         .eq("project_id", projectId),
       supabase.from("user_style_profiles")
         .select("*")
@@ -294,6 +302,13 @@ serve(async (req) => {
     // Character name lock
     const nameLock = buildCharacterNameLock(charactersResult?.data || null);
 
+    // Identity lock — explicit "who is what" cards
+    const identityLock = buildCharacterIdentityLock(charactersResult?.data || null);
+
+    // Recurring names lock — minor characters reused across chapters
+    const recurringNamesMap = ((project as { recurring_names?: Record<string, { role?: string; first_chapter?: number }> }).recurring_names) || {};
+    const recurringNamesLock = buildRecurringNamesLock(recurringNamesMap);
+
     // POV enforcement
     const povEnforcement = buildPOVEnforcement(
       scene.pov || null,
@@ -339,7 +354,7 @@ ${scene.pov_goal ? `POV karakter célja: ${scene.pov_goal}` : ""}
 ${scene.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${scene.pov_emotion_start}` : ""}
 ${scene.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${scene.pov_emotion_end}` : ""}
 Célhossz: ~${scene.target_words || 1000} szó
-${characterCtx}${nameLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
+${characterCtx}${nameLock}${identityLock}${recurringNamesLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
 ${clicheBlocklist}${titleDupeBan}
 ${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-2000)}` : ""}
 
@@ -581,10 +596,46 @@ CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró komment�
     // Post-hoc cleanups: chapter title dupe + character name consistency
     sceneText = stripChapterTitleDupes(sceneText, targetChapter.title);
     const registeredNames = (charactersResult?.data || []).map((c: { name: string }) => c.name);
-    const nameFix = validateAndFixCharacterNames(sceneText, registeredNames);
+    const recurringNameList = Object.keys(recurringNamesMap);
+    const nameFix = validateAndFixCharacterNames(sceneText, registeredNames, recurringNameList);
     if (Object.keys(nameFix.corrections).length > 0) {
       console.log(`[process-next-scene] Name corrections applied:`, nameFix.corrections);
       sceneText = nameFix.text;
+    }
+
+    // Cliché overflow check (logging only; auto-lector substitutes)
+    try {
+      const overflow = detectClicheOverflow(sceneText, bookClicheCounts);
+      if (overflow.overflow) {
+        console.warn(`[process-next-scene] Cliché overflow:`, overflow.details);
+      }
+    } catch (e) {
+      console.warn("[process-next-scene] Cliché overflow check failed:", e);
+    }
+
+    // Recurring-names tracking — capture mid-book minor names not in characters table
+    try {
+      const candidates = extractCandidateCharacterNames(sceneText);
+      const registeredSet = new Set(registeredNames.map((n: string) => n.split(/\s+/)[0]));
+      const updates: Record<string, { role?: string; first_chapter?: number }> = { ...recurringNamesMap };
+      let changed = false;
+      for (const cand of candidates) {
+        const firstToken = cand.split(/\s+/)[0];
+        if (firstToken.length < 3) continue;
+        if (registeredSet.has(firstToken)) continue;
+        if (updates[firstToken]) continue;
+        const occ = (sceneText.match(new RegExp(`\\b${firstToken}\\b`, "g")) || []).length;
+        if (occ >= 2) {
+          updates[firstToken] = { first_chapter: (targetChapter.sort_order ?? 0) + 1 };
+          changed = true;
+        }
+      }
+      if (changed) {
+        await supabase.from("projects").update({ recurring_names: updates }).eq("id", projectId);
+        console.log(`[process-next-scene] Recurring names updated:`, Object.keys(updates));
+      }
+    } catch (e) {
+      console.warn("[process-next-scene] Recurring names tracking failed:", e);
     }
 
     const wordCount = sceneText.split(/\s+/).length;

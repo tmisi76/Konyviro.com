@@ -1436,6 +1436,7 @@ export type Database = {
           last_activity_at: string | null
           lector_enabled: boolean
           nonfiction_book_type: string | null
+          recurring_names: Json
           selected_story_idea: Json | null
           series_id: string | null
           series_volume_number: number | null
@@ -1487,6 +1488,7 @@ export type Database = {
           last_activity_at?: string | null
           lector_enabled?: boolean
           nonfiction_book_type?: string | null
+          recurring_names?: Json
           selected_story_idea?: Json | null
           series_id?: string | null
           series_volume_number?: number | null
@@ -1538,6 +1540,7 @@ export type Database = {
           last_activity_at?: string | null
           lector_enabled?: boolean
           nonfiction_book_type?: string | null
+          recurring_names?: Json
           selected_story_idea?: Json | null
           series_id?: string | null
           series_volume_number?: number | null

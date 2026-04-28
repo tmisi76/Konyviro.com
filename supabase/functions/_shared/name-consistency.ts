@@ -71,14 +71,16 @@ function replaceWholeWord(text: string, from: string, to: string): string {
  */
 export function validateAndFixCharacterNames(
   text: string,
-  registeredNames: string[]
+  registeredNames: string[],
+  recurringNames: string[] = []
 ): NameConsistencyResult {
-  if (!text || !registeredNames || registeredNames.length === 0) {
+  const allNames = Array.from(new Set([...(registeredNames || []), ...(recurringNames || [])])).filter(Boolean);
+  if (!text || allNames.length === 0) {
     return { text, corrections: {}, unmatched: [] };
   }
 
   const candidates = extractCandidateCharacterNames(text);
-  const registry = buildRegistry(registeredNames);
+  const registry = buildRegistry(allNames);
   const corrections: Record<string, string> = {};
   const unmatched: string[] = [];
   let fixed = text;
