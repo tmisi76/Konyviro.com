@@ -1,52 +1,180 @@
-# AI minőségi javítások: identitás-zár, névkonzisztencia, klisé-irtás
+# Teljes Gemini 3 Pro váltás + kódszintű minőségvédelmek
 
-A felhasználói visszajelzés három kritikus AI-hibát azonosított: (1) karakter-identitás összemosás (Korfu — Luca ember vs. tengeri lény), (2) mellékkarakter-név elfelejtése a fejezetek közt (Tihany — Viktor → Márk), (3) testi-reakció klisék túlzott ismétlődése (torka kiszáradt, vér dübörgött, hideg futott végig).
+## Cél
 
-## Mit építünk
+Minden szöveg-generáló AI hívás váltson `google/gemini-3-pro-preview`-ra (kivéve a kép-modellek, amik már a megfelelő pro image modellt használják). Emellett bevezetjük a kódszintű védelmeket, amik a klisé-ismétlés, név-keverés és „feltámadó halott" típusú hibákat modelltől függetlenül megfogják.
 
-### 1. Karakter-identitás zár (új)
-A `characters` tábla már tárolja a `role`-t, `appearance_description`-t, `backstory`-t. Új prompt-blokk minden jelenetgenerálásban: minden főszereplőre egysoros „identitás-kártya" — KI ő (ember/sellő/varázsló/stb.), MI a titka, és MI NEM ő. Ezt a `buildCharacterIdentityLock()` helper építi, és a write-scene + process-next-scene + write-section system promptba kerül a name-lock közelébe, EXPLICIT tiltással: „TILOS Lucát mágikus lénynek ábrázolni, ha a profilja szerint ember."
+## Várható eredmény
 
-### 2. Mellékkarakter-név perzisztencia
-Jelenleg a `validateAndFixCharacterNames` csak a `characters` táblában regisztrált neveket védi. Probléma: a vőlegény (Viktor) gyakran nincs külön karakterként rögzítve, csak a story_idea-ban / előző fejezet szövegében szerepel. Két lépés:
+- Strukturális hibák (Ahogy atya, Camille Lef, Berg háromféle foglalkozás): **megszűnnek** (Pro intelligencia + kódvédelem)
+- Klisé-ismétlés („nyaki ütőerén megrebbent a bőr" 29×): **megszűnik** (bigram-tracker)
+- Feltámadó halott (Lars): **megszűnik** (status-lock)
+- Csomag-árrés: HOBBI ~76%, PROFI ~73% (worst case), realisztikus ~84-85%
 
-- **a)** A `process-next-scene` és `write-scene` minden generálás után kinyeri a NEM-regisztrált, de 2+ fejezetben visszatérő neveket egy új `project.recurring_names` JSONB mezőbe (név → első előfordulás fejezete + 1 mondatos szerepkör-leírás).
-- **b)** A következő jelenet promptja ezt a recurring-name listát is megkapja KÖTELEZŐ használatként: „Eszter vőlegényét Viktornak hívják (3. fejezetben bevezetve) — végig így nevezd."
-- **c)** A `validateAndFixCharacterNames` is használja ezt a listát Levenshtein-fuzzy javításra (Márk → Viktor, ha hasonló pozícióban szerepel).
+## 1. Központi modell-konfiguráció
 
-### 3. Megerősített klisé-kontroll
-A `cliche-tracker.ts` már létezik (8 tracked klisé, per-book limit 3, per-chapter 1), de a felhasználó szerint a limit nem érvényesül elég szigorúan. Javítások:
+### Új modul: `supabase/functions/_shared/ai-settings.ts` bővítés
 
-- **Limit szigorítás**: per-book limit 3 → **2**, per-chapter 1 → **1** (változatlan).
-- **Új klisék felvétele a tracker listára**: „halántéka lüktetett", „lába elgyengült", „ujjai elfehéredtek", „pulzusa felszökött", „nyelt egy nagyot" — összesen 13 tracked phrase.
-- **Generálás közbeni hard-stop**: ha a generált jelenet egy már limit-elért klisét tartalmaz, a write-scene **automatikusan újrapróbálja** (eddigi retry mechanizmussal, max 1 extra próba) ahelyett, hogy csak az auto-lectorra bízná. A `quality-checker`-be új kritérium: `clicheOverflow`.
-- **Rotációs pool a promptban**: a klisé-blocklist kibővül egy 25 elemű ALTERNATÍVA listával, amit a tiltások mellé teszünk: „Feszültség jelzésére használhatod: térde elgyengült / nyelvét a szájpadláshoz nyomta / füle zúgni kezdett / bordái között feszült érzés / ujjpercei elfehéredtek a szorítástól / …"
-- **Auto-lector már létező klisé-csere instrukciója** változatlan, de a kibővített listához igazodik.
+A meglévő `getAISettings()` mellé adunk egy `getDefaultModel()` és `getModelForTask(task)` függvényt:
 
-### 4. Karakter-tic monitor (kis kiegészítés)
-A `chapters.character_appearances` JSONB-be új mező: `repeated_gestures` (string[]). Ha egy karakter ugyanazt a gesztust 3+ fejezetben elköveti („mellkasához szorította a naplót"), a következő scene promptja figyelmeztet: „Anna már 3× mellkasához szorította a naplót — variálj."
+```ts
+export type AITask =
+  | "scene"            // jelenetírás
+  | "structural"       // story, outline, karakter
+  | "lector"           // auto-lektor, refine
+  | "quality"          // quality-check, audit
+  | "fast"             // chapter-recap, summary, voice
+  | "vision";          // image analysis
 
-## Mit NEM csinálunk most (későbbi javaslat)
-- Hosszkontroll-növelés (default 70k szó standalone romance-re) — külön kérésre.
-- Sequel-hook flag (standalone vs. sorozat) — a series_id már létezik, ezt később kötjük be.
+export async function getModelForTask(task: AITask): Promise<string> { ... }
+```
 
-## Érintett fájlok
+A függvény a `system_settings` táblából olvas (pl. `ai_model_scene`, `ai_model_structural`, ...), default érték minden taskhoz: **`google/gemini-3-pro-preview`** (kivéve `vision` → `gemini-2.5-flash`, `fast` → `gemini-3-flash-preview` költségoptimalizációért).
 
-**Edge function shared modulok:**
-- `supabase/functions/_shared/cliche-tracker.ts` — limit, új klisék, alternatíva pool
-- `supabase/functions/_shared/prompt-builder.ts` — új `buildCharacterIdentityLock()`, recurring-names blokk
-- `supabase/functions/_shared/name-consistency.ts` — recurring_names támogatás
-- `supabase/functions/_shared/quality-checker.ts` — clicheOverflow kritérium
+### DB migráció: új `system_settings` kulcsok
 
-**Író motor:**
-- `supabase/functions/write-scene/index.ts` — identitás-lock injektálás, recurring_names olvasás+írás, klisé hard-retry
-- `supabase/functions/process-next-scene/index.ts` — ugyanaz
-- `supabase/functions/write-section/index.ts` — identitás-lock + klisé-blocklist (csak prompt szinten)
-- `supabase/functions/auto-lector/index.ts` — kibővített klisé-csere
+```sql
+INSERT INTO system_settings (key, value, description) VALUES
+  ('ai_model_scene', '"google/gemini-3-pro-preview"', 'Jelenet- és fejezetírás modellje'),
+  ('ai_model_structural', '"google/gemini-3-pro-preview"', 'Story, outline, karakter generálás'),
+  ('ai_model_lector', '"google/gemini-3-pro-preview"', 'Auto-lektor és refine'),
+  ('ai_model_quality', '"google/gemini-3-pro-preview"', 'Quality checker, audit'),
+  ('ai_model_fast', '"google/gemini-3-flash-preview"', 'Rövid összefoglalók, fast tasks'),
+  ('ai_model_vision', '"google/gemini-2.5-flash"', 'Képelemzés')
+ON CONFLICT (key) DO NOTHING;
+```
 
-**Adatbázis migráció:**
-- `projects.recurring_names` JSONB DEFAULT `'{}'::jsonb`
-- `chapters.character_appearances` séma kiegészítés (kompatibilis, csak új optional mező)
+## 2. Edge function-ök modell-cseréje
 
-## Tesztelés
-Telepítés után új generálás indítása (Korfu-szerű setup ember főhőssel + idegen mágikus mellékszereplővel) — ellenőrzés: a 2. fejezet promptja tartalmazza-e az identitás-lockot, és a generált szöveg nem keveri-e össze. Klisé-számláló logok ellenőrzése a `[write-scene]` és `[auto-lector]` outputban.
+Minden hardcoded `model:` érték `await getModelForTask(...)`-ra cserélődik:
+
+| Edge function | Jelenlegi modell | Új task |
+|---|---|---|
+| `write-scene` (479, 631) | flash-preview | `scene` → **Pro** |
+| `write-section` (778) | flash-preview | `scene` → **Pro** |
+| `process-next-scene` (389, 524) | flash-preview | `scene` → **Pro** |
+| `generate-story` (501) | flash-preview | `structural` → **Pro** |
+| `generate-story-ideas` (257) | flash-preview | `structural` → **Pro** |
+| `generate-chapter-outline` (226) | flash-preview | `structural` → **Pro** |
+| `generate-detailed-outline` (158) | flash-preview | `structural` → **Pro** |
+| `generate-section-outline` (195) | flash-preview | `structural` → **Pro** |
+| `auto-lector` (163) | flash-preview | `lector` → **Pro** |
+| `refine-chapter` (155) | flash-preview | `lector` → **Pro** |
+| `audit-name-consistency` (227) | gemini-2.5-flash | `quality` → **Pro** |
+| `check-series-consistency` | flash-preview | `quality` → **Pro** |
+| `fact-check` (34) | flash-preview | `quality` → **Pro** |
+| `book-coach` (173) | flash-preview | `structural` → **Pro** |
+| `generate-storybook` (182) | flash-preview | `structural` → **Pro** |
+| `ai-continue-text` (139) | gemini-2.5-pro | `scene` → **Pro** |
+| `suggest-plot-twists` (139) | gemini-2.5-pro | `structural` → **Pro** |
+| `analyze-raw-sources` (173) | gemini-2.5-pro | `structural` → **Pro** |
+| `chapter-recap` (141) | gemini-2.5-flash | `fast` → marad Flash (csak rövid összefoglaló) |
+| `generate-chapter-summary` (91) | flash-preview | `fast` → marad Flash |
+| `generate-character-voice` (53) | flash-preview | `fast` → marad Flash |
+| `analyze-writing-style` (114) | flash-preview | `fast` → marad Flash |
+| `analyze-character-photo` (60, 151) | gemini-2.5-flash | `vision` → marad Flash |
+| `generate-cover` / `edit-cover-inpainting` | image-preview | nem érintett |
+| `generate-storybook-illustration` | image | nem érintett |
+
+## 3. Kódszintű minőségvédelmek
+
+### 3.1 Karakternév-validátor (`_shared/name-validator.ts` – új)
+
+- **Magyar funkciószó-feketelista**: `ahogy, csak, pedig, akár, hiszen, viszont, ugyan, bárcsak, talán, mégis, illetve, miközben, ahogyan, mintha, ámbár, jóllehet, akármeddig` – ha ezek bármelyike próbál tulajdonnévvé válni → **STOP, regenerálás**.
+- **Megszólítás-konstrukció**: regex `\b([A-ZÁÉÍÓÖŐÚÜŰ][a-záéíóöőúüű]+)\s+(atya|néni|bácsi|úr|asszony|kisasszony|mester|főnök|főnyomozó)\b` után ellenőrzi, hogy az `[A-ZÁÉÍÓÖŐÚÜŰ]...` egyezik-e a `characters` táblával vagy a `recurring_names`-szel; ha nem, és funkciószó → flag + regenerálás kérés.
+- Beépítés: `write-scene` és `process-next-scene` post-write fázisában a `validateAndFixCharacterNames` mellé.
+
+### 3.2 Karakter-státusz lock (`characters.status` mező)
+
+DB migráció:
+
+```sql
+ALTER TABLE characters
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'alive' CHECK (status IN ('alive', 'dead', 'unknown')),
+  ADD COLUMN IF NOT EXISTS death_chapter INTEGER,
+  ADD COLUMN IF NOT EXISTS death_scene_id UUID;
+```
+
+A `prompt-builder.ts`-ben új `buildCharacterStatusLock()` függvény, ami minden halott karakterre kötelező instrukciót illeszt a system promptba:
+
+> KRITIKUS: [Név] a [X]. fejezetben meghalt. NE jelenjen meg élő szereplőként! Ha visszatérést igényel a cselekmény, használj kísértetet/álmot/visszaemlékezést és JELÖLD egyértelműen.
+
+Új edge function: `validate-character-status` – minden scene után 1 kis Flash hívás eldönti, hogy a jelenetben volt-e karakterhalál; ha igen, frissíti a `characters.status`-t és `death_chapter`-t.
+
+### 3.3 Karakter-foglalkozás lock
+
+A `characters` táblában már van `role` mező. Új post-scene ellenőrzés: regex-eljük a `[Név] (a|az) (polgármester|rendőr|tanító|orvos|ügyvéd|...)` mintát. Ha ugyanaz a név két különböző foglalkozással jelenik meg → flag a `quality_issues` táblába + automatikus refine pass.
+
+### 3.4 Bigram-klisé tracker (`_shared/bigram-cliche-tracker.ts` – új)
+
+A meglévő `cliche-tracker.ts` 13 előre definiált kifejezést kezel. Az új modul **dinamikusan** számolja a `[testrész]+[ige]` 4-grammokat:
+
+- **Testrész szótár**: nyak, mellkas, gyomor, torok, halánték, tarkó, kéz, ujj, láb, térd, váll, hát, fej, szem, száj, ajak, fül, tüdő, bőr, vér
+- **Ige szótár**: megrebben, kifeszül, összeszorul, lüktet, dübörög, elgyengül, belesüpped, megreszket, kiszárad, görcsöl, megremeg, megfeszül, elsápad, elpirul, izzad, fagy
+
+Algoritmus:
+1. Minden új scene után tokenizáljuk a szöveget.
+2. Megkeressük a `[testrész szó (~5 token ablak)] [ige]` mintákat.
+3. Eltároljuk a `projects.bigram_counts` JSONB mezőben (új DB oszlop).
+4. Ha egy bigramm > 4 a könyvben → a következő scene system promptjába: **"TILOS bigramm: [X]. Eddig [N]× szerepelt. Találj ki teljesen más testi reakciót."**
+5. Ha egy bigramm > 6 → automatikus regenerálás (mint a meglévő `clicheOverflow` esetén).
+
+DB migráció:
+
+```sql
+ALTER TABLE projects
+  ADD COLUMN IF NOT EXISTS bigram_counts JSONB DEFAULT '{}'::jsonb;
+```
+
+### 3.5 Speciális karakter (Unicode) megőrzés a fejezetcímekben
+
+A `generate-chapter-outline` és `generate-section-outline` system promptjához:
+
+> A karakterneveket TELJES UTF-8 formában add vissza (ékezetek, è, é, à, ô, ñ stb. mind kötelező). A nevek SOHA ne legyenek csonkítva. Ha a karakter teljes neve "Camille Lefèvre", akkor a fejezetcímben is így szerepeljen.
+
+Plusz post-process ellenőrzés: a generált fejezetcímekben szereplő szóköz-elválasztott szavakat összevetjük a `characters` tábla neveivel; ha egy cím-szó egy karakternév prefixe (Levenshtein < 3, és a karakternév hosszabb), automatikusan kicseréljük a teljes névre.
+
+## 4. Admin UI bővítés
+
+`src/pages/admin/AdminAISettings.tsx`:
+
+- **6 új dropdown** task-onként (scene, structural, lector, quality, fast, vision) — admin override-olhatja az alapértelmezést.
+- **Költség-becslő widget**: az utolsó 30 nap `user_usage` adatai alapján mutatja, mennyibe kerülne a teljes generálás Pro modellel vs Flash-sel (becsült $).
+- **Per-user override** opció (jövőbeli, nem most): pl. egy user-nek Claude.
+
+`src/hooks/useAIModel.ts` bővítése: már nem egy default modell, hanem 6 task-modell.
+
+## 5. Bevezetési sorrend
+
+1. **DB migrációk** (system_settings kulcsok, characters.status, characters.death_chapter, projects.bigram_counts)
+2. **Shared modulok** (`_shared/ai-settings.ts` bővítés, `_shared/name-validator.ts`, `_shared/bigram-cliche-tracker.ts`)
+3. **Prompt-builder** bővítés (status-lock, foglalkozás-lock, Unicode megőrzés)
+4. **Edge function-ök modell-cseréje** (mind 28 érintett függvény, batch deploy)
+5. **`validate-character-status`** új edge function
+6. **Admin UI** bővítés
+7. Memory frissítés: új AI-stratégia memória bejegyzés
+
+## 6. Költség-monitoring
+
+Új admin widget már a bevezetés előtt mutatni fogja az utolsó 7 nap várható költségét Pro modellel. Ha valaki látja, hogy egy power-user 50+ könyvet ír egy hónapban, manuálisan tudja át-állítani Flash-re egy meglévő admin setting-en keresztül.
+
+## Érintett fájlok összesítve
+
+**Új fájlok (4):**
+- `supabase/functions/_shared/name-validator.ts`
+- `supabase/functions/_shared/bigram-cliche-tracker.ts`
+- `supabase/functions/validate-character-status/index.ts`
+- DB migráció (1 SQL fájl)
+
+**Módosított fájlok (~32):**
+- `supabase/functions/_shared/ai-settings.ts` (modell-task mapping)
+- `supabase/functions/_shared/prompt-builder.ts` (status + foglalkozás lock)
+- 28 edge function modell-cseréje (lásd táblázat)
+- `src/pages/admin/AdminAISettings.tsx`
+- `src/hooks/useAIModel.ts`
+
+## Mit kérdezek vissza implementáció előtt
+
+1. Akarod-e a **Flash fallback retry**-t? Ha a Pro modell rate-limitet kap (429), automatikusan próbálja meg Flash-en, hogy a felhasználó ne ragadjon le? (Ajánlott igen — a Pro kvóta alacsonyabb, a Flash bevágódik mentőcsónaknak.)
+2. A **`fast` task** (chapter-recap, voice, summary, style-elemzés) maradhat-e Flash-en? Ezek nem érintik a könyv prózáját, csak metaadatot generálnak — Pro itt feleslegesen drága lenne. (Ajánlott: maradjon Flash.)
+3. Akarod-e, hogy a **bigram-tracker küszöbei admin-állíthatók** legyenek (jelenleg 4 = warning, 6 = retry)? Vagy hardcoded?
