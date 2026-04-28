@@ -317,6 +317,13 @@ serve(async (req) => {
     // Identity lock — explicit "who is what" cards
     const identityLock = buildCharacterIdentityLock(charactersResult?.data || null);
 
+    // Status lock — dead/missing characters and profession lock
+    const statusLock = buildCharacterStatusLock(charactersResult?.data || null);
+
+    // Project-wide bigram cliché counts
+    const bookBigrams = await loadBigrams(projectId);
+    const bigramAvoidance = buildBigramAvoidanceInstruction(bookBigrams);
+
     // Recurring names lock — minor characters reused across chapters
     const recurringNamesMap = ((project as { recurring_names?: Record<string, { role?: string; first_chapter?: number }> }).recurring_names) || {};
     const recurringNamesLock = buildRecurringNamesLock(recurringNamesMap);
@@ -366,8 +373,8 @@ ${scene.pov_goal ? `POV karakter célja: ${scene.pov_goal}` : ""}
 ${scene.pov_emotion_start ? `Érzelmi állapot a jelenet elején: ${scene.pov_emotion_start}` : ""}
 ${scene.pov_emotion_end ? `Érzelmi állapot a jelenet végén: ${scene.pov_emotion_end}` : ""}
 Célhossz: ~${scene.target_words || 1000} szó
-${characterCtx}${nameLock}${identityLock}${recurringNamesLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
-${clicheBlocklist}${titleDupeBan}
+${characterCtx}${nameLock}${identityLock}${statusLock}${recurringNamesLock}${povEnforcement}${charHistoryCtx}${prevChaptersSummary}${crossChapterContext}${scenePositionCtx}${antiSummary}${dialogueVariety}${antiRepetition}
+${clicheBlocklist}${bigramAvoidance ? "\n\n" + bigramAvoidance : ""}${titleDupeBan}
 ${prevContent ? `\nElőző szöveg folytatása:\n${prevContent.slice(-2000)}` : ""}
 
 CSAK a jelenet szövegét add vissza, mindenféle bevezető vagy záró kommentár nélkül.`;
