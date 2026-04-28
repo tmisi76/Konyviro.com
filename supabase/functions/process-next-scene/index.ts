@@ -11,6 +11,15 @@ import {
   detectClicheOverflow,
 } from "../_shared/cliche-tracker.ts";
 import { validateAndFixCharacterNames, stripChapterTitleDupes } from "../_shared/name-consistency.ts";
+import { findInvalidHonorificNames } from "../_shared/name-validator.ts";
+import {
+  extractBigrams,
+  mergeBigrams,
+  loadBigrams,
+  persistBigrams,
+  buildBigramAvoidanceInstruction,
+  BIGRAM_RETRY_THRESHOLD,
+} from "../_shared/bigram-cliche-tracker.ts";
 import {
 import { getModelForTask } from "../_shared/ai-settings.ts";
   NO_MARKDOWN_RULE,
@@ -27,6 +36,7 @@ import { getModelForTask } from "../_shared/ai-settings.ts";
   buildDialogueVarietyRules,
   buildAntiRepetitionPrompt,
   buildCharacterIdentityLock,
+  buildCharacterStatusLock,
   buildRecurringNamesLock,
   extractCandidateCharacterNames,
 } from "../_shared/prompt-builder.ts";
