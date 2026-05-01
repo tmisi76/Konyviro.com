@@ -15,17 +15,26 @@ import {
   User,
   Archive,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Sparkles,
+  Coins,
+  Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { hu } from "date-fns/locale";
+import { useState } from "react";
 
 import { useProjectDetails } from "@/hooks/admin/useAdminProjects";
+import { useProjectAIUsage } from "@/hooks/admin/useProjectAIUsage";
+import { ChapterContentModal } from "@/components/admin/ChapterContentModal";
+import { formatHuf } from "@/lib/aiCostEstimator";
 
 export default function AdminProjectDetail() {
   const { id } = useParams();
   const { data: project, isLoading } = useProjectDetails(id);
+  const { data: aiUsage } = useProjectAIUsage(id);
+  const [openChapter, setOpenChapter] = useState<any | null>(null);
 
   const handleArchiveProject = async () => {
     toast.info("Archiválás funkció hamarosan...");
