@@ -107,7 +107,7 @@ export default function AdminProjectDetail() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -135,29 +135,80 @@ export default function AdminProjectDetail() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Karakterek
+              <Sparkles className="h-4 w-4" />
+              AI tokenek
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{project.stats.characterCount}</p>
+            <p className="text-2xl font-bold">
+              {(aiUsage?.aggregate.totalTokens ?? 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {(aiUsage?.aggregate.generationCount ?? 0)} generálás
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Létrehozva
+              <Coins className="h-4 w-4" />
+              Becsült AI költség
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-medium">
+            <p className="text-2xl font-bold">{formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">
+              Lovable AI Gateway árazás
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Secondary stats row */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Users className="h-4 w-4" /> Karakterek
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xl font-semibold">{project.stats.characterCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Calendar className="h-4 w-4" /> Létrehozva
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-base font-medium">
               {format(new Date(project.created_at), 'yyyy.MM.dd', { locale: hu })}
             </p>
             <p className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(project.created_at), { addSuffix: true, locale: hu })}
             </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Modell bontás</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1">
+            {Object.keys(aiUsage?.aggregate.byModel || {}).length === 0 ? (
+              <p className="text-muted-foreground">Nincs adat</p>
+            ) : (
+              Object.entries(aiUsage!.aggregate.byModel).map(([model, m]) => (
+                <div key={model} className="flex justify-between gap-2">
+                  <span className="truncate text-muted-foreground" title={model}>
+                    {model.replace(/^[^/]+\//, "")}
+                  </span>
+                  <span className="font-medium whitespace-nowrap">{formatHuf(m.huf)}</span>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
