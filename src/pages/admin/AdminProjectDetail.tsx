@@ -15,17 +15,26 @@ import {
   User,
   Archive,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Sparkles,
+  Coins,
+  Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { hu } from "date-fns/locale";
+import { useState } from "react";
 
 import { useProjectDetails } from "@/hooks/admin/useAdminProjects";
+import { useProjectAIUsage } from "@/hooks/admin/useProjectAIUsage";
+import { ChapterContentModal } from "@/components/admin/ChapterContentModal";
+import { formatHuf, estimateCostHuf } from "@/lib/aiCostEstimator";
 
 export default function AdminProjectDetail() {
   const { id } = useParams();
   const { data: project, isLoading } = useProjectDetails(id);
+  const { data: aiUsage } = useProjectAIUsage(id);
+  const [openChapter, setOpenChapter] = useState<any | null>(null);
 
   const handleArchiveProject = async () => {
     toast.info("Archiválás funkció hamarosan...");
@@ -98,7 +107,7 @@ export default function AdminProjectDetail() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -126,29 +135,80 @@ export default function AdminProjectDetail() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Karakterek
+              <Sparkles className="h-4 w-4" />
+              AI tokenek
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{project.stats.characterCount}</p>
+            <p className="text-2xl font-bold">
+              {(aiUsage?.aggregate.totalTokens ?? 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {(aiUsage?.aggregate.generationCount ?? 0)} generálás
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Létrehozva
+              <Coins className="h-4 w-4" />
+              Becsült AI költség
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-lg font-medium">
+            <p className="text-2xl font-bold">{formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">
+              Lovable AI Gateway árazás
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Secondary stats row */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Users className="h-4 w-4" /> Karakterek
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xl font-semibold">{project.stats.characterCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Calendar className="h-4 w-4" /> Létrehozva
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-base font-medium">
               {format(new Date(project.created_at), 'yyyy.MM.dd', { locale: hu })}
             </p>
             <p className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(project.created_at), { addSuffix: true, locale: hu })}
             </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Modell bontás</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1">
+            {Object.keys(aiUsage?.aggregate.byModel || {}).length === 0 ? (
+              <p className="text-muted-foreground">Nincs adat</p>
+            ) : (
+              Object.entries(aiUsage!.aggregate.byModel).map(([model, m]) => (
+                <div key={model} className="flex justify-between gap-2">
+                  <span className="truncate text-muted-foreground" title={model}>
+                    {model.replace(/^[^/]+\//, "")}
+                  </span>
+                  <span className="font-medium whitespace-nowrap">{formatHuf(m.huf)}</span>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
@@ -189,6 +249,7 @@ export default function AdminProjectDetail() {
         <TabsList>
           <TabsTrigger value="chapters">Fejezetek</TabsTrigger>
           <TabsTrigger value="characters">Karakterek</TabsTrigger>
+          <TabsTrigger value="ai">AI használat</TabsTrigger>
           <TabsTrigger value="details">Részletek</TabsTrigger>
         </TabsList>
 
@@ -209,6 +270,7 @@ export default function AdminProjectDetail() {
                       <TableHead>Cím</TableHead>
                       <TableHead>Szavak</TableHead>
                       <TableHead>Módosítva</TableHead>
+                      <TableHead className="w-24"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -227,6 +289,16 @@ export default function AdminProjectDetail() {
                           <TableCell>{wordCount.toLocaleString()}</TableCell>
                           <TableCell className="text-muted-foreground">
                             {formatDistanceToNow(new Date(chapter.updated_at), { addSuffix: true, locale: hu })}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setOpenChapter({ ...chapter, word_count: wordCount })}
+                              disabled={!chapter.content}
+                            >
+                              <Eye className="h-4 w-4 mr-1" /> Olvasás
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -280,6 +352,61 @@ export default function AdminProjectDetail() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="ai">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI generálások</CardTitle>
+              <CardDescription>
+                Minden AI hívás ezen a projekten · összesen{" "}
+                {formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!aiUsage || aiUsage.generations.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">
+                  Nincs AI generálási adat
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Művelet</TableHead>
+                      <TableHead>Modell</TableHead>
+                      <TableHead className="text-right">Input</TableHead>
+                      <TableHead className="text-right">Output</TableHead>
+                      <TableHead className="text-right">Költség</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {aiUsage.generations.slice(0, 200).map((g) => (
+                        <TableRow key={g.id}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {format(new Date(g.created_at), "MM.dd HH:mm", { locale: hu })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{g.action_type}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {g.model.replace(/^[^/]+\//, "")}
+                          </TableCell>
+                          <TableCell className="text-right text-xs">
+                            {(g.prompt_tokens || 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-xs">
+                            {(g.completion_tokens || 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-xs font-medium">
+                            {formatHuf(estimateCostHuf(g.model, g.prompt_tokens || 0, g.completion_tokens || 0))}
+                          </TableCell>
+                        </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
         <TabsContent value="details">
           <Card>
             <CardHeader>
@@ -317,6 +444,12 @@ export default function AdminProjectDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ChapterContentModal
+        open={!!openChapter}
+        onOpenChange={(o) => !o && setOpenChapter(null)}
+        chapter={openChapter}
+      />
     </div>
   );
 }

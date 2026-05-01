@@ -20,13 +20,20 @@ import {
   Ban,
   Key,
   Send,
-  ExternalLink
+  ExternalLink,
+  Sparkles,
+  Coins,
+  TrendingDown,
+  Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { hu } from "date-fns/locale";
 
 import { useUserDetails } from "@/hooks/admin/useUserDetails";
+import { useUserAIUsage } from "@/hooks/admin/useUserAIUsage";
+import { useUserRevenue } from "@/hooks/admin/useUserRevenue";
+import { formatHuf, estimateCostHuf } from "@/lib/aiCostEstimator";
 import { useState } from "react";
 import { EditUserModal } from "@/components/admin/EditUserModal";
 import { SendEmailModal } from "@/components/admin/SendEmailModal";
@@ -34,6 +41,8 @@ import { SendEmailModal } from "@/components/admin/SendEmailModal";
 export default function AdminUserDetail() {
   const { id } = useParams();
   const { data: user, isLoading, refetch } = useUserDetails(id);
+  const { data: aiUsage } = useUserAIUsage(id);
+  const { data: revenue } = useUserRevenue(id);
   
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
@@ -132,62 +141,131 @@ export default function AdminUserDetail() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Projektek
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{user.stats.totalProjects}</p>
-            <p className="text-xs text-muted-foreground">
-              {user.stats.projectsThisMonth} ebben a hónapban
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Szavak összesen
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{user.stats.totalWords.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">
-              {user.stats.totalChapters} fejezetben
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Havi használat
+              <Sparkles className="h-4 w-4" />
+              AI tokenek
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">
+              {(aiUsage?.aggregate.totalTokens ?? 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {(aiUsage?.aggregate.generationCount ?? 0)} hívás
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Coins className="h-4 w-4" />
+              AI költség (összes)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">becsült</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Wallet className="h-4 w-4" />
+              Bevétel (összes)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatHuf(revenue?.totalRevenueHuf ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">
+              előfizetés + vásárlások
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              {((revenue?.totalRevenueHuf ?? 0) - (aiUsage?.aggregate.totalHuf ?? 0)) >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-destructive" />
+              )}
+              Profit / veszteség
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const rev = revenue?.totalRevenueHuf ?? 0;
+              const cost = aiUsage?.aggregate.totalHuf ?? 0;
+              const profit = rev - cost;
+              const margin = rev > 0 ? (profit / rev) * 100 : 0;
+              const positive = profit >= 0;
+              return (
+                <>
+                  <p className={`text-2xl font-bold ${positive ? "text-emerald-600" : "text-destructive"}`}>
+                    {formatHuf(profit)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {rev > 0 ? `${margin.toFixed(0)}% margin` : "nincs bevétel"}
+                  </p>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Original usage stats moved to secondary row */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <BookOpen className="h-3 w-3" /> Projektek
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{user.stats.totalProjects}</p>
+            <p className="text-xs text-muted-foreground">{user.stats.projectsThisMonth} ebben a hónapban</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <FileText className="h-3 w-3" /> Szavak
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{user.stats.totalWords.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">{user.stats.totalChapters} fejezet</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <TrendingUp className="h-3 w-3" /> Havi használat
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-medium">
               {user.stats.wordsThisMonth.toLocaleString()} / {user.monthly_word_limit.toLocaleString()}
             </p>
             <Progress value={usagePercent} className="mt-2" />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Extra egyenleg
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <CreditCard className="h-3 w-3" /> Extra szó
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{user.extra_words_balance.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">szó</p>
+            <p className="text-lg font-semibold">{user.extra_words_balance.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">szó egyenleg</p>
           </CardContent>
         </Card>
       </div>
@@ -196,6 +274,8 @@ export default function AdminUserDetail() {
       <Tabs defaultValue="projects">
         <TabsList>
           <TabsTrigger value="projects">Projektek</TabsTrigger>
+          <TabsTrigger value="finance">Pénzügy</TabsTrigger>
+          <TabsTrigger value="ai">AI használat</TabsTrigger>
           <TabsTrigger value="subscription">Előfizetés</TabsTrigger>
           <TabsTrigger value="activity">Tevékenység</TabsTrigger>
           <TabsTrigger value="actions">Műveletek</TabsTrigger>
@@ -324,6 +404,207 @@ export default function AdminUserDetail() {
                   Felhasználó tiltása
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="finance" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Előfizetés</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{formatHuf(revenue?.subscriptionTotalHuf ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatHuf(revenue?.monthlyPriceHuf ?? 0)} / hó · {revenue?.monthsActive ?? 0} hónap
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Extra szó vásárlások</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{formatHuf(revenue?.creditPurchasesTotalHuf ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {revenue?.creditPurchases.filter((p) => p.status === "completed").length ?? 0} db tranzakció
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Hangoskönyv perc</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{formatHuf(revenue?.audiobookPurchasesTotalHuf ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {revenue?.audiobookPurchases.filter((p) => p.status === "completed").length ?? 0} db tranzakció
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {(revenue?.creditPurchases.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Extra szó vásárlások</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Szavak</TableHead>
+                      <TableHead>Összeg</TableHead>
+                      <TableHead>Státusz</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {revenue!.creditPurchases.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {format(new Date(p.created_at), "yyyy.MM.dd HH:mm", { locale: hu })}
+                        </TableCell>
+                        <TableCell>{p.words_purchased.toLocaleString()}</TableCell>
+                        <TableCell className="font-medium">
+                          {formatHuf(Math.round((p.amount || 0) / 100))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={p.status === "completed" ? "default" : "secondary"}>
+                            {p.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {(revenue?.audiobookPurchases.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Hangoskönyv perc vásárlások</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Perc</TableHead>
+                      <TableHead>Összeg</TableHead>
+                      <TableHead>Státusz</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {revenue!.audiobookPurchases.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {format(new Date(p.created_at), "yyyy.MM.dd HH:mm", { locale: hu })}
+                        </TableCell>
+                        <TableCell>{p.minutes_purchased}</TableCell>
+                        <TableCell className="font-medium">
+                          {formatHuf(Math.round((p.amount || 0) / 100))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={p.status === "completed" ? "default" : "secondary"}>
+                            {p.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Profit / veszteség összesítő</CardTitle>
+              <CardDescription>Bevétel a felhasználótól mínusz becsült AI költség</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Összes bevétel</span>
+                <span className="font-medium">{formatHuf(revenue?.totalRevenueHuf ?? 0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Összes AI költség</span>
+                <span className="font-medium">− {formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="font-medium">Eredmény</span>
+                {(() => {
+                  const profit = (revenue?.totalRevenueHuf ?? 0) - (aiUsage?.aggregate.totalHuf ?? 0);
+                  return (
+                    <span className={`font-bold ${profit >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                      {formatHuf(profit)}
+                    </span>
+                  );
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ai">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI generálások</CardTitle>
+              <CardDescription>
+                Összes hívás · {formatHuf(aiUsage?.aggregate.totalHuf ?? 0)} becsült költség
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!aiUsage || aiUsage.generations.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">Nincs AI generálási adat</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Művelet</TableHead>
+                      <TableHead>Modell</TableHead>
+                      <TableHead className="text-right">Tokens</TableHead>
+                      <TableHead className="text-right">Költség</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {aiUsage.generations.slice(0, 200).map((g) => (
+                      <TableRow key={g.id}>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(g.created_at), "MM.dd HH:mm", { locale: hu })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">{g.action_type}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">
+                          {g.model.replace(/^[^/]+\//, "")}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {((g.prompt_tokens || 0) + (g.completion_tokens || 0)).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-medium">
+                          {formatHuf(estimateCostHuf(g.model, g.prompt_tokens || 0, g.completion_tokens || 0))}
+                        </TableCell>
+                        <TableCell>
+                          {g.project_id && (
+                            <Button asChild variant="ghost" size="sm">
+                              <Link to={`/admin/projects/${g.project_id}`}>
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
