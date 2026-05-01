@@ -274,6 +274,8 @@ export default function AdminUserDetail() {
       <Tabs defaultValue="projects">
         <TabsList>
           <TabsTrigger value="projects">Projektek</TabsTrigger>
+          <TabsTrigger value="finance">Pénzügy</TabsTrigger>
+          <TabsTrigger value="ai">AI használat</TabsTrigger>
           <TabsTrigger value="subscription">Előfizetés</TabsTrigger>
           <TabsTrigger value="activity">Tevékenység</TabsTrigger>
           <TabsTrigger value="actions">Műveletek</TabsTrigger>
