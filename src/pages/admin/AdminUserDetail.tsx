@@ -141,62 +141,131 @@ export default function AdminUserDetail() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Projektek
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{user.stats.totalProjects}</p>
-            <p className="text-xs text-muted-foreground">
-              {user.stats.projectsThisMonth} ebben a hónapban
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Szavak összesen
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{user.stats.totalWords.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">
-              {user.stats.totalChapters} fejezetben
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Havi használat
+              <Sparkles className="h-4 w-4" />
+              AI tokenek
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">
+              {(aiUsage?.aggregate.totalTokens ?? 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {(aiUsage?.aggregate.generationCount ?? 0)} hívás
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Coins className="h-4 w-4" />
+              AI költség (összes)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">becsült</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Wallet className="h-4 w-4" />
+              Bevétel (összes)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatHuf(revenue?.totalRevenueHuf ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">
+              előfizetés + vásárlások
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              {((revenue?.totalRevenueHuf ?? 0) - (aiUsage?.aggregate.totalHuf ?? 0)) >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-destructive" />
+              )}
+              Profit / veszteség
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const rev = revenue?.totalRevenueHuf ?? 0;
+              const cost = aiUsage?.aggregate.totalHuf ?? 0;
+              const profit = rev - cost;
+              const margin = rev > 0 ? (profit / rev) * 100 : 0;
+              const positive = profit >= 0;
+              return (
+                <>
+                  <p className={`text-2xl font-bold ${positive ? "text-emerald-600" : "text-destructive"}`}>
+                    {formatHuf(profit)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {rev > 0 ? `${margin.toFixed(0)}% margin` : "nincs bevétel"}
+                  </p>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Original usage stats moved to secondary row */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <BookOpen className="h-3 w-3" /> Projektek
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{user.stats.totalProjects}</p>
+            <p className="text-xs text-muted-foreground">{user.stats.projectsThisMonth} ebben a hónapban</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <FileText className="h-3 w-3" /> Szavak
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{user.stats.totalWords.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">{user.stats.totalChapters} fejezet</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <TrendingUp className="h-3 w-3" /> Havi használat
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm font-medium">
               {user.stats.wordsThisMonth.toLocaleString()} / {user.monthly_word_limit.toLocaleString()}
             </p>
             <Progress value={usagePercent} className="mt-2" />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Extra egyenleg
+            <CardTitle className="text-xs text-muted-foreground flex items-center gap-2">
+              <CreditCard className="h-3 w-3" /> Extra szó
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{user.extra_words_balance.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">szó</p>
+            <p className="text-lg font-semibold">{user.extra_words_balance.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">szó egyenleg</p>
           </CardContent>
         </Card>
       </div>
