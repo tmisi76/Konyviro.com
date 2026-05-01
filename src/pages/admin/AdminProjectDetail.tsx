@@ -249,6 +249,7 @@ export default function AdminProjectDetail() {
         <TabsList>
           <TabsTrigger value="chapters">Fejezetek</TabsTrigger>
           <TabsTrigger value="characters">Karakterek</TabsTrigger>
+          <TabsTrigger value="ai">AI használat</TabsTrigger>
           <TabsTrigger value="details">Részletek</TabsTrigger>
         </TabsList>
 
@@ -269,6 +270,7 @@ export default function AdminProjectDetail() {
                       <TableHead>Cím</TableHead>
                       <TableHead>Szavak</TableHead>
                       <TableHead>Módosítva</TableHead>
+                      <TableHead className="w-24"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -287,6 +289,16 @@ export default function AdminProjectDetail() {
                           <TableCell>{wordCount.toLocaleString()}</TableCell>
                           <TableCell className="text-muted-foreground">
                             {formatDistanceToNow(new Date(chapter.updated_at), { addSuffix: true, locale: hu })}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setOpenChapter({ ...chapter, word_count: wordCount })}
+                              disabled={!chapter.content}
+                            >
+                              <Eye className="h-4 w-4 mr-1" /> Olvasás
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
