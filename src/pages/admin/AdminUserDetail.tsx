@@ -407,6 +407,207 @@ export default function AdminUserDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="finance" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Előfizetés</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{formatHuf(revenue?.subscriptionTotalHuf ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatHuf(revenue?.monthlyPriceHuf ?? 0)} / hó · {revenue?.monthsActive ?? 0} hónap
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Extra szó vásárlások</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{formatHuf(revenue?.creditPurchasesTotalHuf ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {revenue?.creditPurchases.filter((p) => p.status === "completed").length ?? 0} db tranzakció
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Hangoskönyv perc</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{formatHuf(revenue?.audiobookPurchasesTotalHuf ?? 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {revenue?.audiobookPurchases.filter((p) => p.status === "completed").length ?? 0} db tranzakció
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {(revenue?.creditPurchases.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Extra szó vásárlások</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Szavak</TableHead>
+                      <TableHead>Összeg</TableHead>
+                      <TableHead>Státusz</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {revenue!.creditPurchases.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {format(new Date(p.created_at), "yyyy.MM.dd HH:mm", { locale: hu })}
+                        </TableCell>
+                        <TableCell>{p.words_purchased.toLocaleString()}</TableCell>
+                        <TableCell className="font-medium">
+                          {formatHuf(Math.round((p.amount || 0) / 100))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={p.status === "completed" ? "default" : "secondary"}>
+                            {p.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {(revenue?.audiobookPurchases.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Hangoskönyv perc vásárlások</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Perc</TableHead>
+                      <TableHead>Összeg</TableHead>
+                      <TableHead>Státusz</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {revenue!.audiobookPurchases.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {format(new Date(p.created_at), "yyyy.MM.dd HH:mm", { locale: hu })}
+                        </TableCell>
+                        <TableCell>{p.minutes_purchased}</TableCell>
+                        <TableCell className="font-medium">
+                          {formatHuf(Math.round((p.amount || 0) / 100))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={p.status === "completed" ? "default" : "secondary"}>
+                            {p.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Profit / veszteség összesítő</CardTitle>
+              <CardDescription>Bevétel a felhasználótól mínusz becsült AI költség</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Összes bevétel</span>
+                <span className="font-medium">{formatHuf(revenue?.totalRevenueHuf ?? 0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Összes AI költség</span>
+                <span className="font-medium">− {formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-2">
+                <span className="font-medium">Eredmény</span>
+                {(() => {
+                  const profit = (revenue?.totalRevenueHuf ?? 0) - (aiUsage?.aggregate.totalHuf ?? 0);
+                  return (
+                    <span className={`font-bold ${profit >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                      {formatHuf(profit)}
+                    </span>
+                  );
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ai">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI generálások</CardTitle>
+              <CardDescription>
+                Összes hívás · {formatHuf(aiUsage?.aggregate.totalHuf ?? 0)} becsült költség
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!aiUsage || aiUsage.generations.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">Nincs AI generálási adat</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Művelet</TableHead>
+                      <TableHead>Modell</TableHead>
+                      <TableHead className="text-right">Tokens</TableHead>
+                      <TableHead className="text-right">Költség</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {aiUsage.generations.slice(0, 200).map((g) => (
+                      <TableRow key={g.id}>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(g.created_at), "MM.dd HH:mm", { locale: hu })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">{g.action_type}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">
+                          {g.model.replace(/^[^/]+\//, "")}
+                        </TableCell>
+                        <TableCell className="text-right text-xs">
+                          {((g.prompt_tokens || 0) + (g.completion_tokens || 0)).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-medium">
+                          {formatHuf(estimateCostHuf(g.model, g.prompt_tokens || 0, g.completion_tokens || 0))}
+                        </TableCell>
+                        <TableCell>
+                          {g.project_id && (
+                            <Button asChild variant="ghost" size="sm">
+                              <Link to={`/admin/projects/${g.project_id}`}>
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Modals */}
