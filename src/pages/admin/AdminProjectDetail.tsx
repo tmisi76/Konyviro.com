@@ -444,6 +444,12 @@ export default function AdminProjectDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ChapterContentModal
+        open={!!openChapter}
+        onOpenChange={(o) => !o && setOpenChapter(null)}
+        chapter={openChapter}
+      />
     </div>
   );
 }
