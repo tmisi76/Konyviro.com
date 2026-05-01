@@ -20,13 +20,20 @@ import {
   Ban,
   Key,
   Send,
-  ExternalLink
+  ExternalLink,
+  Sparkles,
+  Coins,
+  TrendingDown,
+  Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { hu } from "date-fns/locale";
 
 import { useUserDetails } from "@/hooks/admin/useUserDetails";
+import { useUserAIUsage } from "@/hooks/admin/useUserAIUsage";
+import { useUserRevenue } from "@/hooks/admin/useUserRevenue";
+import { formatHuf, estimateCostHuf } from "@/lib/aiCostEstimator";
 import { useState } from "react";
 import { EditUserModal } from "@/components/admin/EditUserModal";
 import { SendEmailModal } from "@/components/admin/SendEmailModal";
@@ -34,6 +41,8 @@ import { SendEmailModal } from "@/components/admin/SendEmailModal";
 export default function AdminUserDetail() {
   const { id } = useParams();
   const { data: user, isLoading, refetch } = useUserDetails(id);
+  const { data: aiUsage } = useUserAIUsage(id);
+  const { data: revenue } = useUserRevenue(id);
   
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
