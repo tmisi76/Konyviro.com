@@ -353,6 +353,82 @@ export default function AdminProjectDetail() {
         </TabsContent>
 
         <TabsContent value="details">
+          {/* details below */}
+        </TabsContent>
+        <TabsContent value="ai">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI generálások</CardTitle>
+              <CardDescription>
+                Minden AI hívás ezen a projekten · összesen{" "}
+                {formatHuf(aiUsage?.aggregate.totalHuf ?? 0)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!aiUsage || aiUsage.generations.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">
+                  Nincs AI generálási adat
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Dátum</TableHead>
+                      <TableHead>Művelet</TableHead>
+                      <TableHead>Modell</TableHead>
+                      <TableHead className="text-right">Input</TableHead>
+                      <TableHead className="text-right">Output</TableHead>
+                      <TableHead className="text-right">Költség</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {aiUsage.generations.slice(0, 200).map((g) => {
+                      const huf =
+                        (aiUsage.aggregate.byModel[g.model]?.huf ?? 0) > 0
+                          ? // per-row cost
+                            ((g.prompt_tokens || 0) +
+                              (g.completion_tokens || 0)) > 0
+                            ? // estimate inline
+                              (() => {
+                                // call estimator inline to avoid extra import noise
+                                return null;
+                              })()
+                            : null
+                          : null;
+                      return (
+                        <TableRow key={g.id}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {format(new Date(g.created_at), "MM.dd HH:mm", { locale: hu })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{g.action_type}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {g.model.replace(/^[^/]+\//, "")}
+                          </TableCell>
+                          <TableCell className="text-right text-xs">
+                            {(g.prompt_tokens || 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-xs">
+                            {(g.completion_tokens || 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-xs font-medium">
+                            <RowCost
+                              model={g.model}
+                              promptTokens={g.prompt_tokens || 0}
+                              completionTokens={g.completion_tokens || 0}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="details-old" className="hidden">
           <Card>
             <CardHeader>
               <CardTitle>Projekt részletek</CardTitle>
