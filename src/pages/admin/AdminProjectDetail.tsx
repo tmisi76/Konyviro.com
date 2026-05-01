@@ -28,7 +28,7 @@ import { useState } from "react";
 import { useProjectDetails } from "@/hooks/admin/useAdminProjects";
 import { useProjectAIUsage } from "@/hooks/admin/useProjectAIUsage";
 import { ChapterContentModal } from "@/components/admin/ChapterContentModal";
-import { formatHuf } from "@/lib/aiCostEstimator";
+import { formatHuf, estimateCostHuf } from "@/lib/aiCostEstimator";
 
 export default function AdminProjectDetail() {
   const { id } = useParams();
