@@ -352,9 +352,6 @@ export default function AdminProjectDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="details">
-          {/* details below */}
-        </TabsContent>
         <TabsContent value="ai">
           <Card>
             <CardHeader>
@@ -382,20 +379,7 @@ export default function AdminProjectDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {aiUsage.generations.slice(0, 200).map((g) => {
-                      const huf =
-                        (aiUsage.aggregate.byModel[g.model]?.huf ?? 0) > 0
-                          ? // per-row cost
-                            ((g.prompt_tokens || 0) +
-                              (g.completion_tokens || 0)) > 0
-                            ? // estimate inline
-                              (() => {
-                                // call estimator inline to avoid extra import noise
-                                return null;
-                              })()
-                            : null
-                          : null;
-                      return (
+                    {aiUsage.generations.slice(0, 200).map((g) => (
                         <TableRow key={g.id}>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {format(new Date(g.created_at), "MM.dd HH:mm", { locale: hu })}
@@ -413,22 +397,17 @@ export default function AdminProjectDetail() {
                             {(g.completion_tokens || 0).toLocaleString()}
                           </TableCell>
                           <TableCell className="text-right text-xs font-medium">
-                            <RowCost
-                              model={g.model}
-                              promptTokens={g.prompt_tokens || 0}
-                              completionTokens={g.completion_tokens || 0}
-                            />
+                            {formatHuf(estimateCostHuf(g.model, g.prompt_tokens || 0, g.completion_tokens || 0))}
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
+                    ))}
                   </TableBody>
                 </Table>
               )}
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="details-old" className="hidden">
+        <TabsContent value="details">
           <Card>
             <CardHeader>
               <CardTitle>Projekt részletek</CardTitle>
